@@ -1602,6 +1602,15 @@ class RayPPOTrainer:
                 n_gpus = self.resource_pool_manager.get_n_gpus()
                 metrics.update(compute_throughout_metrics(batch=batch, timing_raw=timing_raw, n_gpus=n_gpus))
 
+                # Large model (SkillUpdater) cumulative token counts
+                if hasattr(self, 'skill_updater'):
+                    summary = self.skill_updater.get_update_summary()
+                    metrics.update({
+                        "tokens/large_model/prompt_cumulative": summary.get('large_model_prompt_tokens', 0),
+                        "tokens/large_model/completion_cumulative": summary.get('large_model_completion_tokens', 0),
+                        "tokens/large_model/total_cumulative": summary.get('large_model_total_tokens', 0),
+                    })
+
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)
 

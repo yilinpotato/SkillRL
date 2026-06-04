@@ -8,8 +8,14 @@ export RAY_BACKEND_LOG_LEVEL=debug
 export VLLM_LOGGING_LEVEL=DEBUG
 
 # export WANDB_API_KEY=""
-# export MODEL_PATH=""
-export WANDB_NAME="alfworld_grpo_qwen2.5_1.5b_sft_140steps_skills_dynamic"
+# Small model (actor, trained locally)
+export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
+export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
+# Large model (SkillUpdater skill generation via DeepSeek API)
+export SKILL_UPDATER_BACKEND="deepseek"
+# export DEEPSEEK_API_KEY=""
+export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
+export WANDB_NAME="alfworld_grpo_qwen3_4b_thinking_skills_dynamic_lora"
 
 num_cpus_per_env_worker=0.1 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
@@ -35,6 +41,9 @@ python3 -m verl.trainer.main_ppo \
     data.truncation='error' \
     data.return_raw_chat=True \
     actor_rollout_ref.model.path=$MODEL_PATH \
+    actor_rollout_ref.model.lora_rank=32 \
+    actor_rollout_ref.model.lora_alpha=64 \
+    actor_rollout_ref.model.target_modules=all-linear \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=128 \
@@ -76,7 +85,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name='verl_agent_alfworld' \
-    trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic' \
+    trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.save_freq=10 \

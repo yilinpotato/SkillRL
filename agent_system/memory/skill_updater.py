@@ -1,17 +1,19 @@
 """
 LLM-based skill updater that generates new skills from failed trajectories.
-Uses Azure OpenAI o3 model for analysis.
 
-Required environment variables:
-    AZURE_OPENAI_API_KEY      – Azure OpenAI API key
-    AZURE_OPENAI_ENDPOINT     – Azure OpenAI endpoint URL
-    AZURE_OPENAI_API_VERSION  – API version (default: 2025-01-01-preview)
+Backend is selected via the SKILL_UPDATER_BACKEND environment variable:
+  "deepseek"  (default) – DeepSeek API (OpenAI-compatible)
+      DEEPSEEK_API_KEY      – DeepSeek API key
+      DEEPSEEK_API_BASE     – base URL (default: https://api.deepseek.com/v1)
+      DEEPSEEK_MODEL        – model name (default: deepseek-chat)
+  "azure"                  – Azure OpenAI
+      AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_VERSION
 """
 import json
 import os
 import re
 from typing import List, Dict, Any, Optional
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 
 
 class SkillUpdater:
@@ -20,26 +22,37 @@ class SkillUpdater:
         max_new_skills_per_update: int = 3,
         max_completion_tokens: int = 2048,
     ):
-        # Read credentials from environment variables — never hardcode secrets.
-        api_key = os.environ.get("AZURE_OPENAI_API_KEY")
-        endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
-        api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
+        backend = os.environ.get("SKILL_UPDATER_BACKEND", "deepseek").lower()
 
-        if not api_key or not endpoint:
-            raise EnvironmentError(
-                "SkillUpdater requires AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT "
-                "environment variables to be set."
+        if backend == "azure":
+            api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+            endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+            api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
+            if not api_key or not endpoint:
+                raise EnvironmentError(
+                    "SkillUpdater (azure) requires AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT."
+                )
+            self.client = AzureOpenAI(
+                api_key=api_key,
+                azure_endpoint=endpoint,
+                api_version=api_version,
             )
+            self.model = "o3"
+        else:  # deepseek
+            api_key = os.environ.get("DEEPSEEK_API_KEY")
+            if not api_key:
+                raise EnvironmentError("SkillUpdater (deepseek) requires DEEPSEEK_API_KEY.")
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url=os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1"),
+            )
+            self.model = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 
-        self.client = AzureOpenAI(
-            api_key=api_key,
-            azure_endpoint=endpoint,
-            api_version=api_version,
-        )
-        self.model = "o3"
         self.max_completion_tokens = max_completion_tokens
         self.max_new_skills_per_update = max_new_skills_per_update
         self.update_history = []
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
 
     def analyze_failures(
         self,
@@ -80,6 +93,11 @@ class SkillUpdater:
             )
             raw_skills = self._parse_skills_response(response.choices[0].message.content)
 
+            # Track token usage
+            if hasattr(response, 'usage') and response.usage:
+                self.total_prompt_tokens += response.usage.prompt_tokens
+                self.total_completion_tokens += response.usage.completion_tokens
+
             # Reassign dyn_ IDs on our side to guarantee no collisions,
             # regardless of what the LLM returned.
             reassigned = self._reassign_dyn_ids(raw_skills, next_dyn_idx)
@@ -93,7 +111,7 @@ class SkillUpdater:
             return reassigned[:self.max_new_skills_per_update]
 
         except Exception as e:
-            print(f"[SkillUpdater] Error calling o3: {e}")
+            print(f"[SkillUpdater] Error calling {self.model}: {e}")
             return []
 
     # ------------------------------------------------------------------ #
@@ -210,4 +228,7 @@ Example format:
             'total_updates': len(self.update_history),
             'total_skills_generated': sum(h['num_skills_generated'] for h in self.update_history),
             'all_skill_ids': [sid for h in self.update_history for sid in h['skill_ids']],
+            'large_model_prompt_tokens': self.total_prompt_tokens,
+            'large_model_completion_tokens': self.total_completion_tokens,
+            'large_model_total_tokens': self.total_prompt_tokens + self.total_completion_tokens,
         }

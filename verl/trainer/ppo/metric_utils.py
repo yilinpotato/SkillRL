@@ -185,6 +185,10 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
         # "episode/tool_call_count/min":
         #     batch.non_tensor_batch["tool_callings"][unique_idx].min().item(),
         **({f"episode/{k}": v[0].item() for k, v in batch.non_tensor_batch.items() if "success_rate" in k}),
+        # Small model (actor) token counts this step
+        "tokens/small_model/prompt": torch.sum(prompt_length).detach().item(),
+        "tokens/small_model/response": torch.sum(response_length).detach().item(),
+        "tokens/small_model/total": (torch.sum(prompt_length) + torch.sum(response_length)).detach().item(),
     }
     return metrics
 
