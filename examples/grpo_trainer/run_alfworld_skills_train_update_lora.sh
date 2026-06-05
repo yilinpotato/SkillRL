@@ -9,7 +9,7 @@ export VLLM_LOGGING_LEVEL=DEBUG
 
 # export WANDB_API_KEY=""
 # Small model (actor, trained locally)
-export CACHE_ROOT="${CACHE_ROOT:-/XYAIFS00/HOME/hit_wxia/hit_wxiaxy_1/.cache}"
+export CACHE_ROOT="${CACHE_ROOT:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache}"
 export MODEL_PATH="${MODEL_PATH:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/myl/model/Qwen3-4B-Thinking-2507}"
 # Large model (SkillUpdater skill generation via DeepSeek API)
 export SKILL_UPDATER_BACKEND="deepseek"
@@ -19,7 +19,7 @@ export WANDB_NAME="alfworld_grpo_qwen3_4b_thinking_skills_dynamic_lora"
 
 num_cpus_per_env_worker=0.1 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
-train_data_size=12  # Moderate size
+train_data_size=12  # Must be divisible by n_gpus (1)
 val_data_size=32    # Moderate size
 group_size=6        # Moderate parallelism
 
@@ -86,7 +86,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.logger=['console','wandb'] \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
-    trainer.n_gpus_per_node=8 \
+    trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
