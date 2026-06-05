@@ -18,11 +18,11 @@ export SKILL_UPDATER_BACKEND="deepseek"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 export WANDB_NAME="alfworld_grpo_qwen3_4b_thinking_skills_dynamic_lora"
 
-num_cpus_per_env_worker=0.2 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
+num_cpus_per_env_worker=0.1 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
-train_data_size=12  # Must be divisible by n_gpus (1)
-val_data_size=32    # Moderate size
-group_size=6        # Moderate parallelism
+train_data_size=12  # Minimal test (divisible by 1)
+val_data_size=32    # Minimal test
+group_size=6        # Minimal parallelism
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -47,7 +47,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.target_modules=all-linear \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=72 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=36 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.01 \
@@ -58,9 +58,9 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
-    actor_rollout_ref.rollout.enforce_eager=False \
+    actor_rollout_ref.rollout.enforce_eager=True \
     actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
     actor_rollout_ref.rollout.max_num_seqs=512 \
@@ -84,7 +84,7 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.update_threshold=0.4 \
     +env.skills_only_memory.max_new_skills=3 \
     trainer.critic_warmup=0 \
-    trainer.logger=['console','wandb'] \
+    trainer.logger=['console'] \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
     trainer.n_gpus_per_node=1 \
