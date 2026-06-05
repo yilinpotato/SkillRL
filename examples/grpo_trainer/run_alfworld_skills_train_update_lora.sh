@@ -7,6 +7,16 @@ export VLLM_ATTENTION_BACKEND=FLASH_ATTN
 export RAY_BACKEND_LOG_LEVEL=debug
 export VLLM_LOGGING_LEVEL=DEBUG
 
+# 强制离线模式
+export HF_DATASETS_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_HUB_OFFLINE=1
+export RAY_IGNORE_HTTP_PROXY=1
+
+export HF_HOME=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/hf
+export HF_DATASETS_CACHE=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/datasets
+export TRANSFORMERS_CACHE=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/hf
+
 # export WANDB_API_KEY=""
 # Small model (actor, trained locally)
 export CACHE_ROOT="${CACHE_ROOT:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache}"
