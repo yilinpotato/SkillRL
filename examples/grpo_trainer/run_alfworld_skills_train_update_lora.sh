@@ -18,7 +18,7 @@ export SKILL_UPDATER_BACKEND="deepseek"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 export WANDB_NAME="alfworld_grpo_qwen3_4b_thinking_skills_dynamic_lora"
 
-num_cpus_per_env_worker=0.1 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
+num_cpus_per_env_worker=0.2 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
 train_data_size=12  # Must be divisible by n_gpus (1)
 val_data_size=32    # Moderate size
