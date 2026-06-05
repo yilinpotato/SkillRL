@@ -9,8 +9,8 @@ export VLLM_LOGGING_LEVEL=DEBUG
 
 # export WANDB_API_KEY=""
 # Small model (actor, trained locally)
-export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
-export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
+export CACHE_ROOT="${CACHE_ROOT:-/XYAIFS00/HOME/hit_wxia/hit_wxiaxy_1/.cache}"
+export MODEL_PATH="${MODEL_PATH:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/myl/model/Qwen3-4B-Thinking-2507}"
 # Large model (SkillUpdater skill generation via DeepSeek API)
 export SKILL_UPDATER_BACKEND="deepseek"
 # export DEEPSEEK_API_KEY=""
