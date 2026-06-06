@@ -27,7 +27,13 @@ export MODEL_PATH="${MODEL_PATH:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/myl/mo
 export SKILL_UPDATER_BACKEND="deepseek"
 # export DEEPSEEK_API_KEY=""
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
-export WANDB_NAME="alfworld_grpo_qwen3_4b_thinking_skills_dynamic_lora"
+
+# All run outputs (checkpoints, updated skills, and the training log) are collected here.
+PROJECT_NAME="verl_agent_alfworld"
+EXPERIMENT_NAME="grpo_qwen2.5_7b_skills_dynamic_lora"
+OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
+mkdir -p "$OUTPUT_DIR"
+echo "All run outputs will be saved to: $OUTPUT_DIR"
 
 num_cpus_per_env_worker=0.5 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
@@ -103,10 +109,11 @@ python3 -m verl.trainer.main_ppo \
     trainer.logger=['console'] \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
+    trainer.default_local_dir="$OUTPUT_DIR" \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
     trainer.total_epochs=150 \
-    trainer.val_before_train=False $@
+    trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"
