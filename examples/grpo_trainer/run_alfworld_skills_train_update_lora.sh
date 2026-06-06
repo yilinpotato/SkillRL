@@ -29,7 +29,7 @@ export SKILL_UPDATER_BACKEND="deepseek"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 export WANDB_NAME="alfworld_grpo_qwen3_4b_thinking_skills_dynamic_lora"
 
-num_cpus_per_env_worker=0.15 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
+num_cpus_per_env_worker=0.5 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
 train_data_size=12  # Minimal test (divisible by 1)
 val_data_size=32    # Minimal test
@@ -100,7 +100,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
-    trainer.ray_wait_register_center_timeout=600 \
+    trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
     trainer.total_epochs=150 \
