@@ -28,7 +28,7 @@ echo "All run outputs will be saved to: $OUTPUT_DIR"
 # Per-step training metrics are appended here as one JSON object per line.
 export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
 
-num_cpus_per_env_worker=0.5 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
+num_cpus_per_env_worker=0.4 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
