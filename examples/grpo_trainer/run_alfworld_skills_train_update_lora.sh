@@ -2,6 +2,7 @@ set -x
 ENGINE=${1:-vllm}
 shift  # Remove first argument so $@ only contains extra params
 export VLLM_ATTENTION_BACKEND=FLASH_ATTN
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Enable more verbose logging
 export RAY_BACKEND_LOG_LEVEL=debug
@@ -20,31 +21,36 @@ export TRANSFORMERS_CACHE=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/hf
 
 # export WANDB_API_KEY=""
 # Small model (actor, trained locally)
-export CACHE_ROOT="${CACHE_ROOT:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache}"
-export HF_HOME="${HF_HOME:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/huggingface}"
-export MODEL_PATH="${MODEL_PATH:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/myl/model/Qwen3-4B-Thinking-2507}"
-# Large model (SkillUpdater skill generation via DeepSeek API)
+export CACHE_ROOT="${CACHE_ROOT:-/data2/myl/home_configs/.cache}"
+export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
+export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/
+}"
+# Skill-retrieval embedding model (dedicated 0.6B encoder, NOT the 4B actor —
+# loading the 4B LM as an encoder caused CPU-RAM OOM). ~0.6B, light on memory.
+export EMBEDDING_MODEL_PATH="${EMBEDDING_MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-Embedding-0.6B}"
+# Large model (CoSkill CloudAnalyzer contrastive distillation via DeepSeek API)
 export SKILL_UPDATER_BACKEND="deepseek"
 # export DEEPSEEK_API_KEY=""
-export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
+# CoSkill cloud model: DeepSeek V4 Flash
+export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
 PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="grpo_qwen2.5_7b_skills_dynamic_lora"
+EXPERIMENT_NAME="grpo_qwen3-4b_co_skill"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 
-num_cpus_per_env_worker=0.5 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
+num_cpus_per_env_worker=0.35 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
-ray start --head --num-cpus=100 --num-gpus=1
+ray start --head --num-cpus=48 --num-gpus=2
 sleep 3
 
-train_data_size=12  # Minimal test (divisible by 1)
-val_data_size=32    # Minimal test
-group_size=6        # Minimal parallelism
+train_data_size=1  # Minimal test (divisible by 1)
+val_data_size=1    # Minimal test
+group_size=1       # Minimal parallelism
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -80,7 +86,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
     actor_rollout_ref.rollout.enforce_eager=True \
     actor_rollout_ref.rollout.free_cache_engine=False \
@@ -105,10 +111,23 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.update_skills_from_train=True \
     +env.skills_only_memory.update_threshold=0.4 \
     +env.skills_only_memory.max_new_skills=3 \
+    +env.skills_only_memory.enable_coskill=True \
+    +env.skills_only_memory.enable_hierarchy=True \
+    +env.skills_only_memory.retrieval_mode=embedding \
+    +env.skills_only_memory.embedding_model_path="$EMBEDDING_MODEL_PATH" \
+    +env.skills_only_memory.stable_cycles_l1=3 \
+    +env.skills_only_memory.stable_cycles_l2=5 \
+    +env.skills_only_memory.success_l1=0.7 \
+    +env.skills_only_memory.demote_threshold=0.3 \
+    +env.skills_only_memory.enable_internalize=False \
+    +env.traces_pool.capacity_watermark=50000 \
+    +env.traces_pool.perf_watermark=0.6 \
+    +env.traces_pool.min_samples=8 \
+    +env.traces_pool.loop_threshold=3 \
     trainer.critic_warmup=0 \
     trainer.logger=['console'] \
     trainer.project_name='verl_agent_alfworld' \
-    trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
+    trainer.experiment_name='qwen3-4b_co_skill' \
     trainer.default_local_dir="$OUTPUT_DIR" \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
