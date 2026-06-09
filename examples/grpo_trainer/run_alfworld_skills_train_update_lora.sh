@@ -2,7 +2,9 @@ set -x
 ENGINE=${1:-vllm}
 shift  # Remove first argument so $@ only contains extra params
 export VLLM_ATTENTION_BACKEND=FLASH_ATTN
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# NOTE: do NOT set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True here —
+# it is incompatible with vLLM's CuMemAllocator memory pool (sleep mode) and
+# makes vLLM abort at init (see pytorch issue 147851).
 
 # Enable more verbose logging
 export RAY_BACKEND_LOG_LEVEL=debug
