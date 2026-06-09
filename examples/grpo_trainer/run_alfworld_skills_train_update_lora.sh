@@ -101,8 +101,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
-    `# 原值: gpu_memory_utilization=0.5 (降低, 给FSDP训练侧留更多显存)` \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.3 \
+    `# 原值: gpu_memory_utilization=0.5。注意: 不能设太低(如0.3), vLLM权重7.73G+前向峰值2.81G≈10.55G, util*24G需大于此值否则KV cache为负直接报错` \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
     actor_rollout_ref.rollout.enforce_eager=True \
     `# 原值: free_cache_engine=False (改True: 训练阶段释放vLLM KV cache, 缓解权重同步时OOM)` \
