@@ -32,7 +32,7 @@ num_cpus_per_env_worker=0.5 # The CPU resource allocated for each environment wo
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
-ray start --head --num-cpus=56 --num-gpus=2
+ray start --head --num-cpus=50 --num-gpus=2
 sleep 3
 
 train_data_size=12  # Minimal test (divisible by 1)
