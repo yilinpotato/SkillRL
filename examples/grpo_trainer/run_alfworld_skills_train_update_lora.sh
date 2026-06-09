@@ -106,8 +106,8 @@ python3 -m verl.trainer.main_ppo \
     `# load_format默认dummy时, sharding_manager.base_sync_done=False, 首次同步会summon整个4B base模型全参(~8G)与vLLM(~11.8G)叠加撞顶24G。` \
     `# 改safetensors让vLLM启动即加载真实base权重(base_sync_done=True), 之后仅逐层summon LoRA小参数, 避免全参峰值。` \
     actor_rollout_ref.rollout.load_format=safetensors \
-    `# 配合load_format=safetensors使用: 逐层summon LoRA参数而非一次性拉全模型 (默认False)。` \
-    +actor_rollout_ref.rollout.layered_summon=True \
+    `# 配合load_format=safetensors使用: 逐层summon LoRA参数而非一次性拉全模型 (默认False)。该键已在schema中, 用普通赋值不加+前缀。` \
+    actor_rollout_ref.rollout.layered_summon=True \
     `# 原值: gpu_memory_utilization=0.5。注意: 不能设太低(如0.3), vLLM权重7.73G+前向峰值2.81G≈10.55G, util*24G需大于此值否则KV cache为负直接报错` \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
