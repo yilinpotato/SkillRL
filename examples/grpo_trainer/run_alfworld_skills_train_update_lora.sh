@@ -39,9 +39,24 @@ echo "All run outputs will be saved to: $OUTPUT_DIR"
 
 num_cpus_per_env_worker=0.35 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
+# Auto-detect how many GPUs this machine has so the script uses all of them.
+# Respect CUDA_VISIBLE_DEVICES if the user set it, otherwise ask nvidia-smi.
+if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+    NUM_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
+else
+    NUM_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | grep -c .)
+fi
+# Fallback to 1 if detection fails.
+NUM_GPUS=${NUM_GPUS:-1}
+[ "$NUM_GPUS" -lt 1 ] && NUM_GPUS=1
+echo "Detected $NUM_GPUS GPU(s); training will use all of them."
+
+# Auto-detect CPU count too (was hard-coded to 48).
+NUM_CPUS=$(nproc 2>/dev/null || echo 8)
+
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
-ray start --head --num-cpus=48 --num-gpus=2
+ray start --head --num-cpus="$NUM_CPUS" --num-gpus="$NUM_GPUS"
 sleep 3
 
 train_data_size=1  # Minimal test (divisible by 1)
@@ -125,7 +140,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='qwen3-4b_co_skill' \
     trainer.default_local_dir="$OUTPUT_DIR" \
-    trainer.n_gpus_per_node=1 \
+    trainer.n_gpus_per_node=$NUM_GPUS \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
