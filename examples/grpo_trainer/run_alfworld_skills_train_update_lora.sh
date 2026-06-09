@@ -39,12 +39,12 @@ num_cpus_per_env_worker=0.5 # The CPU resource allocated for each environment wo
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
-ray start --head --num-cpus=100 --num-gpus=1
+ray start --head --num-cpus=56 --num-gpus=2
 sleep 3
 
 train_data_size=12  # Minimal test (divisible by 1)
 val_data_size=32    # Minimal test
-group_size=6        # Minimal parallelism
+group_size=6        # GRPO group size (trajectories per prompt)
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -75,12 +75,12 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
-    actor_rollout_ref.actor.fsdp_config.param_offload=True \
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
+    actor_rollout_ref.actor.fsdp_config.param_offload=False \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
     actor_rollout_ref.rollout.name=$ENGINE \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
     actor_rollout_ref.rollout.enforce_eager=True \
     actor_rollout_ref.rollout.free_cache_engine=False \
@@ -88,8 +88,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.max_num_seqs=512 \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
-    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.use_invalid_action_penalty=True \
     actor_rollout_ref.actor.invalid_action_penalty_coef=0.1 \
     algorithm.use_kl_in_reward=False \
@@ -110,7 +110,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
     trainer.default_local_dir="$OUTPUT_DIR" \
-    trainer.n_gpus_per_node=1 \
+    trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
