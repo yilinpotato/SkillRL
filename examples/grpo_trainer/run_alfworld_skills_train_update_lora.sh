@@ -25,6 +25,9 @@ OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 
+# Per-step training metrics are appended here as one JSON object per line.
+export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
+
 num_cpus_per_env_worker=0.5 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
@@ -48,10 +51,10 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$HOME/data/verl-agent/text/test.parquet \
     data.train_batch_size=$train_data_size \
     data.val_batch_size=$val_data_size \
-    data.max_prompt_length=4096 \
+    data.max_prompt_length=8192 \
     data.max_response_length=4096 \
     data.filter_overlong_prompts=True \
-    data.truncation='error' \
+    data.truncation='left' \
     data.return_raw_chat=True \
     actor_rollout_ref.model.path=$MODEL_PATH \
     actor_rollout_ref.model.lora_rank=32 \
@@ -96,7 +99,7 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.update_threshold=0.4 \
     +env.skills_only_memory.max_new_skills=3 \
     trainer.critic_warmup=0 \
-    trainer.logger=['console'] \
+    trainer.logger=['console','jsonl'] \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='grpo_qwen3_4b_skills_dynamic_lora' \
     trainer.default_local_dir="$OUTPUT_DIR" \
