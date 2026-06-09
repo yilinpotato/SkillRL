@@ -7,22 +7,12 @@ export VLLM_ATTENTION_BACKEND=FLASH_ATTN
 export RAY_BACKEND_LOG_LEVEL=debug
 export VLLM_LOGGING_LEVEL=DEBUG
 
-# 强制离线模式
-export HF_DATASETS_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
-export HF_HUB_OFFLINE=1
-export RAY_IGNORE_HTTP_PROXY=1
-export ALFWORLD_DATA="${ALFWORLD_DATA:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/alfworld}"
-
-export HF_HOME=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/hf
-export HF_DATASETS_CACHE=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/datasets
-export TRANSFORMERS_CACHE=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/hf
 
 # export WANDB_API_KEY=""
 # Small model (actor, trained locally)
-export CACHE_ROOT="${CACHE_ROOT:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache}"
-export HF_HOME="${HF_HOME:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/huggingface}"
-export MODEL_PATH="${MODEL_PATH:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/myl/model/Qwen3-4B-Thinking-2507}"
+export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
+export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
+export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 # Large model (SkillUpdater skill generation via DeepSeek API)
 export SKILL_UPDATER_BACKEND="deepseek"
 # export DEEPSEEK_API_KEY=""
@@ -30,7 +20,7 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
 PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="grpo_qwen2.5_7b_skills_dynamic_lora"
+EXPERIMENT_NAME="grpo_qwen3_4b_skills_dynamic_lora"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
@@ -108,7 +98,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console'] \
     trainer.project_name='verl_agent_alfworld' \
-    trainer.experiment_name='grpo_qwen2.5_7b_skills_dynamic_lora' \
+    trainer.experiment_name='grpo_qwen3_4b_skills_dynamic_lora' \
     trainer.default_local_dir="$OUTPUT_DIR" \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
