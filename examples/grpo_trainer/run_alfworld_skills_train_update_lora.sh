@@ -59,9 +59,9 @@ ray stop --force 2>/dev/null || true
 ray start --head --num-cpus="$NUM_CPUS" --num-gpus="$NUM_GPUS"
 sleep 3
 
-train_data_size=1  # Minimal test (divisible by 1)
-val_data_size=1    # Minimal test
-group_size=1       # Minimal parallelism
+train_data_size=2  # Minimal test (divisible by 2)
+val_data_size=2    # Minimal test
+group_size=2       # Minimal parallelism
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
