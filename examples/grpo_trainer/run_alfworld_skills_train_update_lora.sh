@@ -98,7 +98,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
+    `# 原值: rollout.log_prob_micro_batch_size_per_gpu=8 (降低以省前向显存)` \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
     `# 原值: gpu_memory_utilization=0.5。注意: 不能设太低(如0.3), vLLM权重7.73G+前向峰值2.81G≈10.55G, util*24G需大于此值否则KV cache为负直接报错` \
@@ -111,7 +112,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.max_num_seqs=512 \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
+    `# 原值: ref.log_prob_micro_batch_size_per_gpu=4 (降低以省前向显存)` \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.use_invalid_action_penalty=True \
     actor_rollout_ref.actor.invalid_action_penalty_coef=0.1 \
