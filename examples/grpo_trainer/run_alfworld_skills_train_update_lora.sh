@@ -13,7 +13,6 @@ export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 export RAY_IGNORE_HTTP_PROXY=1
-export ALFWORLD_DATA="${ALFWORLD_DATA:-/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/alfworld}"
 
 export HF_HOME=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/hf
 export HF_DATASETS_CACHE=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/datasets
@@ -23,8 +22,7 @@ export TRANSFORMERS_CACHE=/XYAIFS00/HDD_POOL/hit_wxia/hit_wxiaxy_1/cache/hf
 # Small model (actor, trained locally)
 export CACHE_ROOT="${CACHE_ROOT:-/data2/myl/home_configs/.cache}"
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
-export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/
-}"
+export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 # Skill-retrieval embedding model (dedicated 0.6B encoder, NOT the 4B actor —
 # loading the 4B LM as an encoder caused CPU-RAM OOM). ~0.6B, light on memory.
 export EMBEDDING_MODEL_PATH="${EMBEDDING_MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-Embedding-0.6B}"
