@@ -99,8 +99,9 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
-    actor_rollout_ref.actor.fsdp_config.param_offload=True \
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    `# 80GB: 关闭 offload (结果无关)。4B+LoRA 显存充裕, offload 到 CPU 每步搬运参数拖慢 update_actor。参考 A800 脚本 param_offload=False。` \
+    actor_rollout_ref.actor.fsdp_config.param_offload=False \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
     `# 原值: rollout.log_prob_micro_batch_size_per_gpu=8 (降低以省前向显存)` \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
@@ -111,15 +112,16 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.load_format=safetensors \
     `# 配合load_format=safetensors使用: 逐层summon LoRA参数而非一次性拉全模型 (默认False)。该键已在schema中, 用普通赋值不加+前缀。` \
     actor_rollout_ref.rollout.layered_summon=True \
-    `# 原值: gpu_memory_utilization=0.5。注意: 不能设太低(如0.3), vLLM权重7.73G+前向峰值2.81G≈10.55G, util*24G需大于此值否则KV cache为负直接报错` \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+    `# 80GB: util 0.5->0.7 给 vLLM 更多 KV cache 提升生成吞吐 (结果无关)。参考 A800 脚本 util=0.70。` \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.7 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
-    `# enforce_eager 必须=True: verl断言 enforce_eager=False 与 free_cache_engine=True 互斥(每步释放KV cache与CUDA graph不兼容), 而free_cache_engine是解决24G OOM必需的, 故放弃CUDA graph优化` \
-    actor_rollout_ref.rollout.enforce_eager=True \
+    `# 80GB: 开启 CUDA graph 加速 decode (结果无关)。前提 free_cache_engine=False 已满足, 故 verl 的互斥断言不触发。参考 A800 脚本同样 enforce_eager=False + load_format=safetensors 稳定运行。` \
+    actor_rollout_ref.rollout.enforce_eager=False \
     `# 原值: free_cache_engine=False (改True: 训练阶段释放vLLM KV cache, 缓解权重同步时OOM)` \
     actor_rollout_ref.rollout.free_cache_engine=False \
+    `# 80GB: max_num_seqs 512->32 (结果无关)。实际每步仅 72 条轨迹, 512 是过度调度浪费。参考 A800 脚本 max_num_seqs=32。` \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
-    actor_rollout_ref.rollout.max_num_seqs=512 \
+    actor_rollout_ref.rollout.max_num_seqs=32 \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     `# 原值: ref.log_prob_micro_batch_size_per_gpu=4 (降低以省前向显存)` \
