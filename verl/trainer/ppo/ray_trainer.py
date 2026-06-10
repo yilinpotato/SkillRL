@@ -1096,12 +1096,16 @@ class RayPPOTrainer:
         OUTPUT_DIR/{traces_pool,cloud_io,skill_lib}.
         """
         update_config = self.config.env.skills_only_memory
+        debug = update_config.get('coskill_debug', False)
 
         # 1) Always collect into the pool (execution phase).
         self._coskill_ingest_batch_to_pool(batch)
 
         # 2) Check watermarks (async dual-track trigger).
         fire, reason = self.traces_pool.should_trigger()
+        if debug:
+            print(f"[CoSkill][dbg] step={self.global_steps} "
+                  f"pool={self.traces_pool.stats()} trigger=({fire},{reason})")
         if not fire:
             return
 
@@ -1111,7 +1115,10 @@ class RayPPOTrainer:
         skill_lib = self.envs.retrieval_memory
 
         # 3) Export compressed batch and run cloud contrastive distillation.
+        import time as _time
+        _t0 = _time.time()
         compressed = self.traces_pool.export_batch(trigger_reason=reason)
+        export_seconds = _time.time() - _t0
         print(f"[CoSkill] watermark fired ({reason}); "
               f"succ={compressed['stats']['n_success']} fail={compressed['stats']['n_failure']}")
 
@@ -1133,7 +1140,32 @@ class RayPPOTrainer:
             return
 
         current_skills = getattr(skill_lib, 'skills', {})
+        _t1 = _time.time()
         patches = self.cloud_analyzer.contrastive_distill(compressed, current_skills)
+        distill_seconds = _time.time() - _t1
+        # Record last-cycle timing so it can be surfaced into metrics.jsonl.
+        self._coskill_timing = {
+            'export_seconds': export_seconds,
+            'distill_seconds': distill_seconds,
+            'last_trigger_reason': reason,
+        }
+
+        # Debug: dump the structured patches (skill_id/title/trigger/action_flow).
+        if debug and patches:
+            try:
+                import json as _json
+                dbg_dir = os.path.join(self._coskill_output_dir(), 'cloud_io')
+                os.makedirs(dbg_dir, exist_ok=True)
+                dbg_path = os.path.join(dbg_dir, f'patches_step{self.global_steps}_debug.json')
+                with open(dbg_path, 'w') as f:
+                    _json.dump([
+                        {k: p.get(k) for k in ('skill_id', 'title', 'scope', 'task_type',
+                                               'trigger', 'action_flow', 'avoid')}
+                        for p in patches
+                    ], f, ensure_ascii=False, indent=2)
+                print(f"[CoSkill][dbg] dumped {len(patches)} patches → {dbg_path}")
+            except Exception as e:
+                print(f"[CoSkill][dbg] patch dump failed: {e}")
 
         # 4) Ingest patches + advance lifecycle (Skill Lib scheduling).
         added_ids = []
@@ -1149,6 +1181,62 @@ class RayPPOTrainer:
         save_path = os.path.join(save_dir, f'skills_step{self.global_steps}.json')
         skill_lib.save_skills(save_path)
         print(f"[CoSkill] saved evolved skill lib to {save_path}")
+
+        # 6) Write an always-latest health snapshot for quick inspection.
+        self._coskill_write_status(skill_lib, reason)
+
+    def _coskill_write_status(self, skill_lib, last_reason):
+        """Write a single OUTPUT_DIR/coskill_status.json health snapshot
+        merging pool / skill-lib / cloud stats. Overwritten each update."""
+        import json as _json
+        status = {
+            'global_step': self.global_steps,
+            'last_trigger_reason': last_reason,
+            'timing': getattr(self, '_coskill_timing', {}),
+        }
+        if hasattr(self, 'traces_pool'):
+            status['pool'] = self.traces_pool.stats()
+        if hasattr(skill_lib, 'layer_counts'):
+            status['skill_lib'] = skill_lib.layer_counts()
+        if getattr(self, 'cloud_analyzer', None) is not None:
+            status['cloud'] = self.cloud_analyzer.get_update_summary()
+        try:
+            path = os.path.join(self._coskill_output_dir(), 'coskill_status.json')
+            with open(path, 'w') as f:
+                _json.dump(status, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[CoSkill] status write failed: {e}")
+
+    def _coskill_metrics(self) -> dict:
+        """Collect CoSkill observability metrics for metrics.jsonl.
+        Only includes blocks whose backing object exists."""
+        m = {}
+        if hasattr(self, 'traces_pool'):
+            s = self.traces_pool.stats()
+            m['coskill/pool/total_added'] = s.get('total_added', 0)
+            m['coskill/pool/pending_added'] = s.get('pending_added', 0)
+            m['coskill/pool/pending_tokens'] = s.get('pending_tokens', 0)
+            m['coskill/pool/total_dropped_loops'] = s.get('total_dropped_loops', 0)
+            m['coskill/pool/n_task_types'] = len(s.get('task_types', []))
+        skill_lib = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
+        if skill_lib is not None and hasattr(skill_lib, 'layer_counts'):
+            for k, v in skill_lib.layer_counts().items():
+                m[f'coskill/skilllib/{k}'] = v
+        if getattr(self, 'cloud_analyzer', None) is not None:
+            summary = self.cloud_analyzer.get_update_summary()
+            m['coskill/cloud/total_updates'] = summary.get('total_updates', 0)
+            m['coskill/cloud/total_patches'] = summary.get('total_patches', 0)
+            m['coskill/cloud/large_model_total_tokens'] = summary.get('large_model_total_tokens', 0)
+        timing = getattr(self, '_coskill_timing', {})
+        if timing:
+            m['coskill/timing/export_seconds'] = timing.get('export_seconds', 0.0)
+            m['coskill/timing/distill_seconds'] = timing.get('distill_seconds', 0.0)
+            reason = timing.get('last_trigger_reason')
+            m['coskill/last_trigger_reason'] = (
+                2 if reason == 'performance_watermark'
+                else 1 if reason == 'capacity_watermark' else 0
+            )
+        return m
 
     def _collect_failed_trajectories(
         self,
@@ -1751,6 +1839,14 @@ class RayPPOTrainer:
                         "tokens/large_model/completion_cumulative": summary.get('large_model_completion_tokens', 0),
                         "tokens/large_model/total_cumulative": summary.get('large_model_total_tokens', 0),
                     })
+
+                # CoSkill closed-loop observability metrics (pool / skill-lib /
+                # cloud / timing). Surfaced into metrics.jsonl for inspection.
+                if self.config.env.get('skills_only_memory', {}).get('enable_coskill', False):
+                    try:
+                        metrics.update(self._coskill_metrics())
+                    except Exception as e:
+                        print(f"[CoSkill] metrics collection failed: {e}")
 
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)

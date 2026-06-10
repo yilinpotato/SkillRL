@@ -64,9 +64,9 @@ ray stop --force 2>/dev/null || true
 ray start --head --num-cpus="$NUM_CPUS" --num-gpus="$NUM_GPUS"
 sleep 3
 
-train_data_size=2  # Minimal test (divisible by 2)
-val_data_size=2    # Minimal test
-group_size=2       # Minimal parallelism
+train_data_size=12  # Minimal test (divisible by 2)
+val_data_size=32    # Minimal test
+group_size=6       # Minimal parallelism
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -81,9 +81,9 @@ python3 -m verl.trainer.main_ppo \
     data.train_batch_size=$train_data_size \
     data.val_batch_size=$val_data_size \
     `# 原值: data.max_prompt_length=4096 (降低以省显存/降低OOM)` \
-    data.max_prompt_length=2048 \
+    data.max_prompt_length=4096 \
     `# 原值: data.max_response_length=4096 -> 2048; 激进测试: 512 (clip_ratio~0.85说明大量冗余thinking, 砍长度直接降gen时间)` \
-    data.max_response_length=512 \
+    data.max_response_length=4096 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
     data.return_raw_chat=True \
@@ -102,7 +102,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     `# 原值: rollout.log_prob_micro_batch_size_per_gpu=8 (降低以省前向显存)` \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
     `# 新增: 解决FSDP->vLLM首次权重同步OOM的根因。` \
@@ -117,13 +117,13 @@ python3 -m verl.trainer.main_ppo \
     `# enforce_eager 必须=True: verl断言 enforce_eager=False 与 free_cache_engine=True 互斥(每步释放KV cache与CUDA graph不兼容), 而free_cache_engine是解决24G OOM必需的, 故放弃CUDA graph优化` \
     actor_rollout_ref.rollout.enforce_eager=True \
     `# 原值: free_cache_engine=False (改True: 训练阶段释放vLLM KV cache, 缓解权重同步时OOM)` \
-    actor_rollout_ref.rollout.free_cache_engine=True \
+    actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
     actor_rollout_ref.rollout.max_num_seqs=512 \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     `# 原值: ref.log_prob_micro_batch_size_per_gpu=4 (降低以省前向显存)` \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.use_invalid_action_penalty=True \
     actor_rollout_ref.actor.invalid_action_penalty_coef=0.1 \
@@ -131,7 +131,7 @@ python3 -m verl.trainer.main_ppo \
     env.env_name=alfworld/AlfredTWEnv \
     env.seed=0 \
     `# 原值: env.max_steps=50; 激进测试: 15 (失败episode常走满50步, 砍上限直接少~70%生成步数)` \
-    env.max_steps=15 \
+    env.max_steps=40 \
     env.rollout.n=$group_size \
     env.resources_per_worker.num_cpus=$num_cpus_per_env_worker \
     +env.use_skills_only_memory=True \
@@ -150,6 +150,7 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.success_l1=0.7 \
     +env.skills_only_memory.demote_threshold=0.3 \
     +env.skills_only_memory.enable_internalize=False \
+    +env.skills_only_memory.coskill_debug=False \
     +env.traces_pool.capacity_watermark=50000 \
     +env.traces_pool.perf_watermark=0.6 \
     +env.traces_pool.min_samples=8 \
@@ -165,5 +166,5 @@ python3 -m verl.trainer.main_ppo \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
     `# 原值: total_epochs=150; 激进测试: 2 epoch (train_data_size=2 => 每epoch 1步, 只为看一步能否跑完)` \
-    trainer.total_epochs=2 \
+    trainer.total_epochs=100 \
     trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"

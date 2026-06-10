@@ -334,3 +334,55 @@ embedding 检索时 `_skill_to_text` 已把 `trigger / action_flow(Steps:) / avo
 3. **HierarchicalSkillLib 生命周期**：多周期 `record_usage` + `advance_lifecycle`，观察 L0→L1 晋升与 `layer_counts`。
 4. **format_for_prompt**：喂一条带 `action_flow/avoid` 的技能，确认输出含 `Do:` / `Avoid:` 行（§5.2）。
 5. **真实 rollout**：跑训练，检查 `OUTPUT_DIR/{traces_pool,cloud_io,skill_lib}/` 产物与 `metrics.jsonl`。
+
+---
+
+## 10. 可观测性 / Debug 配置
+
+为便于检查问题、查效率、debug，闭环运行时产出三类可观测信息，全部默认开启且零侵入
+（`coskill_debug` 除外，默认关）。
+
+### 10.1 指标接入 metrics.jsonl
+
+`ray_trainer.fit()` 每个训练 step 把 `_coskill_metrics()` 的结果并入 `metrics.jsonl`
+（需 `enable_coskill=True`）。可直接画曲线：
+
+| 指标键 | 含义 |
+|---|---|
+| `coskill/pool/total_added` | 轨迹池累计收集的轨迹数 |
+| `coskill/pool/pending_tokens` | 自上次导出以来累计的压缩 token（逼近容量水位线） |
+| `coskill/pool/total_dropped_loops` | 累计被死循环过滤丢弃的动作数 |
+| `coskill/pool/n_task_types` | 当前池中 task_type 数 |
+| `coskill/skilllib/{L0,L1,L2,internalized,deprecated}` | 各层技能数（看分层演化） |
+| `coskill/cloud/total_updates` | 云端蒸馏触发总次数 |
+| `coskill/cloud/total_patches` | 云端累计产出补丁数 |
+| `coskill/cloud/large_model_total_tokens` | 云端累计 token 消耗（看成本） |
+| `coskill/timing/export_seconds` | 上次压缩导出耗时 |
+| `coskill/timing/distill_seconds` | 上次云端调用耗时（看云端慢不慢） |
+| `coskill/last_trigger_reason` | 0=未触发 / 1=容量水位线 / 2=表现水位线 |
+
+### 10.2 健康快照 coskill_status.json
+
+每次触发更新后覆盖式写 `OUTPUT_DIR/coskill_status.json`，一个文件看全貌：
+pool stats + skill_lib 分层计数 + cloud 摘要 + timing + global_step。人工排查首选。
+
+### 10.3 调试开关 coskill_debug
+
+`+env.skills_only_memory.coskill_debug=True`（默认 False）。开启时：
+- 每个 step 打印 `[CoSkill][dbg] step=N pool={...} trigger=(fire,reason)`，
+  实时看池子涨势与是否触发。
+- 触发蒸馏后把每条补丁的 `skill_id/title/scope/trigger/action_flow/avoid`
+  dump 到 `cloud_io/patches_step<N>_debug.json`，核对云端到底产出了什么。
+
+关闭时完全静默，不影响正常训练。
+
+### 10.4 排查路径速查
+
+| 想查什么 | 看哪里 |
+|---|---|
+| 轨迹有没有正常收集、压缩比 | `traces_pool/raw_traces.jsonl` + `metrics.jsonl` 的 pool 指标 |
+| 水位线为什么没触发 | `coskill_debug=True` 的 `[dbg]` 行（看 pending_tokens / 失败率） |
+| 云端到底产出了什么补丁 | `cloud_io/patches_<id>.json`（含 debug dump） |
+| 技能分层有没有演化 | `metrics.jsonl` 的 `coskill/skilllib/*` 曲线 + `skill_lib/skills_step<N>.json` |
+| 云端慢 / 贵 | `coskill/timing/distill_seconds` + `coskill/cloud/large_model_total_tokens` |
+| 整体健康度快照 | `coskill_status.json` |
