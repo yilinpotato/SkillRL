@@ -79,8 +79,8 @@ python3 -m verl.trainer.main_ppo \
     data.val_batch_size=$val_data_size \
     `# 原值: data.max_prompt_length=4096 (降低以省显存/降低OOM)` \
     data.max_prompt_length=2048 \
-    `# 原值: data.max_response_length=4096 (降低以省显存/降低OOM)` \
-    data.max_response_length=2048 \
+    `# 原值: data.max_response_length=4096 -> 2048; 激进测试: 512 (clip_ratio~0.85说明大量冗余thinking, 砍长度直接降gen时间)` \
+    data.max_response_length=512 \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
     data.return_raw_chat=True \
@@ -111,7 +111,8 @@ python3 -m verl.trainer.main_ppo \
     `# 原值: gpu_memory_utilization=0.5。注意: 不能设太低(如0.3), vLLM权重7.73G+前向峰值2.81G≈10.55G, util*24G需大于此值否则KV cache为负直接报错` \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
-    actor_rollout_ref.rollout.enforce_eager=True \
+    `# 原值: enforce_eager=True; 激进测试: False 开CUDA graph消除CPU launch瓶颈(实测gen时GPU仅22%util,CPU单核97%卡在算子dispatch)` \
+    actor_rollout_ref.rollout.enforce_eager=False \
     `# 原值: free_cache_engine=False (改True: 训练阶段释放vLLM KV cache, 缓解权重同步时OOM)` \
     actor_rollout_ref.rollout.free_cache_engine=True \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
@@ -126,7 +127,8 @@ python3 -m verl.trainer.main_ppo \
     algorithm.use_kl_in_reward=False \
     env.env_name=alfworld/AlfredTWEnv \
     env.seed=0 \
-    env.max_steps=50 \
+    `# 原值: env.max_steps=50; 激进测试: 15 (失败episode常走满50步, 砍上限直接少~70%生成步数)` \
+    env.max_steps=15 \
     env.rollout.n=$group_size \
     env.resources_per_worker.num_cpus=$num_cpus_per_env_worker \
     +env.use_skills_only_memory=True \
@@ -159,5 +161,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
-    trainer.total_epochs=150 \
+    `# 原值: total_epochs=150; 激进测试: 2 epoch (train_data_size=2 => 每epoch 1步, 只为看一步能否跑完)` \
+    trainer.total_epochs=2 \
     trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"
