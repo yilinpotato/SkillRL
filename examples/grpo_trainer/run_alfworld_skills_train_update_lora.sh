@@ -113,7 +113,7 @@ python3 -m verl.trainer.main_ppo \
     `# 配合load_format=safetensors使用: 逐层summon LoRA参数而非一次性拉全模型 (默认False)。该键已在schema中, 用普通赋值不加+前缀。` \
     actor_rollout_ref.rollout.layered_summon=True \
     `# 80GB: util 0.5->0.7 给 vLLM 更多 KV cache 提升生成吞吐 (结果无关)。参考 A800 脚本 util=0.70。` \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.7 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
     `# 80GB: 开启 CUDA graph 加速 decode (结果无关)。前提 free_cache_engine=False 已满足, 故 verl 的互斥断言不触发。参考 A800 脚本同样 enforce_eager=False + load_format=safetensors 稳定运行。` \
     actor_rollout_ref.rollout.enforce_eager=False \
