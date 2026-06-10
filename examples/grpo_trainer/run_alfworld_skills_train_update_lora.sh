@@ -80,12 +80,13 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$HOME/data/verl-agent/text/test.parquet \
     data.train_batch_size=$train_data_size \
     data.val_batch_size=$val_data_size \
-    `# 原值: data.max_prompt_length=4096 (降低以省显存/降低OOM)` \
-    data.max_prompt_length=4096 \
+    `# 原值: 4096。多轮rollout(max_steps=40)历史+6条skill累积, 实测达4492>4096撞truncation='error'报错。80GB显存宽裕, 提到6144留余量。` \
+    data.max_prompt_length=6144 \
     `# 原值: data.max_response_length=4096 -> 2048; 激进测试: 512 (clip_ratio~0.85说明大量冗余thinking, 砍长度直接降gen时间)` \
     data.max_response_length=4096 \
     data.filter_overlong_prompts=True \
-    data.truncation='error' \
+    `# 原值: 'error'(超长直接报错中断整轮rollout)。改'left': 偶发累积超过max_prompt_length时从最老历史截断继续跑, 避免50分钟rollout因单条轨迹白跑。` \
+    data.truncation='left' \
     data.return_raw_chat=True \
     actor_rollout_ref.model.path=$MODEL_PATH \
     actor_rollout_ref.model.lora_rank=32 \
