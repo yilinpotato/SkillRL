@@ -111,8 +111,8 @@ python3 -m verl.trainer.main_ppo \
     `# 原值: gpu_memory_utilization=0.5。注意: 不能设太低(如0.3), vLLM权重7.73G+前向峰值2.81G≈10.55G, util*24G需大于此值否则KV cache为负直接报错` \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.rollout.enable_chunked_prefill=True \
-    `# 原值: enforce_eager=True; 激进测试: False 开CUDA graph消除CPU launch瓶颈(实测gen时GPU仅22%util,CPU单核97%卡在算子dispatch)` \
-    actor_rollout_ref.rollout.enforce_eager=False \
+    `# enforce_eager 必须=True: verl断言 enforce_eager=False 与 free_cache_engine=True 互斥(每步释放KV cache与CUDA graph不兼容), 而free_cache_engine是解决24G OOM必需的, 故放弃CUDA graph优化` \
+    actor_rollout_ref.rollout.enforce_eager=True \
     `# 原值: free_cache_engine=False (改True: 训练阶段释放vLLM KV cache, 缓解权重同步时OOM)` \
     actor_rollout_ref.rollout.free_cache_engine=True \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
