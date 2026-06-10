@@ -20,7 +20,7 @@ export RAY_IGNORE_HTTP_PROXY=1
 
 # export WANDB_API_KEY=""
 # Small model (actor, trained locally)
-export CACHE_ROOT="${CACHE_ROOT:-/data2/myl/home_configs/.cache}"
+export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 # Skill-retrieval embedding model (dedicated 0.6B encoder, NOT the 4B actor —
