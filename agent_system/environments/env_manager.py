@@ -196,17 +196,35 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
 
         # Add retrieval memory or skills-only memory if configured
         if config.env.get('use_skills_only_memory', False):
-            from agent_system.memory import SkillsOnlyMemory
             som_cfg = config.env.skills_only_memory
-            self.retrieval_memory = SkillsOnlyMemory(
-                skills_json_path=som_cfg.skills_json_path,
-                retrieval_mode=som_cfg.get('retrieval_mode', 'template'),
-                embedding_model_path=som_cfg.get('embedding_model_path', None),
-                task_specific_top_k=som_cfg.get('task_specific_top_k', None),
-            )
+            # CoSkill: use HierarchicalSkillLib when hierarchy is enabled, else
+            # fall back to the flat SkillsOnlyMemory (backward compatible).
+            if som_cfg.get('enable_hierarchy', False):
+                from agent_system.memory import HierarchicalSkillLib
+                self.retrieval_memory = HierarchicalSkillLib(
+                    skills_json_path=som_cfg.skills_json_path,
+                    retrieval_mode=som_cfg.get('retrieval_mode', 'template'),
+                    embedding_model_path=som_cfg.get('embedding_model_path', None),
+                    task_specific_top_k=som_cfg.get('task_specific_top_k', None),
+                    enable_hierarchy=True,
+                    stable_cycles_l1=som_cfg.get('stable_cycles_l1', 3),
+                    stable_cycles_l2=som_cfg.get('stable_cycles_l2', 5),
+                    success_l1=som_cfg.get('success_l1', 0.7),
+                    demote_threshold=som_cfg.get('demote_threshold', 0.3),
+                )
+                print(f"[AlfWorldEnvironmentManager] CoSkill HierarchicalSkillLib enabled "
+                      f"(mode={som_cfg.get('retrieval_mode', 'template')})")
+            else:
+                from agent_system.memory import SkillsOnlyMemory
+                self.retrieval_memory = SkillsOnlyMemory(
+                    skills_json_path=som_cfg.skills_json_path,
+                    retrieval_mode=som_cfg.get('retrieval_mode', 'template'),
+                    embedding_model_path=som_cfg.get('embedding_model_path', None),
+                    task_specific_top_k=som_cfg.get('task_specific_top_k', None),
+                )
+                print(f"[AlfWorldEnvironmentManager] Skills-only memory enabled "
+                      f"(mode={som_cfg.get('retrieval_mode', 'template')})")
             self.retrieved_memories = None
-            print(f"[AlfWorldEnvironmentManager] Skills-only memory enabled "
-                  f"(mode={som_cfg.get('retrieval_mode', 'template')})")
         elif config.env.get('use_retrieval_memory', False):
             from agent_system.memory import RetrievalMemory
             self.retrieval_memory = RetrievalMemory(

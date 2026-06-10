@@ -37,6 +37,9 @@ PROJECT_NAME="verl_agent_alfworld"
 EXPERIMENT_NAME="grpo_qwen3-4b_co_skill"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
+# Training metrics are appended (one JSON per step) to $OUTPUT_DIR/metrics.jsonl
+# by the 'jsonl' logger backend (trainer.logger includes 'jsonl').
+export JSONL_METRICS_DIR="$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 
 num_cpus_per_env_worker=0.35 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
@@ -152,7 +155,7 @@ python3 -m verl.trainer.main_ppo \
     +env.traces_pool.min_samples=8 \
     +env.traces_pool.loop_threshold=3 \
     trainer.critic_warmup=0 \
-    trainer.logger=['console'] \
+    trainer.logger=['console','jsonl'] \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='qwen3-4b_co_skill' \
     trainer.default_local_dir="$OUTPUT_DIR" \

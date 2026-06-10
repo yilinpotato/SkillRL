@@ -93,6 +93,9 @@ class SkillsOnlyMemory(BaseMemory):
         # Lazy-initialised embedding state (only used in embedding mode)
         self._embedding_model = None
         self._skill_embeddings_cache: Optional[Dict] = None
+        # Per-skill embedding memo keyed by (skill_id, text_hash) so that adding
+        # or editing a single skill does not force a full re-encode of the bank.
+        self._skill_vec_store: Optional[Dict] = None
 
         n_general = len(self.skills.get('general_skills', []))
         n_task = sum(len(v) for v in self.skills.get('task_specific_skills', {}).values())
@@ -190,29 +193,60 @@ class SkillsOnlyMemory(BaseMemory):
                     "sentence-transformers is required for embedding retrieval. "
                     "Install with: pip install sentence-transformers"
                 )
-            print(f"[SkillsOnlyMemory] Loading embedding model: {self.embedding_model_path}")
-            self._embedding_model = SentenceTransformer(self.embedding_model_path)
+            # Force CPU: skill retrieval is low-frequency and latency-tolerant,
+            # and the training GPU is fully occupied by the FSDP actor + vLLM
+            # rollout. Loading the encoder on cuda:0 competes for those last MiB
+            # and triggers CUDA OOM during vLLM load_model.
+            # Overridable via SKILL_EMBED_DEVICE (e.g. "cuda:1").
+            device = os.environ.get("SKILL_EMBED_DEVICE", "cpu")
+            print(f"[SkillsOnlyMemory] Loading embedding model: {self.embedding_model_path} (device={device})")
+            self._embedding_model = SentenceTransformer(self.embedding_model_path, device=device)
             print("[SkillsOnlyMemory] Embedding model ready.")
         return self._embedding_model
 
     @staticmethod
     def _skill_to_text(skill: Dict[str, Any]) -> str:
-        """Concatenate the skill fields most useful for semantic matching."""
+        """Concatenate the skill fields most useful for semantic matching.
+
+        Includes the structured CoSkill patch fields (trigger / action_flow /
+        avoid) when present, so newly distilled skills embed with full fidelity
+        rather than relying only on the legacy title/principle text.
+        """
         parts = []
-        for field in ('title', 'principle', 'when_to_apply'):
-            val = skill.get(field, '').strip()
+        for field in ('title', 'principle', 'when_to_apply', 'trigger'):
+            val = (skill.get(field) or '').strip()
             if val:
                 parts.append(val)
+
+        action_flow = skill.get('action_flow')
+        if isinstance(action_flow, list) and action_flow:
+            parts.append("Steps: " + "; ".join(str(a) for a in action_flow))
+        elif isinstance(action_flow, str) and action_flow.strip():
+            parts.append("Steps: " + action_flow.strip())
+
+        avoid = skill.get('avoid')
+        if isinstance(avoid, list) and avoid:
+            parts.append("Avoid: " + "; ".join(str(a) for a in avoid))
+        elif isinstance(avoid, str) and avoid.strip():
+            parts.append("Avoid: " + avoid.strip())
+
         return ". ".join(parts)
 
     def _compute_skill_embeddings(self) -> Dict:
         """
-        Pre-compute and cache normalised embeddings for every skill.
+        Build (and incrementally refresh) cached embeddings for every skill.
 
         The cache holds:
           ``items``      – flat list of ``(kind, task_type, skill_dict)``
           ``embeddings`` – numpy array of shape ``(n_skills, dim)``
           ``n_general``  – how many of the first rows correspond to general skills
+
+        Incremental embedding: rather than re-encoding the whole bank whenever a
+        single skill is added, per-skill vectors are memoised in
+        ``self._skill_vec_store`` keyed by ``(skill_id, text_hash)``.  On rebuild
+        only skills with a new id or changed text are encoded; unchanged skills
+        reuse their stored vector.  This keeps ingest_patches() cheap even with a
+        heavy embedding model.
         """
         if self._skill_embeddings_cache is not None:
             return self._skill_embeddings_cache
@@ -229,14 +263,35 @@ class SkillsOnlyMemory(BaseMemory):
             for s in skills
         ]
         all_items = general_items + task_items
-        texts = [self._skill_to_text(item[2]) for item in all_items]
 
-        model = self._get_embedding_model()
-        embeddings = model.encode(
-            texts,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-            convert_to_numpy=True,
+        if self._skill_vec_store is None:
+            self._skill_vec_store = {}
+        store = self._skill_vec_store
+
+        # Decide which items need (re)encoding.
+        keys = [self._vec_key(item[2]) for item in all_items]
+        to_encode_idx = [i for i, k in enumerate(keys) if k not in store]
+        if to_encode_idx:
+            model = self._get_embedding_model()
+            new_texts = [self._skill_to_text(all_items[i][2]) for i in to_encode_idx]
+            new_vecs = model.encode(
+                new_texts,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
+            for j, i in enumerate(to_encode_idx):
+                store[keys[i]] = new_vecs[j]
+
+        # Prune stale entries so the store does not grow unbounded.
+        live_keys = set(keys)
+        for k in list(store.keys()):
+            if k not in live_keys:
+                del store[k]
+
+        embeddings = (
+            np.stack([store[k] for k in keys], axis=0)
+            if keys else np.zeros((0, 0))
         )
 
         self._skill_embeddings_cache = {
@@ -245,10 +300,24 @@ class SkillsOnlyMemory(BaseMemory):
             'n_general': len(general_items),
         }
         print(
-            f"[SkillsOnlyMemory] Cached embeddings for {len(all_items)} skills "
-            f"({len(general_items)} general + {len(task_items)} task-specific)"
+            f"[SkillsOnlyMemory] Embeddings ready for {len(all_items)} skills "
+            f"({len(general_items)} general + {len(task_items)} task-specific); "
+            f"encoded {len(to_encode_idx)} new/changed, reused {len(all_items) - len(to_encode_idx)}"
         )
         return self._skill_embeddings_cache
+
+    @staticmethod
+    def _vec_key(skill: Dict[str, Any]) -> tuple:
+        """Cache key for a skill's embedding: (skill_id, hash-of-embedding-text).
+
+        Including the text hash means an *edited* skill (same id, changed
+        content) is treated as a cache miss and re-encoded, while an unchanged
+        skill is reused even across full-bank rebuilds.
+        """
+        import hashlib
+        text = SkillsOnlyMemory._skill_to_text(skill)
+        h = hashlib.md5(text.encode('utf-8')).hexdigest()
+        return (skill.get('skill_id', ''), h)
 
     def _embedding_retrieve(
         self,

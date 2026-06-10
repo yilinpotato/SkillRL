@@ -14,6 +14,18 @@
 # limitations under the License.
 
 from .memory import SimpleMemory, SearchMemory
-from .retrieval_memory import RetrievalMemory
 from .skills_only_memory import SkillsOnlyMemory
 from .skill_updater import SkillUpdater
+from .traces_pool import TracesPool
+from .hierarchical_skill_lib import HierarchicalSkillLib
+from .cloud_analyzer import CloudAnalyzer
+
+# RetrievalMemory pulls in optional heavy deps (sentence-transformers, faiss).
+# Keep it lazy so the rest of the memory package (and the CoSkill closed-loop
+# modules) remain importable when those deps are absent.
+try:
+    from .retrieval_memory import RetrievalMemory
+except ImportError as _e:  # pragma: no cover - optional dependency
+    RetrievalMemory = None
+    import warnings as _warnings
+    _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")

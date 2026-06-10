@@ -1014,6 +1014,142 @@ class RayPPOTrainer:
         else:
             print("[SkillUpdate-Train] No new skills generated")
 
+    # ------------------------------------------------------------------ #
+    # CoSkill closed-loop update (TracesPool -> CloudAnalyzer -> SkillLib) #
+    # ------------------------------------------------------------------ #
+
+    def _coskill_output_dir(self) -> str:
+        return self.config.trainer.get('default_local_dir', './outputs')
+
+    def _coskill_ingest_batch_to_pool(self, batch):
+        """Push the current training batch's trajectories (success + failure)
+        into the TracesPool as RawTraces, doing per-episode compression.
+
+        Reuses the existing decode + conversation-parsing helpers so no new
+        trajectory format is introduced. Also records share-attribution skill
+        usage so the HierarchicalSkillLib lifecycle has a success signal.
+        """
+        if not hasattr(self, 'traces_pool'):
+            from agent_system.memory import TracesPool
+            tp_cfg = self.config.env.get('traces_pool', {})
+            self.traces_pool = TracesPool(
+                capacity_watermark=tp_cfg.get('capacity_watermark', 50_000),
+                perf_watermark=tp_cfg.get('perf_watermark', 0.6),
+                min_samples=tp_cfg.get('min_samples', 8),
+                loop_threshold=tp_cfg.get('loop_threshold', 3),
+                output_dir=self._coskill_output_dir(),
+            )
+
+        inputs = self.tokenizer.batch_decode(batch.batch["prompts"], skip_special_tokens=True)
+        outputs = self.tokenizer.batch_decode(batch.batch["responses"], skip_special_tokens=True)
+        if "token_level_scores" not in batch.batch:
+            return
+        scores = batch.batch["token_level_scores"].sum(-1).cpu().tolist()
+
+        traj_uids = batch.non_tensor_batch.get('traj_uid', [None] * len(inputs))
+        skill_lib = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
+        can_record = skill_lib is not None and hasattr(skill_lib, 'record_usage')
+        seen = set()
+        for inp, out, score, uid in zip(inputs, outputs, scores, traj_uids):
+            if uid is not None and uid in seen:
+                continue
+            if uid is not None:
+                seen.add(uid)
+            task_type = self._detect_task_type_from_input(inp)
+            task_desc = self._extract_task_description(inp)
+            steps = self._parse_conversation_to_steps(inp, out)
+            success = score > 0
+            raw_trace = {
+                'traj_uid': uid or '',
+                'task': task_desc,
+                'task_type': task_type,
+                'outcome': 'success' if success else 'failure',
+                'episode_reward': float(score),
+                'steps': [
+                    {'step': i, 'observation': s.get('observation', ''),
+                     'action': s.get('action', ''), 'reward': 0.0}
+                    for i, s in enumerate(steps)
+                ],
+                'meta': {'model_version': f'step_{self.global_steps}'},
+            }
+            self.traces_pool.add_trace(raw_trace)
+
+            # Share attribution: episode success -> all injected skills +1.
+            if can_record:
+                try:
+                    retrieved = skill_lib.retrieve(
+                        task_description=task_desc,
+                        top_k=self.config.env.skills_only_memory.get('top_k', 6),
+                    )
+                    injected = retrieved.get('injected_skill_ids', [])
+                    skill_lib.record_usage(injected, success=success, task_type=task_type)
+                except Exception as e:
+                    print(f"[CoSkill] record_usage failed: {e}")
+
+    def _update_skills_coskill(self, batch):
+        """CoSkill closed-loop skill update.
+
+        Execution-phase: ingest the batch into TracesPool (streaming compression).
+        Update-phase: when a watermark fires, export a CompressedBatch, run the
+        CloudAnalyzer contrastive distillation, ingest patches into the
+        HierarchicalSkillLib (L0), advance lifecycle, and persist everything to
+        OUTPUT_DIR/{traces_pool,cloud_io,skill_lib}.
+        """
+        update_config = self.config.env.skills_only_memory
+
+        # 1) Always collect into the pool (execution phase).
+        self._coskill_ingest_batch_to_pool(batch)
+
+        # 2) Check watermarks (async dual-track trigger).
+        fire, reason = self.traces_pool.should_trigger()
+        if not fire:
+            return
+
+        if not (hasattr(self, 'envs') and getattr(self.envs, 'retrieval_memory', None)):
+            print("[CoSkill] No retrieval_memory in training envs, skipping update")
+            return
+        skill_lib = self.envs.retrieval_memory
+
+        # 3) Export compressed batch and run cloud contrastive distillation.
+        compressed = self.traces_pool.export_batch(trigger_reason=reason)
+        print(f"[CoSkill] watermark fired ({reason}); "
+              f"succ={compressed['stats']['n_success']} fail={compressed['stats']['n_failure']}")
+
+        if not hasattr(self, 'cloud_analyzer'):
+            from agent_system.memory import CloudAnalyzer
+            try:
+                self.cloud_analyzer = CloudAnalyzer(
+                    max_new_skills_per_update=update_config.get('max_new_skills', 3),
+                    output_dir=self._coskill_output_dir(),
+                )
+            except Exception as e:
+                # e.g. missing DEEPSEEK_API_KEY. Don't crash training: the
+                # compressed batch is already persisted to cloud_io/ and can be
+                # distilled later. Skip this update cycle.
+                print(f"[CoSkill] CloudAnalyzer init failed ({e}); "
+                      f"skipping distillation, batch saved to cloud_io/")
+                self.cloud_analyzer = None
+        if getattr(self, 'cloud_analyzer', None) is None:
+            return
+
+        current_skills = getattr(skill_lib, 'skills', {})
+        patches = self.cloud_analyzer.contrastive_distill(compressed, current_skills)
+
+        # 4) Ingest patches + advance lifecycle (Skill Lib scheduling).
+        added_ids = []
+        if patches and hasattr(skill_lib, 'ingest_patches'):
+            skill_lib.ingest_patches(patches)
+            added_ids = [p.get('skill_id') for p in patches]
+        if hasattr(skill_lib, 'advance_lifecycle'):
+            skill_lib.advance_lifecycle(modified_ids=added_ids)
+            print(f"[CoSkill] layer counts: {skill_lib.layer_counts()}")
+
+        # 5) Persist the evolved skill lib to OUTPUT_DIR/skill_lib/.
+        save_dir = os.path.join(self._coskill_output_dir(), 'skill_lib')
+        save_path = os.path.join(save_dir, f'skills_step{self.global_steps}.json')
+        skill_lib.save_skills(save_path)
+        print(f"[CoSkill] saved evolved skill lib to {save_path}")
+
     def _collect_failed_trajectories(
         self,
         inputs: list,
@@ -1542,7 +1678,12 @@ class RayPPOTrainer:
                             and self.config.env.get('skills_only_memory', {}).get('update_skills_from_train', False)):
                         skill_update_freq = self.config.env.get('skills_only_memory', {}).get('skill_update_freq', self.config.trainer.get('test_freq', 5))
                         if self.global_steps > 0 and self.global_steps % skill_update_freq == 0:
-                            self._update_skills_from_training(batch)
+                            # CoSkill closed loop (TracesPool watermark-driven) vs.
+                            # legacy failure-only update. Selected by enable_coskill.
+                            if self.config.env.get('skills_only_memory', {}).get('enable_coskill', False):
+                                self._update_skills_coskill(batch)
+                            else:
+                                self._update_skills_from_training(batch)
 
                     # update critic
                     if self.use_critic:

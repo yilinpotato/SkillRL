@@ -33,7 +33,7 @@ class Tracking:
         logger: Dictionary of initialized logger instances for each backend.
     """
 
-    supported_backend = ["wandb", "mlflow", "swanlab", "vemlp_wandb", "tensorboard", "console", "clearml"]
+    supported_backend = ["wandb", "mlflow", "swanlab", "vemlp_wandb", "tensorboard", "console", "clearml", "jsonl"]
 
     def __init__(self, project_name, experiment_name, default_backend: Union[str, List[str]] = "console", config=None):
         if isinstance(default_backend, str):
@@ -123,6 +123,9 @@ class Tracking:
 
         if "clearml" in default_backend:
             self.logger["clearml"] = ClearMLLogger(project_name, experiment_name, config)
+
+        if "jsonl" in default_backend:
+            self.logger["jsonl"] = _JsonlLoggingAdapter(project_name, experiment_name)
 
     def log(self, data, step, backend=None):
         for default_backend, logger_instance in self.logger.items():
@@ -217,6 +220,69 @@ class _MlflowLoggingAdapter:
 
         results = {k.replace("@", "_at_"): v for k, v in data.items()}
         mlflow.log_metrics(metrics=results, step=step)
+
+
+class _JsonlLoggingAdapter:
+    """Append one JSON object per training step to a metrics.jsonl file.
+
+    Output path resolution (first hit wins):
+      1. $JSONL_METRICS_PATH                          (exact file path)
+      2. $JSONL_METRICS_DIR/metrics.jsonl             (directory; set to OUTPUT_DIR by the run script)
+      3. ./outputs/<project>/<experiment>/metrics.jsonl
+
+    Each line: {"step": <int>, "<metric>": <value>, ...} with only
+    JSON-serialisable scalars kept (numpy/tensor values are coerced to float).
+    This gives a machine-readable training curve without wandb/tensorboard.
+    """
+
+    def __init__(self, project_name: str, experiment_name: str):
+        import os
+
+        path = os.environ.get("JSONL_METRICS_PATH")
+        if not path:
+            base = os.environ.get("JSONL_METRICS_DIR")
+            if not base:
+                base = os.path.join("outputs", project_name, experiment_name)
+            path = os.path.join(base, "metrics.jsonl")
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        self.path = path
+        print(f"[Tracking] jsonl metrics → {self.path}")
+
+    @staticmethod
+    def _coerce(v):
+        # Keep plain JSON scalars; coerce numpy/torch scalars to float; drop the rest.
+        if isinstance(v, (bool, int, float, str)) or v is None:
+            return v
+        try:
+            import numpy as np
+            if isinstance(v, (np.floating, np.integer)):
+                return v.item()
+        except Exception:
+            pass
+        item = getattr(v, "item", None)
+        if callable(item):
+            try:
+                return v.item()
+            except Exception:
+                return None
+        return None
+
+    def log(self, data, step):
+        import json
+
+        row = {"step": step}
+        for k, v in data.items():
+            cv = self._coerce(v)
+            if cv is not None or v is None:
+                row[k] = cv
+        try:
+            with open(self.path, "a") as f:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"[Tracking] jsonl write failed: {e}")
+
+    def finish(self):
+        pass
 
 
 def _compute_mlflow_params_from_objects(params) -> Dict[str, Any]:
