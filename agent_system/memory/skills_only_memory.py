@@ -450,6 +450,40 @@ class SkillsOnlyMemory(BaseMemory):
             'retrieval_mode': 'template',
         }
 
+    @staticmethod
+    def _format_skill_lines(skill: Dict[str, Any], include_when: bool = False) -> List[str]:
+        """Render one skill as prompt bullet lines.
+
+        For CoSkill structured patches the high-value fields are surfaced
+        explicitly so they actually reach the executing model:
+          - action_flow -> an ordered "Do:" step list
+          - avoid       -> an "Avoid:" pitfall list
+        Legacy skills (principle / when_to_apply only) render as before.
+        """
+        title = skill.get('title', '')
+        principle = skill.get('principle', '')
+        lines = [f"- **{title}**: {principle}"]
+
+        action_flow = skill.get('action_flow')
+        if isinstance(action_flow, list) and action_flow:
+            lines.append("  Do: " + " → ".join(str(a) for a in action_flow))
+        elif isinstance(action_flow, str) and action_flow.strip():
+            lines.append("  Do: " + action_flow.strip())
+
+        avoid = skill.get('avoid')
+        if isinstance(avoid, list) and avoid:
+            lines.append("  Avoid: " + "; ".join(str(a) for a in avoid))
+        elif isinstance(avoid, str) and avoid.strip():
+            lines.append("  Avoid: " + avoid.strip())
+
+        if include_when:
+            when = skill.get('when_to_apply', '')
+            # Only show when_to_apply if there's no structured trigger already
+            # implied by action_flow, to avoid redundancy.
+            if when and not (isinstance(action_flow, list) and action_flow):
+                lines.append(f"  _Apply when: {when}_")
+        return lines
+
     def format_for_prompt(self, retrieved_memories: Dict[str, Any]) -> str:
         """
         Format retrieved skills into a string suitable for prompt injection.
@@ -469,9 +503,7 @@ class SkillsOnlyMemory(BaseMemory):
         if general_skills:
             lines = ["### General Principles"]
             for skill in general_skills:
-                title = skill.get('title', '')
-                principle = skill.get('principle', '')
-                lines.append(f"- **{title}**: {principle}")
+                lines.extend(self._format_skill_lines(skill))
             sections.append("\n".join(lines))
 
         # Task-specific skills
@@ -484,12 +516,7 @@ class SkillsOnlyMemory(BaseMemory):
                 section_title = f"### {task_name} Skills"
             lines = [section_title]
             for skill in task_skills:
-                title = skill.get('title', '')
-                principle = skill.get('principle', '')
-                when = skill.get('when_to_apply', '')
-                lines.append(f"- **{title}**: {principle}")
-                if when:
-                    lines.append(f"  _Apply when: {when}_")
+                lines.extend(self._format_skill_lines(skill, include_when=True))
             sections.append("\n".join(lines))
 
         # Common mistakes
