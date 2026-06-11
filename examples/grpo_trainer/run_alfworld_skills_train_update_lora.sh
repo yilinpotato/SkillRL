@@ -121,7 +121,8 @@ python3 -m verl.trainer.main_ppo \
     `# 原值: free_cache_engine=False (改True: 训练阶段释放vLLM KV cache, 缓解权重同步时OOM)` \
     actor_rollout_ref.rollout.free_cache_engine=False \
     `# 80GB: max_num_seqs 512->32 (结果无关)。实际每步仅 72 条轨迹, 512 是过度调度浪费。参考 A800 脚本 max_num_seqs=32。` \
-    actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
+    `# 原值: 8192。chunked prefill要求 max_num_batched_tokens >= max_model_len(=max_prompt6144+max_response4096=10240)。提到10240。` \
+    actor_rollout_ref.rollout.max_num_batched_tokens=10240 \
     actor_rollout_ref.rollout.max_num_seqs=32 \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
