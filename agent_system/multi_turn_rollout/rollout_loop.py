@@ -15,6 +15,10 @@
 
 import torch
 import numpy as np
+import os
+import re
+import json
+import uuid as _uuid_mod
 from verl import DataProto
 from verl.utils.dataset.rl_dataset import collate_fn
 from verl.utils.model import compute_position_id_with_mask
@@ -25,6 +29,46 @@ from agent_system.multi_turn_rollout.utils import process_image, to_list_of_dict
 from agent_system.environments import EnvironmentManagerBase
 from typing import List, Dict
 from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
+
+
+def _cfg_get(cfg, key, default=None):
+    """Read a key from an OmegaConf/dataclass/dict config, tolerating absence."""
+    if cfg is None:
+        return default
+    try:
+        if isinstance(cfg, dict):
+            return cfg.get(key, default)
+        # OmegaConf DictConfig supports .get; plain objects use getattr.
+        getter = getattr(cfg, "get", None)
+        if callable(getter):
+            try:
+                return cfg.get(key, default)
+            except Exception:
+                pass
+        return getattr(cfg, key, default)
+    except Exception:
+        return default
+
+
+def _split_think_action(raw_response: str):
+    """Extract (think, action) from a raw model output.
+
+    Matches the project's parsing convention: thinking lives inside
+    <think>...</think> and the chosen action inside <action>...</action>
+    (see alfworld/projection.py). Returns ("", "") components that are missing.
+    """
+    if not isinstance(raw_response, str):
+        return "", ""
+    think = ""
+    action = ""
+    m = re.search(r"<think>(.*?)</think>", raw_response, re.DOTALL | re.IGNORECASE)
+    if m:
+        think = m.group(1).strip()
+    m = re.search(r"<action>(.*?)</action>", raw_response, re.DOTALL | re.IGNORECASE)
+    if m:
+        action = m.group(1).strip()
+    return think, action
+
 
 class TrajectoryCollector:
     def __init__(self, config, tokenizer: PreTrainedTokenizer, processor=None):
@@ -39,6 +83,22 @@ class TrajectoryCollector:
         self.config = config
         self.tokenizer = tokenizer
         self.processor = processor
+
+        # --- Raw trajectory dumping (per-episode files) ---------------------
+        # Optional: when enabled, every rollout's raw step-by-step trajectory is
+        # written to one JSON file per episode (observation / raw model output /
+        # think / action / reward / done / won). Controlled via config so it can
+        # be turned off to avoid disk overhead. Disabled unless explicitly set.
+        env_cfg = getattr(self.config, "env", None)
+        self._dump_raw = bool(_cfg_get(env_cfg, "dump_raw_trajectories", False))
+        # Where to write. Falls back to <trainer.default_local_dir>/raw_episodes.
+        trainer_cfg = getattr(self.config, "trainer", None)
+        default_dir = _cfg_get(trainer_cfg, "default_local_dir", None) or "."
+        self._raw_dump_dir = _cfg_get(env_cfg, "raw_traj_dir", None) or os.path.join(
+            str(default_dir), "raw_episodes"
+        )
+        # Monotonic counter labelling which rollout (collection call) we are on.
+        self._rollout_call_idx = 0
 
     def preprocess_single_sample(
         self,
@@ -325,6 +385,8 @@ class TrajectoryCollector:
         traj_uid = np.array([str(uuid.uuid4()) for _ in range(batch_size)], dtype=object)
         total_batch_list = [[] for _ in range(batch_size)]
         total_infos = [[] for _ in range(batch_size)]
+        # Per-episode raw step records (only populated when dumping is enabled).
+        raw_steps_per_ep = [[] for _ in range(batch_size)] if self._dump_raw else None
         episode_lengths = np.zeros(batch_size, dtype=np.float32)
         episode_rewards = np.zeros(batch_size, dtype=np.float32)
         tool_callings = np.zeros(batch_size, dtype=np.float32)
@@ -361,7 +423,19 @@ class TrajectoryCollector:
             batch = batch.union(batch_output)
             
             text_actions = self.tokenizer.batch_decode(batch.batch['responses'], skip_special_tokens=True)
-            
+
+            # Snapshot raw model outputs BEFORE envs.step(): the projection step
+            # mutates text_actions in place (lowercases / truncates), so we must
+            # copy here to preserve the true model output for the raw dump.
+            raw_outputs_snapshot = list(text_actions) if self._dump_raw else None
+            # Raw env observation shown to the model this step (anchor = env text
+            # before skills are concatenated); 'text' is the full built prompt.
+            obs_anchor_snapshot = None
+            if self._dump_raw:
+                obs_anchor_snapshot = obs.get('anchor', None)
+                if obs_anchor_snapshot is None:
+                    obs_anchor_snapshot = obs.get('text', None)
+
             next_obs, rewards, dones, infos = envs.step(text_actions)
 
             
