@@ -160,7 +160,7 @@ class CloudAnalyzer:
             f'"dyn_{next_dyn_idx + j:03d}"' for j in range(self.max_new_skills_per_update)
         )
 
-        return f"""You are an expert at distilling embodied-agent experience into reusable, structured skills.
+        return f"""You are an expert at distilling embodied-agent experience into reusable skills.
 
 You are given COMPRESSED trajectories for task_type="{task_type}". Each step shows the action
 taken and the OBSERVATION DELTA (only what changed in the environment: +added / -removed lines).
@@ -180,17 +180,20 @@ TASK — Contrastive Analysis:
 2. Abstract the (success - failure) difference into 1-{self.max_new_skills_per_update} NEW, generalizable skills.
 3. Avoid duplicating these existing skills: {existing_titles}
 
-Return ONLY a JSON array. Each skill MUST have these fields:
-  - "skill_id":    one of {example_ids}
-  - "title":       3-5 word title
-  - "scope":       "general" or "task_specific"
-  - "task_type":   "{task_type}" (or "" if general)
-  - "trigger":     the environment condition that should activate this skill
-  - "action_flow": an array of ordered action steps to follow
-  - "avoid":       an array of concrete pitfalls to never do
+WRITING STYLE — keep skills SHORT and SIMPLE so a small 4B model can follow them.
+Match the format of these hand-written seed skills exactly:
+  {{"skill_id": "gen_001", "title": "Systematic Exploration", "principle": "Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations.", "when_to_apply": "Anytime the goal object count is not yet met and unexplored locations remain."}}
+
+Return ONLY a JSON array. Each skill MUST have EXACTLY these fields (no extra fields):
+  - "skill_id":      one of {example_ids}
+  - "title":         3-5 word title
+  - "scope":         "general" or "task_specific"
+  - "task_type":     "{task_type}" (or "" if general)
+  - "principle":     ONE or TWO plain sentences stating the rule. Keep it under 30 words. No JSON, no lists.
+  - "when_to_apply": ONE short sentence naming the situation that triggers this skill. Under 20 words.
 
 Example:
-[{{"skill_id": "dyn_{next_dyn_idx:03d}", "title": "Open Receptacle Before Search", "scope": "task_specific", "task_type": "{task_type}", "trigger": "target object may be inside a closed container and admissible actions include open", "action_flow": ["locate candidate containers", "open each closed container", "then search for the target object"], "avoid": ["repeatedly examining a closed container without opening it", "opening the same container twice"]}}]
+[{{"skill_id": "dyn_{next_dyn_idx:03d}", "title": "Open Before Search", "scope": "task_specific", "task_type": "{task_type}", "principle": "If the target may be inside a closed container, open each closed container before searching its contents.", "when_to_apply": "When the goal object is not visible and closed containers remain."}}]
 
 Return ONLY the JSON array, no other text."""
 
@@ -259,12 +262,18 @@ Return ONLY the JSON array, no other text."""
             avoid = patch.get("avoid") or []
             trigger = patch.get("trigger", "")
 
-            # 兼容旧字段：principle = trigger + action_flow 拼接
+            # 新格式直接给 principle/when_to_apply（与初始 gen_* 种子技能一致）。
+            # 兼容旧格式：若模型仍回 trigger+action_flow，则拼接降级为 principle。
             if not patch.get("principle"):
                 flow_str = "; ".join(action_flow) if isinstance(action_flow, list) else str(action_flow)
                 patch["principle"] = (f"{trigger}. Steps: {flow_str}" if flow_str else trigger) or patch.get("title", "")
             if not patch.get("when_to_apply"):
                 patch["when_to_apply"] = trigger
+            # 丢弃冗长的结构化字段，保持与初始技能相同的精简 4 字段风格，
+            # 避免注入 prompt 时塞给 4B 小模型过长难读的内容。
+            patch.pop("action_flow", None)
+            patch.pop("avoid", None)
+            patch.pop("trigger", None)
             patch.setdefault("scope", "general")
             patch["evidence"] = {"from_success": n_succ, "from_failure": n_fail}
             out.append(patch)

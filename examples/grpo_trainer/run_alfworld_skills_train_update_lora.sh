@@ -153,11 +153,14 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.stable_cycles_l2=5 \
     +env.skills_only_memory.success_l1=0.7 \
     +env.skills_only_memory.demote_threshold=0.3 \
+    `# 新增: min_calls 淘汰/降级前所需的最小调用(证据)次数, 默认20 -> 40。技能要被检索使用更多次才有资格被改动, 让删除/降级更稳。` \
+    +env.skills_only_memory.min_calls=10 \
     +env.skills_only_memory.enable_internalize=False \
     +env.skills_only_memory.coskill_debug=False \
     +env.traces_pool.capacity_watermark=50000 \
     +env.traces_pool.perf_watermark=0.6 \
-    +env.traces_pool.min_samples=8 \
+    `# 原值: min_samples=8 -> 16。触发云端更新(增/改技能)前所需的最小近期轨迹样本数, 提高以积累更多证据, 减少频繁churn。` \
+    +env.traces_pool.min_samples=16 \
     +env.traces_pool.loop_threshold=3 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','jsonl'] \

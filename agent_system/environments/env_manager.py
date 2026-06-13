@@ -211,6 +211,7 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                     stable_cycles_l2=som_cfg.get('stable_cycles_l2', 5),
                     success_l1=som_cfg.get('success_l1', 0.7),
                     demote_threshold=som_cfg.get('demote_threshold', 0.3),
+                    min_calls=som_cfg.get('min_calls', 20),
                 )
                 print(f"[AlfWorldEnvironmentManager] CoSkill HierarchicalSkillLib enabled "
                       f"(mode={som_cfg.get('retrieval_mode', 'template')})")

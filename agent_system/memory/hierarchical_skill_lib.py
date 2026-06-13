@@ -60,8 +60,12 @@ class HierarchicalSkillLib(SkillsOnlyMemory):
         self.cycle = 0
 
         # 为所有已有技能补默认 lifecycle（缺省安全）
+        # 同时把"初始技能"（启动时就在库里的，通常是 gen_* 手写种子技能）标记为
+        # protected：后续生命周期管理永不 deprecate/demote 它们，只有云端新增
+        # （dyn_*）技能才会被淘汰。避免训练中途把种子技能删光导致注入分布震荡。
         for s in self._iter_all_skills():
-            self._ensure_lifecycle(s)
+            lc = self._ensure_lifecycle(s)
+            lc["protected"] = True
 
     # ------------------------------------------------------------------ #
     # lifecycle 工具                                                       #
@@ -82,6 +86,7 @@ class HierarchicalSkillLib(SkillsOnlyMemory):
         lc.setdefault("success_rate", None)
         lc.setdefault("internalized", False)
         lc.setdefault("task_types_seen", [])
+        lc.setdefault("protected", False)
         return lc
 
     def _iter_all_skills(self):
@@ -177,7 +182,9 @@ class HierarchicalSkillLib(SkillsOnlyMemory):
             layer = lc["layer"]
 
             # 降级 / 淘汰：低成功率且样本充分
-            if sr is not None and cc >= self.min_calls and sr < self.demote_threshold:
+            # protected（初始种子技能）永不降级/淘汰，直接跳过该分支。
+            if (not lc.get("protected", False)
+                    and sr is not None and cc >= self.min_calls and sr < self.demote_threshold):
                 if layer == "L2":
                     lc["layer"] = "L1"; events["demoted"].append(sid)
                 elif layer == "L1":
