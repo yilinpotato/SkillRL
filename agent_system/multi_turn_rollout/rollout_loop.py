@@ -438,6 +438,10 @@ class TrajectoryCollector:
 
             next_obs, rewards, dones, infos = envs.step(text_actions)
 
+            # After step(), text_actions has been projected in place to the
+            # admissible env action (lowercased / extracted). Snapshot it as the
+            # actual action sent to the env, for the raw dump.
+            env_action_snapshot = list(text_actions) if self._dump_raw else None
             
             if len(rewards.shape) == 2:
                 rewards = rewards.squeeze(1)
@@ -468,6 +472,75 @@ class TrajectoryCollector:
                 total_batch_list[i].append(batch_list[i])
                 total_infos[i].append(infos[i])
 
+            # --- Raw trajectory capture (per active episode) -----------------
+            if self._dump_raw and raw_steps_per_ep is not None:
+                try:
+                    # Per-step token ids let the Skill2param internalization stage
+                    # rebuild SFT batches without re-tokenizing. Decoded lazily.
+                    resp_ids = None
+                    prompt_ids = None
+                    try:
+                        resp_ids = batch.batch['responses']
+                        if 'prompts' in batch.batch:
+                            prompt_ids = batch.batch['prompts']
+                    except Exception:
+                        resp_ids = None
+                    for i in range(batch_size):
+                        if is_done[i]:
+                            continue  # episode already finished; skip padding steps
+                        raw_resp = raw_outputs_snapshot[i] if raw_outputs_snapshot else ""
+                        think, action = _split_think_action(raw_resp)
+                        obs_text = None
+                        if obs_anchor_snapshot is not None:
+                            try:
+                                obs_text = obs_anchor_snapshot[i]
+                            except Exception:
+                                obs_text = None
+                        # Projected/admissible action actually sent to the env.
+                        env_action = None
+                        if env_action_snapshot is not None:
+                            try:
+                                env_action = env_action_snapshot[i]
+                            except Exception:
+                                env_action = None
+                        # Resulting observation after this action (next anchor).
+                        next_obs_text = None
+                        try:
+                            _na = next_obs.get('anchor', None) if isinstance(next_obs, dict) else None
+                            if _na is None and isinstance(next_obs, dict):
+                                _na = next_obs.get('text', None)
+                            if _na is not None:
+                                next_obs_text = _na[i]
+                        except Exception:
+                            next_obs_text = None
+                        rec = {
+                            "step": int(episode_lengths[i]),
+                            "active": True,
+                            "observation": obs_text,
+                            "raw_response": raw_resp,
+                            "think": think,
+                            "action": action,
+                            "action_text": action or None,
+                            "model_output": raw_resp,
+                            "env_action": env_action,
+                            "is_action_valid": int(batch.non_tensor_batch['is_action_valid'][i]),
+                            "reward": float(rewards[i]),
+                            "done": bool(dones[i]),
+                            "won": bool(infos[i].get('won', False)) if isinstance(infos[i], dict) else False,
+                            "next_observation": next_obs_text,
+                        }
+                        # Token ids for SFT reuse (optional; best-effort).
+                        try:
+                            if resp_ids is not None:
+                                rec["response_token_ids"] = resp_ids[i].tolist()
+                            if prompt_ids is not None:
+                                rec["prompt_token_ids"] = prompt_ids[i].tolist()
+                        except Exception:
+                            pass
+                        raw_steps_per_ep[i].append(rec)
+                except Exception as e:
+                    print(f"[RawDump] per-step capture failed (non-fatal): {e}")
+
             # Update done states
             is_done = np.logical_or(is_done, dones)
                 
@@ -481,11 +554,68 @@ class TrajectoryCollector:
         success: Dict[str, np.ndarray] = envs.success_evaluator(
                     total_infos=total_infos,
                     total_batch_list=total_batch_list,
-                    episode_rewards=episode_rewards, 
+                    episode_rewards=episode_rewards,
                     episode_lengths=episode_lengths,
                     )
-        
+
+        # Dump each episode's raw trajectory to its own file (best-effort).
+        if self._dump_raw and raw_steps_per_ep is not None:
+            self._write_raw_episode_files(
+                raw_steps_per_ep=raw_steps_per_ep,
+                total_infos=total_infos,
+                episode_rewards=episode_rewards,
+                envs=envs,
+                uid_batch=uid_batch,
+                traj_uid=traj_uid,
+            )
+
         return total_batch_list, episode_rewards, episode_lengths, success, traj_uid, tool_callings
+
+    def _write_raw_episode_files(self, raw_steps_per_ep, total_infos,
+                                 episode_rewards, envs, uid_batch, traj_uid):
+        """Write one JSON file per episode with its full raw trajectory.
+
+        Layout: <raw_traj_dir>/rollout_<NNNN>/ep_<idx>_<traj_uid8>.json
+        Each file: rollout index, episode index, task goal, won/reward, steps[].
+        Wrapped so a dump failure never disrupts training.
+        """
+        try:
+            self._rollout_call_idx += 1
+            call_idx = self._rollout_call_idx
+            out_dir = os.path.join(self._raw_dump_dir, f"rollout_{call_idx:04d}")
+            os.makedirs(out_dir, exist_ok=True)
+            # Task goals live on the env manager (set at reset()).
+            tasks = getattr(envs, 'tasks', None)
+            for i, steps in enumerate(raw_steps_per_ep):
+                if not steps:
+                    continue
+                last_info = total_infos[i][-1] if total_infos[i] else {}
+                won = bool(last_info.get('won', False)) if isinstance(last_info, dict) else False
+                task_goal = None
+                if tasks is not None:
+                    try:
+                        task_goal = tasks[i]
+                    except Exception:
+                        task_goal = None
+                episode = {
+                    "rollout_index": call_idx,
+                    "episode_index": i,
+                    "trajectory_uid": str(traj_uid[i]) if i < len(traj_uid) else None,
+                    "group_uid": str(uid_batch[i]) if i < len(uid_batch) else None,
+                    "task_goal": task_goal,
+                    "won": won,
+                    "episode_reward": float(episode_rewards[i]),
+                    "num_steps": len(steps),
+                    "steps": steps,
+                }
+                tuid = (str(traj_uid[i])[:8] if i < len(traj_uid) else f"{i:03d}")
+                fpath = os.path.join(out_dir, f"ep_{i:03d}_{tuid}.json")
+                with open(fpath, "w", encoding="utf-8") as f:
+                    json.dump(episode, f, ensure_ascii=False, indent=2)
+            print(f"[RawDump] wrote {sum(1 for s in raw_steps_per_ep if s)} "
+                  f"episode files → {out_dir}")
+        except Exception as e:
+            print(f"[RawDump] episode file write failed (non-fatal): {e}")
     
     def dynamic_multi_turn_loop(
             self,

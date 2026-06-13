@@ -197,6 +197,30 @@ def apply_kl_penalty(data: DataProto, kl_ctrl: core_algos.AdaptiveKLController, 
 
     return data, metrics
 
+def _extract_action_from_response(text: str) -> str:
+    """Pull the executable action out of a raw model response.
+
+    Qwen3-Thinking emits a long <think>...</think> chain followed by the actual
+    command in <action>...</action>. Storing the whole assistant turn as the
+    "action" pollutes traces (and the CloudAnalyzer contrastive prompt) with the
+    entire chain-of-thought. Mirror alfworld/projection.py: prefer the
+    <action> payload; fall back to the last short line if no tag is present.
+    """
+    if not isinstance(text, str) or not text:
+        return ""
+    import re as _re
+    m = _re.search(r"<action>(.*?)</action>", text, _re.DOTALL | _re.IGNORECASE)
+    if m:
+        return m.group(1).strip()
+    # No tag: strip any think block, then take the last non-empty line as a
+    # best-effort action (keeps it short instead of dumping the whole CoT).
+    stripped = _re.sub(r"<think>.*?</think>", "", text, flags=_re.DOTALL | _re.IGNORECASE).strip()
+    if not stripped:
+        return ""
+    last_line = stripped.splitlines()[-1].strip()
+    return last_line[:200]
+
+
 def apply_invalid_action_penalty(data: DataProto, invalid_action_penalty_coef=float):
     reward_tensor = data.batch['token_level_scores']
     if 'step_rewards' in data.batch.keys():
@@ -1236,7 +1260,194 @@ class RayPPOTrainer:
                 2 if reason == 'performance_watermark'
                 else 1 if reason == 'capacity_watermark' else 0
             )
+        # Skill2param internalization observability.
+        istats = getattr(self, '_internalize_stats', None)
+        if istats:
+            m['coskill/internalize/last_step'] = istats.get('last_step', 0)
+            m['coskill/internalize/n_skills'] = istats.get('n_skills', 0)
+            m['coskill/internalize/n_samples'] = istats.get('n_samples', 0)
+            m['coskill/internalize/seconds'] = istats.get('seconds', 0.0)
         return m
+
+    # ------------------------------------------------------------------ #
+    # Skill2param: idle-time RL internalization of cold (L2) skills       #
+    # ------------------------------------------------------------------ #
+    def _internalize_raw_dir(self) -> str:
+        """Directory where rollout_loop.py dumped raw per-episode trajectories."""
+        som = self.config.env.get('skills_only_memory', {})
+        explicit = som.get('raw_traj_dir', None) if hasattr(som, 'get') else None
+        if explicit:
+            return explicit
+        return os.path.join(self._coskill_output_dir(), 'raw_episodes')
+
+    def _load_internalize_episodes(self, cold_skill_ids, max_episodes):
+        """Scan raw-episode dumps for WON episodes that used a cold skill.
+
+        Returns a list of {observation, response, task_goal} dicts (most recent
+        rollouts first). Best-effort: missing/corrupt files are skipped.
+        Matching a cold skill is heuristic — the dump records injected skills
+        per step only if present; we fall back to including any won episode when
+        skill-id provenance is unavailable, since cold skills were injected for
+        all tasks at this stage anyway.
+        """
+        import glob as _glob
+        raw_dir = self._internalize_raw_dir()
+        if not os.path.isdir(raw_dir):
+            print(f"[Skill2param] raw dir not found: {raw_dir}; nothing to internalize from")
+            return []
+        cold_set = set(cold_skill_ids or [])
+        # newest rollout subdirs first
+        subdirs = sorted(_glob.glob(os.path.join(raw_dir, 'rollout_*')), reverse=True)
+        episodes = []
+        for sd in subdirs:
+            for fp in sorted(_glob.glob(os.path.join(sd, 'ep_*.json'))):
+                try:
+                    with open(fp, encoding='utf-8') as f:
+                        ep = json.load(f)
+                except Exception:
+                    continue
+                if not ep.get('won', False):
+                    continue
+                steps = ep.get('steps', []) or []
+                if not steps:
+                    continue
+                # Optional skill provenance: if a step lists injected skills and
+                # none intersect cold_set, skip; otherwise accept.
+                if cold_set:
+                    used = set()
+                    for s in steps:
+                        for sid in (s.get('injected_skill_ids') or []):
+                            used.add(sid)
+                    if used and not (used & cold_set):
+                        continue
+                episodes.append({
+                    'task_goal': ep.get('task_goal'),
+                    'steps': steps,
+                })
+                if len(episodes) >= max_episodes:
+                    return episodes
+        return episodes
+
+    def _build_internalize_batch(self, episodes, max_prompt_len, max_resp_len):
+        """Assemble a PPO-shaped DataProto for behavior-cloning internalization.
+
+        For each step of each won episode we form one training sample:
+          prompt    = the raw env observation (skill-free 'anchor' text)
+          response  = the model's raw output that step (think+action)
+          advantage = +const (behavior cloning = positive-advantage PPO)
+        Tensor layout mirrors the rollout collator: left-padded prompt,
+        right-padded response, concatenated input_ids/attention_mask, and
+        position_ids from the mask. old_log_probs/ref are filled later by the
+        worker; here we only build the static tensors.
+        """
+        import verl.utils.torch_functional as verl_F
+        from verl.utils.model import compute_position_id_with_mask
+        from verl.utils.dataset.rl_dataset import collate_fn
+
+        tokenizer = self.tokenizer
+        pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
+        samples = []
+        for ep in episodes:
+            for s in ep.get('steps', []):
+                obs = s.get('observation')
+                resp = s.get('raw_response')
+                if not obs or not resp:
+                    continue
+                try:
+                    p_ids, p_mask = verl_F.tokenize_and_postprocess_data(
+                        prompt=obs, tokenizer=tokenizer, max_length=max_prompt_len,
+                        pad_token_id=pad_id, left_pad=True, truncation='left')
+                    r_ids, r_mask = verl_F.tokenize_and_postprocess_data(
+                        prompt=resp, tokenizer=tokenizer, max_length=max_resp_len,
+                        pad_token_id=pad_id, left_pad=False, truncation='right')
+                except Exception:
+                    continue
+                input_ids = torch.cat([p_ids[0], r_ids[0]], dim=-1)
+                attention_mask = torch.cat([p_mask[0], r_mask[0]], dim=-1)
+                position_ids = compute_position_id_with_mask(attention_mask)
+                samples.append({
+                    'prompts': p_ids[0],
+                    'responses': r_ids[0],
+                    'input_ids': input_ids,
+                    'attention_mask': attention_mask,
+                    'position_ids': position_ids,
+                })
+        if not samples:
+            return None
+        return DataProto.from_single_dict(data=collate_fn(samples))
+
+    def _internalize_cold_skills(self):
+        """Skill2param: behavior-clone won trajectories (that used cold L2 skills)
+        into the actor weights, then mark those skills internalized so the hot
+        path stops injecting them. Reuses update_actor (BC = positive-advantage
+        PPO). Entirely best-effort and gated by config; never raises into fit().
+        """
+        import time as _time
+        t0 = _time.time()
+        skill_lib = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
+        if skill_lib is None or not hasattr(skill_lib, 'get_cold_skills'):
+            return
+        cold = skill_lib.get_cold_skills()
+        if not cold:
+            return
+        cold_ids = [s.get('skill_id') for s in cold]
+        som = self.config.env.get('skills_only_memory', {})
+        max_eps = int(som.get('internalize_max_episodes', 8)) if hasattr(som, 'get') else 8
+        episodes = self._load_internalize_episodes(cold_ids, max_eps)
+        if not episodes:
+            print(f"[Skill2param] no won episodes available; skip (cold={len(cold_ids)})")
+            return
+
+        max_prompt = int(self.config.data.max_prompt_length)
+        max_resp = int(self.config.data.max_response_length)
+        batch = self._build_internalize_batch(episodes, max_prompt, max_resp)
+        if batch is None or len(batch.batch) == 0:
+            print("[Skill2param] empty internalize batch; skip")
+            return
+
+        # Fill old_log_probs (and ref_log_prob if KL is on) via the worker, set
+        # constant positive advantages, then run a normal actor update.
+        try:
+            batch.meta_info['temperature'] = self.config.actor_rollout_ref.rollout.get('temperature', 1.0)
+            old_lp = self.actor_rollout_wg.compute_log_prob(batch)
+            old_lp.batch.pop('entropys', None)
+            batch = batch.union(old_lp)
+            if self.use_reference_policy:
+                if not self.ref_in_actor:
+                    ref_lp = self.ref_policy_wg.compute_ref_log_prob(batch)
+                else:
+                    ref_lp = self.actor_rollout_wg.compute_ref_log_prob(batch)
+                batch = batch.union(ref_lp)
+            resp_len = batch.batch['responses'].size(1)
+            response_mask = batch.batch['attention_mask'][:, -resp_len:]
+            adv_const = float(som.get('internalize_adv', 1.0)) if hasattr(som, 'get') else 1.0
+            advantages = adv_const * response_mask.float()
+            batch.batch['advantages'] = advantages
+            batch.batch['returns'] = advantages.clone()
+            batch.batch['response_mask'] = response_mask
+            batch.meta_info['multi_turn'] = False
+            actor_output = self.actor_rollout_wg.update_actor(batch)
+            n_samples = len(batch.batch)
+        except Exception as e:
+            print(f"[Skill2param] update_actor failed (non-fatal): {e}")
+            return
+
+        skill_lib.mark_internalized(cold_ids)
+        save_dir = os.path.join(self._coskill_output_dir(), 'skill_lib')
+        try:
+            os.makedirs(save_dir, exist_ok=True)
+            skill_lib.save_skills(os.path.join(save_dir, f'skills_step{self.global_steps}_internalized.json'))
+        except Exception as e:
+            print(f"[Skill2param] skill save failed: {e}")
+        self._internalize_stats = {
+            'last_step': self.global_steps,
+            'n_skills': len(cold_ids),
+            'n_samples': n_samples,
+            'seconds': _time.time() - t0,
+        }
+        print(f"[Skill2param] internalized {len(cold_ids)} skills from "
+              f"{n_samples} samples in {self._internalize_stats['seconds']:.1f}s; "
+              f"marked: {cold_ids}")
 
     def _collect_failed_trajectories(
         self,
@@ -1305,11 +1516,11 @@ class RayPPOTrainer:
         if user_turns and asst_turns:
             for obs, act in zip(user_turns, asst_turns):
                 steps.append({
-                    'action': act.strip()[:1500],
+                    'action': _extract_action_from_response(act)[:1500],
                     'observation': obs.strip()[:800],
                 })
             # Final (failed) action has no follow-up observation
-            steps.append({'action': out[:2000], 'observation': ''})
+            steps.append({'action': _extract_action_from_response(out)[:2000], 'observation': ''})
             return steps
 
         # --- Human / Assistant format ----------------------------------------
@@ -1324,15 +1535,15 @@ class RayPPOTrainer:
         if user_turns and asst_turns:
             for obs, act in zip(user_turns, asst_turns):
                 steps.append({
-                    'action': act.strip()[:1500],
+                    'action': _extract_action_from_response(act)[:1500],
                     'observation': obs.strip()[:800],
                 })
-            steps.append({'action': out[:2000], 'observation': ''})
+            steps.append({'action': _extract_action_from_response(out)[:2000], 'observation': ''})
             return steps
 
         # --- Fallback: treat full inp as initial context ---------------------
         steps.append({'action': '', 'observation': inp[:3000]})
-        steps.append({'action': out[:2000], 'observation': ''})
+        steps.append({'action': _extract_action_from_response(out)[:2000], 'observation': ''})
         return steps
 
     def _detect_task_type_from_input(self, inp: str) -> str:
@@ -1772,6 +1983,21 @@ class RayPPOTrainer:
                                 self._update_skills_coskill(batch)
                             else:
                                 self._update_skills_from_training(batch)
+
+                    # Skill2param: idle-time RL internalization of cold (L2) skills.
+                    # Behavior-clones won trajectories into actor weights, then
+                    # stops injecting those skills. Gated + best-effort.
+                    som_cfg = self.config.env.get('skills_only_memory', {})
+                    if som_cfg.get('enable_internalize', False):
+                        internalize_freq = som_cfg.get('internalize_freq', 10)
+                        if (self.global_steps > 0
+                                and self.global_steps % internalize_freq == 0):
+                            skill_lib = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
+                            if (skill_lib is not None
+                                    and hasattr(skill_lib, 'has_cold_skills')
+                                    and skill_lib.has_cold_skills()):
+                                with _timer("internalize", timing_raw):
+                                    self._internalize_cold_skills()
 
                     # update critic
                     if self.use_critic:

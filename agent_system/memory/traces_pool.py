@@ -178,16 +178,34 @@ class TracesPool:
         return cleaned, dropped
 
     def _diff_compress(self, steps: List[dict]) -> List[dict]:
-        """状态差分：相邻 observation 求增量，只保留新增行 (+...) 与删除行 (-...)。"""
+        """状态压缩：把相邻 observation 的增量写入 obs_delta。
+
+        但差分只在"划算"时才做——观测够长且差分能省下足够多内容时才用 +/-
+        增量，否则直接保留完整观测原文。短观测做差分反而让云端大模型读起来更
+        费劲（只看到零散的 +/- 行而非完整场景），得不偿失。
+        """
+        # 仅当完整观测超过该长度才考虑差分（短观测直接存原文）。
+        min_len_to_diff = getattr(self, "diff_min_obs_chars", 400)
+        # 且差分结果需至少比原文短这个比例，才认为划算（否则存原文）。
+        min_savings_ratio = getattr(self, "diff_min_savings", 0.5)
         diff_steps: List[dict] = []
         prev_lines: List[str] = []
         for s in steps:
             obs = s.get("observation") or ""
             cur_lines = [ln.strip() for ln in obs.splitlines() if ln.strip()]
             delta = self._line_delta(prev_lines, cur_lines)
+            obs_clean = obs.strip()
+            # 是否值得差分：观测够长 + 差分确实省了 >= min_savings_ratio。
+            worth_diff = (
+                len(obs_clean) >= min_len_to_diff
+                and delta != "(no change)"
+                and len(delta) <= len(obs_clean) * (1.0 - min_savings_ratio)
+            )
             diff_steps.append({
                 "action": (s.get("action") or "").strip(),
-                "obs_delta": delta,
+                # 划算则存增量，否则存完整观测（云端直接读原文）。
+                "obs_delta": delta if worth_diff else obs_clean,
+                "obs_is_full": not worth_diff,
                 "reward": s.get("reward", 0) or 0,
             })
             prev_lines = cur_lines

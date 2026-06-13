@@ -204,7 +204,10 @@ Return ONLY the JSON array, no other text."""
         for i, tr in enumerate(traces[:limit]):
             lines = [f"\nTrajectory {i + 1} [{tr.get('outcome', '?')}] task: {tr.get('task', '')}"]
             for s in tr.get("steps", [])[:12]:
-                lines.append(f"  action: {s.get('action', '')}  | delta: {s.get('obs_delta', '')[:200]}")
+                obs_text = s.get('obs_delta', '')
+                # obs_is_full=True 表示这是完整观测原文(短观测不差分), 否则是 +/- 增量。
+                label = "obs" if s.get('obs_is_full') else "delta"
+                lines.append(f"  action: {s.get('action', '')}  | {label}: {obs_text[:400]}")
             if tr.get("dropped_loops"):
                 lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
             out.append("\n".join(lines))

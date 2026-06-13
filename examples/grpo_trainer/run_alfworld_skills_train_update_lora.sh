@@ -155,7 +155,14 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.demote_threshold=0.3 \
     `# 新增: min_calls 淘汰/降级前所需的最小调用(证据)次数, 默认20 -> 40。技能要被检索使用更多次才有资格被改动, 让删除/降级更稳。` \
     +env.skills_only_memory.min_calls=10 \
-    +env.skills_only_memory.enable_internalize=False \
+    `# 原值: enable_internalize=False -> True。开启Skill2param闲时RL固化: 每internalize_freq步把已验证有效的L2技能行为克隆进模型权重, 之后不再注入prompt。` \
+    +env.skills_only_memory.enable_internalize=True \
+    `# 新增: 固化触发频率(每N步检查一次cold skills)。` \
+    +env.skills_only_memory.internalize_freq=10 \
+    `# 新增: 单次固化最多采用多少条已dump的成功episode作为行为克隆数据。` \
+    +env.skills_only_memory.internalize_max_episodes=8 \
+    `# 新增: 固化阶段开启原始轨迹dump(固化的数据来源)。按episode写到 OUTPUT_DIR/raw_episodes/。` \
+    +env.dump_raw_trajectories=True \
     +env.skills_only_memory.coskill_debug=False \
     +env.traces_pool.capacity_watermark=50000 \
     +env.traces_pool.perf_watermark=0.6 \

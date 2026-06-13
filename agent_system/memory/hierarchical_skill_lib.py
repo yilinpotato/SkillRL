@@ -60,12 +60,15 @@ class HierarchicalSkillLib(SkillsOnlyMemory):
         self.cycle = 0
 
         # 为所有已有技能补默认 lifecycle（缺省安全）
-        # 同时把"初始技能"（启动时就在库里的，通常是 gen_* 手写种子技能）标记为
-        # protected：后续生命周期管理永不 deprecate/demote 它们，只有云端新增
-        # （dyn_*）技能才会被淘汰。避免训练中途把种子技能删光导致注入分布震荡。
+        # 初始技能（启动时就在库里的手写种子技能 gen_*）的处理：
+        #   - protected=True：永不 deprecate/demote（见 advance_lifecycle 守卫）。
+        #   - layer="L2"：直接进入 Skill2param 待固化队列（get_cold_skills 选 L2 且
+        #     未 internalized 的）。即"初始技能是 L2、不变、且要被 RL 固化进模型"。
+        # 固化前仍照常注入 prompt；固化完成 mark_internalized 后热路径不再注入。
         for s in self._iter_all_skills():
             lc = self._ensure_lifecycle(s)
             lc["protected"] = True
+            lc["layer"] = "L2"
 
     # ------------------------------------------------------------------ #
     # lifecycle 工具                                                       #
