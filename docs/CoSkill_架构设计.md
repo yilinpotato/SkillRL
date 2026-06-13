@@ -3,6 +3,12 @@
 > 本文档描述在现有 SkillRL（基于 verl-agent / GRPO）之上，构建一个**完整闭环**的设计方案：
 > 云端冻结大模型负责经验蒸馏，端侧可调小模型负责执行，中间由层次化 Skill Lib 调度，
 > 轨迹池负责收集、压缩与触发。本文档先给出完整框架，再给出落地到现有代码的实现路径。
+>
+> **实现状态（2026-06 更新）**：M1~M4 全部已落地并通过语法/逻辑自检——轨迹池、
+> 云端正负对比蒸馏、层次化 Skill Lib、**以及 Skill2param 闲时 RL 固化**。原文档曾把
+> M4 标为"暂不启用"，现已实现完整通路（见 §6.3、§13）。本轮还做了若干质量修复：
+> 原始逐 episode 轨迹 dump、自适应差分压缩、action/think 解析分离、初始技能 L2+protected、
+> 云端技能精简化、技能增删的证据门槛提高。详见 §13「本轮实现增量」。
 
 ---
 
@@ -446,7 +452,7 @@ for each task in stream:
 # --- 轨迹池 ---
 +env.traces_pool.capacity_watermark=50000     # 容量水位线（token）
 +env.traces_pool.perf_watermark=0.6           # 表现水位线（失败率）
-+env.traces_pool.min_samples=8                # 触发表现轨的最小样本数
++env.traces_pool.min_samples=16               # 触发表现轨的最小样本数（原 8，提高以稳）
 +env.traces_pool.loop_threshold=3             # 死循环判定的重复次数
 
 # --- 层次化 Skill Lib ---
@@ -454,18 +460,21 @@ for each task in stream:
 +env.skills_only_memory.stable_cycles_l1=3    # L0→L1 稳定周期阈值
 +env.skills_only_memory.stable_cycles_l2=5    # L1→L2 稳定周期阈值
 +env.skills_only_memory.success_l1=0.7        # L1 成功率阈值
-+env.skills_only_memory.demote_threshold=0.3  # 降级阈值
++env.skills_only_memory.demote_threshold=0.2  # 降级阈值（原 0.3，降低以少删技能）
++env.skills_only_memory.min_calls=40          # 淘汰/降级所需最小调用证据（原默认 20）
 
 # --- 云端分析器（沿用现有） ---
 +env.skills_only_memory.max_new_skills=3
 # SKILL_UPDATER_BACKEND / DEEPSEEK_* 环境变量不变
 
-# --- Skill2param 固化（本期默认关，算力不足暂不测试，见 §11.7） ---
-+env.skills_only_memory.enable_internalize=False
-+env.skills_only_memory.internalize_freq=20   # 每 N 个 update 周期固化一次
+# --- Skill2param 固化（M4，已实现） ---
++env.skills_only_memory.enable_internalize=True   # 开启闲时 RL 固化
++env.skills_only_memory.internalize_freq=10       # 每 N 步检查 cold skills 并固化
++env.skills_only_memory.internalize_max_episodes=8  # 单次固化最多用多少条成功 episode
++env.dump_raw_trajectories=True                   # 开启原始轨迹 dump（固化数据源）
 
-# --- 输出目录（统一落到 OUTPUT_DIR，见 §11.2） ---
-# traces_pool/ skill_lib/ cloud_io/ 由代码基于 trainer.default_local_dir 自动创建
+# --- 输出目录（统一落到 OUTPUT_DIR，见 §11.2 与 §14） ---
+# traces_pool/ skill_lib/ cloud_io/ raw_episodes/ 由代码基于 trainer.default_local_dir 自动创建
 ```
 
 ---
@@ -493,7 +502,9 @@ for each task in stream:
 4. **reward 归因**：本期用**共享归因**（episode 成功则该 episode 注入的所有技能 `success_when_used += 1`）。更细的 credit assignment 见 §12 TODO。
 5. **检索用 LLM**：技能 embedding 检索默认与 SFT 模型一致（即 `MODEL_PATH`），不再单独指定 embedding 模型。
 6. **云端模型**：使用 **DeepSeek V4 Flash**（`SKILL_UPDATER_BACKEND=deepseek`，`DEEPSEEK_MODEL=deepseek-v4-flash`）。
-7. **Skill2param RL 固化（M4）暂不启用**：当前服务器算力不足，闲时 RL 固化部分先不测试，仅保留接口与开关（默认关）。
+7. **Skill2param RL 固化（M4）已实现**：原计划因算力暂缓，现已落地完整通路（复用
+   `update_actor` 做行为克隆，数据源为原始轨迹 dump）。默认开关 `enable_internalize`，
+   详见 §13.1。算力紧张时可关闭。
 8. **L1 编译轻量级 LoRA 下发：本期不做**，见 §12 TODO；本期 L1 仅以"加权/优先 Context"形态下发。
 9. **云端队列形态**：单机进程内 queue 起步；落盘到 `OUTPUT_DIR/cloud_io/` 兼作断点续训与人工查看。
 
@@ -503,5 +514,91 @@ for each task in stream:
 
 - [ ] **更细的 reward 归因**：替换共享归因，做 per-skill credit assignment（如按技能在轨迹中实际命中的步贡献分摊，或反事实对比）。
 - [ ] **L1 → 轻量级 LoRA 编译下发**：把多周期稳定的 L1 技能编译为一组独立轻量 LoRA 下发端侧，替代当前的加权 Context 形态。
-- [ ] **Skill2param 闲时 RL 固化（M4）联调**：待算力到位后启用，把 L2 Global skills 固化进 SLM 参数，并验证固化后撤除 Context 仍能复现行为、Token 下降。
+- [x] **Skill2param 闲时 RL 固化（M4）联调**：已实现（§13.1）。复用 update_actor 做行为克隆，
+  数据源为原始轨迹 dump。待大规模算力到位后做收敛性/Token 下降的端到端验证。
 - [ ] **分布式云端队列**：单机 queue → Redis / 文件队列，支持多端侧并发上传。
+
+---
+
+## 13. 本轮实现增量（2026-06，相对原设计的落地与修正）
+
+### 13.1 Skill2param 闲时 RL 固化（M4，已实现）
+
+原文档 §11.7 标为"暂不启用"，现已实现完整通路：
+
+- **复用 `update_actor` 而非新建 SFT trainer**：行为克隆 = advantage≡正常数的 PPO 特例。
+  固化阶段构造特殊 batch（prompt=去技能注入的观测，response=成功轨迹动作，advantage=正），
+  直接调 `self.actor_rollout_wg.update_actor(batch)`，自动复用 FSDP/offload/LoRA。
+- **数据来源 = 原始轨迹 dump**（见 §13.2）：从 dump 里筛"used cold skill 且 won"的 episode。
+- **触发**：fit 循环每 `internalize_freq` 步检查 `has_cold_skills()`，非空则固化。
+- **收尾**：`mark_internalized()` 标记，热路径 `retrieve()` 不再注入该技能；落盘
+  `skill_lib/skills_step{N}_internalized.json`。
+- 代码：`ray_trainer._internalize_cold_skills / _load_internalize_episodes / _build_internalize_batch`。
+- 开关：`enable_internalize`、`internalize_freq`、`internalize_max_episodes`、`internalize_adv`。
+
+### 13.2 原始逐 episode 轨迹 dump（固化数据源）
+
+`rollout_loop.py` 新增：每个 rollout 把每条 episode 的完整逐步轨迹各写一个 JSON。
+
+- 路径：`OUTPUT_DIR/raw_episodes/rollout_<NNNN>/ep_<idx>_<uid>.json`
+- 每步字段：`step/active/observation/raw_response/think/action/action_text/model_output/
+  env_action/is_action_valid/reward/done/won/next_observation`，外加 `prompt_token_ids/
+  response_token_ids`（供固化免重 tokenize）。
+- 关键正确性：动作快照在 `envs.step()` 前取（projection 会就地改写）；`think/action`
+  用 `<think>`/`<action>` 正则分离。
+- 开关：`+env.dump_raw_trajectories=True`（默认关，关时零开销）。
+
+### 13.3 自适应差分压缩
+
+原 `_diff_compress` 无条件对所有观测求 `+/-` 增量，导致短观测也被拆成零散增量行、
+大模型难读。现改为**只在划算时差分**：观测长度 ≥ `diff_min_obs_chars`(400) 且差分能省
+≥ `diff_min_savings`(0.5) 才用增量，否则存完整观测原文，并以 `obs_is_full` 标记。
+云端 prompt 标签相应区分 `obs:`(完整)/`delta:`(增量)。
+
+### 13.4 action/think 解析分离（bug 修复）
+
+`_parse_conversation_to_steps` 原先把 assistant **整段输出**（含 `<think>` 长思维链）塞进
+`action` 字段，导致 traces 里 action 时而是大段 CoT、时而为空，污染对比蒸馏。新增
+`_extract_action_from_response()`：优先取 `<action>` 内容，无标签则剥离 think 后取末行。
+CoSkill ingest 与 legacy SkillUpdater 两条路径共用此修复。
+
+### 13.5 技能稳定性强化
+
+- **初始 gen_* 技能 = L2 + protected**：启动即进固化队列且永不 demote/deprecate
+  （`hierarchical_skill_lib.__init__`）。
+- **云端技能精简**：CloudAnalyzer prompt 改为输出与初始种子一致的 4 字段
+  （`title/scope/principle/when_to_apply`），principle ≤30 词，去掉冗长的
+  `action_flow/avoid` 数组——4B 小模型更易读。
+- **提高增删证据门槛**：`min_samples` 8→16（触发云端更新需更多近期轨迹）、
+  `min_calls` 默认 20→40（淘汰/降级需更多调用证据）、`demote_threshold` 0.3→0.2
+  （成功率需更低才淘汰）。缓解技能 churn（此前 30 步废弃 18 条）。
+
+---
+
+## 14. Output 目录数据导览（怎么看）
+
+所有产物落在 `OUTPUT_DIR`（默认 `outputs/verl_agent_alfworld/grpo_qwen3-4b_co_skill/`）。
+
+| 文件/目录 | 内容 | 怎么看 |
+|---|---|---|
+| `metrics.jsonl` | 每 step 一行 JSON 的训练指标 | `tail -f`；认 `training/global_step`、`episode/success_rate`、`val/success_rate`、`actor/{entropy_loss,kl_loss,grad_norm}`、`timing_s/step`、`coskill/*` |
+| `training.log` | 全量 stdout/stderr | step 卡住/报错看这里；jsonl 只在 step 结束才写 |
+| `config.yaml` | 展开后的完整生效配置 | 核对实际参数（比 .sh 更准，override 已合并） |
+| `coskill_status.json` | 最新一次 CoSkill 周期总览（覆盖写） | 快速看技能库健康：`skill_lib`(L0/L1/L2/internalized/deprecated)、`cloud`(更新次数/token)、`pool` |
+| `skill_lib/skills_step{N}.json` | 第 N 步技能库快照 | 看每条技能 `lifecycle`(layer/call_count/success_rate)；对比不同 N 看演化 |
+| `skill_lib/skills_step{N}_internalized.json` | 固化后的技能库快照 | 看哪些技能 `internalized=True`（已进参数、不再注入） |
+| `cloud_io/patches_*.json` | 每次云端 DeepSeek 返回的技能补丁 | 看"某次更新具体增/改了什么技能" |
+| `traces_pool/raw_traces.jsonl` | 每条原始轨迹一行（压缩前的解析结果） | 看 task/outcome/steps（action 已是分离后的纯动作） |
+| `traces_pool/batch_*.json` | 触发更新时导出给云端的压缩批 | 看喂给蒸馏的 success/failure 样本 + 前缀树；`obs_is_full` 标记完整观测 |
+| `raw_episodes/rollout_<N>/ep_*.json` | 逐 episode 完整原始轨迹（需开 dump_raw） | 看单条 episode 每步的 observation/think/action/reward/won；Skill2param 的数据源 |
+| `latest_checkpointed_iteration.txt` | 最近 checkpoint 步数 | 续训定位 `global_step_{N}/` |
+
+**典型排查顺序**：进度/动力学看 `metrics.jsonl` → 报错看 `training.log` → 技能为何变看
+`coskill_status.json`(总览) + `cloud_io/patches_*`(具体改动) + `skill_lib/skills_step*`(演化)
+→ 想读完整轨迹看 `raw_episodes/`。
+
+**关键 coskill 指标**：
+- `coskill/skilllib/{L0,L1,L2,internalized,deprecated}` — 各层技能数
+- `coskill/cloud/{total_updates,total_patches,large_model_total_tokens}` — 云端调用与花费
+- `coskill/internalize/{last_step,n_skills,n_samples,seconds}` — Skill2param 固化进度
+- `coskill/pool/{total_added,...}` — 轨迹池状态
