@@ -1073,27 +1073,65 @@ class RayPPOTrainer:
         traj_uids = batch.non_tensor_batch.get('traj_uid', [None] * len(inputs))
         skill_lib = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
         can_record = skill_lib is not None and hasattr(skill_lib, 'record_usage')
-        seen = set()
-        for inp, out, score, uid in zip(inputs, outputs, scores, traj_uids):
-            if uid is not None and uid in seen:
-                continue
-            if uid is not None:
-                seen.add(uid)
-            task_type = self._detect_task_type_from_input(inp)
-            task_desc = self._extract_task_description(inp)
-            steps = self._parse_conversation_to_steps(inp, out)
-            success = score > 0
+
+        # Each batch ROW is a single env step; all steps of one episode share the
+        # same traj_uid. Group rows by uid so we reconstruct the FULL multi-step
+        # episode (up to env.max_steps) instead of only its first step. (The old
+        # code de-duped by uid and kept just row 0, so every RawTrace held only
+        # the initial observation + first action — starving the cloud analyzer.)
+        from collections import OrderedDict
+        episode_rows = OrderedDict()
+        for idx, (inp, out, score, uid) in enumerate(zip(inputs, outputs, scores, traj_uids)):
+            key = uid if uid is not None else f'__row_{idx}'
+            episode_rows.setdefault(key, []).append((inp, out, float(score)))
+
+        # True per-episode reward (set in rollout_loop collect_loop_data).
+        ep_reward_arr = batch.non_tensor_batch.get('episode_rewards', None)
+        if ep_reward_arr is None and 'episode_rewards' in batch.batch:
+            ep_reward_arr = batch.batch['episode_rewards'].cpu().tolist()
+        uid_to_epreward = {}
+        if ep_reward_arr is not None:
+            for uid, er in zip(traj_uids, ep_reward_arr):
+                if uid is not None and uid not in uid_to_epreward:
+                    uid_to_epreward[uid] = float(er)
+
+        for key, rows in episode_rows.items():
+            first_inp = rows[0][0]
+            task_type = self._detect_task_type_from_input(first_inp)
+            task_desc = self._extract_task_description(first_inp)
+
+            # Each row -> one step (its current observation + the action taken).
+            indexed = []
+            for inp, out, score in rows:
+                indexed.append((
+                    self._extract_step_index(inp),
+                    self._extract_current_observation(inp),
+                    _extract_action_from_response(out)[:2000],
+                    score,
+                ))
+            # Order by the parsed step index so the trace is chronological even
+            # if batch rows were reordered (stable sort keeps ties in order).
+            indexed.sort(key=lambda t: t[0])
+            steps = [
+                {'step': i, 'observation': obs, 'action': action, 'reward': rew}
+                for i, (_, obs, action, rew) in enumerate(indexed)
+            ]
+
+            uid = '' if str(key).startswith('__row_') else key
+            if uid and uid in uid_to_epreward:
+                ep_reward = uid_to_epreward[uid]
+                success = ep_reward > 0
+            else:
+                ep_reward = max((r[3] for r in indexed), default=0.0)
+                success = any(r[3] > 0 for r in indexed)
+
             raw_trace = {
-                'traj_uid': uid or '',
+                'traj_uid': uid,
                 'task': task_desc,
                 'task_type': task_type,
                 'outcome': 'success' if success else 'failure',
-                'episode_reward': float(score),
-                'steps': [
-                    {'step': i, 'observation': s.get('observation', ''),
-                     'action': s.get('action', ''), 'reward': 0.0}
-                    for i, s in enumerate(steps)
-                ],
+                'episode_reward': float(ep_reward),
+                'steps': steps,
                 'meta': {'model_version': f'step_{self.global_steps}'},
             }
             self.traces_pool.add_trace(raw_trace)
@@ -1545,6 +1583,34 @@ class RayPPOTrainer:
         steps.append({'action': '', 'observation': inp[:3000]})
         steps.append({'action': _extract_action_from_response(out)[:2000], 'observation': ''})
         return steps
+
+    def _extract_current_observation(self, inp: str) -> str:
+        """Extract the *current* environment observation from one step's prompt.
+
+        Handles both the no-history template ("Your current observation is:
+        <obs>") and the history template ("... at step N and your current
+        observation is: <obs>"). Returns the text between the observation
+        marker and the admissible-actions marker.
+        """
+        import re
+        m = re.search(
+            r'current observation is:\s*(.*?)\s*Your admissible actions',
+            inp, re.DOTALL | re.IGNORECASE,
+        )
+        if m:
+            return m.group(1).strip()[:1500]
+        return inp.strip()[:1500]
+
+    def _extract_step_index(self, inp: str) -> int:
+        """Parse the current step index from a step prompt.
+
+        The history template states "You are now at step N" (1-indexed). The
+        first step uses the no-history template (no such marker) -> step 0.
+        Used only to order the reconstructed trajectory chronologically.
+        """
+        import re
+        m = re.search(r'at step\s+(\d+)', inp, re.IGNORECASE)
+        return int(m.group(1)) if m else 0
 
     def _detect_task_type_from_input(self, inp: str) -> str:
         """从输入中检测任务类型"""
