@@ -61,7 +61,7 @@ NUM_CPUS=$(nproc 2>/dev/null || echo 8)
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
-ray start --head --num-cpus="56" --num-gpus="$NUM_GPUS"
+ray start --head --num-cpus=56 --num-gpus="$NUM_GPUS"
 sleep 3
 
 train_data_size=12  # Minimal test (divisible by 2)
