@@ -42,7 +42,7 @@ mkdir -p "$OUTPUT_DIR"
 export JSONL_METRICS_DIR="$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 
-num_cpus_per_env_worker=0.3 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
+num_cpus_per_env_worker=0.4 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
 # Auto-detect how many GPUs this machine has so the script uses all of them.
 # Respect CUDA_VISIBLE_DEVICES if the user set it, otherwise ask nvidia-smi.
