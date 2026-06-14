@@ -127,7 +127,11 @@ class SkillsOnlyMemory(BaseMemory):
 
         # ---- ALFWorld categories ----------------------------------------
         if 'pick_and_place' in task_specific or 'clean' in task_specific:
-            if 'look at' in goal and 'under' in goal:
+            # Check 'two' first: pick_two goals like "find two X and put them in Y"
+            # contain 'find', which would otherwise be misclassified as 'examine'.
+            if 'two' in goal:
+                return 'pick_two_obj_and_place'
+            elif 'look at' in goal and 'under' in goal:
                 return 'look_at_obj_in_light'
             elif 'clean' in goal:
                 return 'clean'

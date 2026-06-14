@@ -1548,8 +1548,13 @@ class RayPPOTrainer:
 
     def _detect_task_type_from_input(self, inp: str) -> str:
         """从输入中检测任务类型"""
+        import re
         inp_lower = inp.lower()
-        if 'clean' in inp_lower:
+        # pick_two: 把 'two' 限定在任务目标行内判断，避免观测里偶发的 'two'
+        # （如 "you see two apples"）误判。目标行形如 "your task is to: put two ..."。
+        if re.search(r'task is to:[^\n]*\btwo\b', inp_lower):
+            return 'pick_two_obj_and_place'
+        elif 'clean' in inp_lower:
             return 'clean'
         elif 'heat' in inp_lower:
             return 'heat'
