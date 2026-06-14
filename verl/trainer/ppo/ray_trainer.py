@@ -1114,7 +1114,11 @@ class RayPPOTrainer:
     def _detect_task_type_from_input(self, inp: str) -> str:
         """从输入中检测任务类型"""
         inp_lower = inp.lower()
-        if 'clean' in inp_lower:
+        # 先判断 'two'：pick_two 目标（如 "put two X in Y"）也含 put/find，
+        # 否则会被误判为 pick_and_place。
+        if 'two' in inp_lower:
+            return 'pick_two_obj_and_place'
+        elif 'clean' in inp_lower:
             return 'clean'
         elif 'heat' in inp_lower:
             return 'heat'

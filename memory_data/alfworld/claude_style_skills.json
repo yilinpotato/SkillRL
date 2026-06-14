@@ -106,6 +106,44 @@
         "when_to_apply": "Throughout tasks demanding two or more instances of the same object."
       }
     ],
+    "pick_two_obj_and_place": [
+      {
+        "skill_id": "two_001",
+        "title": "Two-Instance Goal Counter",
+        "principle": "Parse the goal as requiring exactly two separate instances of the same object type at the destination; keep an explicit placed-count and treat the task as incomplete until placed-count equals two.",
+        "when_to_apply": "Immediately after reading any goal of the form 'put two X in/on Y' or 'find two X and place them'."
+      },
+      {
+        "skill_id": "two_002",
+        "title": "One Carry at a Time",
+        "principle": "The agent can hold only a single object, so collect-and-deliver each instance fully (take first X, carry to Y, place) before searching for the second instance; never abandon a held instance to chase another.",
+        "when_to_apply": "After acquiring the first of the two required objects."
+      },
+      {
+        "skill_id": "two_003",
+        "title": "Remember the Second Source",
+        "principle": "When you spot two candidate instances but can only carry one, record the location of the un-taken instance so you can return to it directly after placing the first, avoiding a fresh room-wide search.",
+        "when_to_apply": "Whenever two or more matching objects are visible at the same time."
+      },
+      {
+        "skill_id": "two_004",
+        "title": "Resume Search After First Placement",
+        "principle": "After placing the first instance, do not issue 'done'; immediately resume systematic search for the second instance, prioritizing the remembered source or unexplored locations.",
+        "when_to_apply": "Right after the first of two objects has been placed at the destination."
+      },
+      {
+        "skill_id": "two_005",
+        "title": "Distinct Instances Only",
+        "principle": "The two objects must be different physical instances; never count the same object twice or re-place an already-delivered instance to satisfy the count.",
+        "when_to_apply": "When selecting the second target object after the first is delivered."
+      },
+      {
+        "skill_id": "two_006",
+        "title": "Terminate Only at Count Two",
+        "principle": "Issue 'done' exclusively after verifying both instances are at the destination; if only one is placed, the goal is unmet and search must continue.",
+        "when_to_apply": "Before ending the episode on a pick-two task."
+      }
+    ],
     "look_at_obj_in_light": [
       {
         "skill_id": "loo_001",
@@ -354,6 +392,10 @@
       "pick_and_place": {
         "success": 41,
         "failure": 35
+      },
+      "pick_two_obj_and_place": {
+        "success": 0,
+        "failure": 0
       },
       "look_at_obj_in_light": {
         "success": 12,

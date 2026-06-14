@@ -229,7 +229,11 @@ class RetrievalMemory(BaseMemory):
         """Detect ALFWorld task type from task description."""
         goal = task_description.lower()
 
-        if 'look at' in goal and 'under' in goal:
+        # Check 'two' first: pick_two goals (e.g. "find two X and put them in Y")
+        # contain 'find'/'put', which would otherwise be misclassified.
+        if 'two' in goal:
+            return 'pick_two_obj_and_place'
+        elif 'look at' in goal and 'under' in goal:
             return 'look_at_obj_in_light'
         elif 'clean' in goal:
             return 'clean'
