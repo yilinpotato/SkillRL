@@ -20,7 +20,7 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
 PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="grpo_qwen3_4b_skills_dynamic_lora"
+EXPERIMENT_NAME="grpo_qwen3_4b_skills_dynamic_lora_v2"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
