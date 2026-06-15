@@ -8,6 +8,11 @@ agent_vllm.py — 用 vLLM 加载 Qwen3-4B，作为 ALFWorld 决策 agent
 """
 import os
 
+# 关键：vLLM v1 用多进程拉起 EngineCore。父进程在 fork 前已初始化 CUDA，
+# fork 出的子进程无法再 init CUDA -> "Cannot re-initialize CUDA in forked subprocess"。
+# 强制 worker 用 spawn 启动方式即可解决。必须在 import vllm 之前设好。
+os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+
 
 class VLLMAgent:
     def __init__(

@@ -15,8 +15,13 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 
-: "${ALFWORLD_DATA:?请先 export ALFWORLD_DATA=/path/to/alfworld}"
-: "${MODEL_PATH:?请先 export MODEL_PATH=/path/to/Qwen3-4B}"
+# 关键：vLLM v1 fork EngineCore 子进程时会撞 "Cannot re-initialize CUDA in
+# forked subprocess"。强制 worker 用 spawn 启动。
+export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+export CACHE_ROOT="${CACHE_ROOT:-$HOME/.cache}"
+export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
+export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 
 # 切到项目根目录（本脚本的上一级），保证 `python -m` 能找到包
 cd "$(dirname "$0")/.."
