@@ -134,6 +134,90 @@ def find_pen_shelf_games(alfworld_data=None, split="train", limit=None, verbose=
 
 
 # ----------------------------------------------------------------------------
+# 通用筛选：按 task_type 取游戏（pick_and_place_simple / pick_two_obj_and_place ...）
+# ----------------------------------------------------------------------------
+_TASK_TYPE_TO_ID = {
+    "pick_and_place_simple": 1,
+    "look_at_obj_in_light": 2,
+    "pick_clean_then_place_in_recep": 3,
+    "pick_heat_then_place_in_recep": 4,
+    "pick_cool_then_place_in_recep": 5,
+    "pick_two_obj_and_place": 6,
+}
+
+
+def _split_root(alfworld_data, split):
+    alfworld_data = alfworld_data or os.environ.get("ALFWORLD_DATA")
+    assert alfworld_data, "请先 export ALFWORLD_DATA=/path/to/alfworld"
+    split_dir = {
+        "train": "json_2.1.1/train",
+        "valid_seen": "json_2.1.1/valid_seen",
+        "valid_unseen": "json_2.1.1/valid_unseen",
+    }[split]
+    root = os.path.join(alfworld_data, split_dir)
+    assert os.path.isdir(root), f"找不到数据目录: {root}"
+    return root
+
+
+def find_games_by_type(task_type, alfworld_data=None, split="train",
+                       limit=None, verbose=True, match=None):
+    """
+    返回指定 task_type 的 (game_file, traj_data) 列表。
+    task_type: 'pick_and_place_simple' / 'pick_two_obj_and_place' / ...
+    match: 可选回调 (traj_data)->bool，用于进一步精筛（如某个具体 object/parent）。
+    """
+    root = _split_root(alfworld_data, split)
+    results = []
+    traj_files = glob.glob(os.path.join(root, "**", "traj_data.json"), recursive=True)
+    if verbose:
+        print(f"[find] 扫描 {len(traj_files)} 个 traj_data.json @ {root}")
+    for tj in traj_files:
+        folder = os.path.dirname(tj)
+        if "movable" in folder or "Sliced" in folder:
+            continue
+        game_file = os.path.join(folder, "game.tw-pddl")
+        if not os.path.exists(game_file):
+            continue
+        traj = _read_json(tj)
+        if not traj or traj.get("task_type") != task_type:
+            continue
+        if match and not match(traj):
+            continue
+        gd = _read_json(game_file)
+        if not gd or not gd.get("solvable", False):
+            continue
+        results.append((game_file, traj))
+        if limit and len(results) >= limit:
+            break
+    if verbose:
+        print(f"[find] 命中 {task_type} 游戏: {len(results)} 个")
+    return results
+
+
+def extract_task_target(traj_data):
+    """从 traj_data 的 pddl_params 取 (object, parent_recep, mrecep, count)。
+    object: 要搬的物体类型（小写，如 'pen'/'newspaper'）。
+    parent: 最终放置容器（小写，如 'shelf'/'sofa'）。
+    mrecep: 中间可移动容器（如 bowl/box），多数任务为空。
+    count:  需要搬几个（pick_two_obj_and_place=2，其余=1）。"""
+    pp = (traj_data or {}).get("pddl_params", {}) or {}
+    obj = str(pp.get("object_target", "")).strip().lower() or None
+    parent = str(pp.get("parent_target", "")).strip().lower() or None
+    mrecep = str(pp.get("mrecep_target", "")).strip().lower() or None
+    tt = (traj_data or {}).get("task_type", "")
+    count = 2 if tt == "pick_two_obj_and_place" else 1
+    return {"object": obj, "parent": parent, "mrecep": mrecep, "count": count,
+            "task_type": tt}
+
+
+def load_tw_config_types(task_type_ids, config_path=None, num_games=-1):
+    """与 load_tw_config 相同，但允许指定多个 task_type id。"""
+    cfg = load_tw_config(config_path=config_path, num_games=num_games)
+    cfg["env"]["task_types"] = list(task_type_ids)
+    return cfg
+
+
+# ----------------------------------------------------------------------------
 # 真值提取：不跑环境，直接从 game.tw-pddl 解析 pen 的初始所在 receptacle
 # ----------------------------------------------------------------------------
 # game.tw-pddl 的 init facts 里，物体所在容器通常写成谓词:

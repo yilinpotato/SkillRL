@@ -41,6 +41,7 @@ echo ""
 echo ">>> [1/1] vLLM + Qwen3-4B 跑 pen→shelf rollout"
 python -m mini_test_pen_shelf.run_mini_test \
     --num_games "${NUM_GAMES:-3}" \
-    --max_steps "${MAX_STEPS:-30}" \
+    --max_steps "${MAX_STEPS:-40}" \
     --gpu_mem_util "${GPU_MEM_UTIL:-0.55}" \
+    ${STRATEGY:+--strategy} \
     "$@"

@@ -20,7 +20,7 @@ class VLLMAgent:
         model_path=None,
         gpu_memory_utilization=0.55,
         max_model_len=8192,
-        max_tokens=1024,
+        max_tokens=4096,   # Thinking 模型推理很长；给足预算避免在 </think> 之前被截断
         temperature=0.4,
         enable_thinking=True,
         seed=0,
@@ -69,13 +69,25 @@ class VLLMAgent:
                 chat, add_generation_prompt=True, tokenize=False
             )
 
+    @staticmethod
+    def _restore_think(prompt, text):
+        """Thinking 模型的 chat template 会把开头的 <think> 注入到 prompt 末尾，
+        于是生成文本里只剩 </think>，缺了开标签。projection 要求成对的
+        <think>...</think> 才判 valid，这里补回开标签，保证下游解析正确。"""
+        if "<think>" not in text and prompt.rstrip().endswith("<think>"):
+            return "<think>\n" + text
+        return text
+
     def act(self, obs_text):
-        """返回模型生成的原始文本（单条）。"""
+        """返回模型生成的原始文本（单条），已补回开头的 <think> 标签。"""
         prompt = self._build_prompt(obs_text)
         out = self.llm.generate([prompt], self.sampling, use_tqdm=False)
-        return out[0].outputs[0].text
+        return self._restore_think(prompt, out[0].outputs[0].text)
 
     def act_batch(self, obs_texts):
         prompts = [self._build_prompt(t) for t in obs_texts]
         outs = self.llm.generate(prompts, self.sampling, use_tqdm=False)
-        return [o.outputs[0].text for o in outs]
+        return [
+            self._restore_think(p, o.outputs[0].text)
+            for p, o in zip(prompts, outs)
+        ]

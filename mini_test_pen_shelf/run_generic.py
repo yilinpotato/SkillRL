@@ -1,0 +1,282 @@
+"""run_generic.py — 通用 ALFWorld mini 测试：支持任意 task_type 的 A/B 测试。
+
+支持三类:
+  1. pick_and_place_simple  (--mode generic)   任意 object -> receptacle
+  2. pick_two_obj_and_place (--mode pick_two)   两个同类 object -> receptacle
+  3. pen→shelf 仍可用原 run_mini_test.py
+
+逐步注入 [TARGET]/[INVENTORY]/[PROGRESS]/[ALREADY SEARCHED]，弥补 NO_HIS 无记忆。
+每局落盘完整轨迹 + 逐步 prompt，run 结束写 summary.json，供 compare_ab.py 对比。
+
+用法:
+  python -m mini_test_pen_shelf.run_generic --mode generic --num_games 10 \
+      --max_steps 30 --strategy --outdir mini_test_pen_shelf/output_pp_strategy
+  python -m mini_test_pen_shelf.run_generic --mode pick_two --num_games 1 \
+      --repeats 5 --max_steps 40 --strategy --outdir .../output_p2_strategy
+"""
+import re
+import os
+import json
+import argparse
+from collections import Counter
+
+from agent_system.environments.prompts.alfworld import ALFWORLD_TEMPLATE_NO_HIS
+from agent_system.environments.env_package.alfworld.projection import alfworld_projection
+
+from mini_test_pen_shelf.env_utils import (
+    load_tw_config_types,
+    find_games_by_type,
+    extract_task_target,
+    make_single_env,
+)
+from mini_test_pen_shelf import report as R
+from mini_test_pen_shelf import strategy as S
+
+
+MODE_TASK_TYPE = {
+    "generic": "pick_and_place_simple",
+    "pick_two": "pick_two_obj_and_place",
+}
+MODE_TASK_ID = {"generic": 1, "pick_two": 6}
+
+
+def extract_task(obs_text):
+    start = obs_text.find("Your task is to: ")
+    if start != -1:
+        return obs_text[start + len("Your task is to: "):].strip()
+    return "(未找到任务描述)"
+
+
+def parse_model_output(raw):
+    think, action = "", ""
+    mt = re.search(r"<think>(.*?)</think>", raw, re.DOTALL | re.IGNORECASE)
+    if mt:
+        think = mt.group(1).strip()
+    ma = re.search(r"<action>(.*?)</action>", raw, re.DOTALL | re.IGNORECASE)
+    if ma:
+        action = ma.group(1).strip()
+    return think, action
+
+
+def track_recep(action):
+    m = re.search(r"(?:go to|open|examine|close)\s+(.+)", action.strip(), re.IGNORECASE)
+    return m.group(1).strip() if m else None
+
+
+def build_prompt(mode, obs_text, adm, use_strategy, target_obj, target_recep,
+                 holding, searched, delivered, need_count, placed_ids=None):
+    """注入状态，按 mode 选策略模板。"""
+    placed_ids = placed_ids or set()
+    reformatted = "\n ".join(f"'{s}'" for s in adm if s != "help")
+    lines = []
+    if need_count > 1:
+        lines.append(f"[TARGET] Put {need_count} '{target_obj}' onto '{target_recep}'. "
+                     f"Only '{target_obj}' counts.")
+        placed_note = (" Already in the receptacle (do NOT take them back): "
+                       + ", ".join(sorted(placed_ids)) + "." if placed_ids else "")
+        if holding:
+            lines.append(f"[PROGRESS] Placed {delivered}/{need_count}.{placed_note} "
+                         f"You ARE holding {holding} — go to {target_recep} and "
+                         f"'move {holding} to {target_recep} <id>'.")
+        else:
+            lines.append(f"[PROGRESS] Placed {delivered}/{need_count}.{placed_note} "
+                         f"Hands EMPTY — find a DIFFERENT '{target_obj}' you have NOT "
+                         f"placed yet (a different number id), take it, deliver it. "
+                         f"Do NOT take back ones already in the {target_recep}.")
+    else:
+        lines.append(f"[TARGET] Put a '{target_obj}' onto '{target_recep}'. "
+                     f"Only '{target_obj}' counts.")
+        if holding:
+            lines.append(f"[INVENTORY] You ARE holding {holding}. Go to {target_recep} "
+                         f"and place it with 'move {holding} to {target_recep} <id>'.")
+        else:
+            lines.append(f"[INVENTORY] Your hands are EMPTY. Keep searching for the "
+                         f"{target_obj}.")
+    if not holding and searched:
+        lines.append("[ALREADY SEARCHED — do NOT revisit, they are empty]: "
+                     + ", ".join(sorted(searched)) + ".")
+    obs_with = f"{obs_text}\n" + "\n".join(lines)
+
+    if not use_strategy:
+        return ALFWORLD_TEMPLATE_NO_HIS.format(
+            current_observation=obs_with, admissible_actions=reformatted)
+    if mode == "pick_two":
+        return S.build_pick_two_prompt(ALFWORLD_TEMPLATE_NO_HIS, obs_with, reformatted)
+    return S.build_generic_prompt(ALFWORLD_TEMPLATE_NO_HIS, obs_with, reformatted)
+
+
+def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdir):
+    tgt = extract_task_target(traj)
+    target_obj = tgt["object"] or "object"
+    target_recep = tgt["parent"] or "receptacle"
+    need_count = tgt["count"]
+
+    obs_list, infos = env.reset()
+    obs_text = obs_list[0]
+    adm = infos["admissible_commands"][0]
+    task = extract_task(obs_text)
+
+    R.print_game_header(run_idx, task,
+                        {"object_target": target_obj, "parent_target": target_recep,
+                         "pen_locations": []}, "")
+
+    logger = None
+    if outdir:
+        from mini_test_pen_shelf.trajectory_logger import TrajectoryLogger
+        logger = TrajectoryLogger(outdir, run_idx, task, target_obj,
+                                  {"pen_locations": [], "object_target": target_obj,
+                                   "parent_target": target_recep})
+
+    holding = None
+    searched = set()
+    placed_ids = set()      # 已放进目标容器的【具体实例】名（如 'soapbottle 1'），去重计数
+    won = False
+    step = 0
+    n_valid = 0
+    prev_adm = set(adm)
+
+    for step in range(1, max_steps + 1):
+        prompt = build_prompt(mode, obs_text, adm, use_strategy, target_obj,
+                              target_recep, holding, searched, len(placed_ids),
+                              need_count, placed_ids)
+        raw = agent.act(prompt)
+        think, _ = parse_model_output(raw)
+        actions, valids = alfworld_projection([raw], [adm])
+        action = actions[0]
+        valid = bool(valids[0])
+        if valid:
+            n_valid += 1
+        recep = track_recep(action)
+
+        nobs_list, scores, dones, ninfos = env.step([action])
+        nobs_text = nobs_list[0]
+        nadm = ninfos["admissible_commands"][0]
+        done = bool(dones[0])
+        won = bool(ninfos.get("won", [False])[0])
+
+        # 手持/放置追踪
+        mpick = re.search(r"you pick up the (.+?) from the (\w+)", nobs_text, re.IGNORECASE)
+        if mpick:
+            holding = mpick.group(1).strip().lower()
+            picked_from = mpick.group(2).strip().lower()
+            # 若把已放进目标容器的实例又取回来，撤销其已放置计数
+            if target_recep in picked_from and holding in placed_ids:
+                placed_ids.discard(holding)
+        mplace = re.search(r"you (?:move|put) the (.+?) (?:to|in|on) the (\w+)",
+                           nobs_text, re.IGNORECASE)
+        if mplace:
+            placed_obj = mplace.group(1).strip().lower()   # 如 'soapbottle 1'
+            placed_dst = mplace.group(2).strip().lower()
+            holding = None
+            if target_obj in placed_obj and target_recep in placed_dst:
+                # 按【具体实例名】去重计数，避免同一个物体放两次被算成两个
+                placed_ids.add(placed_obj)
+                if len(placed_ids) >= need_count:
+                    done = True
+
+        # 标记搜过且无目标物的容器
+        if not holding and recep:
+            recep_norm = recep.strip().lower()
+            contents_visible = re.search(
+                r"(?:you open the .+?\. .+? is open|on the .+?, you see|in it, you see|"
+                r"arrive at .+?\. on the)", nobs_text, re.IGNORECASE)
+            is_closed = re.search(r"\bis closed\b", nobs_text, re.IGNORECASE)
+            sees_target = re.search(rf"\b{re.escape(target_obj)}\b", nobs_text, re.IGNORECASE)
+            if contents_visible and not is_closed and not sees_target:
+                searched.add(recep_norm)
+
+        new_adm = set(nadm)
+        R.print_step(step=step, think=think, action=action, valid=valid,
+                     obs=nobs_text, added=new_adm - prev_adm,
+                     removed=prev_adm - new_adm, sighting=None, won=won)
+        if logger:
+            logger.log_step(step=step, prompt=prompt, raw=raw, think=think,
+                            action=action, valid=valid, obs=nobs_text,
+                            holding=holding, searched=searched, found_here=None,
+                            won=won, reward=(scores[0] if scores is not None else None))
+
+        obs_text, adm, prev_adm = nobs_text, nadm, new_adm
+        if done:
+            break
+
+    R.print_game_footer(won, set(), step)
+    if logger:
+        logger.flush(won, step)
+        print(f"  📁 轨迹与 prompt 已写入: {logger.outdir}")
+    return won, step, n_valid, task, target_obj, target_recep
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", choices=["generic", "pick_two"], required=True)
+    ap.add_argument("--num_games", type=int, default=10)
+    ap.add_argument("--repeats", type=int, default=1)
+    ap.add_argument("--max_steps", type=int, default=30)
+    ap.add_argument("--strategy", action="store_true")
+    ap.add_argument("--split", default="train")
+    ap.add_argument("--model_path", default=None)
+    ap.add_argument("--gpu_mem_util", type=float, default=0.55)
+    ap.add_argument("--max_model_len", type=int, default=8192)
+    ap.add_argument("--temperature", type=float, default=0.4)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--no_thinking", action="store_true")
+    ap.add_argument("--outdir", required=True)
+    args = ap.parse_args()
+
+    os.makedirs(args.outdir, exist_ok=True)
+    task_type = MODE_TASK_TYPE[args.mode]
+    games = find_games_by_type(task_type, split=args.split, limit=args.num_games)
+    if not games:
+        print(f"没有找到 {task_type} 游戏。")
+        return
+    game_files = [g[0] for g in games]
+    config = load_tw_config_types([MODE_TASK_ID[args.mode]], num_games=len(game_files))
+    env = make_single_env(game_files, config, seed=args.seed)
+
+    from mini_test_pen_shelf.agent_vllm import VLLMAgent
+    agent = VLLMAgent(model_path=args.model_path,
+                      gpu_memory_utilization=args.gpu_mem_util,
+                      max_model_len=args.max_model_len, temperature=args.temperature,
+                      enable_thinking=not args.no_thinking, seed=args.seed)
+
+    per_game = []
+    wins = 0
+    run_idx = 0
+    for i, (gf, traj) in enumerate(games):
+        for rep in range(args.repeats):
+            run_idx += 1
+            if args.repeats > 1:
+                env.seed(args.seed + run_idx)
+            won, used, nval, task, tobj, trec = run_one_game(
+                env, agent, traj, args.mode, args.max_steps, run_idx,
+                args.strategy, args.outdir)
+            wins += int(won)
+            per_game.append({"game_idx": run_idx, "base_game": i + 1, "repeat": rep + 1,
+                             "task": task, "target": tobj, "receptacle": trec,
+                             "won": bool(won), "used_steps": used,
+                             "valid_actions": nval,
+                             "valid_rate": round(nval / max(used, 1), 4)})
+
+    n = len(per_game)
+    R.print_final_summary(n, wins, Counter())
+    win_g = [g for g in per_game if g["won"]]
+    summary = {"strategy": bool(args.strategy), "mode": args.mode,
+               "task_type": task_type, "split": args.split,
+               "num_base_games": len(games), "repeats": args.repeats,
+               "num_games": n, "max_steps": args.max_steps, "wins": wins,
+               "success_rate": round(wins / max(n, 1), 4),
+               "avg_steps_all": round(sum(g["used_steps"] for g in per_game) / max(n, 1), 2),
+               "avg_steps_win": (round(sum(g["used_steps"] for g in win_g) / len(win_g), 2)
+                                 if win_g else None),
+               "avg_valid_rate": round(sum(g["valid_rate"] for g in per_game) / max(n, 1), 4),
+               "per_game": per_game}
+    spath = os.path.join(args.outdir, "summary.json")
+    json.dump(summary, open(spath, "w"), ensure_ascii=False, indent=2)
+    print(f"\n  📊 run 汇总: {spath}")
+    print(f"     mode={args.mode} strategy={summary['strategy']} "
+          f"成功率={summary['success_rate']*100:.1f}% "
+          f"平均步数={summary['avg_steps_all']} 合法率={summary['avg_valid_rate']*100:.1f}%")
+
+
+if __name__ == "__main__":
+    main()
