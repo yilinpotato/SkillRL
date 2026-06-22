@@ -7,6 +7,7 @@ agent_vllm.py — 用 vLLM 加载 Qwen3-4B，作为 ALFWorld 决策 agent
 显存：Qwen3-4B bf16 约 8-9GB，配合 gpu_memory_utilization 控制，可在 3090(24G) 快速跑。
 """
 import os
+import re
 
 # 关键：vLLM v1 用多进程拉起 EngineCore。父进程在 fork 前已初始化 CUDA，
 # fork 出的子进程无法再 init CUDA -> "Cannot re-initialize CUDA in forked subprocess"。
@@ -157,30 +158,35 @@ class VLLMAgent:
     def act_with_meta(self, obs_text):
         """Budget forcing 两阶段生成，返回 (原始文本, forced)。
         阶段1：生成思考，上限 think_budget，遇 </think> 自停。
-        阶段2：把已生成的思考 + 强制的 </think> 接回 prompt，再生成 <action>，
-               上限很短。这样即便思考很长，也总能在预算内拿到合法 action，
-               避免思考膨胀到 max_tokens 截断后只剩半句垃圾。
-        forced=True 表示思考是被预算强制截断的（模型没自己写完 </think>）。"""
+          - 若模型在阶段1就已经自然写出 </think> 并跟上 <action>，直接用，不走阶段2
+            （避免阶段2再生成一个 action 与之拼接成畸形双 action）。
+        阶段2：仅当阶段1撞预算（无 </think>）时，硬接 </think> 再生成 <action>，上限很短。
+        forced=True 表示思考被预算强制截断。"""
         prompt = self._build_prompt(obs_text)
 
-        # 阶段 1：思考
+        # 阶段 1：思考（stop=</think>，include_stop_str_in_output 使输出含 </think>）
         out1 = self.llm.generate([prompt], self.think_sampling, use_tqdm=False)
         comp1 = out1[0].outputs[0]
         think_text = comp1.text
         got_close = "</think>" in think_text
-        forced = not got_close   # 没自然收尾 = 撞了 think_budget，被强制
 
-        # 组装思考段：确保以 </think> 结尾
         if got_close:
+            # 模型自然收尾。截到第一个 </think> 为止（丢弃其后可能的畸形内容）。
             think_part = think_text[:think_text.index("</think>") + len("</think>")]
         else:
-            # 强制收尾：截断的思考后面硬接 </think>
+            # 撞 think_budget：硬接 </think> 强制收尾
             think_part = think_text.rstrip() + "\n</think>"
+        forced = not got_close
 
-        # 阶段 2：在 prompt + 思考段之后，续写动作
+        # 阶段 2：续写动作（无论阶段1是否自然收尾都重新干净生成一次 action，
+        # 保证 <action> 紧跟在 </think> 之后、格式规整，不与阶段1残留拼接）
         action_prompt = prompt + think_part + "\n"
         out2 = self.llm.generate([action_prompt], self.action_sampling, use_tqdm=False)
-        action_text = out2[0].outputs[0].text
+        action_text = out2[0].outputs[0].text.strip()
+        # 只保留 action_text 里第一个 <action>...</action>，去掉多余内容
+        ma = re.search(r"<action>.*?</action>", action_text, re.DOTALL | re.IGNORECASE)
+        if ma:
+            action_text = ma.group(0)
 
         full = think_part + "\n" + action_text
         return self._restore_think(prompt, full), forced

@@ -105,35 +105,27 @@ def track_recep(action):
 
 def build_prompt(mode, obs_text, adm, use_strategy, target_obj, target_recep,
                  holding, searched, delivered, need_count, placed_ids=None,
-                 closed_pending=None):
+                 closed_pending=None, failed_actions=None):
     """注入状态，按 mode 选策略模板。"""
     placed_ids = placed_ids or set()
     closed_pending = closed_pending or set()
+    failed_actions = failed_actions or set()
     reformatted = "\n ".join(f"'{s}'" for s in adm if s != "help")
     lines = []
     if need_count > 1:
         lines.append(f"[TARGET] Put {need_count} '{target_obj}' onto '{target_recep}'. "
                      f"Only '{target_obj}' counts.")
-        placed_note = (" Already in the receptacle (do NOT take them back): "
-                       + ", ".join(sorted(placed_ids)) + "." if placed_ids else "")
         if holding:
-            lines.append(f"[PROGRESS] Placed {delivered}/{need_count}.{placed_note} "
-                         f"You ARE holding {holding} — go to {target_recep} and "
-                         f"'move {holding} to {target_recep} <id>'.")
+            lines.append(f"[INVENTORY] You ARE holding {holding}.")
         else:
-            lines.append(f"[PROGRESS] Placed {delivered}/{need_count}.{placed_note} "
-                         f"Hands EMPTY — find a DIFFERENT '{target_obj}' you have NOT "
-                         f"placed yet (a different number id), take it, deliver it. "
-                         f"Do NOT take back ones already in the {target_recep}.")
+            lines.append(f"[INVENTORY] Your hands are EMPTY.")
     else:
         lines.append(f"[TARGET] Put a '{target_obj}' onto '{target_recep}'. "
                      f"Only '{target_obj}' counts.")
         if holding:
-            lines.append(f"[INVENTORY] You ARE holding {holding}. Go to {target_recep} "
-                         f"and place it with 'move {holding} to {target_recep} <id>'.")
+            lines.append(f"[INVENTORY] You ARE holding {holding}.")
         else:
-            lines.append(f"[INVENTORY] Your hands are EMPTY. Keep searching for the "
-                         f"{target_obj}.")
+            lines.append(f"[INVENTORY] Your hands are EMPTY.")
     if not holding and searched:
         lines.append("[ALREADY SEARCHED — do NOT revisit, they are empty]: "
                      + ", ".join(sorted(searched)) + ".")
@@ -186,6 +178,9 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
     searched = set()
     closed_pending = set()  # 到达过但还没打开的关闭容器（cabinet/drawer/fridge）
     placed_ids = set()      # 已放进目标容器的【具体实例】名（如 'soapbottle 1'），去重计数
+    failed_actions = set()  # 导致 "Nothing happens" 的无效动作，注入 prompt 阻止重复
+    last_action = None
+    repeat_count = 0        # 同一动作连续重复次数
     won = False
     step = 0
     n_valid = 0
@@ -196,7 +191,7 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
     for step in range(1, max_steps + 1):
         prompt = build_prompt(mode, obs_text, adm, use_strategy, target_obj,
                               target_recep, holding, searched, len(placed_ids),
-                              need_count, placed_ids, closed_pending)
+                              need_count, placed_ids, closed_pending, failed_actions)
         raw, forced = agent.act_with_meta(prompt)
         think, _ = parse_model_output(raw)
         actions, valids = alfworld_projection([raw], [adm])
@@ -224,6 +219,17 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
         nadm = ninfos["admissible_commands"][0]
         done = bool(dones[0])
         won = bool(ninfos.get("won", [False])[0])
+
+        # 无效动作检测：环境回 "Nothing happens" 说明该动作虽格式合法但环境拒绝
+        # （如 go to 一个不在 admissible 的 id）。记入 failed_actions 注入 prompt，
+        # 并统计连续重复，防止像 game_09 那样 26 次重复同一无效动作卡死。
+        if re.search(r"nothing happens", nobs_text, re.IGNORECASE):
+            failed_actions.add(action)
+        if action == last_action:
+            repeat_count += 1
+        else:
+            repeat_count = 0
+        last_action = action
 
         # 手持/放置追踪
         mpick = re.search(r"you pick up the (.+?) from the (\w+)", nobs_text, re.IGNORECASE)
@@ -276,6 +282,11 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
 
         obs_text, adm, prev_adm = nobs_text, nadm, new_adm
         if done:
+            break
+        # 安全网：同一动作连续重复 ≥6 次仍无进展（如 game_09 的 26 次 go to shelf 4），
+        # 判定卡死，提前结束本局，避免白白耗满 max_steps。
+        if repeat_count >= 6:
+            print(f"  🔁 Step {step} 动作 {action!r} 连续重复 {repeat_count+1} 次仍无效，判定卡死，提前结束")
             break
 
     R.print_game_footer(won, set(), step)

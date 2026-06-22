@@ -106,24 +106,28 @@ obs is "Nothing happens", your last action was illegal; pick a different one.
 # pick_two 策略：把【两个】同类 object 搬到同一个 receptacle（精简版）
 # ============================================================================
 PICK_TWO_STRATEGY = """\
-## GOAL: put TWO separate instances of the TARGET object (different ids, e.g.
+## GOAL: put TWO separate instances of the TARGET object (DIFFERENT ids, e.g.
 soapbottle 1 AND soapbottle 2) onto the TARGET receptacle, one at a time.
 
-Read [PROGRESS]: it says how many placed and which ids are already there.
-  - placed 2/2 -> DONE, stop.
-  - holding one -> "go to <receptacle> <id>", then "move <object> <id> to <receptacle> <id>".
-  - hands empty, placed < 2 -> find a DIFFERENT instance you have NOT placed.
+Check [INVENTORY]: holding the target -> go to IF HOLDING. Else -> IF NOT HOLDING.
 
-NEVER take back an instance already in the receptacle ([PROGRESS] lists them) —
-that does not count. After placing one, search for the OTHER instance; the two
-usually sit in the same area, so re-check near where you found the first.
+### IF NOT HOLDING IT — find a NOT-YET-DELIVERED instance
+  - The receptacle already holds the one(s) you delivered. Any target object you
+    SEE INSIDE the target receptacle is ALREADY DONE — NEVER take it back out;
+    taking it back and re-placing it does NOT count and just wastes steps.
+  - Go find a DIFFERENT instance (a different number id) somewhere ELSE. Guess by
+    kind (kitchen->countertop/sink/cabinet; bathroom->countertop/toilet/sink;
+    room/office->desk/sidetable/shelf); the two instances often sit near each
+    other, so re-check around where you found the first. Open surfaces first.
+  - See a not-yet-delivered instance -> "take <object> <id> from <recep> <id>".
 
-SEARCH: guess by object kind (kitchen->countertop/sink/cabinet; bathroom->
-countertop/toilet/sink; room/office->desk/sidetable/shelf), open surfaces first,
-closed containers last. "take <object> <id> from <recep> <id>".
+### IF HOLDING IT — deliver
+  "go to <receptacle> <id>", then "move <object> <id> to <receptacle> <id>"
+  (copy the exact admissible string). Then look for the remaining instance.
 
-Only actions in the admissible list. If preferred spot missing, pick any
-unsearched listed one — never stall. "Nothing happens" = illegal last action.
+STOP only when TWO different ids are in the receptacle. Use only actions in the
+admissible list; if your preferred spot is missing pick any unsearched listed
+one — never stall. "Nothing happens" = your last action was illegal.
 ---
 """
 
