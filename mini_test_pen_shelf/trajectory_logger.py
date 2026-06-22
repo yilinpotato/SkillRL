@@ -25,7 +25,8 @@ class TrajectoryLogger:
         os.makedirs(outdir, exist_ok=True)
 
     def log_step(self, step, prompt, raw, think, action, valid, obs,
-                 holding, searched, found_here, won, reward):
+                 holding, searched, found_here, won, reward,
+                 truncated=False, salvaged=False):
         self.steps.append({
             "step": step,
             "prompt": prompt,
@@ -33,6 +34,8 @@ class TrajectoryLogger:
             "think": think,
             "action": action,
             "valid": bool(valid),
+            "truncated": bool(truncated),    # thinking 用满 max_tokens 被截断
+            "salvaged": bool(salvaged),      # 截断后靠从后往前匹配救回了动作
             "observation": obs,
             "holding": holding,
             "searched": sorted(searched) if searched else [],
@@ -68,8 +71,11 @@ class TrajectoryLogger:
         for s in self.steps:
             lines.append("")
             flag = "✅合法" if s["valid"] else "❌非法"
-            lines.append(f"┌── Step {s['step']:>2}  [{flag}]  "
-                         f"holding={s['holding'] or '空手'}")
+            head = (f"┌── Step {s['step']:>2}  [{flag}]  "
+                    f"holding={s['holding'] or '空手'}")
+            if s.get("truncated"):
+                head += "  ⛔THINKING截断" + ("(已救回)" if s.get("salvaged") else "(未救回)")
+            lines.append(head)
             lines.append(f"│ 🧠 think  : {self._oneline(s['think'])}")
             lines.append(f"│ ▶️  action : {s['action']}")
             lines.append(f"│ 👁️  obs    : {self._oneline(s['observation'])}")

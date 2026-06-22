@@ -20,10 +20,13 @@ class VLLMAgent:
         model_path=None,
         gpu_memory_utilization=0.55,
         max_model_len=8192,
-        max_tokens=4096,   # Thinking 模型推理很长；给足预算避免在 </think> 之前被截断
+        max_tokens=5120,   # Thinking 模型推理很长；给足预算避免在 </think> 之前被截断
         temperature=0.4,
         enable_thinking=True,
         seed=0,
+        no_wait=False,     # NoWait: 抑制 "Wait/Hmm/Alternatively..." 回溯词。默认关闭，
+                           # 需要时显式开启（budget forcing 已能控制思考长度）。
+        think_budget=3500, # 思考预算：第一阶段生成上限。到此还没 </think> 就强制收尾出 action
     ):
         from vllm import LLM, SamplingParams
         from transformers import AutoTokenizer
@@ -44,12 +47,80 @@ class VLLMAgent:
             enforce_eager=True,   # 单任务调试，跳过 CUDA graph 编译省启动时间
             seed=seed,
         )
+        # NoWait（论文版）：抑制"反思类"回溯词，迫使模型不反复回头、更快收敛到
+        # <action>，缩短 thinking、减少 max_tokens 截断。
+        # 论文做法 = 扫全词表，凡 decode 后命中 wait/hmm/alternatively/... 子串的
+        # token 变体（Wait/ Wait/WAIT/wait,/.wait...）全部禁止。
+        # vLLM V1 不支持 per-request logits_processors，改用 bad_words：把命中的 token
+        # 单独 decode 成字符串传入，等价于"该 token 出现即禁"。
+        bad_words = None
+        if no_wait:
+            bad_words = self._build_nowait_bad_words()
+            print(f"[NoWait] 扫词表得到 {len(bad_words)} 个回溯词 token 变体")
+
         self.sampling = SamplingParams(
             temperature=temperature,
             top_p=0.95,
             max_tokens=max_tokens,
+            bad_words=bad_words,
+        )
+        # Budget forcing 用：思考阶段（上限 think_budget），以及强制收尾后的动作阶段。
+        self.max_tokens = max_tokens
+        self.think_budget = think_budget
+        self._bad_words = bad_words
+        self._temperature = temperature
+        # 思考阶段：到 think_budget 截断；遇到 </think> 也自然停（用 stop）。
+        self.think_sampling = SamplingParams(
+            temperature=temperature, top_p=0.95,
+            max_tokens=think_budget, bad_words=bad_words,
+            stop=["</think>"], include_stop_str_in_output=True,
+        )
+        # 动作阶段：思考已被强制关闭，只需很短长度吐出 <action>...</action>。
+        self.action_sampling = SamplingParams(
+            temperature=temperature, top_p=0.95,
+            max_tokens=256, stop=["</action>"], include_stop_str_in_output=True,
         )
         self.enable_thinking = enable_thinking
+
+    # 反思词子串（小写）。命中即视为回溯词——只放【不会误伤】的长词。
+    # 注意 "wait"/"hmm" 不在此列：wait 是 Kuwait/await/WaitForSeconds 的子串，放子串组
+    # 会误伤，故归入下面的严格相等组 _REFLECT_EXACT。
+    _REFLECT_SUBSTRINGS = (
+        "alternatively", "reconsider", "double-check", "double check", "recheck",
+    )
+    # 严格组：token 去掉首尾空白/标点后【完全等于】才禁，避免 Kuwait/await/button/
+    # checkout 之类误伤。涵盖论文黑名单核心词。
+    _REFLECT_EXACT = (
+        "wait", "hmm", "but", "however", "check", "maybe", "verify", "actually",
+    )
+    # 人工白名单：含上述子串但【不该】禁的 token（防误伤）。例如某些含 "but" 的
+    # 完整词已被 _REFLECT_EXACT 的严格相等规则挡掉，这里留作进一步人工排除的口子。
+    _REFLECT_WHITELIST = ()
+
+    def _build_nowait_bad_words(self):
+        """扫整个 tokenizer 词表，收集所有"反思类"token 变体，返回 bad_words 字符串列表。
+        - 子串命中（wait/hmm/alternatively/however/reconsider/double-check）：宽松，
+          token 文本含该子串即收。
+        - 短词（but/check/maybe/verify/actually）：严格，去掉首尾空白和标点后完全相等才收，
+          避免 button/checkout 之类误伤。"""
+        vocab = self.tokenizer.get_vocab()  # {token_str: id}
+        bad = set()
+        import re as _re
+        for tid in range(len(vocab)):
+            try:
+                s = self.tokenizer.decode([tid])
+            except Exception:
+                continue
+            low = s.lower()
+            stripped = _re.sub(r"^[\s\W]+|[\s\W]+$", "", low)  # 去首尾空白/标点
+            hit = False
+            if any(sub in low for sub in self._REFLECT_SUBSTRINGS):
+                hit = True
+            elif stripped in self._REFLECT_EXACT:
+                hit = True
+            if hit and stripped and stripped not in self._REFLECT_WHITELIST:
+                bad.add(s)
+        return sorted(bad)
 
     def _build_prompt(self, obs_text):
         """单条 user message -> chat template 字符串（与项目 rollout_loop 一致）。"""
@@ -80,9 +151,39 @@ class VLLMAgent:
 
     def act(self, obs_text):
         """返回模型生成的原始文本（单条），已补回开头的 <think> 标签。"""
+        text, _ = self.act_with_meta(obs_text)
+        return text
+
+    def act_with_meta(self, obs_text):
+        """Budget forcing 两阶段生成，返回 (原始文本, forced)。
+        阶段1：生成思考，上限 think_budget，遇 </think> 自停。
+        阶段2：把已生成的思考 + 强制的 </think> 接回 prompt，再生成 <action>，
+               上限很短。这样即便思考很长，也总能在预算内拿到合法 action，
+               避免思考膨胀到 max_tokens 截断后只剩半句垃圾。
+        forced=True 表示思考是被预算强制截断的（模型没自己写完 </think>）。"""
         prompt = self._build_prompt(obs_text)
-        out = self.llm.generate([prompt], self.sampling, use_tqdm=False)
-        return self._restore_think(prompt, out[0].outputs[0].text)
+
+        # 阶段 1：思考
+        out1 = self.llm.generate([prompt], self.think_sampling, use_tqdm=False)
+        comp1 = out1[0].outputs[0]
+        think_text = comp1.text
+        got_close = "</think>" in think_text
+        forced = not got_close   # 没自然收尾 = 撞了 think_budget，被强制
+
+        # 组装思考段：确保以 </think> 结尾
+        if got_close:
+            think_part = think_text[:think_text.index("</think>") + len("</think>")]
+        else:
+            # 强制收尾：截断的思考后面硬接 </think>
+            think_part = think_text.rstrip() + "\n</think>"
+
+        # 阶段 2：在 prompt + 思考段之后，续写动作
+        action_prompt = prompt + think_part + "\n"
+        out2 = self.llm.generate([action_prompt], self.action_sampling, use_tqdm=False)
+        action_text = out2[0].outputs[0].text
+
+        full = think_part + "\n" + action_text
+        return self._restore_think(prompt, full), forced
 
     def act_batch(self, obs_texts):
         prompts = [self._build_prompt(t) for t in obs_texts]

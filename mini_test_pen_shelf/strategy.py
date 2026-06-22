@@ -17,55 +17,40 @@
 把策略写进 prompt 的开头，模型每一步都能看到，且只需照着「当前处于哪个阶段」选动作。
 """
 
+
+# ============================================================================
+# 共享前缀：极简思考格式提示（一行示范即可，不堆规则）
+# 注意：之前用长 header + 两条 few-shot，反而让模型花大量 token 去复述/消化格式
+# 规则（元-思考），思考更长、更易撞预算。这里精简到最短。
+# ============================================================================
+STRUCTURED_THINK_HEADER = """\
+Think in at most 2 short lines, then act. Example:
+<think>Holding nothing; pen is likely on a desk; go to desk 1.</think>
+<action>go to desk 1</action>
+---
+"""
+
 # 注意：用 {{ }} 转义花括号，方便和 ALFWORLD_TEMPLATE_NO_HIS 一起 .format()
 PEN_SHELF_STRATEGY = """\
-## TASK PLAYBOOK: put a pen on a shelf
+## GOAL: put the TARGET object (the exact one named in the task, pen OR pencil —
+they differ; only the named one counts) onto a shelf.
 
-You must put the TARGET object named in the task ("Your task is to: ...") onto a
-shelf. The target is usually "pen" — sometimes "pencil". They are DIFFERENT
-objects: if the task says pen, only a PEN counts (a pencil will NOT finish the
-task), and vice-versa. Pick up ONLY the object whose name matches the task.
+First check [INVENTORY]: holding the target -> go to IF HOLDING. Else -> IF NOT HOLDING.
 
-### THINK BRIEFLY
-Keep your <think> to AT MOST 3 short sentences. Do not restate these rules,
-do not argue with yourself, do not re-derive the plan every turn. Just:
-(1) say in one line whether you are holding the target object yet, (2) name the
-next action. Then stop thinking and output the action. Long reasoning wastes steps.
+### IF NOT HOLDING IT — find the target
+  - Pens/pencils are usually on desk, sidetable, dresser, drawer. Check open
+    surfaces first; open a drawer only if it is closed and surfaces are exhausted.
+  - See the target here -> "take <target> <id> from <recep> <id>". Take only the
+    named object. Skip spots already in [ALREADY SEARCHED].
 
-### FIRST, ANSWER ONE QUESTION: am I holding the target object?
-Read the [INVENTORY] line in the observation — it tells you exactly what you
-hold. If it says you hold the target object, you are DELIVERING. Otherwise you
-are still SEARCHING.
+### IF HOLDING IT — deliver to a shelf (two actions)
+  1. Not at a shelf yet -> "go to shelf <id>".
+  2. At a shelf -> "move <target> <id> to shelf <id>" (copy the exact admissible
+     string; some worlds use "put ... in/on shelf"). This FINISHES the task.
+  Once holding it, only go-to-shelf and move/put are allowed — never search again.
 
-### IF NOT HOLDING IT  — find the target object
-Search receptacles in this priority order, skipping ones you already opened:
-    drawer  ->  desk  ->  sidetable  ->  dresser  ->  garbagecan  ->  shelf
-  - Move to the next unchecked spot with the admissible action  "go to <recep> <id>".
-  - If the observation says it is closed, use  "open <recep> <id>".
-  - If you see the TARGET object here (the exact word from the task), grab it:
-    "take <target> <id> from <recep> <id>"  (copy the exact names shown).
-    Do NOT grab a different object (e.g. do not take a pencil if you need a pen).
-  - If the target is not here, this spot is empty: move to the NEXT spot. Never
-    re-open a spot you already searched.
-
-### IF HOLDING IT  — deliver to a shelf (only TWO actions left, in order)
-  1. If you are NOT at a shelf yet:  "go to shelf 1"  (or any shelf id listed).
-  2. If you ARE at a shelf:  >>> "move <target> <id> to shelf <id>" <<<
-     This FINISHES the task. Do nothing else after it.
-
-  !!! The action that places the object is spelled "move <obj> to shelf <id>"
-      (some worlds also accept "put <obj> in/on shelf <id>"). ALWAYS copy the
-      EXACT string from the admissible actions list — do not guess the wording.
-  !!! Once you hold the target, the ONLY two verbs you may use are "go to shelf"
-      and "move ... to shelf". Never "open", never search again.
-      Reaching the shelf is NOT the goal — moving the object onto it is.
-
-### HARD RULES
-  - Output exactly ONE action, copied verbatim from the admissible actions list.
-  - The words SEARCH / DELIVER / playbook are NOT actions — never output them.
-  - If the observation is "Nothing happens", your last action was illegal:
-    pick a different action that literally appears in the admissible list.
-
+If obs is "Nothing happens", your last action was illegal — pick a different one
+that appears verbatim in the admissible list.
 ---
 """
 
@@ -81,113 +66,64 @@ def build_strategy_prompt(base_template, obs_text, admissible_actions):
         current_observation=obs_text,
         admissible_actions=admissible_actions,
     )
-    return PEN_SHELF_STRATEGY + body
+    return STRUCTURED_THINK_HEADER + PEN_SHELF_STRATEGY + body
 
 
 # ============================================================================
-# 通用 pick_and_place 策略：把任意 object 搬到任意 receptacle
+# 通用 pick_and_place 策略：把任意 object 搬到任意 receptacle（精简版）
+# 搜索优先级依据上帝视角统计：物体多在开放台面（countertop/sidetable/桌子/
+# 床/dresser/sofa...），drawer/shelf/cabinet 少；让模型按物体类别自己推断位置。
 # ============================================================================
-# 搜索优先级依据上帝视角统计（pick_and_place 前30局物体真实位置）：
-#   台面大件家具 countertop/sidetable/toilet/coffeetable/diningtable/tvstand/
-#   bed/dresser/desk/armchair/sofa 占绝大多数；drawer/shelf/cabinet 反而很少。
-#   早期版本把抽屉/架子排在前面，导致模型在抽屉里空转撞超时——这里纠正过来。
 GENERIC_PICK_PLACE_STRATEGY = """\
-## TASK PLAYBOOK: pick up an object and put it on/in a receptacle
+## GOAL: put the TARGET object onto the TARGET receptacle named in the task.
 
-You must put the TARGET object onto the TARGET receptacle named in the task
-("Your task is to: put a <OBJECT> in/on the <RECEPTACLE>"). Read the task line
-and the [TARGET] hint to know exactly which object and which receptacle.
+First check [INVENTORY]: holding the target -> go to IF HOLDING. Else -> IF NOT HOLDING.
 
-### THINK BRIEFLY
-Keep your <think> to AT MOST 3 short sentences: (1) say whether you are holding
-the target object yet, (2) name the next action. Then output the action.
+### IF NOT HOLDING IT — find the target (guess where its kind is kept, go there)
+  - Kitchen things (knife/fork/cup/bowl/bread/egg/pot...) -> countertop,
+    diningtable, sink, fridge, cabinet.
+  - Bathroom things (soap/toiletpaper/spraybottle...) -> countertop, toilet,
+    sink, cabinet.
+  - Room/office things (book/pen/laptop/cd/remote/vase/keychain...) -> desk,
+    sidetable, coffeetable, dresser, sofa, shelf, bed.
+  Prefer OPEN SURFACES first; open a drawer/cabinet only if it is closed and
+  surfaces are exhausted. See the target -> "take <object> <id> from <recep> <id>"
+  (only the named object). Skip [ALREADY SEARCHED] spots; don't open one closed
+  container after another while surfaces remain.
 
-### FIRST: am I holding the target object?
-Read the [INVENTORY] line. If it says you hold the target object -> DELIVER.
-Otherwise -> SEARCH.
+### IF HOLDING IT — deliver
+  "go to <receptacle> <id>", then "move <object> <id> to <receptacle> <id>"
+  (copy the exact admissible string). This FINISHES the task.
 
-### SEARCH — find the target object  (ORDER MATTERS)
-Small objects almost always sit on OPEN FURNITURE SURFACES, NOT inside drawers.
-Visit spots in THIS priority, skipping ones already searched:
-  1) OPEN SURFACES FIRST — these hold the object ~85% of the time:
-     countertop, sidetable, coffeetable, diningtable, desk, dresser,
-     tvstand, bed, sofa, armchair, toilet, sinkbasin.
-  2) ONLY IF none of the above has it, then try closed containers LAST:
-     drawer, cabinet, fridge, shelf, garbagecan.
-  - Move with  "go to <recep> <id>".  Surfaces are visible on arrival — no need
-    to open them. Only "open <recep> <id>" for a closed drawer/cabinet/fridge.
-  - When you SEE the target object here, grab it:
-    "take <object> <id> from <recep> <id>"  (copy the exact names shown).
-    Take ONLY the target object, not a similar-looking different one.
-  - If the target is not here, go to the NEXT unsearched spot (stay in group 1
-    before touching group 2). Never re-visit a spot already searched.
-  - DO NOT open drawer after drawer while open surfaces remain unchecked.
-
-### DELIVER — put it on/in the target receptacle (TWO actions, in order)
-  1. If NOT at the target receptacle yet:  "go to <receptacle> <id>".
-  2. If AT the target receptacle:  >>> "move <object> <id> to <receptacle> <id>" <<<
-     This FINISHES the task. Do nothing after it.
-  !!! The placing action is usually "move <obj> to <recep> <id>" (some worlds
-      use "put <obj> in/on <recep> <id>"). ALWAYS copy the EXACT string from the
-      admissible list. Once holding the object, only "go to <receptacle>" and
-      "move/put ..." are allowed — never search again.
-
-### HARD RULES
-  - Output exactly ONE action, copied verbatim from the admissible list.
-  - SEARCH/DELIVER are NOT actions. If "Nothing happens", your last action was
-    illegal — pick a different one that literally appears in the list.
-
+Only choose actions that appear verbatim in the admissible list. If your
+preferred spot isn't listed, pick any unsearched listed spot — never stall. If
+obs is "Nothing happens", your last action was illegal; pick a different one.
 ---
 """
 
 
 # ============================================================================
-# pick_two 策略：把【两个】同类 object 搬到同一个 receptacle
+# pick_two 策略：把【两个】同类 object 搬到同一个 receptacle（精简版）
 # ============================================================================
 PICK_TWO_STRATEGY = """\
-## TASK PLAYBOOK: put TWO objects of the same kind onto a receptacle
+## GOAL: put TWO separate instances of the TARGET object (different ids, e.g.
+soapbottle 1 AND soapbottle 2) onto the TARGET receptacle, one at a time.
 
-The task asks for TWO of the same object (e.g. "find two soapbottle and put
-them in cart"). Deliver TWO SEPARATE instances (different number ids, e.g.
-soapbottle 1 AND soapbottle 2) to the receptacle, one at a time. You can only
-carry ONE at a time.
+Read [PROGRESS]: it says how many placed and which ids are already there.
+  - placed 2/2 -> DONE, stop.
+  - holding one -> "go to <receptacle> <id>", then "move <object> <id> to <receptacle> <id>".
+  - hands empty, placed < 2 -> find a DIFFERENT instance you have NOT placed.
 
-### THINK BRIEFLY
-Keep your <think> to AT MOST 3 short sentences: (1) read [PROGRESS] — how many
-placed and whether holding one, (2) name the next action.
+NEVER take back an instance already in the receptacle ([PROGRESS] lists them) —
+that does not count. After placing one, search for the OTHER instance; the two
+usually sit in the same area, so re-check near where you found the first.
 
-### USE THE [PROGRESS] LINE — it is your memory
-It tells you how many you placed, WHICH instances are already in the receptacle,
-and whether your hands are full. Decide:
-  - placed 2/2                  -> DONE, stop.
-  - holding one                 -> go to receptacle, then move/put it.
-  - hands empty and placed < 2  -> find a DIFFERENT instance you have NOT placed.
+SEARCH: guess by object kind (kitchen->countertop/sink/cabinet; bathroom->
+countertop/toilet/sink; room/office->desk/sidetable/shelf), open surfaces first,
+closed containers last. "take <object> <id> from <recep> <id>".
 
-### CRITICAL — do NOT loop on one object
-  - NEVER "take" an object that is ALREADY in the receptacle (listed in
-    [PROGRESS]). Taking it back and re-placing it does NOT count as two — you
-    must deliver a SECOND, different instance (a different number id).
-  - After placing the first one, GO SEARCH for the other instance. The two
-    instances often sit in the SAME spot or nearby — re-check where you found
-    the first.
-
-### SEARCH — find the next, not-yet-placed instance  (ORDER MATTERS)
-Open surfaces first (countertop, sidetable, toilet, diningtable, coffeetable,
-tvstand, bed, dresser, sofa, armchair, sinkbasin), closed containers
-(drawer, cabinet, fridge, shelf) LAST. Take an instance whose id you have not
-placed: "take <object> <id> from <recep> <id>".
-
-### DELIVER — put the carried object on the receptacle
-  1. If NOT at the receptacle:  "go to <receptacle> <id>".
-  2. If AT the receptacle:  "move <object> <id> to <receptacle> <id>"
-     (copy the exact admissible string). Then, if placed < 2, SEARCH for the
-     remaining instance.
-
-### HARD RULES
-  - Output exactly ONE action, copied verbatim from the admissible list.
-  - Deliver BOTH distinct instances before stopping. Do not stop after one.
-  - If "Nothing happens", pick a different action that is actually in the list.
-
+Only actions in the admissible list. If preferred spot missing, pick any
+unsearched listed one — never stall. "Nothing happens" = illegal last action.
 ---
 """
 
@@ -195,10 +131,10 @@ placed: "take <object> <id> from <recep> <id>".
 def build_generic_prompt(base_template, obs_text, admissible_actions):
     body = base_template.format(current_observation=obs_text,
                                 admissible_actions=admissible_actions)
-    return GENERIC_PICK_PLACE_STRATEGY + body
+    return STRUCTURED_THINK_HEADER + GENERIC_PICK_PLACE_STRATEGY + body
 
 
 def build_pick_two_prompt(base_template, obs_text, admissible_actions):
     body = base_template.format(current_observation=obs_text,
                                 admissible_actions=admissible_actions)
-    return PICK_TWO_STRATEGY + body
+    return STRUCTURED_THINK_HEADER + PICK_TWO_STRATEGY + body

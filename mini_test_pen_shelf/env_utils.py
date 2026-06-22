@@ -160,17 +160,24 @@ def _split_root(alfworld_data, split):
 
 
 def find_games_by_type(task_type, alfworld_data=None, split="train",
-                       limit=None, verbose=True, match=None):
+                       limit=None, verbose=True, match=None,
+                       sample_n=None, sample_seed=0, diverse_by_object=True):
     """
     返回指定 task_type 的 (game_file, traj_data) 列表。
     task_type: 'pick_and_place_simple' / 'pick_two_obj_and_place' / ...
     match: 可选回调 (traj_data)->bool，用于进一步精筛（如某个具体 object/parent）。
+    limit: 朴素「取前 N」（glob 排序后），会让前 N 个全是同一物体 → 过拟合风险。
+    sample_n: 若给定，则【扫全部命中后】抽 N 个，优先用 diverse_by_object 跨物体均匀抽样，
+              避免样本集中在 newspaper/book 等少数物体上。可复现（sample_seed）。
     """
     root = _split_root(alfworld_data, split)
     results = []
-    traj_files = glob.glob(os.path.join(root, "**", "traj_data.json"), recursive=True)
+    # glob 不保证顺序，排序以保证可复现
+    traj_files = sorted(glob.glob(os.path.join(root, "**", "traj_data.json"), recursive=True))
     if verbose:
         print(f"[find] 扫描 {len(traj_files)} 个 traj_data.json @ {root}")
+    # 朴素 limit 模式（仅当未要求 sample_n 时启用 early-break 省时）
+    hard_limit = limit if (limit and not sample_n) else None
     for tj in traj_files:
         folder = os.path.dirname(tj)
         if "movable" in folder or "Sliced" in folder:
@@ -187,11 +194,48 @@ def find_games_by_type(task_type, alfworld_data=None, split="train",
         if not gd or not gd.get("solvable", False):
             continue
         results.append((game_file, traj))
-        if limit and len(results) >= limit:
+        if hard_limit and len(results) >= hard_limit:
             break
+
+    # 均匀抽样：跨物体分散，避免过拟合到少数物体
+    if sample_n and len(results) > sample_n:
+        results = _sample_diverse(results, sample_n, sample_seed, diverse_by_object)
+
     if verbose:
-        print(f"[find] 命中 {task_type} 游戏: {len(results)} 个")
+        objs = {}
+        for _, tj in results:
+            o = str((tj.get("pddl_params", {}) or {}).get("object_target", "?")).lower()
+            objs[o] = objs.get(o, 0) + 1
+        print(f"[find] 命中 {task_type} 游戏: {len(results)} 个  物体分布: {objs}")
     return results
+
+
+def _sample_diverse(results, n, seed, diverse_by_object):
+    """从 results 抽 n 个。diverse_by_object=True 时按 object_target 分组轮转抽取，
+    使样本尽量覆盖多种物体；否则均匀间隔抽。可复现。"""
+    import random as _random
+    rng = _random.Random(seed)
+    if not diverse_by_object:
+        idx = sorted(rng.sample(range(len(results)), n))
+        return [results[i] for i in idx]
+    # 按物体分组
+    groups = {}
+    for item in results:
+        o = str((item[1].get("pddl_params", {}) or {}).get("object_target", "?")).lower()
+        groups.setdefault(o, []).append(item)
+    for o in groups:
+        rng.shuffle(groups[o])
+    # 轮转：每种物体轮流取一个，直到取够 n
+    order = sorted(groups)  # 可复现
+    rng.shuffle(order)
+    picked = []
+    while len(picked) < n and any(groups[o] for o in order):
+        for o in order:
+            if groups[o]:
+                picked.append(groups[o].pop())
+                if len(picked) >= n:
+                    break
+    return picked
 
 
 def extract_task_target(traj_data):

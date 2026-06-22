@@ -47,6 +47,28 @@ def extract_task(obs_text):
     return "(未找到任务描述)"
 
 
+def parse_task_string(task, fallback_obj="object", fallback_recep="receptacle",
+                      fallback_count=1):
+    """从环境真实任务串解析 (object, receptacle, count)。
+    任务串就是环境判定 won 的依据，比预解析的 traj 更可靠——之前用 traj 因 env.reset
+    取游戏顺序与抽样顺序错配，导致注入的 [TARGET] 与模型实际所玩游戏不符、死循环。
+    支持:
+      "put a/some <OBJ> in/on the <RECEP>"
+      "put two <OBJ> in/on the <RECEP>" / "find two <OBJ> and put them in <RECEP>"
+    """
+    t = task.lower()
+    count = 2 if re.search(r"\btwo\b", t) else fallback_count
+    # 物体：put/find 后、in/on/and 前的名词
+    obj = fallback_obj
+    recep = fallback_recep
+    m = re.search(r"(?:put|find|move|place)\s+(?:a |some |two |the )?"
+                  r"([a-z]+?)s?\b.*?\b(?:in|on|into|onto|to)\s+(?:the |a )?([a-z]+)", t)
+    if m:
+        obj = m.group(1).strip()
+        recep = m.group(2).strip()
+    return obj, recep, count
+
+
 def parse_model_output(raw):
     think, action = "", ""
     mt = re.search(r"<think>(.*?)</think>", raw, re.DOTALL | re.IGNORECASE)
@@ -58,15 +80,35 @@ def parse_model_output(raw):
     return think, action
 
 
+def salvage_action_from_back(raw, adm):
+    """thinking 被截断、没有合法 <action> 标签时的兜底：
+    从模型原始文本【末尾往前】扫，找最后一个出现在 admissible 列表里的动作。
+    模型常在思考收尾处写出 'the action is go to drawer 1' 之类，越靠后越接近最终意图，
+    所以从后往前匹配最稳。返回 (action_str, matched_bool)。"""
+    low = raw.lower()
+    best = None  # (位置, 动作)
+    for cmd in adm:
+        if cmd == "help":
+            continue
+        pos = low.rfind(cmd.lower())   # 该动作在文本中最后一次出现的位置
+        if pos != -1 and (best is None or pos > best[0]):
+            best = (pos, cmd)
+    if best:
+        return best[1], True
+    return "", False
+
+
 def track_recep(action):
     m = re.search(r"(?:go to|open|examine|close)\s+(.+)", action.strip(), re.IGNORECASE)
     return m.group(1).strip() if m else None
 
 
 def build_prompt(mode, obs_text, adm, use_strategy, target_obj, target_recep,
-                 holding, searched, delivered, need_count, placed_ids=None):
+                 holding, searched, delivered, need_count, placed_ids=None,
+                 closed_pending=None):
     """注入状态，按 mode 选策略模板。"""
     placed_ids = placed_ids or set()
+    closed_pending = closed_pending or set()
     reformatted = "\n ".join(f"'{s}'" for s in adm if s != "help")
     lines = []
     if need_count > 1:
@@ -95,6 +137,11 @@ def build_prompt(mode, obs_text, adm, use_strategy, target_obj, target_recep,
     if not holding and searched:
         lines.append("[ALREADY SEARCHED — do NOT revisit, they are empty]: "
                      + ", ".join(sorted(searched)) + ".")
+    # 到过但没开的关闭容器：提示模型「要么现在 open 它再看，要么换地方」，别重复 go to
+    if not holding and closed_pending:
+        lines.append("[CLOSED — you arrived but did NOT open these; either 'open' one "
+                     "now to check inside, or go elsewhere — do NOT just 'go to' them "
+                     "again]: " + ", ".join(sorted(closed_pending)) + ".")
     obs_with = f"{obs_text}\n" + "\n".join(lines)
 
     if not use_strategy:
@@ -106,15 +153,23 @@ def build_prompt(mode, obs_text, adm, use_strategy, target_obj, target_recep,
 
 
 def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdir):
+    # traj 仅作 fallback；真正目标以环境 reset 后的任务串为准（避免顺序错配）
     tgt = extract_task_target(traj)
-    target_obj = tgt["object"] or "object"
-    target_recep = tgt["parent"] or "receptacle"
-    need_count = tgt["count"]
+    fb_obj = tgt["object"] or "object"
+    fb_recep = tgt["parent"] or "receptacle"
+    fb_count = tgt["count"]
 
     obs_list, infos = env.reset()
     obs_text = obs_list[0]
     adm = infos["admissible_commands"][0]
     task = extract_task(obs_text)
+
+    # 从环境真实任务串解析目标（权威来源，env 据此判 won）
+    target_obj, target_recep, need_count = parse_task_string(
+        task, fb_obj, fb_recep, fb_count)
+    # pick_two 模式恒为 2
+    if mode == "pick_two":
+        need_count = 2
 
     R.print_game_header(run_idx, task,
                         {"object_target": target_obj, "parent_target": target_recep,
@@ -129,23 +184,39 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
 
     holding = None
     searched = set()
+    closed_pending = set()  # 到达过但还没打开的关闭容器（cabinet/drawer/fridge）
     placed_ids = set()      # 已放进目标容器的【具体实例】名（如 'soapbottle 1'），去重计数
     won = False
     step = 0
     n_valid = 0
+    n_truncated = 0         # thinking 撞 think_budget 被预算强制收尾的步数
+    n_salvaged = 0          # 强制收尾后仍需从后往前匹配救回动作的步数
     prev_adm = set(adm)
 
     for step in range(1, max_steps + 1):
         prompt = build_prompt(mode, obs_text, adm, use_strategy, target_obj,
                               target_recep, holding, searched, len(placed_ids),
-                              need_count, placed_ids)
-        raw = agent.act(prompt)
+                              need_count, placed_ids, closed_pending)
+        raw, forced = agent.act_with_meta(prompt)
         think, _ = parse_model_output(raw)
         actions, valids = alfworld_projection([raw], [adm])
         action = actions[0]
         valid = bool(valids[0])
+        salvaged = False
+        # 仍兜底：万一动作阶段也没吐出合法 <action>，从后往前匹配救回。
+        if not valid:
+            sa, ok = salvage_action_from_back(raw, adm)
+            if ok:
+                action = sa
+                salvaged = True
+        if forced:
+            n_truncated += 1
+            tag = "✅出action" if valid or salvaged else "⚠仍无action"
+            print(f"  ⏱ [预算强制] Step {step} thinking 到 think_budget 被强制收尾 → {tag}: {action!r}")
         if valid:
             n_valid += 1
+        if salvaged:
+            n_salvaged += 1
         recep = track_recep(action)
 
         nobs_list, scores, dones, ninfos = env.step([action])
@@ -184,6 +255,13 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
             sees_target = re.search(rf"\b{re.escape(target_obj)}\b", nobs_text, re.IGNORECASE)
             if contents_visible and not is_closed and not sees_target:
                 searched.add(recep_norm)
+            # 到达一个【关闭】容器：内容未知，记入 closed_pending 提示模型「先 open 再判断」，
+            # 避免反复 go to 同一个没开的柜子（cabinet/drawer/fridge）空耗步数。
+            if is_closed:
+                closed_pending.add(recep_norm)
+            # 一旦打开（不再 closed），从 pending 移除
+            if recep_norm in closed_pending and re.search(r"is open\b", nobs_text, re.IGNORECASE):
+                closed_pending.discard(recep_norm)
 
         new_adm = set(nadm)
         R.print_step(step=step, think=think, action=action, valid=valid,
@@ -193,23 +271,30 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
             logger.log_step(step=step, prompt=prompt, raw=raw, think=think,
                             action=action, valid=valid, obs=nobs_text,
                             holding=holding, searched=searched, found_here=None,
-                            won=won, reward=(scores[0] if scores is not None else None))
+                            won=won, reward=(scores[0] if scores is not None else None),
+                            truncated=forced, salvaged=salvaged)
 
         obs_text, adm, prev_adm = nobs_text, nadm, new_adm
         if done:
             break
 
     R.print_game_footer(won, set(), step)
+    if n_truncated:
+        print(f"  ⏱ 本局 {n_truncated} 步思考到预算被强制收尾"
+              f"（其中 {n_salvaged} 步动作阶段后仍靠从后往前匹配救回）")
     if logger:
         logger.flush(won, step)
         print(f"  📁 轨迹与 prompt 已写入: {logger.outdir}")
-    return won, step, n_valid, task, target_obj, target_recep
+    return won, step, n_valid, task, target_obj, target_recep, n_truncated, n_salvaged
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["generic", "pick_two"], required=True)
     ap.add_argument("--num_games", type=int, default=10)
+    ap.add_argument("--sample", action="store_true",
+                    help="从全部命中游戏里跨物体均匀抽 num_games 个（避免取前 N 个全是同物体过拟合）")
+    ap.add_argument("--sample_seed", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1)
     ap.add_argument("--max_steps", type=int, default=30)
     ap.add_argument("--strategy", action="store_true")
@@ -220,12 +305,20 @@ def main():
     ap.add_argument("--temperature", type=float, default=0.4)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no_thinking", action="store_true")
+    ap.add_argument("--nowait", action="store_true",
+                    help="开启 NoWait（默认关闭，抑制 Wait/Hmm 等回溯词）")
+    ap.add_argument("--think_budget", type=int, default=3500,
+                    help="思考预算 token 数：到此还没 </think> 就强制收尾出 action")
     ap.add_argument("--outdir", required=True)
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
     task_type = MODE_TASK_TYPE[args.mode]
-    games = find_games_by_type(task_type, split=args.split, limit=args.num_games)
+    if args.sample:
+        games = find_games_by_type(task_type, split=args.split,
+                                   sample_n=args.num_games, sample_seed=args.sample_seed)
+    else:
+        games = find_games_by_type(task_type, split=args.split, limit=args.num_games)
     if not games:
         print(f"没有找到 {task_type} 游戏。")
         return
@@ -237,38 +330,48 @@ def main():
     agent = VLLMAgent(model_path=args.model_path,
                       gpu_memory_utilization=args.gpu_mem_util,
                       max_model_len=args.max_model_len, temperature=args.temperature,
-                      enable_thinking=not args.no_thinking, seed=args.seed)
+                      enable_thinking=not args.no_thinking, seed=args.seed,
+                      no_wait=args.nowait, think_budget=args.think_budget)
 
     per_game = []
     wins = 0
     run_idx = 0
+    tot_trunc = 0
+    tot_salv = 0
     for i, (gf, traj) in enumerate(games):
         for rep in range(args.repeats):
             run_idx += 1
             if args.repeats > 1:
                 env.seed(args.seed + run_idx)
-            won, used, nval, task, tobj, trec = run_one_game(
+            won, used, nval, task, tobj, trec, ntrunc, nsalv = run_one_game(
                 env, agent, traj, args.mode, args.max_steps, run_idx,
                 args.strategy, args.outdir)
             wins += int(won)
+            tot_trunc += ntrunc
+            tot_salv += nsalv
             per_game.append({"game_idx": run_idx, "base_game": i + 1, "repeat": rep + 1,
                              "task": task, "target": tobj, "receptacle": trec,
                              "won": bool(won), "used_steps": used,
                              "valid_actions": nval,
-                             "valid_rate": round(nval / max(used, 1), 4)})
+                             "valid_rate": round(nval / max(used, 1), 4),
+                             "truncated_steps": ntrunc, "salvaged_steps": nsalv})
 
     n = len(per_game)
     R.print_final_summary(n, wins, Counter())
     win_g = [g for g in per_game if g["won"]]
+    tot_steps = sum(g["used_steps"] for g in per_game)
     summary = {"strategy": bool(args.strategy), "mode": args.mode,
                "task_type": task_type, "split": args.split,
                "num_base_games": len(games), "repeats": args.repeats,
                "num_games": n, "max_steps": args.max_steps, "wins": wins,
                "success_rate": round(wins / max(n, 1), 4),
-               "avg_steps_all": round(sum(g["used_steps"] for g in per_game) / max(n, 1), 2),
+               "avg_steps_all": round(tot_steps / max(n, 1), 2),
                "avg_steps_win": (round(sum(g["used_steps"] for g in win_g) / len(win_g), 2)
                                  if win_g else None),
                "avg_valid_rate": round(sum(g["valid_rate"] for g in per_game) / max(n, 1), 4),
+               "truncated_steps_total": tot_trunc,
+               "salvaged_steps_total": tot_salv,
+               "truncation_rate": round(tot_trunc / max(tot_steps, 1), 4),
                "per_game": per_game}
     spath = os.path.join(args.outdir, "summary.json")
     json.dump(summary, open(spath, "w"), ensure_ascii=False, indent=2)
@@ -276,6 +379,8 @@ def main():
     print(f"     mode={args.mode} strategy={summary['strategy']} "
           f"成功率={summary['success_rate']*100:.1f}% "
           f"平均步数={summary['avg_steps_all']} 合法率={summary['avg_valid_rate']*100:.1f}%")
+    print(f"     thinking 截断 {tot_trunc} 步 / 救回 {tot_salv} 步 "
+          f"(截断率 {summary['truncation_rate']*100:.1f}%)")
 
 
 if __name__ == "__main__":
