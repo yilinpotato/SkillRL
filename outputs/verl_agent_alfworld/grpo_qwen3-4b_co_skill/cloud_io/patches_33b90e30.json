@@ -1,0 +1,51 @@
+{
+  "batch_id": "33b90e30-42dc-41cb-928d-998c13ed1a5d",
+  "patches": [
+    {
+      "skill_id": "dyn_007",
+      "title": "Decisive Action After Reasoning",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "After completing a reasoning step that identifies a specific executable action from the admissible list (e.g., 'take X from Y' or 'go to Z'), the agent should immediately output that action without further introspection or self-questioning.",
+      "action_flow": [
+        "Confirm the chosen action is in the current admissible list",
+        "Execute the action immediately",
+        "Do not restate the reasoning or consider alternative paths"
+      ],
+      "avoid": [
+        "repeating the same reasoning cycle multiple times",
+        "questioning the chosen action after concluding",
+        "continuing to analyze when a clear next step is already identified"
+      ],
+      "principle": "After completing a reasoning step that identifies a specific executable action from the admissible list (e.g., 'take X from Y' or 'go to Z'), the agent should immediately output that action without further introspection or self-questioning.. Steps: Confirm the chosen action is in the current admissible list; Execute the action immediately; Do not restate the reasoning or consider alternative paths",
+      "when_to_apply": "After completing a reasoning step that identifies a specific executable action from the admissible list (e.g., 'take X from Y' or 'go to Z'), the agent should immediately output that action without further introspection or self-questioning.",
+      "evidence": {
+        "from_success": 17,
+        "from_failure": 55
+      }
+    },
+    {
+      "skill_id": "dyn_008",
+      "title": "Initiate Search Without Delay",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "Target object is not visible in the current observation and is not already in inventory, and there are containers (e.g., cabinets, drawers) present in the environment.",
+      "action_flow": [
+        "Select the most likely container based on task priors (e.g., cabinet near sink for kitchen items) or simply the first container in the admissible list",
+        "Move to that container (e.g., 'go to cabinet 1' or 'go to drawer 1')",
+        "Optionally open the container if the environment requires it (leveraging the 'Open Container on Arrival' skill)"
+      ],
+      "avoid": [
+        "spending excessive time deliberating which container to choose",
+        "staying in place and analyzing possibilities without taking any movement action",
+        "assuming the target is not in any container without checking"
+      ],
+      "principle": "Target object is not visible in the current observation and is not already in inventory, and there are containers (e.g., cabinets, drawers) present in the environment.. Steps: Select the most likely container based on task priors (e.g., cabinet near sink for kitchen items) or simply the first container in the admissible list; Move to that container (e.g., 'go to cabinet 1' or 'go to drawer 1'); Optionally open the container if the environment requires it (leveraging the 'Open Container on Arrival' skill)",
+      "when_to_apply": "Target object is not visible in the current observation and is not already in inventory, and there are containers (e.g., cabinets, drawers) present in the environment.",
+      "evidence": {
+        "from_success": 17,
+        "from_failure": 55
+      }
+    }
+  ]
+}

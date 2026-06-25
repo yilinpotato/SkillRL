@@ -1,0 +1,78 @@
+{
+  "batch_id": "08bb25ae-e66d-42f5-b46f-bf66806acd4d",
+  "patches": [
+    {
+      "skill_id": "dyn_001",
+      "title": "Immediate Pivot on Empty",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "The agent arrives at a container or surface expected to hold the target object, but the observation reveals it is empty or contains only unrelated objects.",
+      "action_flow": [
+        "acknowledge the container is empty or irrelevant",
+        "do not re-examine or interact further with that container",
+        "select the next most plausible container or surface from the mental map or systematic order",
+        "navigate directly to that new location"
+      ],
+      "avoid": [
+        "repeatedly examining the same empty container",
+        "wasting steps on objects inside that are not the target",
+        "ignoring other candidate locations"
+      ],
+      "principle": "The agent arrives at a container or surface expected to hold the target object, but the observation reveals it is empty or contains only unrelated objects.. Steps: acknowledge the container is empty or irrelevant; do not re-examine or interact further with that container; select the next most plausible container or surface from the mental map or systematic order; navigate directly to that new location",
+      "when_to_apply": "The agent arrives at a container or surface expected to hold the target object, but the observation reveals it is empty or contains only unrelated objects.",
+      "evidence": {
+        "from_success": 36,
+        "from_failure": 36
+      }
+    },
+    {
+      "skill_id": "dyn_002",
+      "title": "Ignore Non-Target Objects",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "While searching for a specific target object, the agent encounters other objects that are not the target and not required for any state-change operation (e.g., not ingredients for heating, cooling, cleaning).",
+      "action_flow": [
+        "do not pick up, examine, or move any non-target object",
+        "do not open containers that are not likely to hold the target",
+        "continue searching only for the target object(s)",
+        "if a container contains only non-target objects, close it and move on"
+      ],
+      "avoid": [
+        "picking up irrelevant objects",
+        "examining objects that are not the target or tools",
+        "getting distracted by non-goal items"
+      ],
+      "principle": "While searching for a specific target object, the agent encounters other objects that are not the target and not required for any state-change operation (e.g., not ingredients for heating, cooling, cleaning).. Steps: do not pick up, examine, or move any non-target object; do not open containers that are not likely to hold the target; continue searching only for the target object(s); if a container contains only non-target objects, close it and move on",
+      "when_to_apply": "While searching for a specific target object, the agent encounters other objects that are not the target and not required for any state-change operation (e.g., not ingredients for heating, cooling, cleaning).",
+      "evidence": {
+        "from_success": 36,
+        "from_failure": 36
+      }
+    },
+    {
+      "skill_id": "dyn_003",
+      "title": "Collect Multiples Then Place",
+      "scope": "task_specific",
+      "task_type": "ALL",
+      "trigger": "The task requires placing multiple identical objects into a single target receptacle (e.g., 'put two vase in coffeetable', 'find two laptop and put them in desk').",
+      "action_flow": [
+        "locate and acquire the first target object",
+        "do not place it immediately; continue searching for the remaining target objects",
+        "keep the acquired objects in inventory (if possible) or set them aside near the destination",
+        "after all required objects are acquired, navigate to the target receptacle",
+        "place all objects one by one into the receptacle"
+      ],
+      "avoid": [
+        "placing the first object immediately and then having to travel back to find more",
+        "losing track of the count of acquired objects",
+        "mixing up target objects with non-target items in inventory"
+      ],
+      "principle": "The task requires placing multiple identical objects into a single target receptacle (e.g., 'put two vase in coffeetable', 'find two laptop and put them in desk').. Steps: locate and acquire the first target object; do not place it immediately; continue searching for the remaining target objects; keep the acquired objects in inventory (if possible) or set them aside near the destination; after all required objects are acquired, navigate to the target receptacle; place all objects one by one into the receptacle",
+      "when_to_apply": "The task requires placing multiple identical objects into a single target receptacle (e.g., 'put two vase in coffeetable', 'find two laptop and put them in desk').",
+      "evidence": {
+        "from_success": 36,
+        "from_failure": 36
+      }
+    }
+  ]
+}

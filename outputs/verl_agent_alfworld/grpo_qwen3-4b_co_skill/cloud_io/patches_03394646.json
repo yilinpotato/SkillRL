@@ -1,0 +1,75 @@
+{
+  "batch_id": "03394646-5e5f-4094-aee7-4c803e85d3e7",
+  "patches": [
+    {
+      "skill_id": "dyn_004",
+      "title": "Open Container on Arrival",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "agent is at a closed container while searching for a target object believed to be inside",
+      "action_flow": [
+        "open the closed container immediately",
+        "inspect the contents for the target object",
+        "if target is present, pick it up; if not, close the container and move to the next candidate"
+      ],
+      "avoid": [
+        "using 'examine' or 'look' on the container without opening it",
+        "standing idle or trying non-container actions",
+        "repeatedly opening the same container without checking contents"
+      ],
+      "principle": "agent is at a closed container while searching for a target object believed to be inside. Steps: open the closed container immediately; inspect the contents for the target object; if target is present, pick it up; if not, close the container and move to the next candidate",
+      "when_to_apply": "agent is at a closed container while searching for a target object believed to be inside",
+      "evidence": {
+        "from_success": 13,
+        "from_failure": 59
+      }
+    },
+    {
+      "skill_id": "dyn_005",
+      "title": "Hold Object Before Appliance",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "task requires using an appliance (e.g., fridge, microwave, sink) to change an object's state (cool, heat, clean)",
+      "action_flow": [
+        "first locate and pick up the target object (if not already in inventory)",
+        "then navigate to the nearest relevant appliance",
+        "finally use the appliance on the object"
+      ],
+      "avoid": [
+        "attempting to use the appliance while the target object is not in inventory",
+        "moving to the appliance before acquiring the object",
+        "using the appliance on any non-target object"
+      ],
+      "principle": "task requires using an appliance (e.g., fridge, microwave, sink) to change an object's state (cool, heat, clean). Steps: first locate and pick up the target object (if not already in inventory); then navigate to the nearest relevant appliance; finally use the appliance on the object",
+      "when_to_apply": "task requires using an appliance (e.g., fridge, microwave, sink) to change an object's state (cool, heat, clean)",
+      "evidence": {
+        "from_success": 13,
+        "from_failure": 59
+      }
+    },
+    {
+      "skill_id": "dyn_006",
+      "title": "Systematic Open Sweep",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "target object is not visible in the initial room description and there are multiple closed containers (cabinets, drawers) that could hold it",
+      "action_flow": [
+        "enumerate all closed containers in the room",
+        "visit each container exactly once in a logical order (e.g., by type or proximity)",
+        "for each container: open it, check for the target object, and if found, take it; otherwise close it and proceed to the next",
+        "continue until object is found or all containers exhausted"
+      ],
+      "avoid": [
+        "skipping containers or revisiting containers",
+        "using 'examine' or 'look' as a substitute for opening",
+        "opening the same container multiple times unnecessarily"
+      ],
+      "principle": "target object is not visible in the initial room description and there are multiple closed containers (cabinets, drawers) that could hold it. Steps: enumerate all closed containers in the room; visit each container exactly once in a logical order (e.g., by type or proximity); for each container: open it, check for the target object, and if found, take it; otherwise close it and proceed to the next; continue until object is found or all containers exhausted",
+      "when_to_apply": "target object is not visible in the initial room description and there are multiple closed containers (cabinets, drawers) that could hold it",
+      "evidence": {
+        "from_success": 13,
+        "from_failure": 59
+      }
+    }
+  ]
+}

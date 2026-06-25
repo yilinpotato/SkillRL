@@ -1,0 +1,73 @@
+{
+  "batch_id": "2b51fa7f-2024-4a34-8004-47db19a6e511",
+  "patches": [
+    {
+      "skill_id": "dyn_009",
+      "title": "Ordered Container Search",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "target object not visible and multiple plausible containers exist (e.g., numbered drawers, cabinets)",
+      "action_flow": [
+        "select a logical order (e.g., ascending indices for similar containers) based on observation",
+        "visit each container in that order exactly once without skipping",
+        "for each closed container, open and inspect contents immediately",
+        "if target found, acquire it and proceed to next phase; if empty, move to the next container in order"
+      ],
+      "avoid": [
+        "skipping containers in the chosen order",
+        "revisiting already checked containers",
+        "opening the same container twice"
+      ],
+      "principle": "target object not visible and multiple plausible containers exist (e.g., numbered drawers, cabinets). Steps: select a logical order (e.g., ascending indices for similar containers) based on observation; visit each container in that order exactly once without skipping; for each closed container, open and inspect contents immediately; if target found, acquire it and proceed to next phase; if empty, move to the next container in order",
+      "when_to_apply": "target object not visible and multiple plausible containers exist (e.g., numbered drawers, cabinets)",
+      "evidence": {
+        "from_success": 42,
+        "from_failure": 30
+      }
+    },
+    {
+      "skill_id": "dyn_010",
+      "title": "Prefer Open Over Examine",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "at a closed container while searching for a target object, with 'open' and 'examine' both admissible",
+      "action_flow": [
+        "immediately choose the 'open' action without using 'examine' first",
+        "after opening, inspect contents for target",
+        "if empty, close or move on according to the search strategy"
+      ],
+      "avoid": [
+        "using 'examine' on a closed container before opening",
+        "delaying the open action with intermediate reasoning about state"
+      ],
+      "principle": "at a closed container while searching for a target object, with 'open' and 'examine' both admissible. Steps: immediately choose the 'open' action without using 'examine' first; after opening, inspect contents for target; if empty, close or move on according to the search strategy",
+      "when_to_apply": "at a closed container while searching for a target object, with 'open' and 'examine' both admissible",
+      "evidence": {
+        "from_success": 42,
+        "from_failure": 30
+      }
+    },
+    {
+      "skill_id": "dyn_011",
+      "title": "Pivot Without Closing",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "after opening a container and confirming it is empty during a search",
+      "action_flow": [
+        "do not close the empty container if the task does not require it",
+        "immediately navigate to the next plausible container in your search order",
+        "continue the search without wasting steps on closing"
+      ],
+      "avoid": [
+        "closing empty containers unnecessarily",
+        "lingering at an empty container to re-examine it"
+      ],
+      "principle": "after opening a container and confirming it is empty during a search. Steps: do not close the empty container if the task does not require it; immediately navigate to the next plausible container in your search order; continue the search without wasting steps on closing",
+      "when_to_apply": "after opening a container and confirming it is empty during a search",
+      "evidence": {
+        "from_success": 42,
+        "from_failure": 30
+      }
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "batch_id": "1ab58c5b-bf37-43ce-acda-05512f32b5f6",
+  "patches": [
+    {
+      "skill_id": "dyn_012",
+      "title": "Infer Container for Missing Object",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "Target object is not listed in the initial observation and not in inventory, but the task implies it exists",
+      "action_flow": [
+        "Check inventory for the target object",
+        "If not present, identify candidate containers (cabinets, drawers, fridge, sink, countertops) based on common storage priors",
+        "Visit and open each container in a logical order (e.g., cabinets first, then drawers) without skipping",
+        "Inspect contents until the target object is found"
+      ],
+      "avoid": [
+        "Repeatedly looking around without opening closed containers",
+        "Assuming the object is not present without checking all likely containers",
+        "Wasting time on non-container objects like appliances when the object is likely stored"
+      ],
+      "principle": "Target object is not listed in the initial observation and not in inventory, but the task implies it exists. Steps: Check inventory for the target object; If not present, identify candidate containers (cabinets, drawers, fridge, sink, countertops) based on common storage priors; Visit and open each container in a logical order (e.g., cabinets first, then drawers) without skipping; Inspect contents until the target object is found",
+      "when_to_apply": "Target object is not listed in the initial observation and not in inventory, but the task implies it exists",
+      "evidence": {
+        "from_success": 29,
+        "from_failure": 43
+      }
+    },
+    {
+      "skill_id": "dyn_013",
+      "title": "Enforce Cleaning Prior to Placement",
+      "scope": "task_specific",
+      "task_type": "ALL",
+      "trigger": "Task requires the target object to be clean (e.g., 'clean some X' or 'put clean X in Y')",
+      "action_flow": [
+        "Locate and pick up the target object if not already held",
+        "Go to the sink (or designated cleaning area)",
+        "Use the sink to clean the object (if admissible action available)",
+        "Then proceed to the target receptacle and place the object"
+      ],
+      "avoid": [
+        "Placing the object without confirming it is clean",
+        "Attempting to clean the object after placing it",
+        "Searching for cleaning tools other than the sink if it is the only cleaning receptacle"
+      ],
+      "principle": "Task requires the target object to be clean (e.g., 'clean some X' or 'put clean X in Y'). Steps: Locate and pick up the target object if not already held; Go to the sink (or designated cleaning area); Use the sink to clean the object (if admissible action available); Then proceed to the target receptacle and place the object",
+      "when_to_apply": "Task requires the target object to be clean (e.g., 'clean some X' or 'put clean X in Y')",
+      "evidence": {
+        "from_success": 29,
+        "from_failure": 43
+      }
+    },
+    {
+      "skill_id": "dyn_014",
+      "title": "Progressive Subgoal Follow-Through",
+      "scope": "general",
+      "task_type": "ALL",
+      "trigger": "Task involves multiple sequential subgoals (e.g., find, clean, place) where later subgoals depend on earlier ones",
+      "action_flow": [
+        "Break down the task into ordered subgoals (e.g., locate object, acquire object, transform object, deliver object)",
+        "Execute each subgoal completely before moving to the next",
+        "If a subgoal cannot be completed, re-evaluate the environment and adjust the plan without skipping steps"
+      ],
+      "avoid": [
+        "Jumping to a later subgoal (e.g., going to placement location before having the object)",
+        "Repeating a completed subgoal unnecessarily",
+        "Getting sidetracked by non-target objects that are not part of the subgoal sequence"
+      ],
+      "principle": "Task involves multiple sequential subgoals (e.g., find, clean, place) where later subgoals depend on earlier ones. Steps: Break down the task into ordered subgoals (e.g., locate object, acquire object, transform object, deliver object); Execute each subgoal completely before moving to the next; If a subgoal cannot be completed, re-evaluate the environment and adjust the plan without skipping steps",
+      "when_to_apply": "Task involves multiple sequential subgoals (e.g., find, clean, place) where later subgoals depend on earlier ones",
+      "evidence": {
+        "from_success": 29,
+        "from_failure": 43
+      }
+    }
+  ]
+}
