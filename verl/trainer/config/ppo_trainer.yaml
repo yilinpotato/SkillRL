@@ -149,6 +149,13 @@ actor_rollout_ref:
       max_turns: null  # null for no limit (default max_length // 3)
       tool_config_path: null  # null for no tool
       format: chatml  # chatml, more formats will be supported in the future
+    budget_forcing:
+      # Thinking budget forcing: when the model's reasoning would fill the whole
+      # response budget, force-close </think> and emit an <action> via a short
+      # second-stage continuation, so every step yields a parseable action.
+      # Only applies to the vllm (spmd) rollout and to non-multimodal inputs.
+      enable: True
+      action_reserve_tokens: 256  # tokens reserved for the forced "</think><action>...</action>"
 
 critic:
   rollout_n: ${actor_rollout_ref.rollout.n}

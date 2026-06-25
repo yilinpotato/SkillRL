@@ -227,6 +227,13 @@ class vLLMRollout(BaseRollout):
         self.sampling_params = SamplingParams(**kwargs)
 
         self.pad_token_id = tokenizer.pad_token_id
+        # Keep the tokenizer around for thinking budget forcing (decode stage-1
+        # outputs / encode the forced "</think><action>" suffix).
+        self.tokenizer = tokenizer
+        # Thinking budget forcing config (see _generate_with_budget_forcing).
+        # Enabled by default; reserves a small token budget so that an <action>
+        # can always be emitted even when the model's reasoning is very long.
+        self.budget_forcing = config.get("budget_forcing", {}) or {}
 
     @contextmanager
     def update_sampling_params(self, **kwargs):
@@ -243,6 +250,123 @@ class vLLMRollout(BaseRollout):
         # if len(old_sampling_params_args):
         for key, value in old_sampling_params_args.items():
             setattr(self.sampling_params, key, value)
+
+    @staticmethod
+    def _flatten_vllm_outputs(outputs):
+        """Flatten vLLM outputs into (response_token_ids, per_token_logprobs) lists,
+        in prompt-major / sample-minor order (matching the default rollout path)."""
+        response, rollout_log_probs = [], []
+        for output in outputs:
+            for sample in output.outputs:
+                ids = list(sample.token_ids)
+                response.append(ids)
+                rollout_log_probs.append([sample.logprobs[i][ids[i]].logprob for i in range(len(ids))])
+        return response, rollout_log_probs
+
+    def _generate_with_budget_forcing(self, vllm_inputs, sampling_kwargs, lora_requests):
+        """Two-stage 'thinking budget forcing' generation.
+
+        Stage 1 generates with a bounded thinking budget (response_length minus a
+        small action reserve). Any sample that did not emit an `</action>` is then
+        forced in stage 2: we append `</think>\\n\\n<action>` (or just `<action>` if
+        thinking already closed) to its stage-1 output and continue generation for a
+        few more tokens, stopping at `</action>`. This guarantees a parseable action
+        even when the model's reasoning would otherwise fill the whole budget.
+
+        Returns flat (response, rollout_log_probs) lists exactly like the default path.
+        Note: injected/forced tokens get a placeholder rollout logprob of 0.0 — these
+        are only used for the `rollout_probs_diff` monitoring metric, never for the PPO
+        loss (which recomputes old_log_prob from the actor), so training is unaffected.
+        """
+        response_length = self.config.response_length
+        action_reserve = int(self.budget_forcing.get("action_reserve_tokens", 256))
+        think_budget = response_length - action_reserve
+
+        # Budget too small to split — fall back to plain single-stage generation.
+        if think_budget <= 0:
+            with self.update_sampling_params(**sampling_kwargs):
+                outputs = self.inference_engine.generate(
+                    prompts=vllm_inputs,
+                    sampling_params=self.sampling_params,
+                    lora_request=lora_requests,
+                    use_tqdm=False,
+                )
+            return self._flatten_vllm_outputs(outputs)
+
+        # ---- Stage 1: bounded thinking ----
+        stage1_kwargs = dict(sampling_kwargs)
+        stage1_kwargs["max_tokens"] = think_budget
+        with self.update_sampling_params(**stage1_kwargs):
+            s1_outputs = self.inference_engine.generate(
+                prompts=vllm_inputs,
+                sampling_params=self.sampling_params,
+                lora_request=lora_requests,
+                use_tqdm=False,
+            )
+
+        # Flatten stage-1 results, remembering which source prompt each sample came from.
+        s1_tokens, s1_logprobs, prompt_idx_of = [], [], []
+        for out_idx, output in enumerate(s1_outputs):
+            for sample in output.outputs:
+                ids = list(sample.token_ids)
+                s1_tokens.append(ids)
+                s1_logprobs.append([sample.logprobs[i][ids[i]].logprob for i in range(len(ids))])
+                prompt_idx_of.append(out_idx)
+
+        # Decide which samples still need a forced action.
+        force_positions, force_prompts, force_suffix_ids = [], [], []
+        for k, ids in enumerate(s1_tokens):
+            text = self.tokenizer.decode(ids, skip_special_tokens=True)
+            if "</action>" in text:
+                continue  # already produced an action — keep stage-1 output as is
+            force_str = "\n</think>\n\n<action>" if "</think>" not in text else "\n<action>"
+            suffix_ids = self.tokenizer.encode(force_str, add_special_tokens=False)
+            force_positions.append(k)
+            force_prompts.append({
+                "prompt_token_ids": list(vllm_inputs[prompt_idx_of[k]]["prompt_token_ids"]) + ids + suffix_ids
+            })
+            force_suffix_ids.append(suffix_ids)
+
+        # ---- Stage 2: forced action continuation (only for the subset) ----
+        s2_tokens_map, s2_logprobs_map = {}, {}
+        if force_prompts:
+            stage2_kwargs = dict(sampling_kwargs)
+            stage2_kwargs.update({
+                "n": 1,
+                "max_tokens": action_reserve,
+                "detokenize": True,
+                "stop": ["</action>"],
+                "include_stop_str_in_output": True,
+            })
+            s2_lora = [lora_requests[0]] * len(force_prompts) if lora_requests is not None else None
+            with self.update_sampling_params(**stage2_kwargs):
+                s2_outputs = self.inference_engine.generate(
+                    prompts=force_prompts,
+                    sampling_params=self.sampling_params,
+                    lora_request=s2_lora,
+                    use_tqdm=False,
+                )
+            for j, output in enumerate(s2_outputs):
+                sample = output.outputs[0]
+                ids = list(sample.token_ids)
+                lp = [sample.logprobs[i][ids[i]].logprob for i in range(len(ids))]
+                k = force_positions[j]
+                s2_tokens_map[k] = (force_suffix_ids[j], ids)
+                s2_logprobs_map[k] = lp
+
+        # ---- Assemble final responses (cap at response_length) ----
+        response, rollout_log_probs = [], []
+        for k in range(len(s1_tokens)):
+            if k in s2_tokens_map:
+                suffix_ids, s2_ids = s2_tokens_map[k]
+                full = s1_tokens[k] + suffix_ids + s2_ids
+                full_lp = s1_logprobs[k] + [0.0] * len(suffix_ids) + s2_logprobs_map[k]
+            else:
+                full = s1_tokens[k]
+                full_lp = s1_logprobs[k]
+            response.append(full[:response_length])
+            rollout_log_probs.append(full_lp[:response_length])
+        return response, rollout_log_probs
 
     @GPUMemoryLogger(role="vllm rollout spmd", logger=logger)
     @torch.no_grad()
@@ -317,43 +441,55 @@ class vLLMRollout(BaseRollout):
                 lora_int_id=lora_int_ids[0]
                 lora_requests = [LoRARequest(lora_name=f"{lora_int_id}",lora_int_id=lora_int_id,lora_path="/simon-stub-path")] * batch_size
 
-        # users can customize different sampling_params at different run
-        with self.update_sampling_params(**kwargs):
-            outputs = self.inference_engine.generate(
-                prompts=vllm_inputs,  # because we have already convert it to prompt token id
-                sampling_params=self.sampling_params,
-                lora_request=lora_requests,
-                use_tqdm=False,
+        # users can customize different sampling_params at different run.
+        # Thinking budget forcing: when enabled (and there are no multimodal inputs),
+        # use a two-stage generation that guarantees a parseable <action> even when the
+        # model's reasoning would otherwise fill the whole response budget.
+        bf_enabled = bool(self.budget_forcing.get("enable", True))
+        bf_has_mm = any("multi_modal_data" in vi for vi in vllm_inputs)
+        if bf_enabled and not bf_has_mm:
+            response, rollout_log_probs = self._generate_with_budget_forcing(
+                vllm_inputs=vllm_inputs,
+                sampling_kwargs=kwargs,
+                lora_requests=lora_requests,
             )
+        else:
+            with self.update_sampling_params(**kwargs):
+                outputs = self.inference_engine.generate(
+                    prompts=vllm_inputs,  # because we have already convert it to prompt token id
+                    sampling_params=self.sampling_params,
+                    lora_request=lora_requests,
+                    use_tqdm=False,
+                )
 
-            # TODO(sgm): disable logprob when recompute_log_prob is enable
-            # if n = 1: (bs, response_length) ; if n > 1: (bs * n, response_length)
+                # TODO(sgm): disable logprob when recompute_log_prob is enable
+                # if n = 1: (bs, response_length) ; if n > 1: (bs * n, response_length)
 
-            response = []
-            rollout_log_probs = []
-            for output in outputs:
-                for sample_id in range(len(output.outputs)):
-                    response_ids = output.outputs[sample_id].token_ids
-                    response.append(response_ids)
-                    curr_log_prob = []
-                    for i, logprob in enumerate(output.outputs[sample_id].logprobs):
-                        curr_log_prob.append(logprob[response_ids[i]].logprob)
-                    rollout_log_probs.append(curr_log_prob)
+                response = []
+                rollout_log_probs = []
+                for output in outputs:
+                    for sample_id in range(len(output.outputs)):
+                        response_ids = output.outputs[sample_id].token_ids
+                        response.append(response_ids)
+                        curr_log_prob = []
+                        for i, logprob in enumerate(output.outputs[sample_id].logprobs):
+                            curr_log_prob.append(logprob[response_ids[i]].logprob)
+                        rollout_log_probs.append(curr_log_prob)
 
-            response = pad_2d_list_to_length(response, self.pad_token_id, max_length=self.config.response_length).to(idx.device)
-            rollout_log_probs = pad_2d_list_to_length(rollout_log_probs, -1, max_length=self.config.response_length).to(idx.device)
-            rollout_log_probs = rollout_log_probs.to(torch.float32)
+        response = pad_2d_list_to_length(response, self.pad_token_id, max_length=self.config.response_length).to(idx.device)
+        rollout_log_probs = pad_2d_list_to_length(rollout_log_probs, -1, max_length=self.config.response_length).to(idx.device)
+        rollout_log_probs = rollout_log_probs.to(torch.float32)
 
-            if self.sampling_params.n > 1 and do_sample:
-                idx = _repeat_interleave(idx, self.sampling_params.n)
-                attention_mask = _repeat_interleave(attention_mask, self.sampling_params.n)
-                position_ids = _repeat_interleave(position_ids, self.sampling_params.n)
-                batch_size = batch_size * self.sampling_params.n
-                # NOTE(linjunrong): for multi-turn https://github.com/volcengine/verl/pull/1037
-                if "tools_kwargs" in non_tensor_batch.keys():
-                    non_tensor_batch["tools_kwargs"] = _repeat_interleave(non_tensor_batch["tools_kwargs"], self.sampling_params.n)
+        if self.sampling_params.n > 1 and do_sample:
+            idx = _repeat_interleave(idx, self.sampling_params.n)
+            attention_mask = _repeat_interleave(attention_mask, self.sampling_params.n)
+            position_ids = _repeat_interleave(position_ids, self.sampling_params.n)
+            batch_size = batch_size * self.sampling_params.n
+            # NOTE(linjunrong): for multi-turn https://github.com/volcengine/verl/pull/1037
+            if "tools_kwargs" in non_tensor_batch.keys():
+                non_tensor_batch["tools_kwargs"] = _repeat_interleave(non_tensor_batch["tools_kwargs"], self.sampling_params.n)
 
-            seq = torch.cat([idx, response], dim=-1)
+        seq = torch.cat([idx, response], dim=-1)
 
         response_length = response.size(1)
         delta_position_id = torch.arange(1, response_length + 1, device=position_ids.device)
