@@ -48,17 +48,26 @@ class TrajectoryCollector:
         # folder so they sit next to the checkpoints / metrics of the same run.
         # Directory resolution order:
         #   1) env var TRAJECTORY_DUMP_DIR            (explicit override)
-        #   2) <trainer.default_local_dir>/trajectories  (the run's output dir)
-        #   3) ./outputs/trajectories                 (fallback)
+        #   2) dirname(JSONL_PATH)/trajectories       (the run's output dir; the
+        #      launch script exports JSONL_PATH=$OUTPUT_DIR/metrics.jsonl)
+        #   3) <trainer.default_local_dir>/trajectories
+        #   4) ./outputs/trajectories                 (fallback)
         # Set TRAJECTORY_DUMP_DISABLE=1 to turn it off entirely.
         traj_dir = os.environ.get("TRAJECTORY_DUMP_DIR", None)
         if traj_dir is None:
-            default_local_dir = None
-            try:
-                default_local_dir = self.config.trainer.get('default_local_dir', None)
-            except Exception:
-                default_local_dir = None
-            base = default_local_dir if default_local_dir else "outputs"
+            base = None
+            # Prefer the directory of JSONL_PATH (guaranteed writable run output dir).
+            jsonl_path = os.environ.get("JSONL_PATH", None)
+            if jsonl_path:
+                base = os.path.dirname(jsonl_path)
+            if not base:
+                try:
+                    base = self.config.trainer.get('default_local_dir', None)
+                except Exception:
+                    base = None
+            # Guard against unusable bases (None, empty, or filesystem root).
+            if not base or os.path.abspath(base) == os.path.abspath(os.sep):
+                base = "outputs"
             traj_dir = os.path.join(base, "trajectories")
         self._traj_dump_dir = traj_dir
         self._traj_dump_enabled = os.environ.get("TRAJECTORY_DUMP_DISABLE", "0") != "1"
@@ -66,8 +75,15 @@ class TrajectoryCollector:
         self._traj_dump_max = int(os.environ.get("TRAJECTORY_DUMP_MAX_EPISODES", "12"))
         self._traj_dump_count = 0
         if self._traj_dump_enabled:
-            os.makedirs(self._traj_dump_dir, exist_ok=True)
-            print(f"[TrajectoryDump] Enabled. Writing trajectories to: {self._traj_dump_dir}")
+            # Trajectory logging must never break training: if the directory can't
+            # be created, disable the feature instead of crashing.
+            try:
+                os.makedirs(self._traj_dump_dir, exist_ok=True)
+                print(f"[TrajectoryDump] Enabled. Writing trajectories to: {self._traj_dump_dir}")
+            except Exception as e:
+                print(f"[TrajectoryDump] Could not create dir '{self._traj_dump_dir}' ({e}); "
+                      f"disabling trajectory dump.")
+                self._traj_dump_enabled = False
 
     def preprocess_single_sample(
         self,
