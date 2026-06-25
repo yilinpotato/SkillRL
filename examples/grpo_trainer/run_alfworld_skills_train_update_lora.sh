@@ -17,6 +17,7 @@ export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B
 export SKILL_UPDATER_BACKEND="deepseek"
 # export DEEPSEEK_API_KEY=""
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
+export TRAJECTORY_DUMP_DIR="$OUTPUT_DIR/trajectories"
 
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
 PROJECT_NAME="verl_agent_alfworld"

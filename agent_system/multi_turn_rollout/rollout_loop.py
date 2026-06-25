@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import json
+import time
 import torch
 import numpy as np
 from verl import DataProto
@@ -39,6 +42,32 @@ class TrajectoryCollector:
         self.config = config
         self.tokenizer = tokenizer
         self.processor = processor
+
+        # ------- Trajectory dumping (for human inspection / debugging) -------
+        # Enabled by default. Trajectories are organised under the run's output
+        # folder so they sit next to the checkpoints / metrics of the same run.
+        # Directory resolution order:
+        #   1) env var TRAJECTORY_DUMP_DIR            (explicit override)
+        #   2) <trainer.default_local_dir>/trajectories  (the run's output dir)
+        #   3) ./outputs/trajectories                 (fallback)
+        # Set TRAJECTORY_DUMP_DISABLE=1 to turn it off entirely.
+        traj_dir = os.environ.get("TRAJECTORY_DUMP_DIR", None)
+        if traj_dir is None:
+            default_local_dir = None
+            try:
+                default_local_dir = self.config.trainer.get('default_local_dir', None)
+            except Exception:
+                default_local_dir = None
+            base = default_local_dir if default_local_dir else "outputs"
+            traj_dir = os.path.join(base, "trajectories")
+        self._traj_dump_dir = traj_dir
+        self._traj_dump_enabled = os.environ.get("TRAJECTORY_DUMP_DISABLE", "0") != "1"
+        # Max number of episodes written per rollout call (keeps files small).
+        self._traj_dump_max = int(os.environ.get("TRAJECTORY_DUMP_MAX_EPISODES", "12"))
+        self._traj_dump_count = 0
+        if self._traj_dump_enabled:
+            os.makedirs(self._traj_dump_dir, exist_ok=True)
+            print(f"[TrajectoryDump] Enabled. Writing trajectories to: {self._traj_dump_dir}")
 
     def preprocess_single_sample(
         self,
@@ -328,6 +357,8 @@ class TrajectoryCollector:
         episode_lengths = np.zeros(batch_size, dtype=np.float32)
         episode_rewards = np.zeros(batch_size, dtype=np.float32)
         tool_callings = np.zeros(batch_size, dtype=np.float32)
+        # Per-step human-readable trajectory records (only populated when dumping is enabled)
+        traj_records = [[] for _ in range(batch_size)] if self._traj_dump_enabled else None
         # Trajectory collection loop
         for _step in range(self.config.env.max_steps):
             active_masks = np.logical_not(is_done)
@@ -390,9 +421,23 @@ class TrajectoryCollector:
             # Update episode lengths for active environments
             batch_list: list[dict] = to_list_of_dict(batch)
 
+            cur_obs_text = obs.get('text', None) if self._traj_dump_enabled else None
             for i in range(batch_size):
                 total_batch_list[i].append(batch_list[i])
                 total_infos[i].append(infos[i])
+
+                # Capture a human-readable record for envs that were active this step.
+                if self._traj_dump_enabled and active_masks[i]:
+                    info_i = infos[i] if isinstance(infos[i], dict) else {}
+                    traj_records[i].append({
+                        'step': int(_step),
+                        'observation': cur_obs_text[i] if cur_obs_text is not None else None,
+                        'model_response': text_actions[i],
+                        'reward': float(torch_to_numpy(rewards)[i]),
+                        'is_action_valid': bool(batch.non_tensor_batch['is_action_valid'][i]),
+                        'done': bool(dones[i]),
+                        'won': bool(info_i.get('won', False)),
+                    })
 
             # Update done states
             is_done = np.logical_or(is_done, dones)
@@ -407,11 +452,63 @@ class TrajectoryCollector:
         success: Dict[str, np.ndarray] = envs.success_evaluator(
                     total_infos=total_infos,
                     total_batch_list=total_batch_list,
-                    episode_rewards=episode_rewards, 
+                    episode_rewards=episode_rewards,
                     episode_lengths=episode_lengths,
                     )
-        
+
+        if self._traj_dump_enabled:
+            self._dump_trajectories(
+                traj_records=traj_records,
+                gen_batch=gen_batch,
+                episode_rewards=episode_rewards,
+                episode_lengths=episode_lengths,
+                success=success,
+                traj_uid=traj_uid,
+            )
+
         return total_batch_list, episode_rewards, episode_lengths, success, traj_uid, tool_callings
+
+    def _dump_trajectories(self, traj_records, gen_batch, episode_rewards,
+                           episode_lengths, success, traj_uid):
+        """
+        Write per-episode rollout trajectories to a JSONL file for human inspection.
+
+        Each line is one episode containing the full sequence of
+        (observation -> model_response -> reward) tuples, plus episode-level
+        reward / length / success. Enabled only when the env var
+        TRAJECTORY_DUMP_DIR is set; otherwise this method is never called.
+        """
+        try:
+            batch_size = len(traj_records)
+            data_source = gen_batch.non_tensor_batch.get('data_source', None)
+            success_flags = success.get('success_rate', None)
+
+            fname = f"traj_{self._traj_dump_count:06d}_{int(time.time())}_{uuid.uuid4().hex[:6]}.jsonl"
+            fpath = os.path.join(self._traj_dump_dir, fname)
+            self._traj_dump_count += 1
+
+            n_written = 0
+            with open(fpath, 'w', encoding='utf-8') as f:
+                for i in range(batch_size):
+                    if n_written >= self._traj_dump_max:
+                        break
+                    if not traj_records[i]:
+                        continue
+                    episode = {
+                        'traj_uid': str(traj_uid[i]),
+                        'data_source': str(data_source[i]) if data_source is not None else None,
+                        'episode_reward': float(episode_rewards[i]),
+                        'episode_length': int(episode_lengths[i]),
+                        'success': bool(success_flags[i]) if success_flags is not None and i < len(success_flags) else None,
+                        'num_valid_actions': int(sum(s['is_action_valid'] for s in traj_records[i])),
+                        'steps': traj_records[i],
+                    }
+                    f.write(json.dumps(episode, ensure_ascii=False) + '\n')
+                    n_written += 1
+            print(f"[TrajectoryDump] Wrote {n_written} episodes to {fpath}")
+        except Exception as e:
+            # Never let trajectory logging break training.
+            print(f"[TrajectoryDump] Failed to dump trajectories: {e}")
     
     def dynamic_multi_turn_loop(
             self,

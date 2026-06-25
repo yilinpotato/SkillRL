@@ -49,10 +49,16 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]]):
         except:
             actions[i] = actions[i][-30:]
 
-        # check <think>...</think>
-        think_start_idx = original_str.find("<think>")
+        # check reasoning is present.
+        # NOTE: Qwen3-Thinking models (e.g. Qwen3-4B-Thinking-2507) emit the opening
+        # <think> tag via the chat template, so it lives in the prompt, not in the
+        # response. The response therefore only contains the closing </think>.
+        # Requiring a literal opening <think> here would mark almost every otherwise
+        # valid response as invalid, so we only require the closing </think> tag.
+        # (For non-thinking models that emit "<think>...</think>", </think> is still
+        # present, so this remains correct.)
         think_end_idx = original_str.find("</think>")
-        if think_start_idx == -1 or think_end_idx == -1:
+        if think_end_idx == -1:
             valids[i] = 0
 
         # check if contains any Chinese characters
