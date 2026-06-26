@@ -29,6 +29,10 @@ echo "All run outputs will be saved to: $OUTPUT_DIR"
 # Per-step training metrics are appended here as one JSON object per line.
 export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
 
+# Per-episode rollout trajectories (prompt/response/reward) for human inspection.
+# Exported BEFORE `ray start` so the Ray actors inherit it (same as JSONL_PATH).
+export TRAJECTORY_DUMP_DIR="$OUTPUT_DIR/trajectories"
+
 num_cpus_per_env_worker=0.35 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs

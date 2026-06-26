@@ -53,21 +53,24 @@ class TrajectoryCollector:
         #   3) <trainer.default_local_dir>/trajectories
         #   4) ./outputs/trajectories                 (fallback)
         # Set TRAJECTORY_DUMP_DISABLE=1 to turn it off entirely.
-        traj_dir = os.environ.get("TRAJECTORY_DUMP_DIR", None)
+        traj_dir = os.environ.get("TRAJECTORY_DUMP_DIR", None) or None
         if traj_dir is None:
             base = None
             # Prefer the directory of JSONL_PATH (guaranteed writable run output dir).
             jsonl_path = os.environ.get("JSONL_PATH", None)
             if jsonl_path:
-                base = os.path.dirname(jsonl_path)
-            if not base:
+                base = os.path.dirname(os.path.abspath(jsonl_path))
+            # Fall back to the configured run output dir.
+            if not base or base == os.sep:
                 try:
-                    base = self.config.trainer.get('default_local_dir', None)
+                    dld = self.config.trainer.get('default_local_dir', None)
                 except Exception:
-                    base = None
-            # Guard against unusable bases (None, empty, or filesystem root).
-            if not base or os.path.abspath(base) == os.path.abspath(os.sep):
-                base = "outputs"
+                    dld = None
+                base = os.path.abspath(str(dld)) if dld else None
+            # Final fallback: <cwd>/outputs. Always anchored to an absolute path so
+            # it can never collapse to the filesystem root ('/trajectories').
+            if not base or base == os.sep:
+                base = os.path.abspath("outputs")
             traj_dir = os.path.join(base, "trajectories")
         self._traj_dump_dir = traj_dir
         self._traj_dump_enabled = os.environ.get("TRAJECTORY_DUMP_DISABLE", "0") != "1"
