@@ -56,7 +56,7 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 # export DEEPSEEK_API_KEY=...   # 需在环境里提供
 
 PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_v3"
+EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_v4"
 OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
@@ -67,6 +67,9 @@ echo "All run outputs will be saved to: $OUTPUT_DIR"
 MAX_EPISODES="${MAX_EPISODES:-7200}"
 # Match one GRPO rollout batch by default: train_data_size(12) × group_size(6).
 BATCH_ROLLOUT_SIZE="${BATCH_ROLLOUT_SIZE:-72}"
+# Save lightweight experiment checkpoints every N rollout groups.  This does not
+# force a cloud update; CoSkill still follows the paper trigger/watermark logic.
+CHECKPOINT_EVERY_GROUPS="${CHECKPOINT_EVERY_GROUPS:-2}"
 # Long runs otherwise dump every step's full prompt into trajectories/, which is
 # useful for debugging but creates huge IO. Metrics/raw traces/cloud_io are still
 # written, so this does not affect rollout decisions or CoSkill updates.
@@ -89,6 +92,7 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --epochs 1 \
     --max_episodes "$MAX_EPISODES" \
     --batch_rollout_size "$BATCH_ROLLOUT_SIZE" \
+    --checkpoint_every_groups "$CHECKPOINT_EVERY_GROUPS" \
     `# NO_HIS 模板本身没有记忆，靠 history_length 条最近 obs+action 弥补；调大到 8` \
     --history_length 8 \
     `# vLLM：max_prompt6144+max_response4096=10240; 冻结推理 gpu_mem_util 可给高` \

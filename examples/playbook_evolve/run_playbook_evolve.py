@@ -350,6 +350,9 @@ def main():
     ap.add_argument("--cloud_update_every", type=int, default=0,
                     help="每 N 个 episode 在固定边界强制一次云端更新；<=0 只走双水位线。"
                          "用于 A/B 时消除轨迹长度导致的触发时点差异，生产运行保持 0。")
+    ap.add_argument("--checkpoint_every_groups", type=int, default=0,
+                    help="每 N 个 rollout group 保存一次轻量实验 checkpoint。只落盘 summary/skill_lib "
+                         "快照，不强制云端更新；<=0 表示只在最终结束时保存。")
     ap.add_argument("--history_length", type=int, default=8,
                     help="WITH_MEMORY 模板携带的最近历史步数（obs+action）。训练脚本/mini_test 默认 2；"
                          "这里默认调大到 8，让 NO_HIS 记忆缺口更小，减少小模型因看不到早前状态而绕圈子。")
@@ -620,7 +623,83 @@ def main():
             },
         })
 
+    def _atomic_json_dump(obj, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp_path = f"{path}.tmp"
+        with open(tmp_path, "w") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+
+    def _skill_tree_snapshot():
+        trees = {}
+        if enable_skill_tree and hasattr(skill_lib, "task_playbooks"):
+            for tt, rec in (getattr(skill_lib, "task_playbooks", {}) or {}).items():
+                if isinstance(rec, dict):
+                    trees[tt] = {
+                        "version": rec.get("version", 0),
+                        "level": rec.get("level"),
+                        "n_nodes": len(rec.get("nodes") or {}),
+                    }
+        return trees
+
+    def _build_summary(status="running", checkpoint_reason=None, completed_groups=0):
+        n = len(per_game)
+        trees = _skill_tree_snapshot()
+        return {
+            "status": status,
+            "checkpoint_reason": checkpoint_reason,
+            "task_types": task_types, "epochs": args.epochs,
+            "num_games_per_type": args.num_games, "group_size": args.group_size,
+            "batch_rollout_size": batch_rollout_size,
+            "checkpoint_every_groups": args.checkpoint_every_groups,
+            "completed_rollout_groups": completed_groups,
+            "fixed_games_manifest": args.fixed_games_manifest,
+            "fixed_game_files": all_game_files if args.fixed_games_manifest else [],
+            "skill_tree_enabled": enable_skill_tree,
+            "skill_tree_evolve_enabled": enable_skill_tree_evolve,
+            "skill_bullets_enabled": enable_coskill,
+            "cloud_update_every": args.cloud_update_every,
+            "cloud_update_steps": cloud_update_steps,
+            "total_games_combined_pool": total_games,
+            "total_episodes": n, "wins": wins,
+            "success_rate": round(wins / max(n, 1), 4),
+            "skill_tree_versions": {tt: rec["version"] for tt, rec in trees.items()},
+            "skill_tree_nodes": {tt: rec["n_nodes"] for tt, rec in trees.items()},
+            # Backward-compatible scalar: max version among task trees.
+            "skill_tree_version": max([rec["version"] for rec in trees.values()] or [0]),
+            "final_coskill_metrics": cloud_loop.metrics(traces_pool, skill_lib),
+            "phase_stats": _phase_stats(per_game),
+            "per_game": per_game,
+        }
+
+    def _save_progress_checkpoint(reason, completed_groups, epoch=None, ep_i=None):
+        summary = _build_summary(
+            status="running",
+            checkpoint_reason=reason,
+            completed_groups=completed_groups,
+        )
+        if epoch is not None:
+            summary["current_epoch"] = epoch + 1
+        if ep_i is not None:
+            summary["next_episode_index_in_epoch"] = ep_i + 1
+
+        skill_snapshot = None
+        if hasattr(skill_lib, "save_skills"):
+            save_dir = os.path.join(args.outdir, "skill_lib")
+            os.makedirs(save_dir, exist_ok=True)
+            skill_snapshot = os.path.join(save_dir, f"skills_checkpoint_step{global_step}.json")
+            skill_lib.save_skills(skill_snapshot)
+            skill_lib.save_skills(os.path.join(save_dir, "skills_latest_checkpoint.json"))
+            summary["skill_lib_checkpoint"] = skill_snapshot
+
+        _atomic_json_dump(summary, os.path.join(args.outdir, "summary_partial.json"))
+        ckpt_path = os.path.join(args.outdir, "checkpoints", f"step{global_step:06d}.json")
+        _atomic_json_dump(summary, ckpt_path)
+        print(f"[driver] checkpoint saved at step={global_step} groups={completed_groups} "
+              f"reason={reason} summary={ckpt_path} skill_lib={skill_snapshot or '<none>'}")
+
     stop_early = False
+    completed_groups = 0
     for epoch in range(args.epochs):
         if stop_early:
             break
@@ -656,6 +735,14 @@ def main():
                     cloud_updates += 1
                     cloud_update_steps.append(global_step)
                 _write_episode_metric(epoch, ep_record, pb_used, fired)
+                completed_groups += 1
+                if args.checkpoint_every_groups > 0 and completed_groups % args.checkpoint_every_groups == 0:
+                    _save_progress_checkpoint(
+                        reason=f"group_interval_{args.checkpoint_every_groups}",
+                        completed_groups=completed_groups,
+                        epoch=epoch,
+                        ep_i=ep_i,
+                    )
                 continue
 
             remaining_epoch = episodes_per_epoch - ep_i
@@ -690,40 +777,26 @@ def main():
                 ep_record["cloud_update_fired_after_episode"] = bool(fired and is_last)
                 _write_episode_metric(epoch, ep_record, pb_used, fired and is_last)
 
+            completed_groups += 1
+            if args.checkpoint_every_groups > 0 and completed_groups % args.checkpoint_every_groups == 0:
+                _save_progress_checkpoint(
+                    reason=f"group_interval_{args.checkpoint_every_groups}",
+                    completed_groups=completed_groups,
+                    epoch=epoch,
+                    ep_i=ep_i,
+                )
+
     # 落盘 summary。
-    n = len(per_game)
-    final_trees = {}
-    if enable_skill_tree and hasattr(skill_lib, "task_playbooks"):
-        for tt, rec in (getattr(skill_lib, "task_playbooks", {}) or {}).items():
-            if isinstance(rec, dict):
-                final_trees[tt] = {
-                    "version": rec.get("version", 0),
-                    "level": rec.get("level"),
-                    "n_nodes": len(rec.get("nodes") or {}),
-                }
-    summary = {
-        "task_types": task_types, "epochs": args.epochs,
-        "num_games_per_type": args.num_games, "group_size": args.group_size,
-        "fixed_games_manifest": args.fixed_games_manifest,
-        "fixed_game_files": all_game_files if args.fixed_games_manifest else [],
-        "skill_tree_enabled": enable_skill_tree,
-        "skill_tree_evolve_enabled": enable_skill_tree_evolve,
-        "skill_bullets_enabled": enable_coskill,
-        "cloud_update_every": args.cloud_update_every,
-        "cloud_update_steps": cloud_update_steps,
-        "total_games_combined_pool": total_games,
-        "total_episodes": n, "wins": wins,
-        "success_rate": round(wins / max(n, 1), 4),
-        "skill_tree_versions": {tt: rec["version"] for tt, rec in final_trees.items()},
-        "skill_tree_nodes": {tt: rec["n_nodes"] for tt, rec in final_trees.items()},
-        # Backward-compatible scalar: max version among task trees.
-        "skill_tree_version": max([rec["version"] for rec in final_trees.values()] or [0]),
-        "final_coskill_metrics": cloud_loop.metrics(traces_pool, skill_lib),
-        "phase_stats": _phase_stats(per_game),
-        "per_game": per_game,
-    }
-    json.dump(summary, open(os.path.join(args.outdir, "summary.json"), "w"),
-              ensure_ascii=False, indent=2)
+    summary = _build_summary(status="done", completed_groups=completed_groups)
+    if hasattr(skill_lib, "save_skills"):
+        save_dir = os.path.join(args.outdir, "skill_lib")
+        os.makedirs(save_dir, exist_ok=True)
+        final_skill_path = os.path.join(save_dir, f"skills_final_step{global_step}.json")
+        skill_lib.save_skills(final_skill_path)
+        skill_lib.save_skills(os.path.join(save_dir, "skills_latest_final.json"))
+        summary["skill_lib_checkpoint"] = final_skill_path
+    _atomic_json_dump(summary, os.path.join(args.outdir, "summary.json"))
+    n = summary["total_episodes"]
     print(f"\n[driver] done. episodes={n} success_rate={summary['success_rate']*100:.1f}% "
           f"skill_tree_versions={summary['skill_tree_versions']}")
     print(f"[driver] outputs under {args.outdir}/ (traces_pool, cloud_io, skill_lib, trajectories)")
