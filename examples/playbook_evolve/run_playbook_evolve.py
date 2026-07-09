@@ -13,9 +13,13 @@ prod_prompt.ProdObsBuilder（与 env_manager.build_text_obs 逐字节对齐，�
 run_generic 的解析/兜底工具；闭环三件套 + HierarchicalSkillLib + CoSkillCloudLoop。
 """
 import os
+import atexit
 import json
 import uuid
 import argparse
+import multiprocessing as mp
+import subprocess
+import traceback
 
 from agent_system.environments.env_package.alfworld.projection import alfworld_projection
 from agent_system.memory import TracesPool, HierarchicalSkillLib, CoSkillCloudLoop
@@ -319,6 +323,93 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
     return episodes
 
 
+def _split_int(total: int, parts: int):
+    base = total // parts
+    rem = total % parts
+    return [base + (1 if i < rem else 0) for i in range(parts)]
+
+
+def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
+                       fixed_batch_size, in_q, out_q):
+    """Persistent rollout worker for single-GPU data parallel inference.
+
+    The worker owns one ALFWorld batch env and one vLLM engine pinned to one GPU.
+    For every command it reloads the latest skill_lib snapshot, runs exactly one
+    fixed-size rollout group, and returns raw episode records to the parent.  The
+    parent is the only process that mutates TracesPool / cloud skill state.
+    """
+    try:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+        args = argparse.Namespace(**args_dict)
+        args.tensor_parallel_size = 1
+
+        config = load_tw_config_types(task_type_ids, num_games=len(game_files))
+        env = make_batch_env(game_files, config, batch_size=fixed_batch_size,
+                             seed=int(args.seed) + 1009 * (worker_id + 1))
+
+        from mini_test_pen_shelf.agent_vllm import VLLMAgent
+        agent = VLLMAgent(
+            model_path=args.model_path,
+            gpu_memory_utilization=args.gpu_mem_util,
+            tensor_parallel_size=1,
+            max_model_len=args.max_model_len,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            enable_thinking=not args.no_thinking,
+            seed=int(args.seed) + worker_id,
+            no_wait=args.nowait,
+            think_budget=args.think_budget,
+        )
+        print(f"[dp-worker{worker_id}] ready gpu={gpu_id} batch={fixed_batch_size} "
+              f"games={len(game_files)}")
+
+        while True:
+            cmd = in_q.get()
+            if cmd is None:
+                print(f"[dp-worker{worker_id}] shutdown")
+                return
+            group_id = cmd.get("group_id")
+            skill_path = cmd["skill_path"]
+            try:
+                skill_lib = HierarchicalSkillLib(
+                    skills_json_path=skill_path,
+                    retrieval_mode=args.retrieval_mode,
+                    embedding_model_path=args.embedding_model_path,
+                    enable_hierarchy=bool(args.enable_hierarchy),
+                    stable_cycles_l1=args.stable_cycles_l1,
+                    stable_cycles_l2=args.stable_cycles_l2,
+                    success_l1=args.success_l1,
+                    demote_threshold=args.demote_threshold,
+                    min_calls=args.min_calls,
+                    enable_playbook=bool(args.enable_skill_tree),
+                )
+                tag = f" group{group_id} worker{worker_id} gpu={gpu_id}"
+                results = rollout_batch_group(
+                    env, agent, skill_lib, args, fixed_batch_size, tag=tag
+                )
+                out_q.put({
+                    "worker_id": worker_id,
+                    "group_id": group_id,
+                    "results": results,
+                    "error": None,
+                })
+            except Exception:
+                out_q.put({
+                    "worker_id": worker_id,
+                    "group_id": group_id,
+                    "results": [],
+                    "error": traceback.format_exc(),
+                })
+    except Exception:
+        out_q.put({
+            "worker_id": worker_id,
+            "group_id": None,
+            "results": [],
+            "error": traceback.format_exc(),
+        })
+
+
 def main():
     ap = argparse.ArgumentParser()
     # --- 环境 / 采样（对齐训练脚本）---
@@ -337,6 +428,12 @@ def main():
                     help=">1 时启用同步 batch rollout：一次 reset/step 多个 ALFWorld env，"
                          "vLLM 批量生成；云端更新只在整组完成后触发。"
                          "设 72 可近似对齐 GRPO: train_data_size=12 × group_size=6。")
+    ap.add_argument("--data_parallel_workers", type=int, default=1,
+                    help=">1 时启用多进程数据并行 rollout：每个 worker 绑定一张 GPU、"
+                         "各跑一份 vLLM 和一部分 batch env；主进程统一汇总轨迹并触发云端更新。")
+    ap.add_argument("--rollout_worker_gpus", default=None,
+                    help="数据并行 worker 使用的 GPU 列表，如 '0,1'。默认从 CUDA_VISIBLE_DEVICES "
+                         "或 nvidia-smi 自动取前 data_parallel_workers 张。")
     ap.add_argument("--sample", action="store_true", default=False,
                     help="仅当 num_games>0 时生效：跨物体均匀抽样 num_games 个；正式全量测试不需要")
     ap.add_argument("--sample_seed", type=int, default=0)
@@ -359,6 +456,9 @@ def main():
     # --- 模型 / vLLM（对齐训练脚本的 max_prompt/response）---
     ap.add_argument("--model_path", default=None)
     ap.add_argument("--gpu_mem_util", type=float, default=0.8)
+    ap.add_argument("--tensor_parallel_size", type=int, default=1,
+                    help="vLLM tensor parallel GPU 数。双 A800 单机可设 2；"
+                         "需不超过 CUDA_VISIBLE_DEVICES 中可见 GPU 数。")
     ap.add_argument("--max_model_len", type=int, default=10240)
     ap.add_argument("--max_tokens", type=int, default=4096)
     ap.add_argument("--think_budget", type=int, default=3500)
@@ -507,31 +607,84 @@ def main():
           f"= {episodes_per_epoch * args.epochs} episodes total")
     config = load_tw_config_types(all_tids, num_games=total_games)
     batch_rollout_size = max(1, int(args.batch_rollout_size or 1))
-    if batch_rollout_size == 1:
-        env = make_single_env(all_game_files, config, seed=args.seed)
+    data_parallel_workers = max(1, int(args.data_parallel_workers or 1))
+    use_data_parallel = data_parallel_workers > 1
+    env = None
+    agent = None
+    builder = None
+    dp_in_queues = []
+    dp_out_q = None
+    dp_processes = []
+    dp_worker_batch_sizes = []
+
+    if use_data_parallel:
+        if batch_rollout_size < data_parallel_workers:
+            raise ValueError("batch_rollout_size must be >= data_parallel_workers")
+        if args.rollout_worker_gpus:
+            worker_gpus = [g.strip() for g in args.rollout_worker_gpus.split(",") if g.strip()]
+        elif os.environ.get("CUDA_VISIBLE_DEVICES"):
+            worker_gpus = [g.strip() for g in os.environ["CUDA_VISIBLE_DEVICES"].split(",") if g.strip()]
+        else:
+            try:
+                raw = subprocess.check_output(
+                    ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+                    text=True,
+                )
+                worker_gpus = [g.strip() for g in raw.splitlines() if g.strip()]
+            except Exception:
+                worker_gpus = [str(i) for i in range(data_parallel_workers)]
+        if len(worker_gpus) < data_parallel_workers:
+            raise ValueError(f"data_parallel_workers={data_parallel_workers} but only "
+                             f"{len(worker_gpus)} GPU ids available: {worker_gpus}")
+        worker_gpus = worker_gpus[:data_parallel_workers]
+        dp_worker_batch_sizes = _split_int(batch_rollout_size, data_parallel_workers)
+
+        ctx = mp.get_context("spawn")
+        dp_out_q = ctx.Queue()
+        args_dict = vars(args).copy()
+        args_dict["tensor_parallel_size"] = 1
+        for wid, (gpu_id, worker_bs) in enumerate(zip(worker_gpus, dp_worker_batch_sizes)):
+            worker_games = all_game_files[wid::data_parallel_workers] or list(all_game_files)
+            in_q = ctx.Queue(maxsize=2)
+            proc = ctx.Process(
+                target=_dp_rollout_worker,
+                args=(wid, gpu_id, args_dict, worker_games, all_tids,
+                      worker_bs, in_q, dp_out_q),
+                daemon=False,
+            )
+            proc.start()
+            dp_in_queues.append(in_q)
+            dp_processes.append(proc)
+        print(f"[driver] data_parallel_workers={data_parallel_workers} "
+              f"gpus={worker_gpus} worker_batch_sizes={dp_worker_batch_sizes}; "
+              "main process will aggregate trajectories and run cloud updates")
     else:
-        env = make_batch_env(all_game_files, config, batch_size=batch_rollout_size, seed=args.seed)
-        print(f"[driver] batch_rollout_size={batch_rollout_size}: cloud updates are checked "
-              "only after a full rollout group finishes")
+        if batch_rollout_size == 1:
+            env = make_single_env(all_game_files, config, seed=args.seed)
+        else:
+            env = make_batch_env(all_game_files, config, batch_size=batch_rollout_size, seed=args.seed)
+            print(f"[driver] batch_rollout_size={batch_rollout_size}: cloud updates are checked "
+                  "only after a full rollout group finishes")
 
-    # 5) vLLM 冻结模型（只此一份）。放在所有 env 建好之后，避免上面的 fork-after-CUDA 问题。
-    from mini_test_pen_shelf.agent_vllm import VLLMAgent
-    agent = VLLMAgent(
-        model_path=args.model_path,
-        gpu_memory_utilization=args.gpu_mem_util,
-        max_model_len=args.max_model_len,
-        max_tokens=args.max_tokens,
-        temperature=args.temperature,
-        enable_thinking=not args.no_thinking,
-        seed=args.seed,
-        no_wait=args.nowait,
-        think_budget=args.think_budget,
-    )
+        # 5) vLLM 冻结模型（只此一份）。放在所有 env 建好之后，避免上面的 fork-after-CUDA 问题。
+        from mini_test_pen_shelf.agent_vllm import VLLMAgent
+        agent = VLLMAgent(
+            model_path=args.model_path,
+            gpu_memory_utilization=args.gpu_mem_util,
+            tensor_parallel_size=args.tensor_parallel_size,
+            max_model_len=args.max_model_len,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            enable_thinking=not args.no_thinking,
+            seed=args.seed,
+            no_wait=args.nowait,
+            think_budget=args.think_budget,
+        )
 
-    # 6) 与主管线逐字节对齐的 prompt 构造器，注入共享 skill_lib。
-    #    with_skills 跟随 enable_coskill（训练脚本注入 general/task/mistakes bullets）。
-    builder = ProdObsBuilder(mem_lib=skill_lib, with_skills=enable_coskill, top_k=args.top_k,
-                             history_length=args.history_length)
+        # 6) 与主管线逐字节对齐的 prompt 构造器，注入共享 skill_lib。
+        #    with_skills 跟随 enable_coskill（训练脚本注入 general/task/mistakes bullets）。
+        builder = ProdObsBuilder(mem_lib=skill_lib, with_skills=enable_coskill, top_k=args.top_k,
+                                 history_length=args.history_length)
     print(f"[driver] retrieval_mode={args.retrieval_mode} with_skills={enable_coskill} "
           f"enable_skill_tree={enable_skill_tree} "
           f"enable_skill_tree_evolve={enable_skill_tree_evolve} "
@@ -651,6 +804,8 @@ def main():
             "task_types": task_types, "epochs": args.epochs,
             "num_games_per_type": args.num_games, "group_size": args.group_size,
             "batch_rollout_size": batch_rollout_size,
+            "data_parallel_workers": data_parallel_workers,
+            "data_parallel_worker_batch_sizes": dp_worker_batch_sizes,
             "checkpoint_every_groups": args.checkpoint_every_groups,
             "completed_rollout_groups": completed_groups,
             "fixed_games_manifest": args.fixed_games_manifest,
@@ -698,6 +853,51 @@ def main():
         print(f"[driver] checkpoint saved at step={global_step} groups={completed_groups} "
               f"reason={reason} summary={ckpt_path} skill_lib={skill_snapshot or '<none>'}")
 
+    def _save_rollout_skill_snapshot():
+        save_dir = os.path.join(args.outdir, "skill_lib")
+        os.makedirs(save_dir, exist_ok=True)
+        path = os.path.join(save_dir, f"skills_rollout_step{global_step}.json")
+        skill_lib.save_skills(path)
+        skill_lib.save_skills(os.path.join(save_dir, "skills_latest_rollout.json"))
+        return path
+
+    def _run_data_parallel_group(group_id):
+        skill_path = _save_rollout_skill_snapshot()
+        for in_q in dp_in_queues:
+            in_q.put({"group_id": group_id, "skill_path": skill_path})
+
+        replies = []
+        for _ in dp_in_queues:
+            msg = dp_out_q.get()
+            if msg.get("error"):
+                raise RuntimeError(
+                    f"data-parallel rollout worker {msg.get('worker_id')} failed:\n"
+                    f"{msg.get('error')}"
+                )
+            replies.append(msg)
+        replies.sort(key=lambda x: x["worker_id"])
+        group_results = []
+        for msg in replies:
+            group_results.extend(msg["results"])
+        return group_results
+
+    def _shutdown_data_parallel_workers():
+        for in_q in dp_in_queues:
+            try:
+                in_q.put(None)
+            except Exception:
+                pass
+        for proc in dp_processes:
+            try:
+                proc.join(timeout=30)
+                if proc.is_alive():
+                    proc.terminate()
+            except Exception:
+                pass
+
+    if use_data_parallel:
+        atexit.register(_shutdown_data_parallel_workers)
+
     stop_early = False
     completed_groups = 0
     for epoch in range(args.epochs):
@@ -709,6 +909,51 @@ def main():
                 print(f"[driver] max_episodes={args.max_episodes} reached, stopping early")
                 stop_early = True
                 break
+
+            if use_data_parallel:
+                remaining_epoch = episodes_per_epoch - ep_i
+                remaining_cap = (args.max_episodes - global_step) if args.max_episodes > 0 else remaining_epoch
+                n_to_count = min(batch_rollout_size, remaining_epoch, remaining_cap)
+                if n_to_count <= 0:
+                    stop_early = True
+                    break
+
+                group_id = completed_groups + 1
+                print(f"[driver] dispatch dp group{group_id} epoch{epoch+1} "
+                      f"group_ep{ep_i+1}-{ep_i+n_to_count}/{episodes_per_epoch} "
+                      f"(global_step={global_step+1})")
+                group_results = _run_data_parallel_group(group_id)
+                ingested = []
+                for ep_result in group_results[:n_to_count]:
+                    ingested.append(_ingest_episode_result(epoch, ep_result))
+                ep_i += n_to_count
+
+                # Data-parallel mode: cloud update can happen only after all
+                # workers finish the rollout group and the parent ingests it.
+                force_reason = None
+                if args.cloud_update_every > 0 and global_step % args.cloud_update_every == 0:
+                    force_reason = f"episode_interval_{args.cloud_update_every}"
+                fired = cloud_loop.maybe_update(
+                    traces_pool, skill_lib, global_step, force_reason=force_reason
+                )
+                if fired:
+                    cloud_updates += 1
+                    cloud_update_steps.append(global_step)
+
+                for j, (ep_record, pb_used) in enumerate(ingested):
+                    is_last = (j == len(ingested) - 1)
+                    ep_record["cloud_update_fired_after_episode"] = bool(fired and is_last)
+                    _write_episode_metric(epoch, ep_record, pb_used, fired and is_last)
+
+                completed_groups += 1
+                if args.checkpoint_every_groups > 0 and completed_groups % args.checkpoint_every_groups == 0:
+                    _save_progress_checkpoint(
+                        reason=f"group_interval_{args.checkpoint_every_groups}",
+                        completed_groups=completed_groups,
+                        epoch=epoch,
+                        ep_i=ep_i,
+                    )
+                continue
 
             if batch_rollout_size == 1:
                 tag = f" epoch{epoch+1} ep{ep_i+1}/{episodes_per_epoch} (global_step={global_step+1})"
@@ -796,6 +1041,8 @@ def main():
         skill_lib.save_skills(os.path.join(save_dir, "skills_latest_final.json"))
         summary["skill_lib_checkpoint"] = final_skill_path
     _atomic_json_dump(summary, os.path.join(args.outdir, "summary.json"))
+    if use_data_parallel:
+        _shutdown_data_parallel_workers()
     n = summary["total_episodes"]
     print(f"\n[driver] done. episodes={n} success_rate={summary['success_rate']*100:.1f}% "
           f"skill_tree_versions={summary['skill_tree_versions']}")

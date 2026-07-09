@@ -26,10 +26,37 @@ export VLLM_WORKER_MULTIPROC_METHOD=spawn
 # PYTHONUNBUFFERED=1（等价 python3 -u）强制无缓冲，进度 print 立刻可见。
 export PYTHONUNBUFFERED=1
 
-# Optional convenience selector used by the fixed-task scripts.
-if [ -n "${GPU:-}" ] && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
+# GPU selection.  By default this no-RL batch rollout uses two data-parallel
+# workers on the two-A800 server: each worker gets one GPU and one full vLLM
+# replica.  If the user already set CUDA_VISIBLE_DEVICES, respect it; otherwise
+# GPU=... can select a single device, and GPUS=0,1 can select multiple devices.
+if [ -n "${GPUS:-}" ] && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    export CUDA_VISIBLE_DEVICES="$GPUS"
+elif [ -n "${GPU:-}" ] && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
     export CUDA_VISIBLE_DEVICES="$GPU"
 fi
+
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
+else
+    NUM_VISIBLE_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | grep -c . || true)
+    if [ "${NUM_VISIBLE_GPUS:-0}" -ge 2 ]; then
+        export CUDA_VISIBLE_DEVICES="0,1"
+        NUM_VISIBLE_GPUS=2
+    elif [ "${NUM_VISIBLE_GPUS:-0}" -eq 1 ]; then
+        export CUDA_VISIBLE_DEVICES="0"
+        NUM_VISIBLE_GPUS=1
+    else
+        NUM_VISIBLE_GPUS=1
+    fi
+fi
+NUM_VISIBLE_GPUS=${NUM_VISIBLE_GPUS:-1}
+[ "$NUM_VISIBLE_GPUS" -lt 1 ] && NUM_VISIBLE_GPUS=1
+DEFAULT_DP=$(( NUM_VISIBLE_GPUS < 2 ? NUM_VISIBLE_GPUS : 2 ))
+DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$DEFAULT_DP}"
+ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-${CUDA_VISIBLE_DEVICES:-}}"
+DEFAULT_TP=1
+TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-$DEFAULT_TP}"
 
 # ── 自动判断运行环境：超算 vs 本地3090（与训练脚本一致）─────────────────────────
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
@@ -46,6 +73,9 @@ else
 fi
 echo "Run environment detected: $RUN_ENV"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
+echo "data_parallel_workers: $DATA_PARALLEL_WORKERS"
+echo "rollout_worker_gpus: ${ROLLOUT_WORKER_GPUS:-<auto>}"
+echo "vLLM tensor_parallel_size: $TENSOR_PARALLEL_SIZE"
 
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
@@ -92,6 +122,8 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --epochs 1 \
     --max_episodes "$MAX_EPISODES" \
     --batch_rollout_size "$BATCH_ROLLOUT_SIZE" \
+    --data_parallel_workers "$DATA_PARALLEL_WORKERS" \
+    --rollout_worker_gpus "$ROLLOUT_WORKER_GPUS" \
     --checkpoint_every_groups "$CHECKPOINT_EVERY_GROUPS" \
     `# NO_HIS 模板本身没有记忆，靠 history_length 条最近 obs+action 弥补；调大到 8` \
     --history_length 8 \
@@ -101,6 +133,7 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --think_budget 3500 \
     --temperature 1.0 \
     --gpu_mem_util 0.8 \
+    --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
     `# 记忆 / 技能：与训练脚本 skills_only_memory.* 对齐` \
     --skills_json memory_data/alfworld/claude_style_skills.json \
     `# 初始 SkillRL 匹配机制：template/关键词 task_type 检测；top_k=6 只限制 general skills，` \

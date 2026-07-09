@@ -25,6 +25,7 @@ class VLLMAgent:
         temperature=0.4,
         enable_thinking=True,
         seed=0,
+        tensor_parallel_size=1,
         no_wait=False,     # NoWait: 抑制 "Wait/Hmm/Alternatively..." 回溯词。默认关闭，
                            # 需要时显式开启（budget forcing 已能控制思考长度）。
         think_budget=3500, # 思考预算：第一阶段生成上限。到此还没 </think> 就强制收尾出 action
@@ -36,7 +37,8 @@ class VLLMAgent:
         assert model_path, "请 export MODEL_PATH=/path/to/Qwen3-4B 或传入 model_path"
 
         print(f"[vLLM] 加载模型: {model_path}")
-        print(f"[vLLM] gpu_mem_util={gpu_memory_utilization}, max_model_len={max_model_len}")
+        print(f"[vLLM] gpu_mem_util={gpu_memory_utilization}, max_model_len={max_model_len}, "
+              f"tensor_parallel_size={tensor_parallel_size}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         self.llm = LLM(
@@ -45,6 +47,7 @@ class VLLMAgent:
             max_model_len=max_model_len,
             dtype="bfloat16",
             trust_remote_code=True,
+            tensor_parallel_size=tensor_parallel_size,
             enforce_eager=True,   # 单任务调试，跳过 CUDA graph 编译省启动时间
             seed=seed,
         )
