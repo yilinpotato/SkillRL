@@ -1,0 +1,148 @@
+You are the STRATEGY PLAYBOOK author and editor for a small language-model agent
+performing tasks of type "pick_and_place". A playbook is a compact natural-language strategy the agent
+reads at the TOP of its prompt every step. It should teach the agent how to assess its own situation
+and what to do next — the goal, the decision flow, and the concrete actions — using only what the
+prompt already contains, with no externally injected state hints.
+
+CURRENT PLAYBOOK (exactly what the agent was shown this round):
+"""
+(none — no playbook yet; write the FIRST version from scratch)
+"""
+
+PREVIOUS VERSIONS (your last edits, oldest first — each shows what it changed and the failures it
+was meant to fix; use these to judge whether your last edit actually WORKED):
+(none — this is an early version, no prior edits to compare against)
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): (none — no shared successful opening yet)
+The agent has MASTERED these steps. Do NOT spend playbook depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the playbook on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: put a alarmclock in desk.
+  action: go to drawer 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put a alarmclock in desk.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to drawer 2  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a cd 2.
+  action: open drawer 2  | obs: You arrive at drawer 2. The drawer 2 is closed.
+  action: go to drawer 3  | obs: You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 1.
+  action: open drawer 3  | obs: Nothing happens.
+  action: go to sidetable 1  | obs: You open the drawer 3. The drawer 3 is open. In it, you see a cellphone 2.
+  action: take alarmclock 1 from sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 3, a alarmclock 2, a alarmclock 1, a creditcard 1, a desklamp 1, a keychain 1, a pen 3, a pen 2, and a pencil 3.
+  action: go to desk 1  | obs: You pick up the alarmclock 1 from the sidetable 1.
+  action: move alarmclock 1 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a book 2, a bowl 1, a cd 3, a pencil 2, a pencil 1, and a remotecontrol 1.
+
+Trajectory 2 [success] task: put a alarmclock in desk.
+  action: go to drawer 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put a alarmclock in desk.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to drawer 2  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a cd 2.
+  action: open drawer 2  | obs: You arrive at drawer 2. The drawer 2 is closed.
+  action: go to drawer 3  | obs: You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 1.
+  action: open drawer 3  | obs: Nothing happens.
+  action: go to sidetable 1  | obs: You open the drawer 3. The drawer 3 is open. In it, you see a cellphone 2.
+  action: take alarmclock 1 from sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 3, a alarmclock 2, a alarmclock 1, a creditcard 1, a desklamp 1, a keychain 1, a pen 3, a pen 2, and a pencil 3.
+  action: go to desk 1  | obs: You pick up the alarmclock 1 from the sidetable 1.
+  action: move alarmclock 1 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a book 2, a bowl 1, a cd 3, a pencil 2, a pencil 1, and a remotecontrol 1.
+
+Trajectory 3 [success] task: put a alarmclock in desk.
+  action: go to sidetable 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put a alarmclock in desk.
+  action: take alarmclock 1 from sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 3, a alarmclock 2, a alarmclock 1, a creditcard 1, a desklamp 1, a keychain 1, a pen 3, a pen 2, and a pencil 3.
+  action: go to desk 1  | obs: You pick up the alarmclock 1 from the sidetable 1.
+  action: move alarmclock 1 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a book 2, a bowl 1, a cd 3, a pencil 2, a pencil 1, and a remotecontrol 1.
+
+Trajectory 4 [success] task: put a alarmclock in desk.
+  action: go to drawer 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put a alarmclock in desk.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to drawer 2  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a cd 2.
+  action: open drawer 2  | obs: You arrive at drawer 2. The drawer 2 is closed.
+  action: go to drawer 3  | obs: You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 1.
+  action: open drawer 3  | obs: Nothing happens.
+  action: go to sidetable 1  | obs: You open the drawer 3. The drawer 3 is open. In it, you see a cellphone 2.
+  action: take alarmclock 1 from sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 3, a alarmclock 2, a alarmclock 1, a creditcard 1, a desklamp 1, a keychain 1, a pen 3, a pen 2, and a pencil 3.
+  action: go to desk 1  | obs: You pick up the alarmclock 1 from the sidetable 1.
+  action: move alarmclock 1 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a book 2, a bowl 1, a cd 3, a pencil 2, a pencil 1, and a remotecontrol 1.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+(none)
+
+FAILURE DIAGNOSES (root cause + which playbook part was missing/weak):
+(none)
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current playbook). Judge how the agent USED the current
+   playbook: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   playbook ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+2b. DID YOUR LAST EDIT WORK? Compare PREVIOUS VERSIONS against this round's failures. For each
+   failure type a prior version was meant to fix: did it DISAPPEAR (edit worked — keep that wording)
+   or RECUR (edit failed)? If the same failure keeps recurring across versions, your previous
+   approach is not landing with the agent — try a DIFFERENT tactic (reword more simply, move the
+   rule earlier, make it a concrete step or a short example) instead of repeating a fix that already
+   failed. Do NOT re-introduce wording that a later version removed for causing failures.
+
+3. DECIDE THE ACTION:
+   - No current playbook -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current playbook works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the playbook as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "playbook":  the FULL new playbook MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the playbook AND whether the playbook's own
+                 wording misled it (or "" if there was no current playbook)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

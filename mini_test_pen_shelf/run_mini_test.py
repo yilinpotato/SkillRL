@@ -18,7 +18,6 @@ import re
 import argparse
 from collections import Counter
 
-from agent_system.environments.prompts.alfworld import ALFWORLD_TEMPLATE_NO_HIS
 from agent_system.environments.env_package.alfworld.projection import alfworld_projection
 
 from mini_test_pen_shelf.env_utils import (
@@ -28,45 +27,7 @@ from mini_test_pen_shelf.env_utils import (
     make_single_env,
 )
 from mini_test_pen_shelf import report as R
-
-
-def build_obs_prompt(obs_text, admissible_commands, use_strategy=False,
-                     holding=None, target="pen", searched=None, found_here=None):
-    """与 env_manager.build_text_obs(init=True) 等价：用 NO_HIS 模板。
-    use_strategy=True 时在最前面拼上 pen→shelf 的自然语言策略 playbook。
-    holding:  当前手里拿着的物体名（如 'pen 1'），None 表示空手。
-    target:   任务真正要搬的物体（'pen' 或 'pencil'）。
-    searched: 已经搜过且没有目标物的容器集合（如 {'drawer 1','drawer 2'}）。
-    found_here: 当前位置看到的目标物名（如 'pen 1'），None 表示没看到。
-        NO_HIS 模板无历史，手持/已搜过/眼前所见都必须显式注入，模型才不会绕圈。"""
-    reformatted = "\n ".join(f"'{s}'" for s in admissible_commands if s != "help")
-    lines = [f"[TARGET] You must put a '{target}' on a shelf. Only a {target} counts."]
-    if holding:
-        lines.append(
-            f"[INVENTORY] You ARE holding {holding}. "
-            f"Go to a shelf and place it with 'move {holding} to shelf <id>' "
-            f"(copy the exact action from the list). Do not search anything else.")
-    else:
-        lines.append(f"[INVENTORY] Your hands are EMPTY. Keep searching for the {target}.")
-        if found_here:
-            lines.append(
-                f"[HERE] You can see {found_here} at your current spot. "
-                f"Take it now: 'take {found_here} from <recep> <id>'.")
-        if searched:
-            lines.append(
-                "[ALREADY SEARCHED — do NOT revisit these, they are empty]: "
-                + ", ".join(sorted(searched)) + ".")
-    inv = "\n".join(lines)
-    obs_with_inv = f"{obs_text}\n{inv}"
-    if use_strategy:
-        from mini_test_pen_shelf.strategy import build_strategy_prompt
-        return build_strategy_prompt(
-            ALFWORLD_TEMPLATE_NO_HIS, obs_with_inv, reformatted
-        )
-    return ALFWORLD_TEMPLATE_NO_HIS.format(
-        current_observation=obs_with_inv,
-        admissible_actions=reformatted,
-    )
+from mini_test_pen_shelf.prod_prompt import ProdObsBuilder
 
 
 def extract_task(obs_text):
@@ -118,7 +79,7 @@ def parse_model_output(raw):
 
 
 def run_one_game(env, agent, game_file, traj, max_steps, game_idx,
-                 use_strategy=True, outdir=None):
+                 builder, outdir=None):
     """跑单个 pen→shelf 游戏，返回 (won, discovered_pen_locations:set)。"""
     # 真值位置（零成本，从 game 文件解析）
     gt = extract_pen_ground_truth(game_file, traj)
@@ -129,6 +90,8 @@ def run_one_game(env, agent, game_file, traj, max_steps, game_idx,
     task = extract_task(obs_text)
 
     R.print_game_header(game_idx, task, gt, game_file)
+    # 与主管线一致的 prompt 构造器；每局重置历史与检索。
+    builder.reset(task)
 
     discovered = set()
     current_recep = None
@@ -164,9 +127,8 @@ def run_one_game(env, agent, game_file, traj, max_steps, game_idx,
             mfh = re.search(rf"\b({target} \d+)\b", obs_text, re.IGNORECASE)
             if mfh:
                 found_here = mfh.group(1).lower()
-        prompt = build_obs_prompt(obs_text, adm, use_strategy=use_strategy,
-                                  holding=holding, target=target,
-                                  searched=searched, found_here=found_here)
+        # 与主管线 build_text_obs 同款：首步 NO_HIS(+playbook)，其后 WITH_MEMORY+history。
+        prompt = builder.build(obs_text, adm, init=(step == 1))
         raw = agent.act(prompt)
         think, action_text = parse_model_output(raw)
 
@@ -249,6 +211,8 @@ def run_one_game(env, agent, game_file, traj, max_steps, game_idx,
                 won=won, reward=(scores[0] if scores is not None else None),
             )
 
+        # 记入历史（本步动作所基于的 raw obs + 动作），供下一步 WITH_MEMORY 拼 history。
+        builder.record(obs_text, action)
         obs_text, adm, prev_adm = nobs_text, nadm, new_adm
         if done:
             break
@@ -264,8 +228,19 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--num_games", type=int, default=3)
     ap.add_argument("--max_steps", type=int, default=40)
+    # prompt 与主管线对齐：playbook 默认开、history 默认 2、skill-bullets 默认关。
+    ap.add_argument("--with_skills", action="store_true",
+                    help="注入 general/task/mistakes 三类 bullet 技能（默认关，先不加 skills）")
+    ap.add_argument("--no_playbook", action="store_true",
+                    help="关闭结构化 playbook（默认开）")
+    ap.add_argument("--no_playbook_examples", action="store_true",
+                    help="去掉 playbook 里的具体示例(few-shot: 物体→位置列表、e.g. 例子)，用精简版")
+    ap.add_argument("--history_length", type=int, default=2,
+                    help="最近历史步数，与主管线默认一致(=2)")
+    ap.add_argument("--skills_json", default=None,
+                    help="技能库 JSON 路径（默认用 memory_data/alfworld/claude_style_skills.json）")
     ap.add_argument("--strategy", action="store_true",
-                    help="在 prompt 前拼上 pen→shelf 自然语言策略 playbook")
+                    help="[deprecated] 旧 A/B 开关，已无效（playbook 默认开）；保留以兼容旧脚本")
     ap.add_argument("--split", default="train",
                     choices=["train", "valid_seen", "valid_unseen"])
     ap.add_argument("--model_path", default=None)
@@ -311,6 +286,17 @@ def main():
         seed=args.seed,
     )
 
+    # 与主管线同款 prompt 构造器（复用 SkillsOnlyMemory + SimpleMemory + 模板）。
+    builder = ProdObsBuilder(skills_json_path=args.skills_json,
+                             history_length=args.history_length,
+                             with_skills=args.with_skills,
+                             enable_playbook=not args.no_playbook,
+                             playbook_examples=not args.no_playbook_examples)
+    print(f"[prod_prompt] playbook={'on' if not args.no_playbook else 'off'} "
+          f"examples={'on' if not args.no_playbook_examples else 'off'} "
+          f"skills(bullets)={'on' if args.with_skills else 'off'} "
+          f"history_length={args.history_length}")
+
     # 4. 逐游戏跑（每个游戏可重复 N 次，温度采样使每次不同）
     total_loc = Counter()
     wins = 0
@@ -324,7 +310,7 @@ def main():
                 env.seed(args.seed + run_idx)
             won, discovered, used_steps, n_valid, task, target = run_one_game(
                 env, agent, game_file, traj, args.max_steps, run_idx,
-                use_strategy=args.strategy, outdir=outdir,
+                builder, outdir=outdir,
             )
             wins += int(won)
             for loc in discovered:
@@ -350,7 +336,10 @@ def main():
     import json as _json
     win_games = [g for g in per_game if g["won"]]
     summary = {
-        "strategy": bool(args.strategy),
+        "with_skills": bool(args.with_skills),
+        "playbook": (not args.no_playbook),
+        "playbook_examples": (not args.no_playbook_examples),
+        "history_length": args.history_length,
         "split": args.split,
         "num_base_games": len(games),
         "repeats": args.repeats,
@@ -368,7 +357,7 @@ def main():
     with open(spath, "w") as f:
         _json.dump(summary, f, ensure_ascii=False, indent=2)
     print(f"\n  📊 run 汇总已写入: {spath}")
-    print(f"     strategy={summary['strategy']}  成功率={summary['success_rate']*100:.1f}%  "
+    print(f"     playbook={summary['playbook']} with_skills={summary['with_skills']}  成功率={summary['success_rate']*100:.1f}%  "
           f"平均步数(全部)={summary['avg_steps_all']}  合法率={summary['avg_valid_rate']*100:.1f}%")
 
 

@@ -1,0 +1,115 @@
+=== Skill Tree Debug — scope=agent  v2 (level=3, tree_depth=3, 12 nodes) ===
+action: refine
+critique: The agent generally followed the skill tree's search instructions but stopped too early after a few cabinets, especially when an open action failed. The skill tree's wording on 'systematic search' was not explicit enough about continuing through all containers of a type, and it lacked guidance for handling failed open actions, which contributed to the agent giving up prematurely.
+changelog: Added '### Comprehensive Container Search' under Section 2 to explicitly list all container types and require sequential opening of every container; added '### Handling Failed Open Actions' under Section 5 to instruct moving on after a failed open instead of repeating the action.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 6
+
+--- Failure diagnoses feeding this round ---
+- [gave_up] Agent attempted to open cabinet 1 but the action did not change its state (cabinet remained closed) and it did not attempt any further actions. | evidence: last action: open cabinet 1 -> obs: 'You arrive at cabinet 1. The cabinet 1 is closed.' | fix: If an open action fails to open a container, try a different container or use look/examine to verify state. | skill_tree_gap: No handling for failed open actions; agent lacks fallback strategy. | patch_location: ## Action Execution (add new subsection ### Handling Failed Open Actions)
+- [inefficient_exploration] Agent only searched fridge and a few cabinets/drawers, failing to locate the tomato in other possible locations like countertops or sink. | evidence: After opening fridge saw apple and lettuce, then opened cabinets 1-4 and drawer 1, none contained tomato. | fix: Search all accessible surfaces and containers (including countertops, sink, diningtable) before concluding the object is missing. | skill_tree_gap: Lack of systematic search covering all object types. | patch_location: ## Exploration (add new subsection ### Comprehensive Container Search)
+- [inefficient_exploration] Agent searched only fridge and cabinets 1-5, missing the apple which might be in other cabinets or objects. | evidence: Opened fridge (bread, plate, potato), then cabinets 1-4 (mostly empty or unrelated objects), and stopped at cabinet 5 without opening it properly. | fix: Explore all cabinets and also check countertops, tables, and other surfaces for the target object. | skill_tree_gap: Incomplete search strategy; not all containers are visited. | patch_location: ## Exploration (add new subsection ### Comprehensive Container Search)
+- [inefficient_exploration] Agent searched only fridge and cabinets 1-4, failing to find the egg in other containers. | evidence: Fridge had bread and plate; cabinets 1-4 had peppershaker, nothing, cup; cabinet 5 open failed. | fix: Expand search to include all containers (drawers, shelves, countertops) to locate the egg. | skill_tree_gap: Lack of comprehensive search across all object types. | patch_location: ## Exploration (add new subsection ### Comprehensive Container Search)
+- [inefficient_exploration] Agent searched only cabinets 1-5 and encountered a failed open, never finding a mug or attempting to heat it. | evidence: Opened cabinets 1-5 found saltshaker, ladle; last open cabinet 6 failed with 'cabinet 6 is closed'. | fix: Search all possible locations including drawers, countertops, and shelves; also consider that the mug might need to be taken from a specific appliance. | skill_tree_gap: Insufficient search scope; missing exploration of non-cabinet containers. | patch_location: ## Exploration (add new subsection ### Comprehensive Container Search)
+- [inefficient_exploration] Agent looked only in cabinets and drawers, missing the shelf where cups are likely located (as per successful trajectory). | evidence: After look, went to cabinet 1, 2, etc., and opened drawers; never visited shelf. | fix: When searching for objects, include all container types (shelves, tables, etc.) as indicated by the successful example. | skill_tree_gap: Agent lacks knowledge that objects can be on shelves; search strategy is too narrow. | patch_location: ## Exploration (add new subsection ### Include Shelves in Search)
+
+--- Node tree (per-node lifecycle, this version=v2) ---
+[STABLE              ] skill-tree-for-language-model-agent      level=1 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/1-assess-the-task level=2 stable_versions=1 calls=12 success=6 rate=50.0%
+[MODIFIED            ] skill-tree-for-language-model-agent/2-locate-the-target-object level=2 stable_versions=0 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target level=2 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/clean level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/cool level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/examine level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/heat level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/pick-and-place level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/pick-two-objects-and-place level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] skill-tree-for-language-model-agent/4-stop-when-task-is-complete level=2 stable_versions=1 calls=12 success=6 rate=50.0%
+[MODIFIED            ] skill-tree-for-language-model-agent/5-recovery-from-common-mistakes level=2 stable_versions=0 calls=12 success=6 rate=50.0%
+
+--- Line diff vs previous version (v1 -> v2) ---
+--- v1
++++ v2
+@@ -9,10 +9,13 @@
+   - **Fridge** if the target is a fresh food item (tomato, apple, winebottle, etc.).
+   - **Cabinets / Drawers** for utensils, cups, pots, plates, etc.
+   - **Desk** for small items like mugs, tissuebox, desklamp (for examine tasks).
+-  - **Countertops / Tables** as secondary surfaces.
++  - **Countertops / Tables / Sidetables / Shelves** as secondary surfaces.
+ - **Search systematically**: go to a container, open it, and look inside. If not found, move to next container in logical order. Do not skip to random containers.
++- ### Comprehensive Container Search
++  - When searching, open **every container** listed in the room description (cabinets, drawers, shelves, etc.) in numerical order. Do not stop after only a few – continue until all visible containers of that type have been checked.
++  - If a container fails to open (observation says "The fridge 1 is closed" despite your open action), move on to the next container rather than retrying the same one. Use `look` or `examine` to verify container state only if needed.
+ - **Do NOT pick up any object** unless it is confirmed to be the target (or a required tool, e.g., desklamp for examine tasks). Picking up irrelevant items wastes steps and can cause loops.
+-- **If you cannot find the object after checking fridge, all cabinets, drawers, and visible surfaces, re-check the task – you may have misinterpreted the target.
++- **If you cannot find the object after checking fridge, all cabinets, drawers, shelves, and visible surfaces, re-check the task – you may have misinterpreted the target.
+ 
+ ## 3. Execute the Required Action on the Target
+ ### Clean
+@@ -50,3 +53,6 @@
+ - **If you picked the wrong object**: put it back where you found it, then resume searching for the correct one.
+ - **If you are stuck in a loop** (repeating same moves): stop, re-assess the task, and choose a different next action.
+ - **If you cannot find an object after a thorough search**: check countertops and other surfaces – they are often overlooked.
++- ### Handling Failed Open Actions
++  - When you attempt to open a container and the observation shows it remains closed (e.g., "The cabinet 5 is closed"), do **not** repeat that same open action. Instead, move to the next container in your search order. The action may have been misinterpreted due to position or state – a different container is more productive.
++  - If multiple open actions fail on different containers, use `look` to refresh the room description, then resume searching systematically.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Skill Tree for Language-Model Agent
+
+## 1. Assess the Task
+- Read the task description. Identify: **target object**, **required action** (clean, cool, heat, examine, pick-and-place, pick-two-and-place), and **target location** (where to put it after action).
+- If the task involves two objects, note both.
+
+## 2. Locate the Target Object
+- Begin searching the most likely containers first:
+  - **Fridge** if the target is a fresh food item (tomato, apple, winebottle, etc.).
+  - **Cabinets / Drawers** for utensils, cups, pots, plates, etc.
+  - **Desk** for small items like mugs, tissuebox, desklamp (for examine tasks).
+  - **Countertops / Tables / Sidetables / Shelves** as secondary surfaces.
+- **Search systematically**: go to a container, open it, and look inside. If not found, move to next container in logical order. Do not skip to random containers.
+- ### Comprehensive Container Search
+  - When searching, open **every container** listed in the room description (cabinets, drawers, shelves, etc.) in numerical order. Do not stop after only a few – continue until all visible containers of that type have been checked.
+  - If a container fails to open (observation says "The fridge 1 is closed" despite your open action), move on to the next container rather than retrying the same one. Use `look` or `examine` to verify container state only if needed.
+- **Do NOT pick up any object** unless it is confirmed to be the target (or a required tool, e.g., desklamp for examine tasks). Picking up irrelevant items wastes steps and can cause loops.
+- **If you cannot find the object after checking fridge, all cabinets, drawers, shelves, and visible surfaces, re-check the task – you may have misinterpreted the target.
+
+## 3. Execute the Required Action on the Target
+### Clean
+- Go to **sinkbasin**.
+- Clean the target object (use "clean [object] with sinkbasin").
+
+### Cool
+- Go to **fridge** (if not already there).
+- Open fridge, then cool the object (use "cool [object] with fridge").
+
+### Heat
+- Go to **microwave** or **stoveburner**. (Check which is available; microwave is more common.)
+- Place object inside microwave/stoveburner and heat (use "heat [object] with microwave" or similar).
+
+### Examine
+- Go to the location that contains the object (often **desk**).
+- If the task mentions **desklamp**, first turn it on (use "use desklamp").
+- Then examine the specific object (use "examine [object]"). Do not just examine the desk – always target the object itself.
+
+### Pick-and-Place
+- Once you have the target object, go directly to the **target location** stated in the task.
+- Place it there (use "put [object] in/on [target location]").
+- Do **not** move the object elsewhere or put it back where you found it.
+
+### Pick-Two-Objects-and-Place
+- Pick the first object, then the second object (in any order, but avoid dropping one).
+- Then go to the target location and place both (use two separate "put" actions if needed).
+- Keep both objects in inventory until you reach the destination.
+
+## 4. Stop When Task Is Complete
+- After placing the target object (or after examine action), the environment will signal success. **Do not continue moving or interacting.**
+- If you receive a success message, stop immediately. If not, re-read the task to ensure all steps were done.
+
+## 5. Recovery from Common Mistakes
+- **If you picked the wrong object**: put it back where you found it, then resume searching for the correct one.
+- **If you are stuck in a loop** (repeating same moves): stop, re-assess the task, and choose a different next action.
+- **If you cannot find an object after a thorough search**: check countertops and other surfaces – they are often overlooked.
+- ### Handling Failed Open Actions
+  - When you attempt to open a container and the observation shows it remains closed (e.g., "The cabinet 5 is closed"), do **not** repeat that same open action. Instead, move to the next container in your search order. The action may have been misinterpreted due to position or state – a different container is more productive.
+  - If multiple open actions fail on different containers, use `look` to refresh the room description, then resume searching systematically.

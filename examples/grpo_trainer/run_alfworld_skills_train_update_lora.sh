@@ -20,7 +20,23 @@ export RAY_IGNORE_HTTP_PROXY=1
 
 # export WANDB_API_KEY=""
 # Small model (actor, trained locally)
-export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
+# ── 自动判断运行环境：超算服务器 (supercomputer) vs 本地3090 (local) ──────────────
+# 判据：超算上存在 /GLOBALFS/hit_wxia_1，本地没有。据此切换 缓存/数据/输出 三个根目录。
+# 任意变量都能用环境变量覆盖（如 `CACHE_ROOT=/x DATA_ROOT=/y bash run...`）。
+PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
+if [ -d /GLOBALFS/hit_wxia_1 ]; then
+    RUN_ENV="超算 (supercomputer)"
+    export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-$HOME/data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/outputs}"
+else
+    RUN_ENV="本地3090 (local)"
+    export CACHE_ROOT="${CACHE_ROOT:-$HOME/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-$PROJECT_ROOT/skillrl_data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/skillrl_outputs}"
+fi
+echo "Run environment detected: $RUN_ENV"
+echo "  CACHE_ROOT=$CACHE_ROOT  DATA_ROOT=$DATA_ROOT  OUTPUT_ROOT=$OUTPUT_ROOT"
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 # Skill-retrieval embedding model (dedicated 0.6B encoder, NOT the 4B actor —
@@ -35,7 +51,7 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
 PROJECT_NAME="verl_agent_alfworld"
 EXPERIMENT_NAME="grpo_qwen3-4b_co_skill"
-OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
+OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 # Training metrics are appended (one JSON per step) to $OUTPUT_DIR/metrics.jsonl
 # by the 'jsonl' logger backend (trainer.logger includes 'jsonl').
@@ -69,15 +85,18 @@ val_data_size=32    # Minimal test
 group_size=6       # Minimal parallelism
 
 # We only use data preparation to indicate the modality and the data size.
+# prepare 把 parquet 写到 $DATA_ROOT/text/（每次重生成），但它自身不建目录，先建好。
+mkdir -p "$DATA_ROOT/text"
 python3 -m examples.data_preprocess.prepare \
     --mode 'text' \
+    --local_dir "$DATA_ROOT" \
     --train_data_size $train_data_size \
     --val_data_size $val_data_size
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=$HOME/data/verl-agent/text/train.parquet \
-    data.val_files=$HOME/data/verl-agent/text/test.parquet \
+    data.train_files=$DATA_ROOT/text/train.parquet \
+    data.val_files=$DATA_ROOT/text/test.parquet \
     data.train_batch_size=$train_data_size \
     data.val_batch_size=$val_data_size \
     `# 原值: 4096。多轮rollout(max_steps=40)历史+6条skill累积, 实测达4492>4096撞truncation='error'报错。80GB显存宽裕, 提到6144留余量。` \
@@ -147,6 +166,19 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.max_new_skills=3 \
     +env.skills_only_memory.enable_coskill=True \
     +env.skills_only_memory.enable_hierarchy=True \
+    `# Phase 1: 注入 mini_test 验证过的结构化 playbook(GOAL/FIND/DELIVER 阶段分流), 按 task_type 路由, 放在 bullets 之前。默认开; 置 False 退回纯 bullets。` \
+    +env.skills_only_memory.enable_playbook=True \
+    `# 每步轨迹 debug 落盘到 OUTPUT_DIR/playbook_debug/(默认开), playbook_debug_envs 控制采样 env 数限制 IO。` \
+    +env.skills_only_memory.playbook_debug=True \
+    +env.skills_only_memory.playbook_debug_envs=1 \
+    `# Phase 2: 大模型从零生成+层次化进化 playbook。无 seed, 首个云端周期前不注入 playbook;` \
+    `# 之后每次 watermark 触发, 大模型读新轨迹判断小模型是否看懂/用对 playbook, 决定 keep/refine/rewrite。` \
+    `# 与 skill 蒸馏(enable_coskill)解耦: 可 skills 关、playbook 开。产物落盘 OUTPUT_DIR/playbook_io/。` \
+    +env.skills_only_memory.enable_playbook_evolve=True \
+    `# 每云端周期一次批量失败诊断(以同类成功轨迹为 gold 参照), 给每条失败轨迹附错误原因, 喂给 playbook 进化。` \
+    +env.skills_only_memory.enable_failure_analysis=True \
+    `# 某 task_type 至少累积多少条(成功+失败)轨迹才进化其 playbook, 避免样本不足时乱改。` \
+    +env.skills_only_memory.playbook_evolve_min_samples=6 \
     +env.skills_only_memory.retrieval_mode=embedding \
     +env.skills_only_memory.embedding_model_path="$EMBEDDING_MODEL_PATH" \
     +env.skills_only_memory.stable_cycles_l1=3 \
@@ -156,7 +188,7 @@ python3 -m verl.trainer.main_ppo \
     `# 新增: min_calls 淘汰/降级前所需的最小调用(证据)次数, 默认20 -> 40。技能要被检索使用更多次才有资格被改动, 让删除/降级更稳。` \
     +env.skills_only_memory.min_calls=10 \
     `# 原值: enable_internalize=False -> True。开启Skill2param闲时RL固化: 每internalize_freq步把已验证有效的L2技能行为克隆进模型权重, 之后不再注入prompt。` \
-    +env.skills_only_memory.enable_internalize=True \
+    +env.skills_only_memory.enable_internalize=False \
     `# 新增: 固化触发频率(每N步检查一次cold skills)。` \
     +env.skills_only_memory.internalize_freq=10 \
     `# 新增: 单次固化最多采用多少条已dump的成功episode作为行为克隆数据。` \

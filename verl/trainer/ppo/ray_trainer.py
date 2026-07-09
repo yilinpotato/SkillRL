@@ -1157,147 +1157,44 @@ class RayPPOTrainer:
         HierarchicalSkillLib (L0), advance lifecycle, and persist everything to
         OUTPUT_DIR/{traces_pool,cloud_io,skill_lib}.
         """
-        update_config = self.config.env.skills_only_memory
-        debug = update_config.get('coskill_debug', False)
-
         # 1) Always collect into the pool (execution phase).
         self._coskill_ingest_batch_to_pool(batch)
 
-        # 2) Check watermarks (async dual-track trigger).
-        fire, reason = self.traces_pool.should_trigger()
-        if debug:
-            print(f"[CoSkill][dbg] step={self.global_steps} "
-                  f"pool={self.traces_pool.stats()} trigger=({fire},{reason})")
-        if not fire:
-            return
-
+        # 2) Watermark-triggered cloud update, delegated to the shared
+        # CoSkillCloudLoop so the RL trainer and the standalone (no-verl) driver
+        # stay behaviourally identical. The loop handles trigger check, export,
+        # distillation, patch ingest, lifecycle, playbook evolution and persistence.
         if not (hasattr(self, 'envs') and getattr(self.envs, 'retrieval_memory', None)):
             print("[CoSkill] No retrieval_memory in training envs, skipping update")
             return
-        skill_lib = self.envs.retrieval_memory
+        self._get_coskill_loop().maybe_update(
+            self.traces_pool, self.envs.retrieval_memory, self.global_steps)
 
-        # 3) Export compressed batch and run cloud contrastive distillation.
-        import time as _time
-        _t0 = _time.time()
-        compressed = self.traces_pool.export_batch(trigger_reason=reason)
-        export_seconds = _time.time() - _t0
-        print(f"[CoSkill] watermark fired ({reason}); "
-              f"succ={compressed['stats']['n_success']} fail={compressed['stats']['n_failure']}")
-
-        if not hasattr(self, 'cloud_analyzer'):
-            from agent_system.memory import CloudAnalyzer
-            try:
-                self.cloud_analyzer = CloudAnalyzer(
-                    max_new_skills_per_update=update_config.get('max_new_skills', 3),
-                    output_dir=self._coskill_output_dir(),
-                )
-            except Exception as e:
-                # e.g. missing DEEPSEEK_API_KEY. Don't crash training: the
-                # compressed batch is already persisted to cloud_io/ and can be
-                # distilled later. Skip this update cycle.
-                print(f"[CoSkill] CloudAnalyzer init failed ({e}); "
-                      f"skipping distillation, batch saved to cloud_io/")
-                self.cloud_analyzer = None
-        if getattr(self, 'cloud_analyzer', None) is None:
-            return
-
-        current_skills = getattr(skill_lib, 'skills', {})
-        _t1 = _time.time()
-        patches = self.cloud_analyzer.contrastive_distill(compressed, current_skills)
-        distill_seconds = _time.time() - _t1
-        # Record last-cycle timing so it can be surfaced into metrics.jsonl.
-        self._coskill_timing = {
-            'export_seconds': export_seconds,
-            'distill_seconds': distill_seconds,
-            'last_trigger_reason': reason,
-        }
-
-        # Debug: dump the structured patches (skill_id/title/trigger/action_flow).
-        if debug and patches:
-            try:
-                import json as _json
-                dbg_dir = os.path.join(self._coskill_output_dir(), 'cloud_io')
-                os.makedirs(dbg_dir, exist_ok=True)
-                dbg_path = os.path.join(dbg_dir, f'patches_step{self.global_steps}_debug.json')
-                with open(dbg_path, 'w') as f:
-                    _json.dump([
-                        {k: p.get(k) for k in ('skill_id', 'title', 'scope', 'task_type',
-                                               'trigger', 'action_flow', 'avoid')}
-                        for p in patches
-                    ], f, ensure_ascii=False, indent=2)
-                print(f"[CoSkill][dbg] dumped {len(patches)} patches → {dbg_path}")
-            except Exception as e:
-                print(f"[CoSkill][dbg] patch dump failed: {e}")
-
-        # 4) Ingest patches + advance lifecycle (Skill Lib scheduling).
-        added_ids = []
-        if patches and hasattr(skill_lib, 'ingest_patches'):
-            skill_lib.ingest_patches(patches)
-            added_ids = [p.get('skill_id') for p in patches]
-        if hasattr(skill_lib, 'advance_lifecycle'):
-            skill_lib.advance_lifecycle(modified_ids=added_ids)
-            print(f"[CoSkill] layer counts: {skill_lib.layer_counts()}")
-
-        # 5) Persist the evolved skill lib to OUTPUT_DIR/skill_lib/.
-        save_dir = os.path.join(self._coskill_output_dir(), 'skill_lib')
-        save_path = os.path.join(save_dir, f'skills_step{self.global_steps}.json')
-        skill_lib.save_skills(save_path)
-        print(f"[CoSkill] saved evolved skill lib to {save_path}")
-
-        # 6) Write an always-latest health snapshot for quick inspection.
-        self._coskill_write_status(skill_lib, reason)
-
-    def _coskill_write_status(self, skill_lib, last_reason):
-        """Write a single OUTPUT_DIR/coskill_status.json health snapshot
-        merging pool / skill-lib / cloud stats. Overwritten each update."""
-        import json as _json
-        status = {
-            'global_step': self.global_steps,
-            'last_trigger_reason': last_reason,
-            'timing': getattr(self, '_coskill_timing', {}),
-        }
-        if hasattr(self, 'traces_pool'):
-            status['pool'] = self.traces_pool.stats()
-        if hasattr(skill_lib, 'layer_counts'):
-            status['skill_lib'] = skill_lib.layer_counts()
-        if getattr(self, 'cloud_analyzer', None) is not None:
-            status['cloud'] = self.cloud_analyzer.get_update_summary()
-        try:
-            path = os.path.join(self._coskill_output_dir(), 'coskill_status.json')
-            with open(path, 'w') as f:
-                _json.dump(status, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"[CoSkill] status write failed: {e}")
+    def _get_coskill_loop(self):
+        """Lazy-init the shared CoSkillCloudLoop from skills_only_memory config."""
+        if getattr(self, '_coskill_loop', None) is None:
+            from agent_system.memory import CoSkillCloudLoop
+            cfg = self.config.env.skills_only_memory
+            self._coskill_loop = CoSkillCloudLoop(
+                output_dir=self._coskill_output_dir(),
+                enable_coskill=cfg.get('enable_coskill', False),
+                enable_playbook_evolve=cfg.get('enable_playbook_evolve', False),
+                enable_failure_analysis=cfg.get('enable_failure_analysis', True),
+                max_new_skills=cfg.get('max_new_skills', 3),
+                playbook_evolve_min_samples=cfg.get('playbook_evolve_min_samples', 6),
+                coskill_debug=cfg.get('coskill_debug', False),
+            )
+        return self._coskill_loop
 
     def _coskill_metrics(self) -> dict:
         """Collect CoSkill observability metrics for metrics.jsonl.
         Only includes blocks whose backing object exists."""
         m = {}
-        if hasattr(self, 'traces_pool'):
-            s = self.traces_pool.stats()
-            m['coskill/pool/total_added'] = s.get('total_added', 0)
-            m['coskill/pool/pending_added'] = s.get('pending_added', 0)
-            m['coskill/pool/pending_tokens'] = s.get('pending_tokens', 0)
-            m['coskill/pool/total_dropped_loops'] = s.get('total_dropped_loops', 0)
-            m['coskill/pool/n_task_types'] = len(s.get('task_types', []))
+        # pool / skill-lib / cloud / playbook / timing come from the shared loop.
+        loop = getattr(self, '_coskill_loop', None)
         skill_lib = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
-        if skill_lib is not None and hasattr(skill_lib, 'layer_counts'):
-            for k, v in skill_lib.layer_counts().items():
-                m[f'coskill/skilllib/{k}'] = v
-        if getattr(self, 'cloud_analyzer', None) is not None:
-            summary = self.cloud_analyzer.get_update_summary()
-            m['coskill/cloud/total_updates'] = summary.get('total_updates', 0)
-            m['coskill/cloud/total_patches'] = summary.get('total_patches', 0)
-            m['coskill/cloud/large_model_total_tokens'] = summary.get('large_model_total_tokens', 0)
-        timing = getattr(self, '_coskill_timing', {})
-        if timing:
-            m['coskill/timing/export_seconds'] = timing.get('export_seconds', 0.0)
-            m['coskill/timing/distill_seconds'] = timing.get('distill_seconds', 0.0)
-            reason = timing.get('last_trigger_reason')
-            m['coskill/last_trigger_reason'] = (
-                2 if reason == 'performance_watermark'
-                else 1 if reason == 'capacity_watermark' else 0
-            )
+        if loop is not None:
+            m.update(loop.metrics(getattr(self, 'traces_pool', None), skill_lib))
         # Skill2param internalization observability.
         istats = getattr(self, '_internalize_stats', None)
         if istats:
@@ -1876,6 +1773,13 @@ class RayPPOTrainer:
 
                 is_last_step = self.global_steps >= self.total_training_steps
 
+                # rollout_only: run the agent-env rollout + reward + CoSkill playbook
+                # loop WITHOUT any RL weight training. Skips the GPU-heavy actor/ref
+                # log-prob forwards, critic, actor/critic backprop, and weight
+                # checkpoints. Used by the "no-RL" run variant that only evolves the
+                # playbook against a FROZEN small model.
+                rollout_only = self.config.trainer.get("rollout_only", False)
+
                 with _timer("step", timing_raw):
                     # generate a batch
                     with _timer("gen", timing_raw):
@@ -1946,8 +1850,9 @@ class RayPPOTrainer:
                         else:
                             reward_tensor, reward_extra_infos_dict = compute_reward(batch, self.reward_fn)
 
-                    # recompute old_log_probs
-                    with _timer("old_log_prob", timing_raw):
+                    # recompute old_log_probs (RL-only; skipped in rollout_only eval mode)
+                    if not rollout_only:
+                      with _timer("old_log_prob", timing_raw):
                         old_log_prob = self.actor_rollout_wg.compute_log_prob(batch)
                         entropys = old_log_prob.batch["entropys"]
                         response_masks = batch.batch["response_mask"]
@@ -1982,7 +1887,7 @@ class RayPPOTrainer:
                                 }
                             )
 
-                    if self.use_reference_policy:
+                    if self.use_reference_policy and not rollout_only:
                         # compute reference log_prob
                         with _timer("ref", timing_raw):
                             if not self.ref_in_actor:
@@ -1992,7 +1897,7 @@ class RayPPOTrainer:
                             batch = batch.union(ref_log_prob)
 
                     # compute values
-                    if self.use_critic:
+                    if self.use_critic and not rollout_only:
                         with _timer("values", timing_raw):
                             values = self.critic_wg.compute_values(batch)
                             batch = batch.union(values)
@@ -2050,7 +1955,12 @@ class RayPPOTrainer:
                         if self.global_steps > 0 and self.global_steps % skill_update_freq == 0:
                             # CoSkill closed loop (TracesPool watermark-driven) vs.
                             # legacy failure-only update. Selected by enable_coskill.
-                            if self.config.env.get('skills_only_memory', {}).get('enable_coskill', False):
+                            # Playbook evolution shares the same watermark-driven
+                            # entry, so enable it independently of skill distillation
+                            # (supports "skills off, playbook on").
+                            som_cfg_upd = self.config.env.get('skills_only_memory', {})
+                            if (som_cfg_upd.get('enable_coskill', False)
+                                    or som_cfg_upd.get('enable_playbook_evolve', False)):
                                 self._update_skills_coskill(batch)
                             else:
                                 self._update_skills_from_training(batch)
@@ -2059,7 +1969,7 @@ class RayPPOTrainer:
                     # Behavior-clones won trajectories into actor weights, then
                     # stops injecting those skills. Gated + best-effort.
                     som_cfg = self.config.env.get('skills_only_memory', {})
-                    if som_cfg.get('enable_internalize', False):
+                    if som_cfg.get('enable_internalize', False) and not rollout_only:
                         internalize_freq = som_cfg.get('internalize_freq', 10)
                         if (self.global_steps > 0
                                 and self.global_steps % internalize_freq == 0):
@@ -2071,14 +1981,14 @@ class RayPPOTrainer:
                                     self._internalize_cold_skills()
 
                     # update critic
-                    if self.use_critic:
+                    if self.use_critic and not rollout_only:
                         with _timer("update_critic", timing_raw):
                             critic_output = self.critic_wg.update_critic(batch)
                         critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
                         metrics.update(critic_output_metrics)
 
                     # implement critic warmup
-                    if self.config.trainer.critic_warmup <= self.global_steps:
+                    if not rollout_only and self.config.trainer.critic_warmup <= self.global_steps:
                         # update actor
                         with _timer("update_actor", timing_raw):
                             batch.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable
@@ -2110,7 +2020,8 @@ class RayPPOTrainer:
                                 last_val_metrics = val_metrics
                         metrics.update(val_metrics)
 
-                    if self.config.trainer.save_freq > 0 and (is_last_step or self.global_steps % self.config.trainer.save_freq == 0):
+                    if (not rollout_only and self.config.trainer.save_freq > 0
+                            and (is_last_step or self.global_steps % self.config.trainer.save_freq == 0)):
                         with _timer("save_checkpoint", timing_raw):
                             self._save_checkpoint()
 
@@ -2139,7 +2050,8 @@ class RayPPOTrainer:
 
                 # CoSkill closed-loop observability metrics (pool / skill-lib /
                 # cloud / timing). Surfaced into metrics.jsonl for inspection.
-                if self.config.env.get('skills_only_memory', {}).get('enable_coskill', False):
+                _som = self.config.env.get('skills_only_memory', {})
+                if _som.get('enable_coskill', False) or _som.get('enable_playbook_evolve', False):
                     try:
                         metrics.update(self._coskill_metrics())
                     except Exception as e:

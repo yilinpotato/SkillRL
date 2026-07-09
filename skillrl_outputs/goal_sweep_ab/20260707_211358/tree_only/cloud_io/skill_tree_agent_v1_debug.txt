@@ -1,0 +1,85 @@
+=== Skill Tree Debug — scope=agent  v1 (level=3, tree_depth=3, 12 nodes) ===
+action: rewrite
+critique: 
+changelog: Written first skill tree from scratch based on observed regularities in successful vs. failed trajectories, focusing on systematic object search, avoiding irrelevant pickups, and task-specific action sequences.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 6
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent explored drawers and cabinets without first locating a pot to clean and place, wasting actions on irrelevant searches. | evidence: Actions from 'go to drawer 1' through 'go to countertop 2' never involve taking or cleaning a pot. | fix: First locate the target object (pot) before exploring other locations. | skill_tree_gap: Lacks a systematic method to locate the required object at the start of the task. | patch_location: Under ## clean, add a new subsection ### target object search
+- [inefficient_exploration] The agent picked up an irrelevant bowl from countertop instead of continuing to search for the apple. | evidence: After checking fridge, agent took bowl 1 from countertop 1, which is not the target. | fix: Do not pick up objects that are not the task target or required tools. | skill_tree_gap: Lacks object relevance filtering when deciding what to interact with. | patch_location: Under ## cool, add a new subsection ### object selection discipline
+- [premature_stop] The agent gave up after opening five cabinets without finding the egg, not checking countertops or drawers. | evidence: Last action 'open cabinet 5' shows cabinet still closed, and no further actions were taken. | fix: After checking cabinets, search countertops and other receptacles before stopping. | skill_tree_gap: Incomplete search strategy that does not cover all likely object locations. | patch_location: Under ## heat, add a new subsection ### comprehensive search routine
+- [inefficient_exploration] The agent failed to find the potato; it searched only fridge and cabinets, missing possible locations like countertops. | evidence: No potato found after opening multiple cabinets, and the agent never checked countertops. | fix: After checking fridge and cabinets, search countertops and other surfaces. | skill_tree_gap: Limited search scope that does not include all common storage areas. | patch_location: Under ## pick_and_place, add a new subsection ### exhaustive object search
+- [loop] The agent picked up a cup instead of a mug and then got stuck repeating moves between shelf and microwave. | evidence: Actions 'go to shelf 1 ... go to microwave 1 ... go to shelf 1' repeating after taking cup 1. | fix: Verify that the picked object matches the target object (mug) before proceeding. | skill_tree_gap: Object verification and failure recovery mechanism is missing. | patch_location: Under ## pick_and_place, add a new subsection ### object identity check
+- [loop] After taking vase 1, the agent immediately moved it back to the shelf instead of carrying it to the coffeetable, then looped. | evidence: Action 'move vase 1 to shelf 1' right after 'take vase 1 from shelf 1'. | fix: Do not return picked objects to their original location; proceed directly to the target location. | skill_tree_gap: Goal-driven execution is weak; agent undoes its own progress. | patch_location: Under ## pick_two_obj_and_place, add a new subsection ### goal-oriented movement
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] skill-tree-for-language-model-agent      level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/1-assess-the-task level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/2-locate-the-target-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/clean level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/cool level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/examine level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/heat level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/pick-and-place level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/pick-two-objects-and-place level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/4-stop-when-task-is-complete level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] skill-tree-for-language-model-agent/5-recovery-from-common-mistakes level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Skill Tree for Language-Model Agent
+
+## 1. Assess the Task
+- Read the task description. Identify: **target object**, **required action** (clean, cool, heat, examine, pick-and-place, pick-two-and-place), and **target location** (where to put it after action).
+- If the task involves two objects, note both.
+
+## 2. Locate the Target Object
+- Begin searching the most likely containers first:
+  - **Fridge** if the target is a fresh food item (tomato, apple, winebottle, etc.).
+  - **Cabinets / Drawers** for utensils, cups, pots, plates, etc.
+  - **Desk** for small items like mugs, tissuebox, desklamp (for examine tasks).
+  - **Countertops / Tables** as secondary surfaces.
+- **Search systematically**: go to a container, open it, and look inside. If not found, move to next container in logical order. Do not skip to random containers.
+- **Do NOT pick up any object** unless it is confirmed to be the target (or a required tool, e.g., desklamp for examine tasks). Picking up irrelevant items wastes steps and can cause loops.
+- **If you cannot find the object after checking fridge, all cabinets, drawers, and visible surfaces, re-check the task – you may have misinterpreted the target.
+
+## 3. Execute the Required Action on the Target
+### Clean
+- Go to **sinkbasin**.
+- Clean the target object (use "clean [object] with sinkbasin").
+
+### Cool
+- Go to **fridge** (if not already there).
+- Open fridge, then cool the object (use "cool [object] with fridge").
+
+### Heat
+- Go to **microwave** or **stoveburner**. (Check which is available; microwave is more common.)
+- Place object inside microwave/stoveburner and heat (use "heat [object] with microwave" or similar).
+
+### Examine
+- Go to the location that contains the object (often **desk**).
+- If the task mentions **desklamp**, first turn it on (use "use desklamp").
+- Then examine the specific object (use "examine [object]"). Do not just examine the desk – always target the object itself.
+
+### Pick-and-Place
+- Once you have the target object, go directly to the **target location** stated in the task.
+- Place it there (use "put [object] in/on [target location]").
+- Do **not** move the object elsewhere or put it back where you found it.
+
+### Pick-Two-Objects-and-Place
+- Pick the first object, then the second object (in any order, but avoid dropping one).
+- Then go to the target location and place both (use two separate "put" actions if needed).
+- Keep both objects in inventory until you reach the destination.
+
+## 4. Stop When Task Is Complete
+- After placing the target object (or after examine action), the environment will signal success. **Do not continue moving or interacting.**
+- If you receive a success message, stop immediately. If not, re-read the task to ensure all steps were done.
+
+## 5. Recovery from Common Mistakes
+- **If you picked the wrong object**: put it back where you found it, then resume searching for the correct one.
+- **If you are stuck in a loop** (repeating same moves): stop, re-assess the task, and choose a different next action.
+- **If you cannot find an object after a thorough search**: check countertops and other surfaces – they are often overlooked.

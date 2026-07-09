@@ -1,0 +1,44 @@
+=== Playbook Debug — task_type=pick_and_place  v1 (level=2, tree_depth=2, 7 nodes) ===
+action: rewrite
+critique: 
+changelog: First version written from scratch based on successful trajectories: the key regularity is to immediately locate the target object in the room description and go there, avoiding unnecessary exploration of closed containers.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] goal-complete-the-pick-and-place-task    level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-complete-the-pick-and-place-task/1-understand-the-task level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-complete-the-pick-and-place-task/2-find-the-object-in-the-room level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-complete-the-pick-and-place-task/3-take-the-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-complete-the-pick-and-place-task/4-go-to-the-destination level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-complete-the-pick-and-place-task/5-place-the-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-complete-the-pick-and-place-task/6-done level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: complete the pick-and-place task.
+
+## 1. Understand the task
+- Read the task description (e.g., "put a alarmclock in desk"). Identify the object to pick and the destination (surface or container).
+
+## 2. Find the object in the room
+- From the initial room description, look for the target object on surfaces or in open containers.
+- If the object is listed on a surface (like a sidetable), go directly to that location.
+- If the object is not visible, it may be inside a closed container. Explore containers systematically (open them and check inside).
+
+## 3. Take the object
+- Once at the object's location, use "take [object] from [location]" (e.g., "take alarmclock 1 from sidetable 1").
+
+## 4. Go to the destination
+- Navigate to the destination location (e.g., desk 1).
+
+## 5. Place the object
+- Use "move [object] to [destination]" or "put [object] in/on [destination]". If the destination is closed, open it first.
+
+## 6. Done
+- No further actions are needed after successful placement.

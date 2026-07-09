@@ -1,0 +1,30 @@
+=== Playbook Debug — task_type=pick_and_place  v1 (level=1, tree_depth=2, 3 nodes) ===
+action: rewrite
+critique: 
+changelog: First version written from scratch using patterns observed in three successful trajectories: efficiently finding object on open surfaces, then moving to target.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 3  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] strategy-for-pick-and-place-tasks        level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] strategy-for-pick-and-place-tasks/goal   level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] strategy-for-pick-and-place-tasks/steps  level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Strategy for pick-and-place tasks
+
+## Goal
+Find the required object, pick it up, carry it to the target location, and place it there.
+
+## Steps
+1. **Parse the task.** Identify the object to move (e.g., "alarmclock") and the target container (e.g., "desk").
+2. **Get initial layout.** Use the observation at the start to list all furniture and their names.
+3. **Decide where to search.** Prefer open surfaces (sidetable, desk, shelf) over closed containers (drawer, cabinet) because they are quicker to inspect. Start with the most likely surface.
+4. **Move to a candidate location** (e.g., `go to sidetable 1`). After arriving, read the observation to see what objects are there.
+5. **Take the object** if it is present (e.g., `take alarmclock 1 from sidetable 1`). If the object is not there, move to another candidate and repeat.
+6. **Go to the target location** (e.g., `go to desk 1`).
+7. **Place the object** (e.g., `move alarmclock 1 to desk 1`).
+8. **Confirm** that the task is complete (no further action needed).

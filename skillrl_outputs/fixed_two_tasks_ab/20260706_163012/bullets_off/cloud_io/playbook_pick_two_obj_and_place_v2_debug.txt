@@ -1,0 +1,53 @@
+=== Playbook Debug — task_type=pick_two_obj_and_place  v2 (level=2, tree_depth=2, 5 nodes) ===
+action: refine
+critique: The current playbook's 'Deliver' step specified 'put' but the environment accepts 'move' – the agent in trajectory 2 had to infer the correct verb from admissible actions, causing brief confusion. The 'Explore' step also told the agent to open containers first, yet successful trajectories went directly to visible surfaces. These misalignments were minor but worth correcting.
+changelog: Refined 'Explore' to prioritize visible surfaces over opening containers, and changed 'Deliver' action from 'put' to 'move' to match observed successful commands.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v2) ---
+[STABLE              ] goal                                     level=1 stable_versions=1 calls=6 success=6 rate=100.0%
+[STABLE              ] goal/completion                          level=2 stable_versions=1 calls=6 success=6 rate=100.0%
+[MODIFIED            ] goal/deliver                             level=2 stable_versions=0 calls=6 success=6 rate=100.0%
+[MODIFIED            ] goal/explore                             level=2 stable_versions=0 calls=6 success=6 rate=100.0%
+[MODIFIED            ] goal/pick-up                             level=2 stable_versions=0 calls=6 success=6 rate=100.0%
+
+--- Line diff vs previous version (v1 -> v2) ---
+--- v1
++++ v2
+@@ -2,13 +2,13 @@
+ Put the required number of target objects into the specified container.
+ 
+ ## Explore
+-First, move to and open every visible container (drawers, shelves, etc.) to see if the target objects are inside. If found, note their location; otherwise, look on open surfaces (sidetable, desk, etc.).
++First, look at open surfaces (sidetable, desk, etc.) – the objects may be visible directly. If the target objects are not in plain sight, then move to and open every container (drawers, shelves, etc.) to search inside. Note the location of any found targets.
+ 
+ ## Pick up
+-Once you locate a target object, take it. If you need more than one, pick them up one at a time; carry only one if your inventory cannot hold multiple (check with `inventory` if unsure).
++Once you locate a target object, take it. If you need multiple, pick them up one at a time; carry only one if your inventory cannot hold multiple (check with `inventory` if unsure).
+ 
+ ## Deliver
+-After picking up a target object, go to the destination container (the place where it must be put) and use `put <object> in <container>` to place it. Repeat for each remaining target object.
++After picking up a target object, go to the destination container (the place where it must be put) and use `move <object> to <container>` to place it (the environment uses `move`, not `put`). Repeat for each remaining target object.
+ 
+ ## Completion
+ When you have put the required number of target objects into the container, the task is done. Stop taking further actions.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal
+Put the required number of target objects into the specified container.
+
+## Explore
+First, look at open surfaces (sidetable, desk, etc.) – the objects may be visible directly. If the target objects are not in plain sight, then move to and open every container (drawers, shelves, etc.) to search inside. Note the location of any found targets.
+
+## Pick up
+Once you locate a target object, take it. If you need multiple, pick them up one at a time; carry only one if your inventory cannot hold multiple (check with `inventory` if unsure).
+
+## Deliver
+After picking up a target object, go to the destination container (the place where it must be put) and use `move <object> to <container>` to place it (the environment uses `move`, not `put`). Repeat for each remaining target object.
+
+## Completion
+When you have put the required number of target objects into the container, the task is done. Stop taking further actions.

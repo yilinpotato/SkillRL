@@ -47,23 +47,27 @@ run_pair () {  # $1=mode $2=extra_args $3=tag
     fi
   done
   mkdir -p "$outA" "$outB" "$outAB"
+  # A/B 轴 = playbook 开/关（两臂都 skills-off、都用主管线对齐的 prompt 格式）。
+  # A(strategy 目录名沿用)=playbook on(默认)；B(baseline)=--no_playbook(纯 NO_HIS/TEMPLATE)。
   if [ "$SINGLE_GPU" = "1" ]; then
-    echo ">>> [$tag] mode=$mode  单卡顺序 GPU$GPU_A  (先 strategy 后 baseline)"
-    CUDA_VISIBLE_DEVICES=$GPU_A python -m mini_test_pen_shelf.run_generic \
-        --mode "$mode" $extra --gpu_mem_util "$GPU_MEM_UTIL" --strategy \
-        --outdir "$outA" > "$outA/run.log" 2>&1
-    echo "[$tag] A(strategy) done ($?)"
+    echo ">>> [$tag] mode=$mode  单卡顺序 GPU$GPU_A  (先 playbook-on 后 playbook-off)"
     CUDA_VISIBLE_DEVICES=$GPU_A python -m mini_test_pen_shelf.run_generic \
         --mode "$mode" $extra --gpu_mem_util "$GPU_MEM_UTIL" \
-        --outdir "$outB" > "$outB/run.log" 2>&1
-    echo "[$tag] B(baseline) done ($?)"
-  else
-    echo ">>> [$tag] mode=$mode  A(strategy)->GPU$GPU_A  B(baseline)->GPU$GPU_B"
+        --outdir "$outA" > "$outA/run.log" 2>&1
+    echo "[$tag] A(playbook-on) done ($?)"
     CUDA_VISIBLE_DEVICES=$GPU_A python -m mini_test_pen_shelf.run_generic \
-        --mode "$mode" $extra --strategy --outdir "$outA" > "$outA/run.log" 2>&1 &
+        --mode "$mode" $extra --gpu_mem_util "$GPU_MEM_UTIL" --no_playbook \
+        --outdir "$outB" > "$outB/run.log" 2>&1
+    echo "[$tag] B(playbook-off) done ($?)"
+  else
+    echo ">>> [$tag] mode=$mode  A(playbook-on)->GPU$GPU_A  B(playbook-off)->GPU$GPU_B"
+    CUDA_VISIBLE_DEVICES=$GPU_A python -m mini_test_pen_shelf.run_generic \
+        --mode "$mode" $extra --gpu_mem_util "$GPU_MEM_UTIL" \
+        --outdir "$outA" > "$outA/run.log" 2>&1 &
     local pa=$!
     CUDA_VISIBLE_DEVICES=$GPU_B python -m mini_test_pen_shelf.run_generic \
-        --mode "$mode" $extra --outdir "$outB" > "$outB/run.log" 2>&1 &
+        --mode "$mode" $extra --gpu_mem_util "$GPU_MEM_UTIL" --no_playbook \
+        --outdir "$outB" > "$outB/run.log" 2>&1 &
     local pb=$!
     wait $pa; echo "[$tag] A done ($?)"; wait $pb; echo "[$tag] B done ($?)"
   fi

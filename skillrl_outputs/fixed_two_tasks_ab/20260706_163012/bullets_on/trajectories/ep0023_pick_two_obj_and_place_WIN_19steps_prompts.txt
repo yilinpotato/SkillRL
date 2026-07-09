@@ -1,0 +1,1784 @@
+##############################################################################
+# Episode #23 每步发给小模型的完整 PROMPT 原文
+# task: put two alarmclock in desk.  |  WIN / 19 steps
+##############################################################################
+
+//////////////////////////////////////////////////////////////////////////////
+// step 1  action='tag, it should be \'go to sidetable 1\'.\n\nwait, but the user is supposed to choose the next action. let\'s see.\n\nwait, the problem says: "once you\'ve finished your reasoning, you should choose an admissible action for current step..."\n\nso the first step is to go to sidetable 1.\n\nyes, that makes sense. let\'s start there.\n\nso the answer here would be to go to sidetable 1 first.\n</think>\n<action>go to sidetable 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+
+You are an expert agent operating in the ALFRED Embodied Environment.
+Your current observation is: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.
+Your admissible actions of the current situation are: ['go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags. 
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 2  action='look'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 1 step(s). Below are the most recent 1 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+You are now at step 2 and your current observation is: Nothing happens.
+Your admissible actions of the current situation are: ['go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 3  action='go to desk 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 2 step(s). Below are the most recent 2 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+[Observation 2: 'Nothing happens.', Action 2: 'look']
+You are now at step 3 and your current observation is: You are in the middle of a room. Looking quickly around you, you see nothing.
+Your admissible actions of the current situation are: ['go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 4  action='go to drawer 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 3 step(s). Below are the most recent 3 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+[Observation 2: 'Nothing happens.', Action 2: 'look']
+[Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+You are now at step 4 and your current observation is: You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.
+Your admissible actions of the current situation are: ['examine desk 1'
+ 'go to bed 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'take bowl 1 from desk 1'
+ 'take bowl 2 from desk 1'
+ 'take cd 3 from desk 1'
+ 'take keychain 1 from desk 1'
+ 'take laptop 1 from desk 1'
+ 'take pencil 3 from desk 1'
+ 'take remotecontrol 3 from desk 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 5  action='open drawer 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 4 step(s). Below are the most recent 4 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+[Observation 2: 'Nothing happens.', Action 2: 'look']
+[Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+[Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+You are now at step 5 and your current observation is: You arrive at drawer 1. The drawer 1 is closed.
+Your admissible actions of the current situation are: ['examine drawer 1'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'open drawer 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 6  action='go to drawer 2'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 5 step(s). Below are the most recent 5 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+[Observation 2: 'Nothing happens.', Action 2: 'look']
+[Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+[Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+[Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+You are now at step 6 and your current observation is: You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.
+Your admissible actions of the current situation are: ['close drawer 1'
+ 'examine drawer 1'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'take pen 1 from drawer 1'
+ 'take pen 2 from drawer 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 7  action='open drawer 2'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 6 step(s). Below are the most recent 6 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+[Observation 2: 'Nothing happens.', Action 2: 'look']
+[Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+[Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+[Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+[Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+You are now at step 7 and your current observation is: You arrive at drawer 2. The drawer 2 is closed.
+Your admissible actions of the current situation are: ['examine drawer 2'
+ 'examine drawer 3'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'open drawer 2'
+ 'open drawer 3'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 8  action='go to drawer 3'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 7 step(s). Below are the most recent 7 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+[Observation 2: 'Nothing happens.', Action 2: 'look']
+[Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+[Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+[Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+[Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+[Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+You are now at step 8 and your current observation is: You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.
+Your admissible actions of the current situation are: ['close drawer 2'
+ 'examine drawer 2'
+ 'examine drawer 3'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'open drawer 3'
+ 'take cellphone 3 from drawer 2'
+ 'take remotecontrol 2 from drawer 2'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 9  action='open drawer 3'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 8 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 1: '-= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: put two alarmclock in desk.', Action 1: 'tag, it should be 'go to sidetable 1'.
+
+wait, but the user is supposed to choose the next action. let's see.
+
+wait, the problem says: "once you've finished your reasoning, you should choose an admissible action for current step..."
+
+so the first step is to go to sidetable 1.
+
+yes, that makes sense. let's start there.
+
+so the answer here would be to go to sidetable 1 first.
+</think>
+<action>go to sidetable 1']
+[Observation 2: 'Nothing happens.', Action 2: 'look']
+[Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+[Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+[Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+[Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+[Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+[Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+You are now at step 9 and your current observation is: Nothing happens.
+Your admissible actions of the current situation are: ['close drawer 2'
+ 'examine drawer 2'
+ 'examine drawer 3'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'open drawer 3'
+ 'take cellphone 3 from drawer 2'
+ 'take remotecontrol 2 from drawer 2'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 10  action='go to sidetable 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 9 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 2: 'Nothing happens.', Action 2: 'look']
+[Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+[Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+[Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+[Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+[Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+[Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+[Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+You are now at step 10 and your current observation is: You open the drawer 3. The drawer 3 is open. In it, you see nothing.
+Your admissible actions of the current situation are: ['close drawer 2'
+ 'close drawer 3'
+ 'examine drawer 2'
+ 'examine drawer 3'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'take cellphone 3 from drawer 2'
+ 'take remotecontrol 2 from drawer 2'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 11  action='go to desk 1'  valid=False
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 10 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 3: 'You are in the middle of a room. Looking quickly around you, you see nothing.', Action 3: 'go to desk 1']
+[Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+[Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+[Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+[Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+[Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+[Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+[Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+You are now at step 11 and your current observation is: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.
+Your admissible actions of the current situation are: ['examine sidetable 1'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'inventory'
+ 'look'
+ 'take alarmclock 1 from sidetable 1'
+ 'take alarmclock 2 from sidetable 1'
+ 'take pen 3 from sidetable 1'
+ 'take pencil 1 from sidetable 1'
+ 'take pencil 2 from sidetable 1'
+ 'take remotecontrol 1 from sidetable 1'
+ 'use desklamp 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 12  action='go to sidetable 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 11 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 4: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 4: 'go to drawer 1']
+[Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+[Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+[Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+[Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+[Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+[Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+[Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+You are now at step 12 and your current observation is: You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.
+Your admissible actions of the current situation are: ['examine desk 1'
+ 'go to bed 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'take bowl 1 from desk 1'
+ 'take bowl 2 from desk 1'
+ 'take cd 3 from desk 1'
+ 'take keychain 1 from desk 1'
+ 'take laptop 1 from desk 1'
+ 'take pencil 3 from desk 1'
+ 'take remotecontrol 3 from desk 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 13  action='take alarmclock 1 from sidetable 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 12 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 5: 'You arrive at drawer 1. The drawer 1 is closed.', Action 5: 'open drawer 1']
+[Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+[Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+[Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+[Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+[Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+[Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+[Observation 12: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 12: 'go to sidetable 1']
+You are now at step 13 and your current observation is: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.
+Your admissible actions of the current situation are: ['examine sidetable 1'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'inventory'
+ 'look'
+ 'take alarmclock 1 from sidetable 1'
+ 'take alarmclock 2 from sidetable 1'
+ 'take pen 3 from sidetable 1'
+ 'take pencil 1 from sidetable 1'
+ 'take pencil 2 from sidetable 1'
+ 'take remotecontrol 1 from sidetable 1'
+ 'use desklamp 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 14  action='go to desk 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 13 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 6: 'You open the drawer 1. The drawer 1 is open. In it, you see a pen 2, and a pen 1.', Action 6: 'go to drawer 2']
+[Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+[Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+[Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+[Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+[Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+[Observation 12: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 12: 'go to sidetable 1']
+[Observation 13: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 13: 'take alarmclock 1 from sidetable 1']
+You are now at step 14 and your current observation is: You pick up the alarmclock 1 from the sidetable 1.
+Your admissible actions of the current situation are: ['examine alarmclock 1'
+ 'examine sidetable 1'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'inventory'
+ 'look'
+ 'move alarmclock 1 to sidetable 1'
+ 'use desklamp 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 15  action='move alarmclock 1 to desk 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 14 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 7: 'You arrive at drawer 2. The drawer 2 is closed.', Action 7: 'open drawer 2']
+[Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+[Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+[Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+[Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+[Observation 12: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 12: 'go to sidetable 1']
+[Observation 13: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 13: 'take alarmclock 1 from sidetable 1']
+[Observation 14: 'You pick up the alarmclock 1 from the sidetable 1.', Action 14: 'go to desk 1']
+You are now at step 15 and your current observation is: You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.
+Your admissible actions of the current situation are: ['examine alarmclock 1'
+ 'examine desk 1'
+ 'go to bed 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'move alarmclock 1 to desk 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 16  action='go to sidetable 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 15 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 8: 'You open the drawer 2. The drawer 2 is open. In it, you see a cellphone 3, and a remotecontrol 2.', Action 8: 'go to drawer 3']
+[Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+[Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+[Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+[Observation 12: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 12: 'go to sidetable 1']
+[Observation 13: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 13: 'take alarmclock 1 from sidetable 1']
+[Observation 14: 'You pick up the alarmclock 1 from the sidetable 1.', Action 14: 'go to desk 1']
+[Observation 15: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 15: 'move alarmclock 1 to desk 1']
+You are now at step 16 and your current observation is: You move the alarmclock 1 to the desk 1.
+Your admissible actions of the current situation are: ['examine desk 1'
+ 'go to bed 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'take alarmclock 1 from desk 1'
+ 'take bowl 1 from desk 1'
+ 'take bowl 2 from desk 1'
+ 'take cd 3 from desk 1'
+ 'take keychain 1 from desk 1'
+ 'take laptop 1 from desk 1'
+ 'take pencil 3 from desk 1'
+ 'take remotecontrol 3 from desk 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 17  action='take alarmclock 2 from sidetable 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 16 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 9: 'Nothing happens.', Action 9: 'open drawer 3']
+[Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+[Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+[Observation 12: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 12: 'go to sidetable 1']
+[Observation 13: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 13: 'take alarmclock 1 from sidetable 1']
+[Observation 14: 'You pick up the alarmclock 1 from the sidetable 1.', Action 14: 'go to desk 1']
+[Observation 15: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 15: 'move alarmclock 1 to desk 1']
+[Observation 16: 'You move the alarmclock 1 to the desk 1.', Action 16: 'go to sidetable 1']
+You are now at step 17 and your current observation is: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.
+Your admissible actions of the current situation are: ['examine sidetable 1'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'inventory'
+ 'look'
+ 'take alarmclock 2 from sidetable 1'
+ 'take pen 3 from sidetable 1'
+ 'take pencil 1 from sidetable 1'
+ 'take pencil 2 from sidetable 1'
+ 'take remotecontrol 1 from sidetable 1'
+ 'use desklamp 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 18  action='go to desk 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 17 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 10: 'You open the drawer 3. The drawer 3 is open. In it, you see nothing.', Action 10: 'go to sidetable 1']
+[Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+[Observation 12: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 12: 'go to sidetable 1']
+[Observation 13: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 13: 'take alarmclock 1 from sidetable 1']
+[Observation 14: 'You pick up the alarmclock 1 from the sidetable 1.', Action 14: 'go to desk 1']
+[Observation 15: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 15: 'move alarmclock 1 to desk 1']
+[Observation 16: 'You move the alarmclock 1 to the desk 1.', Action 16: 'go to sidetable 1']
+[Observation 17: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 17: 'take alarmclock 2 from sidetable 1']
+You are now at step 18 and your current observation is: You pick up the alarmclock 2 from the sidetable 1.
+Your admissible actions of the current situation are: ['examine alarmclock 2'
+ 'examine sidetable 1'
+ 'go to bed 1'
+ 'go to desk 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'inventory'
+ 'look'
+ 'move alarmclock 2 to sidetable 1'
+ 'use desklamp 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+
+
+//////////////////////////////////////////////////////////////////////////////
+// step 19  action='move alarmclock 2 to desk 1'  valid=True
+//////////////////////////////////////////////////////////////////////////////
+
+You are an expert agent operating in the ALFRED Embodied Environment. Your task is to: put two alarmclock in desk.
+
+## Retrieved Relevant Experience
+
+# Goal: Put two alarmclock into desk.
+
+## Find the two alarmclocks
+- First, look at the room description to see which receptacles (desks, sidetables, shelves, drawers, etc.) contain alarmclocks.
+- The alarmclocks may be on open surfaces (e.g., sidetable) or inside closed containers (e.g., drawers). If a container is closed, open it and check its contents.
+- If you see exactly two alarmclocks somewhere, that is your source. If you see only one, the second may be elsewhere — keep scanning.
+
+## Move each alarmclock into the desk
+- Once you locate an alarmclock, go to its location and take it (e.g., `take alarmclock 1 from sidetable 1`).
+- If you are already holding an alarmclock, go directly to the desk and put it in (e.g., `move alarmclock 1 to desk 1`).
+- Repeat for the second alarmclock.
+- Note: you can also first collect both alarmclocks in your inventory (by taking both) and then go to the desk and move them one by one.
+
+## When to stop
+- After you have placed both alarmclocks in the desk, the task is complete. You may stop as soon as you see a success message or when your inventory is empty and both alarmclocks are on the desk.
+
+### General Principles
+- **Plan with Landmarks**: Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.
+- **Destination First Policy**: After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.
+- **Track Counts & Progress**: Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.
+- **Systematic Exploration**: Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.
+- **Establish Spatial Relations**: When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.
+- **Use State-Changing Tools Early**: For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.
+
+### Task-Relevant Skills
+- **Place Before More Search**: When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.
+  _Apply when: While carrying a required object and the destination has been identified._
+- **Seek Lamp Surfaces First**: Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.
+  _Apply when: Right after parsing a look-at-object-under-desklamp goal._
+- **No Appliance Before Object**: Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.
+  _Apply when: Whenever you are tempted to head to microwave/destination without holding the required object._
+- **Switch Lamp On**: Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.
+  _Apply when: Upon arriving at a desklamp that is currently off._
+- **Single Toggle Rule**: Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.
+  _Apply when: About to interact with a desklamp during an examine task._
+- **Acquire Or Fetch Target**: If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.
+  _Apply when: Whenever the target object becomes visible, whether under the lamp or not._
+
+### Mistakes to Avoid
+- **Don't**: Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.
+  **Instead**: Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted.
+- **Don't**: Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.
+  **Instead**: Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room.
+- **Don't**: Agent ignores or walks away from target objects that are already visible and reachable.
+  **Instead**: Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop.
+- **Don't**: Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.
+  **Instead**: Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied.
+- **Don't**: Agent fails to deliver a held target object to the known destination, instead continuing to wander.
+  **Instead**: Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority ‘deliver-to-goal’ subtask before resuming further search.
+
+## Current Progress
+
+Prior to this step, you have already taken 18 step(s). Below are the most recent 8 observations and the corresponding actions you took: [Observation 11: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 11: 'go to desk 1']
+[Observation 12: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 12: 'go to sidetable 1']
+[Observation 13: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a alarmclock 1, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 13: 'take alarmclock 1 from sidetable 1']
+[Observation 14: 'You pick up the alarmclock 1 from the sidetable 1.', Action 14: 'go to desk 1']
+[Observation 15: 'You arrive at desk 1. On the desk 1, you see a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.', Action 15: 'move alarmclock 1 to desk 1']
+[Observation 16: 'You move the alarmclock 1 to the desk 1.', Action 16: 'go to sidetable 1']
+[Observation 17: 'You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 2, a desklamp 1, a pen 3, a pencil 2, a pencil 1, and a remotecontrol 1.', Action 17: 'take alarmclock 2 from sidetable 1']
+[Observation 18: 'You pick up the alarmclock 2 from the sidetable 1.', Action 18: 'go to desk 1']
+You are now at step 19 and your current observation is: You arrive at desk 1. On the desk 1, you see a alarmclock 1, a bowl 2, a bowl 1, a cd 3, a keychain 1, a laptop 1, a pencil 3, and a remotecontrol 3.
+Your admissible actions of the current situation are: ['examine alarmclock 2'
+ 'examine desk 1'
+ 'go to bed 1'
+ 'go to drawer 1'
+ 'go to drawer 2'
+ 'go to drawer 3'
+ 'go to garbagecan 1'
+ 'go to laundryhamper 1'
+ 'go to shelf 1'
+ 'go to shelf 2'
+ 'go to sidetable 1'
+ 'inventory'
+ 'look'
+ 'move alarmclock 2 to desk 1'].
+
+Now it's your turn to take an action.
+You should first reason step-by-step about the current situation. This reasoning process MUST be enclosed within <think> </think> tags.
+Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+

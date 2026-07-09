@@ -43,12 +43,14 @@ class HierarchicalSkillLib(SkillsOnlyMemory):
         demote_threshold: float = 0.3,
         min_calls: int = 20,
         min_task_types_l2: int = 3,
+        enable_playbook: bool = True,
     ):
         super().__init__(
             skills_json_path=skills_json_path,
             retrieval_mode=retrieval_mode,
             embedding_model_path=embedding_model_path,
             task_specific_top_k=task_specific_top_k,
+            enable_playbook=enable_playbook,
         )
         self.enable_hierarchy = enable_hierarchy
         self.stable_cycles_l1 = stable_cycles_l1

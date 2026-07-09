@@ -19,9 +19,10 @@ Traces Pool (轨迹记录池) —— CoSkill 闭环的"心脏起搏器"。
   3. 前缀树合并 (_merge_prefix_tree)：把同 task_type 多条轨迹按动作序列建前缀树，
      合并公共起始动作，分叉点即"决策分歧点"，供云端对比归因。
 
-并通过**异步双轨水位线**决定何时唤醒云端：
-  - 容量水位线 (capacity_watermark)：累计压缩后 token 数达阈值 → 打包。
+并通过**异步表现/质量水位线**决定何时唤醒云端：
+  - 质量/容量水位线 (capacity_watermark)：累计压缩后高质量可分析轨迹 token 数达阈值 → 打包。
   - 表现水位线 (perf_watermark)：某 task_type 近期失败率超阈值 → 立即打包。
+  - 趋势水位线：某 task_type 近期成功率停滞或下降 → 打包，让云端生成/修补 skill tree。
 
 数据契约见 docs/CoSkill_架构设计.md §2。所有产物落盘到 OUTPUT_DIR/traces_pool/。
 """
@@ -41,6 +42,28 @@ def _approx_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+def longest_common_action_prefix(traces: List[dict]) -> List[str]:
+    """轨迹集合的**共识前缀**：所有轨迹一致的最长起始动作序列。
+
+    语义（端云通信协议 §4.1.1）：多条轨迹共享的起始段 = 端侧【已掌握的共识】，
+    分歧从第一个不一致处开始。只在**存在成功轨迹**时才认定共识（否则可能把
+    "所有轨迹一起犯的同一个错"误当共识），且要求该前缀确实是某条成功轨迹的起始。
+    返回共识动作列表（可能为空）。
+    """
+    seqs = [[(s.get("action") or "") for s in (t.get("steps") or [])] for t in traces]
+    seqs = [s for s in seqs if s]
+    if not seqs:
+        return []
+    lcp: List[str] = []
+    for tup in zip(*seqs):
+        a = tup[0]
+        if a and all(x == a for x in tup):
+            lcp.append(a)
+        else:
+            break
+    return lcp
+
+
 class TracesPool:
     """收集 + 流式压缩 + 双轨水位线触发。进程内单例即可起步。"""
 
@@ -53,6 +76,9 @@ class TracesPool:
         recent_window: int = 20,
         output_dir: Optional[str] = None,
         max_keep_per_type: int = 200,
+        stagnation_delta: float = 0.05,
+        decline_delta: float = 0.05,
+        stagnation_success_ceiling: float = 0.95,
     ):
         """
         Args:
@@ -63,6 +89,10 @@ class TracesPool:
             recent_window:       计算近期失败率的滑动窗口大小（按 task_type）。
             output_dir:          落盘根目录，实际写入 output_dir/traces_pool/。
             max_keep_per_type:   每个 task_type 在池中保留的最大压缩轨迹数（防爆内存）。
+            stagnation_delta:    前后半窗口成功率差小于该值视为停滞。
+            decline_delta:       后半窗口成功率比前半窗口下降超过该值视为下降。
+            stagnation_success_ceiling:
+                                  成功率已接近满分时不因“停滞”触发，避免无意义云端调用。
         """
         self.capacity_watermark = capacity_watermark
         self.perf_watermark = perf_watermark
@@ -70,6 +100,9 @@ class TracesPool:
         self.loop_threshold = loop_threshold
         self.recent_window = recent_window
         self.max_keep_per_type = max_keep_per_type
+        self.stagnation_delta = stagnation_delta
+        self.decline_delta = decline_delta
+        self.stagnation_success_ceiling = stagnation_success_ceiling
 
         # 压缩后轨迹按 task_type + outcome 分桶
         self._success: Dict[str, deque] = defaultdict(lambda: deque(maxlen=max_keep_per_type))
@@ -115,6 +148,9 @@ class TracesPool:
         diff_trace = {
             "traj_uid": raw_trace.get("traj_uid", str(uuid.uuid4())),
             "task": raw_trace.get("task", ""),
+            # task_type 随压缩轨迹一并保留：export_batch 默认合并所有类型
+            # (task_type="ALL"),下游 playbook 进化需按 task_type 分组成功/失败样本。
+            "task_type": task_type,
             "outcome": outcome,
             "steps": diff_steps,
             "dropped_loops": dropped,
@@ -261,18 +297,55 @@ class TracesPool:
         n_fail = sum(1 for o in outcomes if o == "failure")
         return n_fail / len(outcomes)
 
+    def recent_success_rate(self, task_type: str) -> float:
+        outcomes = self._recent_outcomes.get(task_type)
+        if not outcomes:
+            return 0.0
+        n_success = sum(1 for o in outcomes if o == "success")
+        return n_success / len(outcomes)
+
+    def recent_success_trend(self, task_type: str) -> Tuple[Optional[str], float, float]:
+        """Return (trend_reason, previous_half_sr, recent_half_sr).
+
+        A trend is only reported when the per-task recent window has enough
+        samples to split into two comparable halves. ``success_decline`` means
+        the second half is materially worse than the first; ``success_stagnation``
+        means success is not improving and remains below the near-perfect ceiling.
+        """
+        outcomes = list(self._recent_outcomes.get(task_type, []))
+        if len(outcomes) < max(self.min_samples, 4):
+            return None, 0.0, 0.0
+        half = len(outcomes) // 2
+        if half == 0 or len(outcomes) - half == 0:
+            return None, 0.0, 0.0
+
+        prev = outcomes[:half]
+        recent = outcomes[half:]
+        prev_sr = sum(1 for o in prev if o == "success") / len(prev)
+        recent_sr = sum(1 for o in recent if o == "success") / len(recent)
+        delta = recent_sr - prev_sr
+        if delta <= -self.decline_delta:
+            return "success_decline", prev_sr, recent_sr
+        if (abs(delta) <= self.stagnation_delta
+                and recent_sr < self.stagnation_success_ceiling):
+            return "success_stagnation", prev_sr, recent_sr
+        return None, prev_sr, recent_sr
+
     def has_min_samples(self, task_type: Optional[str] = None) -> bool:
         if task_type is not None:
             return len(self._recent_outcomes.get(task_type, [])) >= self.min_samples
         return self._n_added >= self.min_samples
 
     def should_trigger(self) -> Tuple[bool, Optional[str]]:
-        """返回 (是否触发, 原因)。容量轨优先级低于表现轨。"""
+        """返回 (是否触发, 原因)。容量轨优先级低于表现/趋势轨。"""
         # 表现轨：任一 task_type 近期失败率超阈值且样本充分
         for task_type in self._recent_outcomes:
             if (self.has_min_samples(task_type)
                     and self.recent_failure_rate(task_type) >= self.perf_watermark):
                 return True, "performance_watermark"
+            trend_reason, _, _ = self.recent_success_trend(task_type)
+            if trend_reason:
+                return True, trend_reason
         # 容量轨
         if self._token_count >= self.capacity_watermark:
             return True, "capacity_watermark"
@@ -302,17 +375,21 @@ class TracesPool:
         all_samples = success_samples + failure_samples
         n_succ, n_fail = len(success_samples), len(failure_samples)
         total = n_succ + n_fail
+        # 共识前缀：成功轨迹一致的最长起始动作段（端侧已掌握，不需重教）。
+        consensus = longest_common_action_prefix(success_samples)
         batch = {
             "batch_id": str(uuid.uuid4()),
             "trigger_reason": trigger_reason,
             "task_type": task_type or "ALL",
             "success_samples": success_samples,
             "failure_samples": failure_samples,
+            "consensus_prefix": consensus,
             "stats": {
                 "n_success": n_succ,
                 "n_failure": n_fail,
                 "avg_success_rate": (n_succ / total) if total else 0.0,
                 "dropped_loops_total": self._total_dropped_loops,
+                "consensus_len": len(consensus),
             },
             "prefix_tree": self._merge_prefix_tree(all_samples),
         }
@@ -350,4 +427,12 @@ class TracesPool:
             "pending_tokens": self._token_count,
             "total_dropped_loops": self._total_dropped_loops,
             "task_types": sorted(set(self._success) | set(self._failure)),
+            "recent_success_rate": {
+                tt: self.recent_success_rate(tt)
+                for tt in sorted(self._recent_outcomes)
+            },
+            "recent_failure_rate": {
+                tt: self.recent_failure_rate(tt)
+                for tt in sorted(self._recent_outcomes)
+            },
         }

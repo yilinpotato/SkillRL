@@ -1,0 +1,81 @@
+{
+  "batch_id": "1f319835-1492-4d87-82ef-f6b23c53f8aa",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent explored drawers and cabinets without first locating a pot to clean and place, wasting actions on irrelevant searches.",
+        "evidence": "Actions from 'go to drawer 1' through 'go to countertop 2' never involve taking or cleaning a pot.",
+        "corrective_rule": "First locate the target object (pot) before exploring other locations.",
+        "skill_tree_gap": "Lacks a systematic method to locate the required object at the start of the task.",
+        "patch_location": "Under ## clean, add a new subsection ### target object search",
+        "confidence": 0.8
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent picked up an irrelevant bowl from countertop instead of continuing to search for the apple.",
+        "evidence": "After checking fridge, agent took bowl 1 from countertop 1, which is not the target.",
+        "corrective_rule": "Do not pick up objects that are not the task target or required tools.",
+        "skill_tree_gap": "Lacks object relevance filtering when deciding what to interact with.",
+        "patch_location": "Under ## cool, add a new subsection ### object selection discipline",
+        "confidence": 0.85
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent gave up after opening five cabinets without finding the egg, not checking countertops or drawers.",
+        "evidence": "Last action 'open cabinet 5' shows cabinet still closed, and no further actions were taken.",
+        "corrective_rule": "After checking cabinets, search countertops and other receptacles before stopping.",
+        "skill_tree_gap": "Incomplete search strategy that does not cover all likely object locations.",
+        "patch_location": "Under ## heat, add a new subsection ### comprehensive search routine",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to find the potato; it searched only fridge and cabinets, missing possible locations like countertops.",
+        "evidence": "No potato found after opening multiple cabinets, and the agent never checked countertops.",
+        "corrective_rule": "After checking fridge and cabinets, search countertops and other surfaces.",
+        "skill_tree_gap": "Limited search scope that does not include all common storage areas.",
+        "patch_location": "Under ## pick_and_place, add a new subsection ### exhaustive object search",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent picked up a cup instead of a mug and then got stuck repeating moves between shelf and microwave.",
+        "evidence": "Actions 'go to shelf 1 ... go to microwave 1 ... go to shelf 1' repeating after taking cup 1.",
+        "corrective_rule": "Verify that the picked object matches the target object (mug) before proceeding.",
+        "skill_tree_gap": "Object verification and failure recovery mechanism is missing.",
+        "patch_location": "Under ## pick_and_place, add a new subsection ### object identity check",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "After taking vase 1, the agent immediately moved it back to the shelf instead of carrying it to the coffeetable, then looped.",
+        "evidence": "Action 'move vase 1 to shelf 1' right after 'take vase 1 from shelf 1'.",
+        "corrective_rule": "Do not return picked objects to their original location; proceed directly to the target location.",
+        "skill_tree_gap": "Goal-driven execution is weak; agent undoes its own progress.",
+        "patch_location": "Under ## pick_two_obj_and_place, add a new subsection ### goal-oriented movement",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

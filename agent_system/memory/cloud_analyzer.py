@@ -70,11 +70,20 @@ class CloudAnalyzer:
         self.update_history: List[Dict] = []
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
+        # Skill-tree 进化 / 失败诊断的可观测计数（并入 get_update_summary）。
+        self.playbook_history: List[Dict] = []
+        self.n_diagnose_calls = 0
+        self.n_evolve_calls = 0
 
         self.output_dir = None
+        self.playbook_io_dir = None
         if output_dir:
             self.output_dir = os.path.join(output_dir, "cloud_io")
             os.makedirs(self.output_dir, exist_ok=True)
+            # Skill-tree 进化 / 失败诊断的产物与 skill 补丁同属"云端产物"，统一落在
+            # cloud_io/ 下（不再单独开 playbook_io/ 目录）——playbook_io_dir 这个
+            # 属性名保留，只是指向同一个目录，避免改动所有引用点。
+            self.playbook_io_dir = self.output_dir
 
     # ------------------------------------------------------------------ #
     # 公共接口                                                             #
@@ -100,6 +109,10 @@ class CloudAnalyzer:
         prompt = self._build_contrastive_prompt(
             compressed_batch, current_skills, next_dyn_idx
         )
+        if self.output_dir is not None:
+            self._dump_text(self.output_dir,
+                            f"distill_prompt_{compressed_batch.get('batch_id', 'x')[:8]}.txt",
+                            prompt)
 
         try:
             response = self.client.chat.completions.create(
@@ -137,6 +150,407 @@ class CloudAnalyzer:
             return []
 
     # ------------------------------------------------------------------ #
+    # 失败原因分析（每周期一次批量诊断）                                    #
+    # ------------------------------------------------------------------ #
+
+    def diagnose_failures(
+        self,
+        compressed_batch: Dict[str, Any],
+    ) -> Dict[str, List[Dict]]:
+        """一次 LLM 调用，诊断本批**所有失败轨迹**的错误原因。
+
+        以同类**成功轨迹**为 gold 参照、环境成功判据为正确性锚（无需 ground-truth
+        文件），给每条失败轨迹产出结构化诊断，按 task_type 分组返回。产物喂给
+        :meth:`evolve_playbook`（``skill_tree_gap`` + ``patch_location`` 指出本可由
+        skill tree 避免的错误、以及补丁该加在 skill tree 的哪个位置）。
+
+        Returns:
+            ``{task_type: [diagnosis, ...]}``；无失败样本时返回 ``{}``。
+        """
+        failures = compressed_batch.get("failure_samples", []) or []
+        if not failures:
+            return {}
+
+        successes = compressed_batch.get("success_samples", []) or []
+        fail_by_type = self._group_by_task_type(failures)
+        succ_by_type = self._group_by_task_type(successes)
+
+        prompt = self._build_diagnose_prompt(fail_by_type, succ_by_type,
+                                             compressed_batch.get("prefix_tree", {}))
+        # 落盘发给云端大模型的原始 prompt（诊断产物本身已落盘，这里额外存"看到的输入"，
+        # 便于核对共识折叠/分叉点是否真的按预期传给了大模型）。
+        if self.playbook_io_dir is not None:
+            self._dump_text(self.playbook_io_dir,
+                            f"diagnose_prompt_{compressed_batch.get('batch_id', 'x')[:8]}.txt",
+                            prompt)
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_completion_tokens=self.max_completion_tokens,
+            )
+            content = response.choices[0].message.content
+            if hasattr(response, "usage") and response.usage:
+                self.total_prompt_tokens += response.usage.prompt_tokens
+                self.total_completion_tokens += response.usage.completion_tokens
+            self.n_diagnose_calls += 1
+
+            diags = self._parse_json_array(content)
+            grouped: Dict[str, List[Dict]] = {}
+            for d in diags:
+                if not isinstance(d, dict):
+                    continue
+                tt = d.get("task_type") or "unknown"
+                grouped.setdefault(tt, []).append(d)
+
+            if self.playbook_io_dir is not None:
+                self._dump_json(
+                    self.playbook_io_dir,
+                    f"diagnoses_{compressed_batch.get('batch_id', 'x')[:8]}.json",
+                    {"batch_id": compressed_batch.get("batch_id"), "diagnoses": grouped},
+                )
+            return grouped
+        except Exception as e:
+            print(f"[CloudAnalyzer] diagnose_failures error ({self.model}): {e}")
+            return {}
+
+    def _build_diagnose_prompt(
+        self,
+        fail_by_type: Dict[str, List[Dict]],
+        succ_by_type: Dict[str, List[Dict]],
+        prefix_tree: Dict,
+    ) -> str:
+        from .traces_pool import longest_common_action_prefix
+        sections = []
+        for tt, fails in fail_by_type.items():
+            # 给每条失败轨迹一个稳定 ref: "<task_type>#<i>"
+            fail_labeled = []
+            for i, tr in enumerate(fails[:6]):
+                tr = dict(tr)
+                tr["_ref"] = f"{tt}#{i}"
+                fail_labeled.append(tr)
+            # 共识前缀（该类型成功轨迹一致的起始段）：端侧已掌握，折叠不重发。
+            consensus = longest_common_action_prefix(succ_by_type.get(tt, []))
+            succ_txt = self._format_difftraces(succ_by_type.get(tt, []), limit=3, consensus=consensus)
+            fail_txt = self._format_difftraces_reflabeled(fail_labeled, consensus=consensus)
+            con_line = (f"CONSENSUS PREFIX (the edge already masters these opening steps — the failure "
+                        f"is NOT here, look at the DIVERGENCE after it): {' → '.join(consensus)}\n"
+                        if consensus else "")
+            sections.append(
+                f"=== task_type: {tt} ===\n"
+                f"{con_line}"
+                f"GOLD REFERENCE — SUCCESSFUL trajectories (how it is done right):\n{succ_txt}\n\n"
+                f"FAILED trajectories to diagnose (each tagged [ref=...]):\n{fail_txt}"
+            )
+        forks = self._format_forks(prefix_tree)
+
+        return f"""Role: You are an expert failure-analysis agent for sequential decision-making agent
+tasks (task-agnostic — reason from the trajectories themselves, do not assume any specific domain).
+Goal: For each FAILED trajectory, diagnose WHY it failed. Use the SUCCESSFUL trajectories of the
+same task_type as the ground-truth reference of correct behaviour, and the environment's success
+criterion as the correctness anchor. Each step shows the action taken and the OBSERVATION DELTA
+(+added / -removed lines).
+
+{chr(10).join(sections)}
+
+DECISION FORKS (where successful and failed runs diverged after a shared prefix):
+{forks}
+
+For EACH failed trajectory, identify the single causal failure reason, how it could be avoided, and
+WHERE a corrective patch belongs in the agent's skill tree. The skill tree is a markdown TREE whose
+heading depth is its hierarchy (a deeper heading refines its parent). So point the patch at a location
+by naming the section heading, and say whether the fix belongs directly in it or as a deeper
+refinement nested under it — not just "somewhere in the skill tree".
+Return ONLY a JSON array. One object per failed trajectory, EXACTLY these fields:
+  - "traj_ref":      the [ref=...] tag of the failed trajectory
+  - "task_type":     its task_type
+  - "failure_type":  one of "wrong_target" | "wrong_order" | "inefficient_exploration" | "loop" |
+                     "premature_stop" | "invalid_action" | "misread_state" | "gave_up" | "other"
+  - "root_cause":    ONE sentence, the causal reason it failed.
+  - "evidence":      the step / observation that proves it (quote briefly).
+  - "corrective_rule": ONE short imperative rule that would have prevented it.
+  - "skill_tree_gap": what is missing/weak in the skill tree that let this error through.
+  - "patch_location": WHERE the fix belongs — name the target markdown heading, and whether it should
+                     be a new/deeper subsection ('##'/'###') under it. Use "new top-level section" if
+                     no fitting heading exists yet.
+  - "confidence":    a number 0.0-1.0.
+Return ONLY the JSON array, no other text."""
+
+    def _format_difftraces_reflabeled(self, traces: List[Dict],
+                                      consensus: Optional[List[str]] = None) -> str:
+        """同 _format_difftraces，但用每条轨迹的 _ref 作标签（供诊断引用）；折叠共识前缀。"""
+        if not traces:
+            return "(none)"
+        out = []
+        for tr in traces:
+            steps = tr.get("steps", [])
+            fold = self._fold_count(steps, consensus)
+            lines = [f"\n[ref={tr.get('_ref', '?')}] task: {tr.get('task', '')}"]
+            if fold:
+                lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded)")
+            for s in steps[fold:fold + 12]:
+                label = "obs" if s.get('obs_is_full') else "delta"
+                lines.append(f"  action: {s.get('action', '')}  | {label}: {s.get('obs_delta', '')[:400]}")
+            if tr.get("dropped_loops"):
+                lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
+            out.append("\n".join(lines))
+        return "\n".join(out)
+
+    # ------------------------------------------------------------------ #
+    # Skill-tree 进化（大模型从零生成 + 层次化细化）                        #
+    # ------------------------------------------------------------------ #
+
+    def evolve_playbook(
+        self,
+        task_type: str,
+        current_playbook: Optional[str],
+        success_traces: List[Dict],
+        failure_traces: List[Dict],
+        diagnoses: Optional[List[Dict]] = None,
+        history: Optional[List[Dict]] = None,
+    ) -> Optional[Dict]:
+        """生成 / 细化该 agent 唯一的 skill tree（大模型从零撰写，层次化推进）。
+
+        大模型先**批判**小模型是否看懂/用对当前 skill tree（结合失败诊断的
+        ``skill_tree_gap``），再决定 keep / refine / rewrite，并在需要时细化执行
+        指南、操作步骤或按需加 few-shot（层级 outline→detailed→fewshot）。
+
+        ``history`` 保留在函数签名中仅为兼容旧调用；新 prompt 不再查看 previous
+        versions，也不再要求模型比较前几版样式。
+
+        Returns:
+            ``{action, level, skill_tree, critique, changelog}``；``action="keep"``
+            表示无需改动。LLM 出错或无内容时返回 ``None``（调用方保留旧版本）。
+        """
+        if not success_traces and not failure_traces:
+            return None
+
+        prompt = self._build_evolve_prompt(
+            task_type, current_playbook, success_traces, failure_traces,
+            diagnoses or [], history or []
+        )
+        # 落盘发给云端大模型的原始 prompt（call 计数器区分同一 task_type 的多轮进化）。
+        if self.playbook_io_dir is not None:
+            self._dump_text(self.playbook_io_dir,
+                            f"evolve_skill_tree_{task_type}_call{self.n_evolve_calls:03d}.txt",
+                            prompt)
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_completion_tokens=self.max_completion_tokens,
+            )
+            content = response.choices[0].message.content
+            if hasattr(response, "usage") and response.usage:
+                self.total_prompt_tokens += response.usage.prompt_tokens
+                self.total_completion_tokens += response.usage.completion_tokens
+            self.n_evolve_calls += 1
+
+            obj = self._parse_json_object(content)
+            if not obj:
+                return None
+            action = (obj.get("action") or "").lower().strip()
+            tree_text = (obj.get("skill_tree") or obj.get("playbook") or "").strip()
+            if action not in ("keep", "refine", "rewrite"):
+                # 有内容默认视为 refine/rewrite，无内容视为 keep。
+                action = "refine" if tree_text else "keep"
+            from .traces_pool import longest_common_action_prefix
+            consensus = longest_common_action_prefix(success_traces)
+            result = {
+                "action": action,
+                "level": obj.get("level") or "outline",
+                "skill_tree": tree_text,
+                "critique": obj.get("critique") or "",
+                "changelog": obj.get("changelog") or "",
+                # 观测用：本轮用于折叠的共识前缀 + 诊断原文，供节点树 debug 落盘引用。
+                "consensus_prefix": consensus,
+                "n_success": len(success_traces),
+                "n_failure": len(failure_traces),
+            }
+            self.playbook_history.append({
+                "task_type": task_type,
+                "action": result["action"],
+                "level": result["level"],
+                "had_current": bool(current_playbook),
+            })
+            return result
+        except Exception as e:
+            print(f"[CloudAnalyzer] evolve_playbook error ({self.model}, {task_type}): {e}")
+            return None
+
+    def _build_evolve_prompt(
+        self,
+        task_type: str,
+        current_playbook: Optional[str],
+        success_traces: List[Dict],
+        failure_traces: List[Dict],
+        diagnoses: List[Dict],
+        history: Optional[List[Dict]] = None,
+    ) -> str:
+        from .traces_pool import longest_common_action_prefix
+        cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
+        consensus = longest_common_action_prefix(success_traces)
+        succ_txt = self._format_difftraces(success_traces, limit=4, consensus=consensus)
+        fail_txt = self._format_difftraces(failure_traces, limit=5, consensus=consensus)
+        diag_txt = self._format_diagnoses(diagnoses)
+        con_txt = (" → ".join(consensus) if consensus else
+                   "(none — no shared successful opening yet)")
+
+        return f"""You are the SKILL TREE author and editor for one small language-model agent.
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "{task_type}" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled object IDs, room layouts, or ALFWorld-specific task-type
+names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+\"\"\"
+{cur}
+\"\"\"
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): {con_txt}
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+{succ_txt}
+
+NEW FAILED TRAJECTORIES (what went wrong):
+{fail_txt}
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+{diag_txt}
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text."""
+
+    def _format_playbook_history(self, history: List[Dict]) -> str:
+        """渲染最近至多 2 版历史：每版的 changelog + 当时要修的失败类型 + 内容摘要，
+        供大模型判断上一次修改是否奏效。内容截断以省 token。"""
+        if not history:
+            return "(none — this is an early version, no prior edits to compare against)"
+        out = []
+        for h in history[-2:]:
+            rf = h.get("round_failures") or []
+            fail_types = ", ".join(sorted({d.get("failure_type", "?") for d in rf})) or "(unknown)"
+            content = (h.get("content") or "").strip()
+            snippet = content if len(content) <= 500 else content[:500] + " …"
+            out.append(
+                f"--- version {h.get('version', '?')} (level={h.get('level', '?')}) ---\n"
+                f"  changelog: {h.get('changelog', '')}\n"
+                f"  was meant to fix these failure types: {fail_types}\n"
+                f"  its content:\n{snippet}"
+            )
+        return "\n".join(out)
+
+    def _format_diagnoses(self, diagnoses: List[Dict]) -> str:
+        if not diagnoses:
+            return "(none)"
+        out = []
+        for d in diagnoses[:8]:
+            out.append(
+                f"- [{d.get('failure_type', '?')}] {d.get('root_cause', '')} "
+                f"| evidence: {d.get('evidence', '')} "
+                f"| fix: {d.get('corrective_rule', '')} "
+                f"| skill_tree_gap: {d.get('skill_tree_gap', d.get('playbook_gap', ''))} "
+                f"| patch_location: {d.get('patch_location', '(unspecified)')}"
+            )
+        return "\n".join(out)
+
+    @staticmethod
+    def _group_by_task_type(traces: List[Dict]) -> Dict[str, List[Dict]]:
+        grouped: Dict[str, List[Dict]] = {}
+        for tr in traces:
+            tt = tr.get("task_type") or "unknown"
+            grouped.setdefault(tt, []).append(tr)
+        return grouped
+
+    def _dump_json(self, dir_path: str, fname: str, obj: Any) -> None:
+        try:
+            path = os.path.join(dir_path, fname)
+            with open(path, "w") as f:
+                json.dump(obj, f, ensure_ascii=False, indent=2)
+            print(f"[CloudAnalyzer] wrote → {path}")
+        except Exception as e:
+            print(f"[CloudAnalyzer] json dump failed ({fname}): {e}")
+
+    def _dump_text(self, dir_path: str, fname: str, text: str) -> None:
+        """落盘发给云端大模型的原始 prompt 原文（人类可读，纯文本）。
+
+        与结果产物（patches/diagnoses/skill tree）分开存，专门用于核对"大模型到底
+        看到了什么输入"——尤其是共识前缀折叠、决策分叉点、失败诊断是否真的按预期
+        拼进了 prompt。调用放在 API 调用之前，即使请求失败也留得下这份记录。
+        """
+        try:
+            path = os.path.join(dir_path, fname)
+            with open(path, "w") as f:
+                f.write(text)
+        except Exception as e:
+            print(f"[CloudAnalyzer] prompt dump failed ({fname}): {e}")
+
+    # ------------------------------------------------------------------ #
     # Prompt 构造（正负对比）                                              #
     # ------------------------------------------------------------------ #
 
@@ -147,8 +561,9 @@ class CloudAnalyzer:
         next_dyn_idx: int,
     ) -> str:
         task_type = batch.get("task_type", "unknown")
-        succ_txt = self._format_difftraces(batch.get("success_samples", []), limit=5)
-        fail_txt = self._format_difftraces(batch.get("failure_samples", []), limit=6)
+        consensus = batch.get("consensus_prefix") or []
+        succ_txt = self._format_difftraces(batch.get("success_samples", []), limit=5, consensus=consensus)
+        fail_txt = self._format_difftraces(batch.get("failure_samples", []), limit=6, consensus=consensus)
         fork_txt = self._format_forks(batch.get("prefix_tree", {}))
 
         existing_titles = [s.get("title", "") for s in current_skills.get("general_skills", [])]
@@ -197,13 +612,31 @@ Example:
 
 Return ONLY the JSON array, no other text."""
 
-    def _format_difftraces(self, traces: List[Dict], limit: int) -> str:
+    @staticmethod
+    def _fold_count(steps: List[Dict], consensus: Optional[List[str]]) -> int:
+        """一条轨迹起始有多少步与共识动作逐位相同（这些是端侧已掌握的共识，可折叠）。"""
+        if not consensus:
+            return 0
+        n = 0
+        for i, s in enumerate(steps):
+            if i < len(consensus) and (s.get("action") or "") == consensus[i]:
+                n += 1
+            else:
+                break
+        return n
+
+    def _format_difftraces(self, traces: List[Dict], limit: int,
+                           consensus: Optional[List[str]] = None) -> str:
         if not traces:
             return "(none)"
         out = []
         for i, tr in enumerate(traces[:limit]):
+            steps = tr.get("steps", [])
+            fold = self._fold_count(steps, consensus)
             lines = [f"\nTrajectory {i + 1} [{tr.get('outcome', '?')}] task: {tr.get('task', '')}"]
-            for s in tr.get("steps", [])[:12]:
+            if fold:
+                lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded, already mastered)")
+            for s in steps[fold:fold + 12]:
                 obs_text = s.get('obs_delta', '')
                 # obs_is_full=True 表示这是完整观测原文(短观测不差分), 否则是 +/- 增量。
                 label = "obs" if s.get('obs_is_full') else "delta"
@@ -247,6 +680,30 @@ Return ONLY the JSON array, no other text."""
         except json.JSONDecodeError as e:
             print(f"[CloudAnalyzer] JSON parse error: {e}")
         return []
+
+    def _parse_json_array(self, response: str) -> List[Dict]:
+        """宽松解析首个 JSON 数组（不要求含 title 字段），用于诊断输出。"""
+        try:
+            start = response.find("[")
+            end = response.rfind("]") + 1
+            if start != -1 and end > start:
+                data = json.loads(response[start:end])
+                return [d for d in data if isinstance(d, dict)]
+        except json.JSONDecodeError as e:
+            print(f"[CloudAnalyzer] JSON array parse error: {e}")
+        return []
+
+    def _parse_json_object(self, response: str) -> Optional[Dict]:
+        """解析首个 JSON 对象，用于 evolve_playbook 输出。"""
+        try:
+            start = response.find("{")
+            end = response.rfind("}") + 1
+            if start != -1 and end > start:
+                obj = json.loads(response[start:end])
+                return obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError as e:
+            print(f"[CloudAnalyzer] JSON object parse error: {e}")
+        return None
 
     def _normalize_patches(
         self,
@@ -312,8 +769,9 @@ Return ONLY the JSON array, no other text."""
         return max_idx + 1
 
     def get_update_summary(self) -> Dict:
-        if not self.update_history:
+        if not self.update_history and not self.playbook_history:
             return {"total_updates": 0, "total_patches": 0}
+        n_kept = sum(1 for h in self.playbook_history if h.get("action") == "keep")
         return {
             "total_updates": len(self.update_history),
             "total_patches": sum(h["num_patches"] for h in self.update_history),
@@ -321,4 +779,9 @@ Return ONLY the JSON array, no other text."""
             "large_model_prompt_tokens": self.total_prompt_tokens,
             "large_model_completion_tokens": self.total_completion_tokens,
             "large_model_total_tokens": self.total_prompt_tokens + self.total_completion_tokens,
+            # skill-tree 进化 / 失败诊断可观测
+            "diagnose_calls": self.n_diagnose_calls,
+            "evolve_calls": self.n_evolve_calls,
+            "skill_tree_updates": self.n_evolve_calls - n_kept,
+            "playbook_updates": self.n_evolve_calls - n_kept,
         }

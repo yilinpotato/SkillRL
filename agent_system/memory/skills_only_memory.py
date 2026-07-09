@@ -33,6 +33,9 @@ from typing import Dict, Any, List, Optional
 from .base import BaseMemory
 
 
+GLOBAL_SKILL_TREE_KEY = "__agent_skill_tree__"  # legacy key; new runs use per-task skill trees
+
+
 class SkillsOnlyMemory(BaseMemory):
     """
     Lightweight memory system that only uses Claude-style skills.
@@ -61,6 +64,7 @@ class SkillsOnlyMemory(BaseMemory):
         retrieval_mode: str = "template",
         embedding_model_path: Optional[str] = None,
         task_specific_top_k: Optional[int] = None,
+        enable_playbook: bool = True,
     ):
         """
         Args:
@@ -74,6 +78,13 @@ class SkillsOnlyMemory(BaseMemory):
                                   return.  ``None`` means *return all* in
                                   template mode and use ``top_k`` (general
                                   skills count) in embedding mode.
+            enable_playbook:      When True (default), inject the task-specific
+                                  natural-language SKILL TREE as the FIRST section
+                                  of the prompt (before the bullet skills).  Each
+                                  detected task type has its own tree, authored
+                                  FROM SCRATCH by the cloud analyzer; no tree is
+                                  injected for a task until the first cloud cycle
+                                  produces that task's tree.
         """
         if retrieval_mode not in ("template", "embedding"):
             raise ValueError(
@@ -89,6 +100,20 @@ class SkillsOnlyMemory(BaseMemory):
         self.retrieval_mode = retrieval_mode
         self.embedding_model_path = embedding_model_path or "Qwen/Qwen3-Embedding-0.6B"
         self.task_specific_top_k = task_specific_top_k
+        self.enable_playbook = enable_playbook
+        # Per-task skill trees. NO hand-written seeds: the cloud analyzer writes
+        # each tree FROM SCRATCH, so before the first cloud cycle ``get_playbook``
+        # returns None for that task and no tree is injected.
+        # A value may be either a plain ``str`` (legacy / manual) or a record dict
+        # ``{content, level, version, critique, updated_at}`` (cloud-evolved).
+        self.task_playbooks: Dict[str, Any] = {}
+        json_playbooks = self.skills.get('skill_trees') or self.skills.get('task_playbooks')
+        if isinstance(json_playbooks, dict):
+            for k, v in json_playbooks.items():
+                if isinstance(v, dict) and (v.get('content') or '').strip():
+                    self.task_playbooks[k] = v
+                elif isinstance(v, str) and v.strip():
+                    self.task_playbooks[k] = v
 
         # Lazy-initialised embedding state (only used in embedding mode)
         self._embedding_model = None
@@ -103,7 +128,9 @@ class SkillsOnlyMemory(BaseMemory):
         print(
             f"[SkillsOnlyMemory] Loaded skills: {n_general} general, "
             f"{n_task} task-specific, {n_mistakes} mistakes  "
-            f"| retrieval_mode={retrieval_mode}"
+            f"| retrieval_mode={retrieval_mode} "
+            f"| skill_tree={'on' if enable_playbook else 'off'} "
+            f"({len(self.task_playbooks)} stored trees: {sorted(self.task_playbooks)})"
         )
 
         # In embedding mode, pre-compute skill embeddings eagerly so the first
@@ -182,6 +209,171 @@ class SkillsOnlyMemory(BaseMemory):
         # ---- Fallback: first key in task_specific_skills, or 'unknown' --
         else:
             return next(iter(task_specific), 'unknown')
+
+    # ------------------------------------------------------------------ #
+    # Skill-tree selection                                                 #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _playbook_content(pb: Any) -> Optional[str]:
+        """Extract the injectable content string from a skill-tree value.
+
+        Accepts either a plain ``str`` (legacy) or a record ``dict`` with a
+        ``content`` field (cloud-evolved). Returns None if empty/absent.
+        """
+        if isinstance(pb, dict):
+            pb = pb.get('content')
+        return pb if (isinstance(pb, str) and pb.strip()) else None
+
+    def get_playbook(self, task_type: str) -> Optional[str]:
+        """Return the natural-language skill-tree CONTENT for ``task_type``.
+
+        Skill-tree injection is disabled wholesale when ``enable_playbook`` is
+        False. New runs use one tree per detected task type. The legacy global
+        ``__agent_skill_tree__`` record is deliberately not injected here, so a
+        task only sees a tree that was authored for that task type.
+
+        If the record carries a node tree with deprecated/internalized nodes, the
+        content is RE-RENDERED skipping those subtrees (context pruning) so the
+        agent only sees the live nodes.
+        """
+        if not self.enable_playbook:
+            return None
+        pb = self.task_playbooks.get(task_type)
+        content = self._playbook_content(pb)
+        if content is None:
+            return None
+        if isinstance(pb, dict):
+            skip = {nid for nid, lc in (pb.get("nodes") or {}).items()
+                    if lc.get("deprecated") or lc.get("internalized")}
+            if skip:
+                try:
+                    from . import playbook_tree as _pt
+                    return _pt.to_markdown(_pt.parse(content), skip_ids=skip)
+                except Exception:
+                    return content
+        return content
+
+    def get_playbook_record(self, task_type: str) -> Optional[Dict[str, Any]]:
+        """Return the full skill-tree record dict (level/version/content/...), or
+        None. A legacy ``str`` value is wrapped as a minimal record so callers can
+        read it uniformly."""
+        pb = self.task_playbooks.get(task_type)
+        if isinstance(pb, dict):
+            return pb
+        if isinstance(pb, str) and pb.strip():
+            return {"content": pb, "level": "outline", "version": 0}
+        return None
+
+    def update_playbook(
+        self,
+        task_type: str,
+        content: str,
+        level: str = "outline",
+        meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Install a new (cloud-evolved) task-specific skill tree.
+
+        Writes to BOTH ``self.task_playbooks`` (live injection — read at each
+        ``env.reset()`` via :meth:`retrieve`/:meth:`get_playbook`) and
+        ``self.skills['skill_trees']`` (so :meth:`save_skills` persists it).
+        Bumps the version. Returns the new record.
+
+        New cloud prompts no longer inspect previous versions, so ``history`` is
+        not carried forward. ``meta`` may still carry ``round_failures`` for
+        human debugging.
+        """
+        storage_key = task_type or "unknown"
+        prev = self.get_playbook_record(storage_key)
+        version = (prev.get("version", 0) if prev else 0) + 1
+        record = {
+            "content": content.strip(),
+            "level": level or "outline",
+            "version": version,
+            "kind": "task_skill_tree",
+            "task_type": storage_key,
+            "history": [],
+        }
+        if meta:
+            record.update({k: v for k, v in meta.items()
+                           if k not in ("content", "level", "version", "history")})
+        # Per-node lifecycle: parse the markdown into a tree and carry each node's
+        # stats across versions (matched by heading-path id). Unchanged nodes keep
+        # their id + accumulated stats (+stable_versions); edited nodes reset their
+        # change marker; new nodes init; nodes the LLM removed simply drop out.
+        record["nodes"] = self._build_node_lifecycle(
+            content.strip(), (prev or {}).get("nodes", {}), version)
+        self.task_playbooks[storage_key] = record
+        self.skills.setdefault('skill_trees', {})[storage_key] = record
+        depths = sorted({lc.get("level", 0) for lc in record["nodes"].values()})
+        print(f"[SkillsOnlyMemory] updated skill_tree[{storage_key}] -> "
+              f"v{version} level={record['level']} ({len(record['content'])} chars, "
+              f"{len(record['nodes'])} nodes, heading depths={depths})")
+        return record
+
+    @staticmethod
+    def _build_node_lifecycle(content: str, prev_nodes: Dict[str, Any],
+                              version: int) -> Dict[str, Any]:
+        """Parse ``content`` into a node tree and merge with the previous version's
+        per-node lifecycle (keyed by heading-path id)."""
+        try:
+            from . import playbook_tree as _pt
+        except Exception:
+            return {}
+        idx = _pt.node_index(_pt.parse(content))
+        nodes: Dict[str, Any] = {}
+        for nid, info in idx.items():
+            prev = prev_nodes.get(nid)
+            if prev is None:
+                nodes[nid] = {
+                    "title": info["title"], "level": info["level"],
+                    "body_hash": info["body_hash"],
+                    "created_version": version, "last_changed_version": version,
+                    "stable_versions": 0,
+                    "call_count": 0, "success_when_used": 0,
+                    "deprecated": False, "internalized": False,
+                }
+            else:
+                changed = prev.get("body_hash") != info["body_hash"]
+                nodes[nid] = {
+                    **prev,
+                    "title": info["title"], "level": info["level"],
+                    "body_hash": info["body_hash"],
+                    "last_changed_version": version if changed else prev.get("last_changed_version", version),
+                    "stable_versions": 0 if changed else prev.get("stable_versions", 0) + 1,
+                    # a node re-authored by the LLM is implicitly un-deprecated.
+                    "deprecated": False if changed else prev.get("deprecated", False),
+                }
+        return nodes
+
+    def record_playbook_usage(self, task_type: str, success: bool) -> None:
+        """Share-attribution for skill-tree NODES: every live (non-deprecated) node of
+        the injected tree gets call_count+1, and success_when_used+1 on a win.
+        Mirrors HierarchicalSkillLib.record_usage for bullet skills."""
+        if not self.enable_playbook:
+            return
+        pb = self.task_playbooks.get(task_type)
+        if not isinstance(pb, dict):
+            return
+        for nid, lc in (pb.get("nodes") or {}).items():
+            if lc.get("deprecated") or lc.get("internalized"):
+                continue
+            lc["call_count"] = lc.get("call_count", 0) + 1
+            if success:
+                lc["success_when_used"] = lc.get("success_when_used", 0) + 1
+
+    def deprecate_playbook_node(self, task_type: str, node_id: str) -> bool:
+        """Prune a node from the injected context (stop rendering it + its subtree).
+        Explicit / conservative — used for LLM-directed removal or (with RL) after a
+        node's rule is internalized into weights. Returns True if the node existed."""
+        pb = self.task_playbooks.get(task_type)
+        if not isinstance(pb, dict):
+            return False
+        lc = (pb.get("nodes") or {}).get(node_id)
+        if lc is None:
+            return False
+        lc["deprecated"] = True
+        return True
 
     # ------------------------------------------------------------------ #
     # Embedding helpers                                                    #
@@ -419,6 +611,7 @@ class SkillsOnlyMemory(BaseMemory):
                 'task_specific_skills': task_skills,
                 'mistakes_to_avoid': common_mistakes,
                 'task_type': task_type,
+                'playbook': self.get_playbook(task_type),
                 'task_specific_examples': [],
                 'retrieval_mode': 'embedding',
             }
@@ -450,6 +643,7 @@ class SkillsOnlyMemory(BaseMemory):
             'task_specific_skills': task_skills,
             'mistakes_to_avoid': common_mistakes,
             'task_type': task_type,
+            'playbook': self.get_playbook(task_type),
             'task_specific_examples': [],
             'retrieval_mode': 'template',
         }
@@ -501,6 +695,12 @@ class SkillsOnlyMemory(BaseMemory):
         sections = []
         task_type = retrieved_memories.get('task_type', 'unknown')
         mode = retrieved_memories.get('retrieval_mode', 'template')
+
+        # Agent skill tree: rendered FIRST so the structured decision flow leads,
+        # with the bullet skills below as supporting detail.
+        playbook = retrieved_memories.get('playbook')
+        if self.enable_playbook and isinstance(playbook, str) and playbook.strip():
+            sections.append(playbook.strip())
 
         # General skills
         general_skills = retrieved_memories.get('general_skills', [])

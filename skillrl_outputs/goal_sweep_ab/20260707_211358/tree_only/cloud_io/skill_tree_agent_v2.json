@@ -1,0 +1,195 @@
+{
+  "content": "# Skill Tree for Language-Model Agent\n\n## 1. Assess the Task\n- Read the task description. Identify: **target object**, **required action** (clean, cool, heat, examine, pick-and-place, pick-two-and-place), and **target location** (where to put it after action).\n- If the task involves two objects, note both.\n\n## 2. Locate the Target Object\n- Begin searching the most likely containers first:\n  - **Fridge** if the target is a fresh food item (tomato, apple, winebottle, etc.).\n  - **Cabinets / Drawers** for utensils, cups, pots, plates, etc.\n  - **Desk** for small items like mugs, tissuebox, desklamp (for examine tasks).\n  - **Countertops / Tables / Sidetables / Shelves** as secondary surfaces.\n- **Search systematically**: go to a container, open it, and look inside. If not found, move to next container in logical order. Do not skip to random containers.\n- ### Comprehensive Container Search\n  - When searching, open **every container** listed in the room description (cabinets, drawers, shelves, etc.) in numerical order. Do not stop after only a few – continue until all visible containers of that type have been checked.\n  - If a container fails to open (observation says \"The fridge 1 is closed\" despite your open action), move on to the next container rather than retrying the same one. Use `look` or `examine` to verify container state only if needed.\n- **Do NOT pick up any object** unless it is confirmed to be the target (or a required tool, e.g., desklamp for examine tasks). Picking up irrelevant items wastes steps and can cause loops.\n- **If you cannot find the object after checking fridge, all cabinets, drawers, shelves, and visible surfaces, re-check the task – you may have misinterpreted the target.\n\n## 3. Execute the Required Action on the Target\n### Clean\n- Go to **sinkbasin**.\n- Clean the target object (use \"clean [object] with sinkbasin\").\n\n### Cool\n- Go to **fridge** (if not already there).\n- Open fridge, then cool the object (use \"cool [object] with fridge\").\n\n### Heat\n- Go to **microwave** or **stoveburner**. (Check which is available; microwave is more common.)\n- Place object inside microwave/stoveburner and heat (use \"heat [object] with microwave\" or similar).\n\n### Examine\n- Go to the location that contains the object (often **desk**).\n- If the task mentions **desklamp**, first turn it on (use \"use desklamp\").\n- Then examine the specific object (use \"examine [object]\"). Do not just examine the desk – always target the object itself.\n\n### Pick-and-Place\n- Once you have the target object, go directly to the **target location** stated in the task.\n- Place it there (use \"put [object] in/on [target location]\").\n- Do **not** move the object elsewhere or put it back where you found it.\n\n### Pick-Two-Objects-and-Place\n- Pick the first object, then the second object (in any order, but avoid dropping one).\n- Then go to the target location and place both (use two separate \"put\" actions if needed).\n- Keep both objects in inventory until you reach the destination.\n\n## 4. Stop When Task Is Complete\n- After placing the target object (or after examine action), the environment will signal success. **Do not continue moving or interacting.**\n- If you receive a success message, stop immediately. If not, re-read the task to ensure all steps were done.\n\n## 5. Recovery from Common Mistakes\n- **If you picked the wrong object**: put it back where you found it, then resume searching for the correct one.\n- **If you are stuck in a loop** (repeating same moves): stop, re-assess the task, and choose a different next action.\n- **If you cannot find an object after a thorough search**: check countertops and other surfaces – they are often overlooked.\n- ### Handling Failed Open Actions\n  - When you attempt to open a container and the observation shows it remains closed (e.g., \"The cabinet 5 is closed\"), do **not** repeat that same open action. Instead, move to the next container in your search order. The action may have been misinterpreted due to position or state – a different container is more productive.\n  - If multiple open actions fail on different containers, use `look` to refresh the room description, then resume searching systematically.",
+  "level": 3,
+  "version": 2,
+  "kind": "agent_skill_tree",
+  "history": [],
+  "critique": "The agent generally followed the skill tree's search instructions but stopped too early after a few cabinets, especially when an open action failed. The skill tree's wording on 'systematic search' was not explicit enough about continuing through all containers of a type, and it lacked guidance for handling failed open actions, which contributed to the agent giving up prematurely.",
+  "changelog": "Added '### Comprehensive Container Search' under Section 2 to explicitly list all container types and require sequential opening of every container; added '### Handling Failed Open Actions' under Section 5 to instruct moving on after a failed open instead of repeating the action.",
+  "round_failures": [
+    {
+      "failure_type": "gave_up",
+      "root_cause": "Agent attempted to open cabinet 1 but the action did not change its state (cabinet remained closed) and it did not attempt any further actions.",
+      "skill_tree_gap": "No handling for failed open actions; agent lacks fallback strategy.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent only searched fridge and a few cabinets/drawers, failing to locate the tomato in other possible locations like countertops or sink.",
+      "skill_tree_gap": "Lack of systematic search covering all object types.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched only fridge and cabinets 1-5, missing the apple which might be in other cabinets or objects.",
+      "skill_tree_gap": "Incomplete search strategy; not all containers are visited.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched only fridge and cabinets 1-4, failing to find the egg in other containers.",
+      "skill_tree_gap": "Lack of comprehensive search across all object types.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched only cabinets 1-5 and encountered a failed open, never finding a mug or attempting to heat it.",
+      "skill_tree_gap": "Insufficient search scope; missing exploration of non-cabinet containers.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent looked only in cabinets and drawers, missing the shelf where cups are likely located (as per successful trajectory).",
+      "skill_tree_gap": "Agent lacks knowledge that objects can be on shelves; search strategy is too narrow.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "clean,cool,examine,heat,pick_and_place,pick_two_obj_and_place",
+  "updated_at": "step_24",
+  "nodes": {
+    "skill-tree-for-language-model-agent": {
+      "title": "Skill Tree for Language-Model Agent",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/1-assess-the-task": {
+      "title": "1. Assess the Task",
+      "level": 2,
+      "body_hash": "a4e6e5de3ae9",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/2-locate-the-target-object": {
+      "title": "2. Locate the Target Object",
+      "level": 2,
+      "body_hash": "b61881d443e0",
+      "created_version": 1,
+      "last_changed_version": 2,
+      "stable_versions": 0,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target": {
+      "title": "3. Execute the Required Action on the Target",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/clean": {
+      "title": "Clean",
+      "level": 3,
+      "body_hash": "f618fad38b87",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/cool": {
+      "title": "Cool",
+      "level": 3,
+      "body_hash": "572f07c3cbf0",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/heat": {
+      "title": "Heat",
+      "level": 3,
+      "body_hash": "fada9fa83785",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/examine": {
+      "title": "Examine",
+      "level": 3,
+      "body_hash": "045cdc7fab54",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/pick-and-place": {
+      "title": "Pick-and-Place",
+      "level": 3,
+      "body_hash": "1f00a0981aaa",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/3-execute-the-required-action-on-the-target/pick-two-objects-and-place": {
+      "title": "Pick-Two-Objects-and-Place",
+      "level": 3,
+      "body_hash": "578df78396ff",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/4-stop-when-task-is-complete": {
+      "title": "4. Stop When Task Is Complete",
+      "level": 2,
+      "body_hash": "196a695285fe",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    },
+    "skill-tree-for-language-model-agent/5-recovery-from-common-mistakes": {
+      "title": "5. Recovery from Common Mistakes",
+      "level": 2,
+      "body_hash": "3e934ee0141e",
+      "created_version": 1,
+      "last_changed_version": 2,
+      "stable_versions": 0,
+      "call_count": 12,
+      "success_when_used": 6,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -212,6 +212,7 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                     success_l1=som_cfg.get('success_l1', 0.7),
                     demote_threshold=som_cfg.get('demote_threshold', 0.3),
                     min_calls=som_cfg.get('min_calls', 20),
+                    enable_playbook=som_cfg.get('enable_playbook', True),
                 )
                 print(f"[AlfWorldEnvironmentManager] CoSkill HierarchicalSkillLib enabled "
                       f"(mode={som_cfg.get('retrieval_mode', 'template')})")
@@ -222,6 +223,7 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                     retrieval_mode=som_cfg.get('retrieval_mode', 'template'),
                     embedding_model_path=som_cfg.get('embedding_model_path', None),
                     task_specific_top_k=som_cfg.get('task_specific_top_k', None),
+                    enable_playbook=som_cfg.get('enable_playbook', True),
                 )
                 print(f"[AlfWorldEnvironmentManager] Skills-only memory enabled "
                       f"(mode={som_cfg.get('retrieval_mode', 'template')})")
@@ -240,7 +242,24 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
             self.retrieval_memory = None
 
         super().__init__(envs, projection_f, config)
-    
+
+        # ---- Playbook per-step trajectory debug logger (default ON) ----------
+        # Dumps a human-readable trace (prompt + think + action + resulting obs)
+        # for a few sampled env slots, so the playbook's effect is inspectable
+        # directly under OUTPUT_DIR/playbook_debug/. Gated + sampled to bound IO.
+        som_cfg = config.env.get('skills_only_memory', {}) if config.env.get('use_skills_only_memory', False) else {}
+        self._dbg_enabled = bool(som_cfg.get('playbook_debug', True)) if som_cfg else False
+        self._dbg_n_envs = int(som_cfg.get('playbook_debug_envs', 1)) if som_cfg else 0
+        self._dbg_dir = os.path.join(
+            config.trainer.get('default_local_dir', './outputs'), 'playbook_debug'
+        )
+        self._dbg_ep_counter = 0      # monotonic episode id across the whole run
+        self._dbg_step = {}           # env_idx -> current step number
+        self._dbg_buf = {}            # env_idx -> list of per-step records
+        self._dbg_task = {}           # env_idx -> task description
+        self._dbg_done = set()        # env slots already flushed this episode
+        self._dbg_last_prompt = None  # prompts last handed to the model
+
     def reset(self, kwargs):
         text_obs, image_obs, infos = self.envs.reset()
         self.gamefile = parse_gamefile(infos)
@@ -271,15 +290,22 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                 self.retrieved_memories.append(memories)
 
         full_text_obs = self.build_text_obs(text_obs, self.envs.get_admissible_commands, init=True)
+        self._dbg_begin_episode(len(text_obs))
+        self._dbg_last_prompt = full_text_obs
         return {'text': full_text_obs, 'image': image_obs, 'anchor': text_obs}, infos
-    
+
     def step(self, text_actions: List[str]):
         actions, valids = self.projection_f(text_actions, self.envs.get_admissible_commands)
         text_obs, image_obs, rewards, dones, infos = self.envs.step(actions)
         self.memory.store({'text_obs': self.pre_text_obs, 'action': actions})
         self.pre_text_obs = text_obs
 
+        # Per-step playbook debug trace: pair each model response (answer to the
+        # PREVIOUS prompt) with its projected action and the resulting obs.
+        self._dbg_log_step(text_actions, actions, valids, text_obs, rewards, dones, infos)
+
         full_text_obs = self.build_text_obs(text_obs, self.envs.get_admissible_commands)
+        self._dbg_last_prompt = full_text_obs
         if infos[0].get("extra.gamefile") is None:
             infos = set_gamefile(infos, self.gamefile)
 
@@ -328,6 +354,13 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                     current_observation=text_obs[i],
                     admissible_actions=reformatted_admissible_actions
                 )
+                # The NO_HIS branch (used for the very first action) otherwise
+                # carries no skills. Prepend just the playbook so the first move
+                # — which sets the search direction — is strategy-guided too.
+                if self.retrieval_memory is not None and self.retrieved_memories is not None:
+                    pb = (self.retrieved_memories[i] or {}).get('playbook')
+                    if isinstance(pb, str) and pb.strip():
+                        obs = pb.strip() + "\n\n" + obs
             elif use_retrieval:
                 # Format retrieved memories for prompt
                 memory_context = self.retrieval_memory.format_for_prompt(
@@ -357,6 +390,97 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
             postprocess_text_obs.append(obs)
         return postprocess_text_obs
 
+    # ------------------------------------------------------------------ #
+    # Playbook per-step trajectory debug logger                           #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _dbg_extract_think(raw: str) -> str:
+        import re
+        m = re.search(r"<think>(.*?)</think>", raw or "", re.DOTALL | re.IGNORECASE)
+        if m:
+            return " ".join(m.group(1).split())
+        return " ".join((raw or "").split())[:300]
+
+    def _dbg_begin_episode(self, batch_size: int):
+        """Start fresh per-env buffers; flush any leftovers (max-step truncated)."""
+        if not getattr(self, '_dbg_enabled', False):
+            return
+        try:
+            for i in list(self._dbg_buf.keys()):
+                if self._dbg_buf.get(i):
+                    self._dbg_flush(i, won=False)  # previous episode hit max steps
+            self._dbg_done = set()
+            for i in range(min(self._dbg_n_envs, batch_size)):
+                self._dbg_step[i] = 0
+                self._dbg_buf[i] = []
+                self._dbg_task[i] = self.tasks[i] if i < len(getattr(self, 'tasks', [])) else ''
+        except Exception as e:
+            print(f"[playbook_debug] begin_episode failed: {e}")
+
+    def _dbg_log_step(self, text_actions, actions, valids, text_obs, rewards, dones, infos):
+        if not getattr(self, '_dbg_enabled', False) or self._dbg_last_prompt is None:
+            return
+        try:
+            for i in range(min(self._dbg_n_envs, len(text_obs))):
+                if i in self._dbg_done:
+                    continue
+                self._dbg_step[i] = self._dbg_step.get(i, 0) + 1
+                step_no = self._dbg_step[i]
+                rec = {
+                    'step': step_no,
+                    'think': self._dbg_extract_think(text_actions[i] if i < len(text_actions) else ''),
+                    'action': actions[i] if i < len(actions) else '',
+                    'valid': bool(valids[i]),
+                    'reward': float(rewards[i]),
+                    'obs': " ".join(str(text_obs[i]).split()),
+                }
+                # Store the full prompt only on step 1 to confirm the playbook is
+                # present, then keep records compact for the rest of the episode.
+                if step_no == 1 and i < len(self._dbg_last_prompt):
+                    rec['prompt'] = self._dbg_last_prompt[i]
+                self._dbg_buf.setdefault(i, []).append(rec)
+
+                done_i = bool(dones[i])
+                if done_i:
+                    won_i = bool(infos[i].get('won', False)) if i < len(infos) else False
+                    self._dbg_flush(i, won=won_i)
+                    self._dbg_done.add(i)
+        except Exception as e:
+            print(f"[playbook_debug] log_step failed: {e}")
+
+    def _dbg_flush(self, env_idx: int, won: bool):
+        steps = self._dbg_buf.get(env_idx) or []
+        if not steps:
+            return
+        self._dbg_buf[env_idx] = []
+        try:
+            os.makedirs(self._dbg_dir, exist_ok=True)
+            self._dbg_ep_counter += 1
+            status = "WIN" if won else "FAIL"
+            path = os.path.join(self._dbg_dir, f"ep{self._dbg_ep_counter:05d}_{status}_{len(steps)}steps.txt")
+            bar = "=" * 78
+            lines = [bar,
+                     f" episode #{self._dbg_ep_counter}  env_slot={env_idx}  [{status} / {len(steps)} steps]",
+                     f" task: {self._dbg_task.get(env_idx, '')}",
+                     bar]
+            first = steps[0]
+            if first.get('prompt'):
+                lines += ["", "----- step 1 FULL PROMPT (model input, playbook should be at top) -----",
+                          first['prompt'], "-" * 70]
+            for s in steps:
+                flag = "valid" if s['valid'] else "INVALID"
+                lines += ["",
+                          f"┌── step {s['step']:>2}  [{flag}]  reward={s['reward']}",
+                          f"│ think : {s['think'] or '(none)'}",
+                          f"│ action: {s['action']}",
+                          f"│ obs   : {s['obs']}",
+                          "└" + "─" * 60]
+            with open(path, 'w') as f:
+                f.write("\n".join(lines) + "\n")
+        except Exception as e:
+            print(f"[playbook_debug] flush failed: {e}")
+
     def _process_batch(self, batch_idx, total_batch_list, total_infos, success):
         # Find the last entry with active masks
         for i in reversed(range(len(total_batch_list[batch_idx]))):
@@ -365,7 +489,7 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                 info = total_infos[batch_idx][i]
                 won_value = float(info['won'])
                 success['success_rate'].append(won_value)
-                
+
                 # Process game file if it exists
                 gamefile = info.get("extra.gamefile")
                 if gamefile:

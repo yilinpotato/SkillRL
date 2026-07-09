@@ -1,0 +1,35 @@
+=== Playbook Debug — task_type=pick_two_obj_and_place  v1 (level=2, tree_depth=2, 5 nodes) ===
+action: rewrite
+critique: 
+changelog: Wrote first playbook from scratch based on successful trajectories: explore containers, pick up targets, deliver to destination.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] goal                                     level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal/completion                          level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal/deliver                             level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal/explore                             level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal/pick-up                             level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal
+Put the required number of target objects into the specified container.
+
+## Explore
+First, move to and open every visible container (drawers, shelves, etc.) to see if the target objects are inside. If found, note their location; otherwise, look on open surfaces (sidetable, desk, etc.).
+
+## Pick up
+Once you locate a target object, take it. If you need more than one, pick them up one at a time; carry only one if your inventory cannot hold multiple (check with `inventory` if unsure).
+
+## Deliver
+After picking up a target object, go to the destination container (the place where it must be put) and use `put <object> in <container>` to place it. Repeat for each remaining target object.
+
+## Completion
+When you have put the required number of target objects into the container, the task is done. Stop taking further actions.

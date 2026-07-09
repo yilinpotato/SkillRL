@@ -19,6 +19,7 @@ from .skill_updater import SkillUpdater
 from .traces_pool import TracesPool
 from .hierarchical_skill_lib import HierarchicalSkillLib
 from .cloud_analyzer import CloudAnalyzer
+from .coskill_loop import CoSkillCloudLoop
 
 # RetrievalMemory pulls in optional heavy deps (sentence-transformers, faiss).
 # Keep it lazy so the rest of the memory package (and the CoSkill closed-loop

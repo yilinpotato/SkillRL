@@ -1,0 +1,44 @@
+=== Playbook Debug — task_type=pick_and_place  v1 (level=2, tree_depth=2, 7 nodes) ===
+action: rewrite
+critique: 
+changelog: Authored the first playbook from scratch based on successful trajectories showing a consistent pattern: find object on sidetable, take it, go to desk, then move object to desk.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] action-sequence                          level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] action-sequence/1-find-and-take-the-target-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] action-sequence/2-move-to-the-target-container level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] action-sequence/3-place-the-object-in-the-container level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] completion                               level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal                                     level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] situation-assessment                     level=1 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal
+Put the specified object into the specified container (e.g., "put a alarmclock in desk").
+
+# Situation Assessment
+- Read the task to identify the **target object** and **target container**.
+- Look at the current room description to see what is present.
+
+# Action Sequence
+## 1. Find and take the target object
+- If the target object is visible in your current location, **take** it.
+- If not, **go to** another furniture item (e.g., sidetable, drawer, shelf) and check. Open closed containers (drawers, cabinets) to look inside.
+- Once you see the target object, **take [object]** (e.g., "take alarmclock 1 from sidetable 1").
+
+## 2. Move to the target container
+- After you are holding the object, **go to** the target container's location.
+
+## 3. Place the object in the container
+- Use the action **move [object] to [container]** (e.g., "move alarmclock 1 to desk 1").
+
+# Completion
+- The task is done when you receive confirmation (no further actions needed).

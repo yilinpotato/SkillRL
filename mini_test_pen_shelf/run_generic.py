@@ -20,7 +20,6 @@ import json
 import argparse
 from collections import Counter
 
-from agent_system.environments.prompts.alfworld import ALFWORLD_TEMPLATE_NO_HIS
 from agent_system.environments.env_package.alfworld.projection import alfworld_projection
 
 from mini_test_pen_shelf.env_utils import (
@@ -30,7 +29,7 @@ from mini_test_pen_shelf.env_utils import (
     make_single_env,
 )
 from mini_test_pen_shelf import report as R
-from mini_test_pen_shelf import strategy as S
+from mini_test_pen_shelf.prod_prompt import ProdObsBuilder
 
 
 MODE_TASK_TYPE = {
@@ -103,48 +102,7 @@ def track_recep(action):
     return m.group(1).strip() if m else None
 
 
-def build_prompt(mode, obs_text, adm, use_strategy, target_obj, target_recep,
-                 holding, searched, delivered, need_count, placed_ids=None,
-                 closed_pending=None, failed_actions=None):
-    """注入状态，按 mode 选策略模板。"""
-    placed_ids = placed_ids or set()
-    closed_pending = closed_pending or set()
-    failed_actions = failed_actions or set()
-    reformatted = "\n ".join(f"'{s}'" for s in adm if s != "help")
-    lines = []
-    if need_count > 1:
-        lines.append(f"[TARGET] Put {need_count} '{target_obj}' onto '{target_recep}'. "
-                     f"Only '{target_obj}' counts.")
-        if holding:
-            lines.append(f"[INVENTORY] You ARE holding {holding}.")
-        else:
-            lines.append(f"[INVENTORY] Your hands are EMPTY.")
-    else:
-        lines.append(f"[TARGET] Put a '{target_obj}' onto '{target_recep}'. "
-                     f"Only '{target_obj}' counts.")
-        if holding:
-            lines.append(f"[INVENTORY] You ARE holding {holding}.")
-        else:
-            lines.append(f"[INVENTORY] Your hands are EMPTY.")
-    if not holding and searched:
-        lines.append("[ALREADY SEARCHED — do NOT revisit, they are empty]: "
-                     + ", ".join(sorted(searched)) + ".")
-    # 到过但没开的关闭容器：提示模型「要么现在 open 它再看，要么换地方」，别重复 go to
-    if not holding and closed_pending:
-        lines.append("[CLOSED — you arrived but did NOT open these; either 'open' one "
-                     "now to check inside, or go elsewhere — do NOT just 'go to' them "
-                     "again]: " + ", ".join(sorted(closed_pending)) + ".")
-    obs_with = f"{obs_text}\n" + "\n".join(lines)
-
-    if not use_strategy:
-        return ALFWORLD_TEMPLATE_NO_HIS.format(
-            current_observation=obs_with, admissible_actions=reformatted)
-    if mode == "pick_two":
-        return S.build_pick_two_prompt(ALFWORLD_TEMPLATE_NO_HIS, obs_with, reformatted)
-    return S.build_generic_prompt(ALFWORLD_TEMPLATE_NO_HIS, obs_with, reformatted)
-
-
-def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdir):
+def run_one_game(env, agent, traj, mode, max_steps, run_idx, builder, outdir):
     # traj 仅作 fallback；真正目标以环境 reset 后的任务串为准（避免顺序错配）
     tgt = extract_task_target(traj)
     fb_obj = tgt["object"] or "object"
@@ -166,6 +124,9 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
     R.print_game_header(run_idx, task,
                         {"object_target": target_obj, "parent_target": target_recep,
                          "pen_locations": []}, "")
+
+    # 与主管线一致的 prompt 构造器（playbook+history，可选 bullets）；每局重置历史与检索。
+    builder.reset(task)
 
     logger = None
     if outdir:
@@ -189,9 +150,8 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
     prev_adm = set(adm)
 
     for step in range(1, max_steps + 1):
-        prompt = build_prompt(mode, obs_text, adm, use_strategy, target_obj,
-                              target_recep, holding, searched, len(placed_ids),
-                              need_count, placed_ids, closed_pending, failed_actions)
+        # 与主管线 build_text_obs 同款：首步 NO_HIS(+playbook)，其后 WITH_MEMORY+history。
+        prompt = builder.build(obs_text, adm, init=(step == 1))
         raw, forced = agent.act_with_meta(prompt)
         think, _ = parse_model_output(raw)
         actions, valids = alfworld_projection([raw], [adm])
@@ -280,6 +240,8 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, use_strategy, outdi
                             won=won, reward=(scores[0] if scores is not None else None),
                             truncated=forced, salvaged=salvaged)
 
+        # 记入历史（本步动作所基于的 raw obs + 动作），供下一步 WITH_MEMORY 拼 history。
+        builder.record(obs_text, action)
         obs_text, adm, prev_adm = nobs_text, nadm, new_adm
         if done:
             break
@@ -308,7 +270,19 @@ def main():
     ap.add_argument("--sample_seed", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1)
     ap.add_argument("--max_steps", type=int, default=30)
-    ap.add_argument("--strategy", action="store_true")
+    # prompt 与主管线对齐：playbook 默认开、history 默认 2、skill-bullets 默认关。
+    ap.add_argument("--with_skills", action="store_true",
+                    help="注入 general/task/mistakes 三类 bullet 技能（默认关，先不加 skills）")
+    ap.add_argument("--no_playbook", action="store_true",
+                    help="关闭结构化 playbook（默认开）")
+    ap.add_argument("--no_playbook_examples", action="store_true",
+                    help="去掉 playbook 里的具体示例(few-shot: 物体→位置列表、e.g. 例子)，用精简版")
+    ap.add_argument("--history_length", type=int, default=2,
+                    help="最近历史步数，与主管线默认一致(=2)")
+    ap.add_argument("--skills_json", default=None,
+                    help="技能库 JSON 路径（默认用 memory_data/alfworld/claude_style_skills.json）")
+    ap.add_argument("--strategy", action="store_true",
+                    help="[deprecated] 旧 A/B 开关，已无效（playbook 默认开）；保留以兼容旧脚本")
     ap.add_argument("--split", default="train")
     ap.add_argument("--model_path", default=None)
     ap.add_argument("--gpu_mem_util", type=float, default=0.55)
@@ -344,6 +318,17 @@ def main():
                       enable_thinking=not args.no_thinking, seed=args.seed,
                       no_wait=args.nowait, think_budget=args.think_budget)
 
+    # 与主管线同款 prompt 构造器（复用 SkillsOnlyMemory + SimpleMemory + 模板）。
+    builder = ProdObsBuilder(skills_json_path=args.skills_json,
+                             history_length=args.history_length,
+                             with_skills=args.with_skills,
+                             enable_playbook=not args.no_playbook,
+                             playbook_examples=not args.no_playbook_examples)
+    print(f"[prod_prompt] playbook={'on' if not args.no_playbook else 'off'} "
+          f"examples={'on' if not args.no_playbook_examples else 'off'} "
+          f"skills(bullets)={'on' if args.with_skills else 'off'} "
+          f"history_length={args.history_length}")
+
     per_game = []
     wins = 0
     run_idx = 0
@@ -356,7 +341,7 @@ def main():
                 env.seed(args.seed + run_idx)
             won, used, nval, task, tobj, trec, ntrunc, nsalv = run_one_game(
                 env, agent, traj, args.mode, args.max_steps, run_idx,
-                args.strategy, args.outdir)
+                builder, args.outdir)
             wins += int(won)
             tot_trunc += ntrunc
             tot_salv += nsalv
@@ -371,7 +356,10 @@ def main():
     R.print_final_summary(n, wins, Counter())
     win_g = [g for g in per_game if g["won"]]
     tot_steps = sum(g["used_steps"] for g in per_game)
-    summary = {"strategy": bool(args.strategy), "mode": args.mode,
+    summary = {"with_skills": bool(args.with_skills),
+               "playbook": (not args.no_playbook),
+               "playbook_examples": (not args.no_playbook_examples),
+               "history_length": args.history_length, "mode": args.mode,
                "task_type": task_type, "split": args.split,
                "num_base_games": len(games), "repeats": args.repeats,
                "num_games": n, "max_steps": args.max_steps, "wins": wins,
@@ -387,7 +375,7 @@ def main():
     spath = os.path.join(args.outdir, "summary.json")
     json.dump(summary, open(spath, "w"), ensure_ascii=False, indent=2)
     print(f"\n  📊 run 汇总: {spath}")
-    print(f"     mode={args.mode} strategy={summary['strategy']} "
+    print(f"     mode={args.mode} playbook={summary['playbook']} with_skills={summary['with_skills']} "
           f"成功率={summary['success_rate']*100:.1f}% "
           f"平均步数={summary['avg_steps_all']} 合法率={summary['avg_valid_rate']*100:.1f}%")
     print(f"     thinking 截断 {tot_trunc} 步 / 救回 {tot_salv} 步 "
