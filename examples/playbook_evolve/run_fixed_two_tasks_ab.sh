@@ -9,7 +9,7 @@ cd "$(dirname "$0")/../.."
 STAMP="${STAMP:-$(date +%Y%m%d_%H%M%S)}"
 AB_ROOT="${AB_ROOT:-$PWD/skillrl_outputs/fixed_two_tasks_ab/$STAMP}"
 MANIFEST="${MANIFEST:-$PWD/examples/playbook_evolve/fixed_two_tasks.json}"
-RETRIEVAL_MODE="${RETRIEVAL_MODE:-embedding}"
+RETRIEVAL_MODE="${RETRIEVAL_MODE:-template}"
 ROLLOUTS_PER_TASK="${ROLLOUTS_PER_TASK:-6}"
 MAX_STEPS="${MAX_STEPS:-40}"
 PHASE_EPISODES=$((2 * ROLLOUTS_PER_TASK))

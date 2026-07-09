@@ -27,7 +27,7 @@ ROLLOUTS_PER_GAME="${ROLLOUTS_PER_GAME:-1}"
 EPOCHS="${EPOCHS:-2}"
 MAX_STEPS="${MAX_STEPS:-40}"
 SAMPLE_SEED="${SAMPLE_SEED:-7}"
-RETRIEVAL_MODE="${RETRIEVAL_MODE:-embedding}"
+RETRIEVAL_MODE="${RETRIEVAL_MODE:-template}"
 
 N_TASK_TYPES=$(python3 - <<PY
 print(len([x for x in "${TASK_TYPES}".split(",") if x.strip()]))

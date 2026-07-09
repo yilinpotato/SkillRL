@@ -9,7 +9,7 @@ set -euo pipefail
 #
 # 所有运行条件对齐 examples/grpo_trainer/run_alfworld_skills_train_update_lora.sh，
 # 仅去掉 RL 权重训练（无 Ray、无 FSDP、无第二份模型、无反向传播/checkpoint）。
-# 复用其环境探测头（超算 vs 本地 3090 的缓存/数据/输出根目录、模型/embedding/DEEPSEEK）。
+# 复用其环境探测头（超算 vs 本地 3090 的缓存/数据/输出根目录、模型/DEEPSEEK）。
 # =============================================================================
 
 # 强制离线
@@ -49,7 +49,6 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
 
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
-export EMBEDDING_MODEL_PATH="${EMBEDDING_MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-Embedding-0.6B}"
 
 # 云端大模型（与训练脚本一致）：DeepSeek V4 Flash
 export SKILL_UPDATER_BACKEND="${SKILL_UPDATER_BACKEND:-deepseek}"
@@ -62,7 +61,6 @@ OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 
-# skill 检索用的独立 embedding 编码器（0.6B，非 4B actor）
 python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --outdir "$OUTPUT_DIR" \
     --model_path "$MODEL_PATH" \
@@ -88,8 +86,9 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --gpu_mem_util 0.8 \
     `# 记忆 / 技能：与训练脚本 skills_only_memory.* 对齐` \
     --skills_json memory_data/alfworld/claude_style_skills.json \
-    --retrieval_mode embedding \
-    --embedding_model_path "$EMBEDDING_MODEL_PATH" \
+    `# 初始 SkillRL 匹配机制：template/关键词 task_type 检测；top_k=6 只限制 general skills，` \
+    `# task-specific skills 默认取该 task_type 下全部技能。需要语义检索时命令行显式覆盖。` \
+    --retrieval_mode template \
     --top_k 6 \
     --enable_hierarchy 1 \
     --stable_cycles_l1 3 \
