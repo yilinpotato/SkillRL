@@ -21,7 +21,7 @@ from agent_system.environments.env_package.alfworld.projection import alfworld_p
 from agent_system.memory import TracesPool, HierarchicalSkillLib, CoSkillCloudLoop
 
 from mini_test_pen_shelf.env_utils import (
-    load_tw_config_types, find_games_by_type, make_single_env, _TASK_TYPE_TO_ID,
+    load_tw_config_types, find_games_by_type, make_single_env, make_batch_env, _TASK_TYPE_TO_ID,
 )
 from mini_test_pen_shelf.prod_prompt import ProdObsBuilder
 from mini_test_pen_shelf.run_generic import (
@@ -91,7 +91,7 @@ def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
     return games, task_types, tids
 
 
-def rollout_episode(env, agent, builder, max_steps, tag=""):
+def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
     """跑一局（冻结模型）。返回 (won, steps_used, raw_trace, task_type, injected_ids, n_valid, logrows)。
 
     成功判定以环境 ``won`` 为权威（对所有 task_type 有效）。轨迹步保存模型实际看到的
@@ -147,8 +147,9 @@ def rollout_episode(env, agent, builder, max_steps, tag=""):
 
         # RawTrace step: 模型这一步所基于的 raw obs + 采取的动作 + reward。
         steps.append({"step": step, "observation": obs_text, "action": action, "reward": reward})
-        logrows.append({"step": step, "prompt": prompt, "action": action, "valid": valid,
-                        "forced": bool(forced), "obs": nobs, "reward": reward, "won": won})
+        if keep_logrows:
+            logrows.append({"step": step, "prompt": prompt, "action": action, "valid": valid,
+                            "forced": bool(forced), "obs": nobs, "reward": reward, "won": won})
 
         builder.record(obs_text, action)
         obs_text, adm = nobs, nadm
@@ -173,6 +174,151 @@ def rollout_episode(env, agent, builder, max_steps, tag=""):
     return won, step, raw_trace, task_type, injected_ids, n_valid, logrows
 
 
+def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
+    """Run one synchronous batch of ALFWorld episodes.
+
+    A group is the unit that mimics one GRPO rollout batch: all active slots are
+    reset together, prompts are generated together at every environment step,
+    and CoSkill is allowed to update only after the whole group has finished.
+    """
+    import time as _time
+
+    obs_list, infos = env.reset()
+    # TextWorld returns info as a dict of lists for batch envs.
+    adms = infos["admissible_commands"]
+    tasks = [extract_task(o) for o in obs_list]
+    builders = [
+        ProdObsBuilder(mem_lib=skill_lib, with_skills=bool(args.enable_coskill),
+                       top_k=args.top_k, history_length=args.history_length)
+        for _ in range(batch_size)
+    ]
+    task_types = []
+    injected_ids = []
+    playbook_records = []
+    for i, b in enumerate(builders):
+        b.reset(tasks[i])
+        tt = (b.retrieved or {}).get("task_type", "unknown")
+        task_types.append(tt)
+        injected_ids.append((b.retrieved or {}).get("injected_skill_ids", []) or [])
+        pb_rec = skill_lib.get_playbook_record(tt) if args.enable_skill_tree and hasattr(
+            skill_lib, "get_playbook_record") else None
+        playbook_records.append(pb_rec)
+
+    print(f"[rollout-batch]{tag} size={batch_size} tasks="
+          f"{ {t: task_types.count(t) for t in sorted(set(task_types))} }")
+
+    steps = [[] for _ in range(batch_size)]
+    logrows = [[] for _ in range(batch_size)]
+    won = [False for _ in range(batch_size)]
+    done = [False for _ in range(batch_size)]
+    used = [0 for _ in range(batch_size)]
+    n_valid = [0 for _ in range(batch_size)]
+    last_action = [None for _ in range(batch_size)]
+    repeat = [0 for _ in range(batch_size)]
+
+    keep_logrows = bool(args.log_trajectories)
+
+    for step in range(1, args.max_steps + 1):
+        active = [i for i in range(batch_size) if not done[i]]
+        if not active:
+            break
+
+        _t0 = _time.time()
+        prompts = [
+            builders[i].build(obs_list[i], adms[i], init=(step == 1))
+            for i in active
+        ]
+        raw_forced = agent.act_batch_with_meta(prompts)
+        raws = [x[0] for x in raw_forced]
+        forceds = [x[1] for x in raw_forced]
+        active_adms = [adms[i] for i in active]
+        actions, valids = alfworld_projection(raws, active_adms)
+
+        full_actions = []
+        action_by_idx = {}
+        valid_by_idx = {}
+        forced_by_idx = {}
+        raw_by_idx = {}
+        for local_i, i in enumerate(active):
+            action = actions[local_i]
+            valid = bool(valids[local_i])
+            if not valid:
+                sa, ok = salvage_action_from_back(raws[local_i], adms[i])
+                if ok:
+                    action = sa
+            if valid:
+                n_valid[i] += 1
+            action_by_idx[i] = action
+            valid_by_idx[i] = valid
+            forced_by_idx[i] = bool(forceds[local_i])
+            raw_by_idx[i] = raws[local_i]
+
+        for i in range(batch_size):
+            if i in action_by_idx:
+                full_actions.append(action_by_idx[i])
+            else:
+                # Inactive slots still need a placeholder action for the batch env.
+                adm = adms[i] if i < len(adms) else []
+                full_actions.append("look" if "look" in adm else (adm[0] if adm else "look"))
+
+        nobs_list, scores, dones, ninfos = env.step(full_actions)
+        nadms = ninfos["admissible_commands"]
+        wins = ninfos.get("won", [False] * batch_size)
+
+        for i in active:
+            reward = float(scores[i]) if scores is not None else 0.0
+            slot_won = bool(wins[i])
+            slot_done = bool(dones[i]) or slot_won
+            action = action_by_idx[i]
+
+            steps[i].append({
+                "step": step, "observation": obs_list[i],
+                "action": action, "reward": reward,
+            })
+            if keep_logrows:
+                logrows[i].append({
+                    "step": step, "prompt": prompts[active.index(i)],
+                    "action": action, "valid": valid_by_idx[i],
+                    "forced": forced_by_idx[i], "obs": nobs_list[i],
+                    "reward": reward, "won": slot_won,
+                })
+
+            builders[i].record(obs_list[i], action)
+            used[i] = step
+            won[i] = slot_won
+            repeat[i] = repeat[i] + 1 if action == last_action[i] else 0
+            last_action[i] = action
+            if slot_done or repeat[i] >= 6:
+                done[i] = True
+
+        obs_list = nobs_list
+        adms = nadms
+        n_done = sum(done)
+        n_won = sum(won)
+        print(f"  [rollout-batch]{tag} step={step}/{args.max_steps} "
+              f"active={len(active)} done={n_done}/{batch_size} won={n_won}/{batch_size} "
+              f"({ _time.time()-_t0:.1f}s)")
+
+    episodes = []
+    for i in range(batch_size):
+        raw_trace = {
+            "traj_uid": str(uuid.uuid4()),
+            "task": tasks[i],
+            "task_type": task_types[i],
+            "outcome": "success" if won[i] else "failure",
+            "episode_reward": 1.0 if won[i] else 0.0,
+            "steps": steps[i],
+            "meta": {"skill_ids_used": injected_ids[i], "model_version": "frozen"},
+        }
+        episodes.append({
+            "won": won[i], "used": used[i] or args.max_steps,
+            "raw_trace": raw_trace, "task_type": task_types[i],
+            "injected": injected_ids[i], "n_valid": n_valid[i],
+            "logrows": logrows[i], "playbook_record": playbook_records[i],
+        })
+    return episodes
+
+
 def main():
     ap = argparse.ArgumentParser()
     # --- 环境 / 采样（对齐训练脚本）---
@@ -187,6 +333,10 @@ def main():
     ap.add_argument("--num_games", type=int, default=-1,
                     help="每个 task_type 跑多少 game；<=0 表示【全部】（正式测试用全量数据，与训练脚本一致不抽样）")
     ap.add_argument("--group_size", type=int, default=6, help="每个 game rollout 次数（≈env.rollout.n）")
+    ap.add_argument("--batch_rollout_size", type=int, default=1,
+                    help=">1 时启用同步 batch rollout：一次 reset/step 多个 ALFWorld env，"
+                         "vLLM 批量生成；云端更新只在整组完成后触发。"
+                         "设 72 可近似对齐 GRPO: train_data_size=12 × group_size=6。")
     ap.add_argument("--sample", action="store_true", default=False,
                     help="仅当 num_games>0 时生效：跨物体均匀抽样 num_games 个；正式全量测试不需要")
     ap.add_argument("--sample_seed", type=int, default=0)
@@ -353,7 +503,13 @@ def main():
           f"x group_size={args.group_size} x epochs={args.epochs} "
           f"= {episodes_per_epoch * args.epochs} episodes total")
     config = load_tw_config_types(all_tids, num_games=total_games)
-    env = make_single_env(all_game_files, config, seed=args.seed)
+    batch_rollout_size = max(1, int(args.batch_rollout_size or 1))
+    if batch_rollout_size == 1:
+        env = make_single_env(all_game_files, config, seed=args.seed)
+    else:
+        env = make_batch_env(all_game_files, config, batch_size=batch_rollout_size, seed=args.seed)
+        print(f"[driver] batch_rollout_size={batch_rollout_size}: cloud updates are checked "
+              "only after a full rollout group finishes")
 
     # 5) vLLM 冻结模型（只此一份）。放在所有 env 建好之后，避免上面的 fork-after-CUDA 问题。
     from mini_test_pen_shelf.agent_vllm import VLLMAgent
@@ -391,92 +547,148 @@ def main():
     # 重新 seed —— 那样做等于每局都把循环打乱重来，反而丢失了"整轮不重复地过一遍"
     # 的语义，也是过去"轨迹全是同一 task_type"的根源（旧版按 task_type 分别建 env
     # 并顺序嵌套 for 循环，天然刷完一类才换下一类）。
+    def _ingest_episode_result(epoch, ep_result):
+        nonlocal global_step, wins
+        global_step += 1
+        won = ep_result["won"]
+        used = ep_result["used"]
+        raw_trace = ep_result["raw_trace"]
+        tt_detected = ep_result["task_type"]
+        injected = ep_result["injected"]
+        nval = ep_result["n_valid"]
+        logrows = ep_result["logrows"]
+        pb_rec = ep_result.get("playbook_record")
+        wins += int(won)
+
+        traces_pool.add_trace(raw_trace)
+        if hasattr(skill_lib, "record_usage"):
+            skill_lib.record_usage(injected, success=won, task_type=tt_detected)
+        if hasattr(skill_lib, "record_playbook_usage"):
+            skill_lib.record_playbook_usage(tt_detected, success=won)
+
+        ts = tt_stats.setdefault(tt_detected, {"episodes": 0, "wins": 0})
+        ts["episodes"] += 1
+        ts["wins"] += int(won)
+
+        ep_record = {"epoch": epoch + 1, "detected_type": tt_detected,
+                     "won": bool(won), "used_steps": used,
+                     "valid_actions": nval, "step": global_step,
+                     "cloud_round_used": cloud_updates,
+                     "skill_tree_enabled": enable_skill_tree,
+                     "skill_tree_evolve_enabled": enable_skill_tree_evolve,
+                     "skill_bullets_enabled": enable_coskill,
+                     "skill_ids_used": list(injected),
+                     "running_total_episodes": len(per_game) + 1,
+                     "running_total_wins": wins,
+                     "task_type_episodes": ts["episodes"],
+                     "task_type_wins": ts["wins"]}
+        per_game.append(ep_record)
+        print(f"[driver] step={global_step} {tt_detected} won={won} steps={used}")
+
+        if args.log_trajectories:
+            _dump_episode(args.outdir, global_step, raw_trace["task"], tt_detected,
+                          won, used, logrows, pb_rec, injected)
+        return ep_record, pb_rec
+
+    def _write_episode_metric(epoch, ep_record, pb_rec, fired):
+        tt_detected = ep_record["detected_type"]
+        tt_eps = ep_record["task_type_episodes"]
+        tt_wins = ep_record["task_type_wins"]
+        _append_jsonl(metrics_path, {
+            "step": ep_record["step"],
+            "metrics": {
+                "training/epoch": epoch + 1,
+                "episode/detected_type": tt_detected,
+                "episode/won": bool(ep_record["won"]),
+                "episode/length": ep_record["used_steps"],
+                "experiment/skill_tree_enabled": int(enable_skill_tree),
+                "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
+                "experiment/skill_bullets_enabled": int(enable_coskill),
+                "experiment/cloud_round_used": ep_record["cloud_round_used"],
+                "coskill/cloud_update_fired": bool(fired),
+                "episode/running_total_episodes": ep_record["running_total_episodes"],
+                "episode/running_total_wins": ep_record["running_total_wins"],
+                "episode/success_rate": round(
+                    ep_record["running_total_wins"] / max(ep_record["running_total_episodes"], 1), 4),
+                f"episode/{tt_detected}/episodes": tt_eps,
+                f"episode/{tt_detected}/wins": tt_wins,
+                f"episode/{tt_detected}/success_rate": round(tt_wins / max(tt_eps, 1), 4),
+                "skill_tree/version": pb_rec.get("version") if pb_rec else 0,
+                "skill_tree/level": pb_rec.get("level") if pb_rec else None,
+                "skill_tree/n_nodes": len(pb_rec.get("nodes") or {}) if pb_rec else 0,
+                **cloud_loop.metrics(traces_pool, skill_lib),
+            },
+        })
+
     stop_early = False
     for epoch in range(args.epochs):
         if stop_early:
             break
-        for ep_i in range(episodes_per_epoch):
+        ep_i = 0
+        while ep_i < episodes_per_epoch:
             if args.max_episodes > 0 and global_step >= args.max_episodes:
                 print(f"[driver] max_episodes={args.max_episodes} reached, stopping early")
                 stop_early = True
                 break
-            global_step += 1
-            tag = f" epoch{epoch+1} ep{ep_i+1}/{episodes_per_epoch} (global_step={global_step})"
-            won, used, raw_trace, tt_detected, injected, nval, logrows = \
-                rollout_episode(env, agent, builder, args.max_steps, tag=tag)
-            wins += int(won)
 
-            # 喂轨迹池 + 共享归因（与 trainer _coskill_ingest 一致）。
-            traces_pool.add_trace(raw_trace)
-            if hasattr(skill_lib, "record_usage"):
-                skill_lib.record_usage(injected, success=won, task_type=tt_detected)
-            # skill tree 逐节点归因：注入的每个 live 节点 call_count+1，赢则 success+1。
-            if hasattr(skill_lib, "record_playbook_usage"):
-                skill_lib.record_playbook_usage(tt_detected, success=won)
+            if batch_rollout_size == 1:
+                tag = f" epoch{epoch+1} ep{ep_i+1}/{episodes_per_epoch} (global_step={global_step+1})"
+                won, used, raw_trace, tt_detected, injected, nval, logrows = \
+                    rollout_episode(env, agent, builder, args.max_steps, tag=tag,
+                                    keep_logrows=bool(args.log_trajectories))
+                pb_rec = skill_lib.get_playbook_record(tt_detected) if enable_skill_tree and hasattr(
+                    skill_lib, "get_playbook_record") else None
+                ep_result = {"won": won, "used": used, "raw_trace": raw_trace,
+                             "task_type": tt_detected, "injected": injected,
+                             "n_valid": nval, "logrows": logrows,
+                             "playbook_record": pb_rec}
+                ep_record, pb_used = _ingest_episode_result(epoch, ep_result)
+                ep_i += 1
 
-            ep_record = {"epoch": epoch + 1, "detected_type": tt_detected,
-                         "won": bool(won), "used_steps": used,
-                         "valid_actions": nval, "step": global_step,
-                         "cloud_round_used": cloud_updates,
-                         "skill_tree_enabled": enable_skill_tree,
-                         "skill_tree_evolve_enabled": enable_skill_tree_evolve,
-                         "skill_bullets_enabled": enable_coskill,
-                         "skill_ids_used": list(injected)}
-            per_game.append(ep_record)
-            print(f"[driver] step={global_step} {tt_detected} "
-                  f"won={won} steps={used}")
+                force_reason = None
+                if args.cloud_update_every > 0 and global_step % args.cloud_update_every == 0:
+                    force_reason = f"episode_interval_{args.cloud_update_every}"
+                fired = cloud_loop.maybe_update(
+                    traces_pool, skill_lib, global_step, force_reason=force_reason
+                )
+                ep_record["cloud_update_fired_after_episode"] = bool(fired)
+                if fired:
+                    cloud_updates += 1
+                    cloud_update_steps.append(global_step)
+                _write_episode_metric(epoch, ep_record, pb_used, fired)
+                continue
 
-            ts = tt_stats.setdefault(tt_detected, {"episodes": 0, "wins": 0})
-            ts["episodes"] += 1
-            ts["wins"] += int(won)
+            remaining_epoch = episodes_per_epoch - ep_i
+            remaining_cap = (args.max_episodes - global_step) if args.max_episodes > 0 else remaining_epoch
+            n_to_count = min(batch_rollout_size, remaining_epoch, remaining_cap)
+            if n_to_count <= 0:
+                stop_early = True
+                break
 
-            pb_rec = skill_lib.get_playbook_record(tt_detected) if enable_skill_tree and hasattr(
-                skill_lib, "get_playbook_record") else None
-            if args.log_trajectories:
-                _dump_episode(args.outdir, global_step, raw_trace["task"], tt_detected,
-                             won, used, logrows, pb_rec, injected)
+            tag = f" epoch{epoch+1} group_ep{ep_i+1}-{ep_i+n_to_count}/{episodes_per_epoch} "\
+                  f"(global_step={global_step+1})"
+            group_results = rollout_batch_group(env, agent, skill_lib, args, batch_rollout_size, tag=tag)
+            ingested = []
+            for ep_result in group_results[:n_to_count]:
+                ingested.append(_ingest_episode_result(epoch, ep_result))
+            ep_i += n_to_count
 
-            # 水位线触发则跑云端更新（与 trainer 完全相同的编排）。
+            # Batch mode: cloud update can happen only after the whole rollout group
+            # has completed and all counted trajectories have been ingested.
             force_reason = None
             if args.cloud_update_every > 0 and global_step % args.cloud_update_every == 0:
                 force_reason = f"episode_interval_{args.cloud_update_every}"
             fired = cloud_loop.maybe_update(
                 traces_pool, skill_lib, global_step, force_reason=force_reason
             )
-            ep_record["cloud_update_fired_after_episode"] = bool(fired)
             if fired:
                 cloud_updates += 1
                 cloud_update_steps.append(global_step)
 
-            # 每局都写一行 metrics（不再只在云端触发时才写）：整体/分 task_type
-            # 的滚动胜率 + 当前 skill tree 版本 + coskill 累积指标，便于持续观测
-            # 进度而不必等第一次触发（真实水位线下可能几十上百局才触发一次）。
-            # 格式对齐训练脚本的 jsonl logger：{"step": N, "metrics": {...}}，本
-            # driver 新增的字段都是普通新 key，加进同一个 metrics dict 里，不另起格式。
-            _append_jsonl(metrics_path, {
-                "step": global_step,
-                "metrics": {
-                    "training/epoch": epoch + 1,
-                    "episode/detected_type": tt_detected,
-                    "episode/won": bool(won),
-                    "episode/length": used,
-                    "experiment/skill_tree_enabled": int(enable_skill_tree),
-                    "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
-                    "experiment/skill_bullets_enabled": int(enable_coskill),
-                    "experiment/cloud_round_used": ep_record["cloud_round_used"],
-                    "coskill/cloud_update_fired": bool(fired),
-                    "episode/running_total_episodes": len(per_game),
-                    "episode/running_total_wins": wins,
-                    "episode/success_rate": round(wins / len(per_game), 4),
-                    f"episode/{tt_detected}/episodes": ts["episodes"],
-                    f"episode/{tt_detected}/wins": ts["wins"],
-                    f"episode/{tt_detected}/success_rate": round(ts["wins"] / ts["episodes"], 4),
-                    "skill_tree/version": pb_rec.get("version") if pb_rec else 0,
-                    "skill_tree/level": pb_rec.get("level") if pb_rec else None,
-                    "skill_tree/n_nodes": len(pb_rec.get("nodes") or {}) if pb_rec else 0,
-                    **cloud_loop.metrics(traces_pool, skill_lib),
-                },
-            })
+            for j, (ep_record, pb_used) in enumerate(ingested):
+                is_last = (j == len(ingested) - 1)
+                ep_record["cloud_update_fired_after_episode"] = bool(fired and is_last)
+                _write_episode_metric(epoch, ep_record, pb_used, fired and is_last)
 
     # 落盘 summary。
     n = len(per_game)

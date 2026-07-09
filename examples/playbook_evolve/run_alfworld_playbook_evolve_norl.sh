@@ -61,6 +61,17 @@ OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 
+# Match 100 GRPO trainer steps approximately:
+# train_data_size(12) × group_size(6) × 100 = 7200 rollout episodes.
+# Override with MAX_EPISODES=... or a later --max_episodes CLI argument.
+MAX_EPISODES="${MAX_EPISODES:-7200}"
+# Match one GRPO rollout batch by default: train_data_size(12) × group_size(6).
+BATCH_ROLLOUT_SIZE="${BATCH_ROLLOUT_SIZE:-72}"
+# Long runs otherwise dump every step's full prompt into trajectories/, which is
+# useful for debugging but creates huge IO. Metrics/raw traces/cloud_io are still
+# written, so this does not affect rollout decisions or CoSkill updates.
+LOG_TRAJECTORIES="${LOG_TRAJECTORIES:-0}"
+
 python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --outdir "$OUTPUT_DIR" \
     --model_path "$MODEL_PATH" \
@@ -76,6 +87,8 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     `# epochs=1：全量数据已跑遍每个 game(×group_size 次)，一轮覆盖足够全面；` \
     `# 需要更多云端迭代轮次再调大(会把全量数据集重新跑一遍)。` \
     --epochs 1 \
+    --max_episodes "$MAX_EPISODES" \
+    --batch_rollout_size "$BATCH_ROLLOUT_SIZE" \
     `# NO_HIS 模板本身没有记忆，靠 history_length 条最近 obs+action 弥补；调大到 8` \
     --history_length 8 \
     `# vLLM：max_prompt6144+max_response4096=10240; 冻结推理 gpu_mem_util 可给高` \
@@ -109,4 +122,5 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --perf_watermark 0.6 \
     --min_samples 16 \
     --loop_threshold 3 \
+    --log_trajectories "$LOG_TRAJECTORIES" \
     "$@" 2>&1 | tee "$OUTPUT_DIR/driver.log"

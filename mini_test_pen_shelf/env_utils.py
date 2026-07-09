@@ -343,3 +343,20 @@ def make_single_env(game_files, config, seed=0):
     env.seed(seed)
     return env
 
+
+def make_batch_env(game_files, config, batch_size=1, seed=0):
+    """
+    用给定的 game_files 列表构造一个 batch_size=N 的 AlfredTWEnv（底层 gym env）。
+
+    这是 no-RL CoSkill driver 的批量 rollout 入口：一次 reset 同时启动 N 个
+    TextWorld 子环境，随后每一步把 N 条 prompt 批量送入 vLLM。与 make_single_env
+    一样，必须在加载 vLLM/CUDA 之前调用，避免 CUDA-after-fork 卡死。
+    """
+    cfg = copy.deepcopy(config)
+    EnvClass = get_environment(cfg["env"]["type"])  # AlfredTWEnv
+    base = EnvClass(cfg, train_eval="train")
+    base.game_files = list(game_files)
+    base.num_games = len(base.game_files)
+    env = base.init_env(batch_size=batch_size)
+    env.seed(seed)
+    return env

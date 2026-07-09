@@ -198,3 +198,39 @@ class VLLMAgent:
             self._restore_think(p, o.outputs[0].text)
             for p, o in zip(prompts, outs)
         ]
+
+    def act_batch_with_meta(self, obs_texts):
+        """Batch version of :meth:`act_with_meta` with the same two-stage
+        budget-forcing logic.
+
+        This preserves the per-step prompt / sampling policy while letting vLLM
+        batch many ALFWorld environments together. Returns ``[(text, forced), …]``
+        in the same order as ``obs_texts``.
+        """
+        prompts = [self._build_prompt(t) for t in obs_texts]
+
+        outs1 = self.llm.generate(prompts, self.think_sampling, use_tqdm=False)
+        think_parts = []
+        forced_flags = []
+        for out in outs1:
+            think_text = out.outputs[0].text
+            got_close = "</think>" in think_text
+            if got_close:
+                think_part = think_text[:think_text.index("</think>") + len("</think>")]
+            else:
+                think_part = think_text.rstrip() + "\n</think>"
+            think_parts.append(think_part)
+            forced_flags.append(not got_close)
+
+        action_prompts = [p + t + "\n" for p, t in zip(prompts, think_parts)]
+        outs2 = self.llm.generate(action_prompts, self.action_sampling, use_tqdm=False)
+
+        results = []
+        for prompt, think_part, forced, out in zip(prompts, think_parts, forced_flags, outs2):
+            action_text = out.outputs[0].text.strip()
+            ma = re.search(r"<action>.*?</action>", action_text, re.DOTALL | re.IGNORECASE)
+            if ma:
+                action_text = ma.group(0)
+            full = think_part + "\n" + action_text
+            results.append((self._restore_think(prompt, full), forced))
+        return results
