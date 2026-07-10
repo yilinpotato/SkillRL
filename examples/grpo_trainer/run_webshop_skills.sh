@@ -1,6 +1,10 @@
+#!/usr/bin/env bash
 set -x
+set -euo pipefail
 ENGINE=${1:-vllm}
-shift  # Remove first argument so $@ only contains extra params
+if [ "$#" -gt 0 ]; then
+    shift  # Remove engine so $@ only contains extra params.
+fi
 export VLLM_ATTENTION_BACKEND=FLASH_ATTN
 
 # Enable more verbose logging
@@ -8,8 +12,47 @@ export RAY_BACKEND_LOG_LEVEL=debug
 export VLLM_LOGGING_LEVEL=DEBUG
 
 # export WANDB_API_KEY=""
+# ── 自动判断运行环境：超算 vs 本地3090（与 ALFWorld 启动脚本一致）──────────────
+PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
+if [ -d /GLOBALFS/hit_wxia_1 ]; then
+    RUN_ENV="超算 (supercomputer)"
+    export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-$HOME/data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/outputs}"
+    DEFAULT_RAY_NUM_CPUS=56
+else
+    RUN_ENV="本地3090 (local)"
+    export CACHE_ROOT="${CACHE_ROOT:-$HOME/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-$PROJECT_ROOT/skillrl_data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/skillrl_outputs}"
+    DEFAULT_RAY_NUM_CPUS="$(nproc)"
+fi
+
+# Respect an explicit CUDA_VISIBLE_DEVICES/GPUS/GPU setting.  Otherwise use at
+# most two GPUs, matching the A800 reference while remaining runnable on 1x3090.
+if [ -n "${GPUS:-}" ] && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    export CUDA_VISIBLE_DEVICES="$GPUS"
+elif [ -n "${GPU:-}" ] && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    export CUDA_VISIBLE_DEVICES="$GPU"
+fi
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
+else
+    NUM_VISIBLE_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | grep -c . || true)
+    if [ "${NUM_VISIBLE_GPUS:-0}" -ge 2 ]; then
+        export CUDA_VISIBLE_DEVICES="0,1"
+        NUM_VISIBLE_GPUS=2
+    elif [ "${NUM_VISIBLE_GPUS:-0}" -eq 1 ]; then
+        export CUDA_VISIBLE_DEVICES="0"
+    else
+        NUM_VISIBLE_GPUS=1
+    fi
+fi
+NUM_VISIBLE_GPUS=${NUM_VISIBLE_GPUS:-1}
+[ "$NUM_VISIBLE_GPUS" -lt 1 ] && NUM_VISIBLE_GPUS=1
+RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
+
 # Small model (actor, trained locally)
-export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 # Large model (SkillUpdater skill generation via DeepSeek API)
 export SKILL_UPDATER_BACKEND="deepseek"
@@ -19,9 +62,12 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
 PROJECT_NAME="verl_agent_webshop"
 EXPERIMENT_NAME="grpo_qwen3_4b_webshop_skills_dynamic_lora"
-OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
+OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
+echo "Run environment detected: $RUN_ENV"
+echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
+echo "Ray resources: CPUs=$RAY_NUM_CPUS GPUs=$NUM_VISIBLE_GPUS"
 
 # Per-step training metrics are appended here as one JSON object per line.
 export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
@@ -34,7 +80,7 @@ num_cpus_per_env_worker=0.35 # The CPU resource allocated for each environment w
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
-ray start --head --num-cpus=56 --num-gpus=2
+ray start --head --num-cpus="$RAY_NUM_CPUS" --num-gpus="$NUM_VISIBLE_GPUS"
 sleep 3
 
 train_data_size=12  # Minimal test (divisible by 1)
@@ -44,13 +90,14 @@ group_size=6        # GRPO group size (trajectories per prompt)
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
     --mode 'text' \
+    --local_dir "$DATA_ROOT" \
     --train_data_size $train_data_size \
     --val_data_size $val_data_size
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=$HOME/data/verl-agent/text/train.parquet \
-    data.val_files=$HOME/data/verl-agent/text/test.parquet \
+    data.train_files=$DATA_ROOT/text/train.parquet \
+    data.val_files=$DATA_ROOT/text/test.parquet \
     data.train_batch_size=$train_data_size \
     data.val_batch_size=$val_data_size \
     data.max_prompt_length=8192 \
@@ -91,6 +138,7 @@ python3 -m verl.trainer.main_ppo \
     env.env_name=Webshop \
     env.seed=0 \
     env.max_steps=15 \
+    env.history_length=8 \
     env.rollout.n=$group_size \
     env.resources_per_worker.num_cpus=$num_cpus_per_env_worker \
     +env.use_skills_only_memory=True \
@@ -105,7 +153,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='verl_agent_webshop' \
     trainer.experiment_name='grpo_qwen3_4b_webshop_skills_dynamic_lora' \
     trainer.default_local_dir="$OUTPUT_DIR" \
-    trainer.n_gpus_per_node=2 \
+    trainer.n_gpus_per_node=$NUM_VISIBLE_GPUS \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
