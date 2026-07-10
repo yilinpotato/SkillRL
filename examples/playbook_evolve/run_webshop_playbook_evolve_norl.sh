@@ -17,30 +17,23 @@ export HF_HUB_OFFLINE=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export PYTHONUNBUFFERED=1
 
-if [ -n "${GPUS:-}" ] && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
-    export CUDA_VISIBLE_DEVICES="$GPUS"
-elif [ -n "${GPU:-}" ] && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
-    export CUDA_VISIBLE_DEVICES="$GPU"
+# Shared local server safety: this experiment is allowed to use GPU 0 only,
+# and must not start when another user's compute process occupies that GPU.
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ] && [ "$CUDA_VISIBLE_DEVICES" != "0" ]; then
+    echo "This shared-server launcher only permits CUDA_VISIBLE_DEVICES=0." >&2
+    exit 1
 fi
-if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
-    NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
-else
-    NUM_VISIBLE_GPUS=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | grep -c . || true)
-    if [ "${NUM_VISIBLE_GPUS:-0}" -ge 2 ]; then
-        export CUDA_VISIBLE_DEVICES="0,1"
-        NUM_VISIBLE_GPUS=2
-    elif [ "${NUM_VISIBLE_GPUS:-0}" -eq 1 ]; then
-        export CUDA_VISIBLE_DEVICES="0"
-        NUM_VISIBLE_GPUS=1
-    else
-        NUM_VISIBLE_GPUS=1
+export CUDA_VISIBLE_DEVICES=0
+if command -v nvidia-smi >/dev/null 2>&1; then
+    GPU0_ACTIVE_PIDS=$(nvidia-smi --id=0 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)
+    if [ -n "$GPU0_ACTIVE_PIDS" ]; then
+        echo "GPU 0 is in use by PID(s): $GPU0_ACTIVE_PIDS. Refusing to start." >&2
+        exit 1
     fi
 fi
-NUM_VISIBLE_GPUS=${NUM_VISIBLE_GPUS:-1}
-[ "$NUM_VISIBLE_GPUS" -lt 1 ] && NUM_VISIBLE_GPUS=1
-DEFAULT_DP=$(( NUM_VISIBLE_GPUS < 2 ? NUM_VISIBLE_GPUS : 2 ))
-DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$DEFAULT_DP}"
-ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-${CUDA_VISIBLE_DEVICES:-}}"
+NUM_VISIBLE_GPUS=1
+DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-1}"
+ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-0}"
 
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
 if [ -d /GLOBALFS/hit_wxia_1 ]; then

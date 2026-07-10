@@ -21,7 +21,12 @@ def webshop_projection(actions: List[str]):
     A function to process the actions.
     actions: the list of actions to be processed, it is a list of strings.
     Expected format:
-        <think>some reasoning...</think><action>up/down/left/right/still</action>
+        <think>...</think><action>search[...]</action>
+        <think>...</think><action>click[...]</action>
+
+    Both blocks are mandatory, and the completed reasoning block must precede
+    the action block.  This matches the ALFWorld action protocol and the
+    WebShop SFT/rollout contract.
     """
 
     valids = [0] * len(actions)
@@ -51,10 +56,22 @@ def webshop_projection(actions: List[str]):
             # randomly choose an action from the action list if illegal
             actions[i] = actions[i][-20:]
 
-        # check <think>...</think>
+        # Require one completed thinking block before the action.  Do this on
+        # the original case-preserving string because the tags form part of
+        # the model output protocol.
         think_start_idx = original_str.find("<think>")
         think_end_idx = original_str.find("</think>")
-        if think_start_idx == -1 or think_end_idx == -1:
+        action_start_idx = original_str.find("<action>")
+        if (
+            original_str.count("<think>") != 1
+            or original_str.count("</think>") != 1
+            or original_str.count("<action>") != 1
+            or original_str.count("</action>") != 1
+            or think_start_idx == -1
+            or think_end_idx == -1
+            or think_start_idx >= think_end_idx
+            or think_end_idx > action_start_idx
+        ):
             valids[i] = 0
 
         # check if contains any Chinese characters
