@@ -408,6 +408,10 @@ class CoSkillCloudLoop:
             summary = self.cloud_analyzer.get_update_summary()
             m['coskill/cloud/total_updates'] = summary.get('total_updates', 0)
             m['coskill/cloud/total_patches'] = summary.get('total_patches', 0)
+            m['coskill/cloud/large_model_prompt_tokens'] = summary.get(
+                'large_model_prompt_tokens', 0)
+            m['coskill/cloud/large_model_completion_tokens'] = summary.get(
+                'large_model_completion_tokens', 0)
             m['coskill/cloud/large_model_total_tokens'] = summary.get('large_model_total_tokens', 0)
             m['coskill/skill_tree/diagnose_calls'] = summary.get('diagnose_calls', 0)
             m['coskill/skill_tree/evolve_calls'] = summary.get('evolve_calls', 0)

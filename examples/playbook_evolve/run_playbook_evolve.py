@@ -19,6 +19,7 @@ import uuid
 import argparse
 import multiprocessing as mp
 import subprocess
+import time
 import traceback
 
 from agent_system.environments.env_package.alfworld.projection import alfworld_projection
@@ -329,6 +330,13 @@ def _split_int(total: int, parts: int):
     return [base + (1 if i < rem else 0) for i in range(parts)]
 
 
+def _token_delta(after, before):
+    """Subtract two ``{prompt,response,total}`` cumulative token snapshots."""
+    prompt = max(0, int(after.get("prompt", 0)) - int(before.get("prompt", 0)))
+    response = max(0, int(after.get("response", 0)) - int(before.get("response", 0)))
+    return {"prompt": prompt, "response": response, "total": prompt + response}
+
+
 def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
                        fixed_batch_size, in_q, out_q):
     """Persistent rollout worker for single-GPU data parallel inference.
@@ -372,6 +380,7 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             group_id = cmd.get("group_id")
             skill_path = cmd["skill_path"]
             try:
+                tokens_before = agent.get_token_usage()
                 skill_lib = HierarchicalSkillLib(
                     skills_json_path=skill_path,
                     retrieval_mode=args.retrieval_mode,
@@ -388,10 +397,12 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
                 results = rollout_batch_group(
                     env, agent, skill_lib, args, fixed_batch_size, tag=tag
                 )
+                token_usage = _token_delta(agent.get_token_usage(), tokens_before)
                 out_q.put({
                     "worker_id": worker_id,
                     "group_id": group_id,
                     "results": results,
+                    "small_model_tokens": token_usage,
                     "error": None,
                 })
             except Exception:
@@ -399,6 +410,7 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
                     "worker_id": worker_id,
                     "group_id": group_id,
                     "results": [],
+                    "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
                     "error": traceback.format_exc(),
                 })
     except Exception:
@@ -406,6 +418,7 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             "worker_id": worker_id,
             "group_id": None,
             "results": [],
+            "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
             "error": traceback.format_exc(),
         })
 
@@ -691,12 +704,14 @@ def main():
           f"enable_failure_analysis={bool(args.enable_failure_analysis)}")
 
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
+    group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
     per_game = []
     wins = 0
     global_step = 0
     tt_stats = {}  # detected_type -> {"episodes":int, "wins":int}
     cloud_updates = 0
     cloud_update_steps = []
+    small_model_token_totals = {"prompt": 0, "response": 0, "total": 0}
 
     # env.seed() 只在 make_single_env() 建环境时调用过一次（见上方注释）：接下来的
     # reset() 全部靠 textworld 自带的 shuffled_cycle 自然推进 + 整轮重洗，不再逐局
@@ -776,6 +791,99 @@ def main():
             },
         })
 
+    def _large_model_token_usage():
+        analyzer = getattr(cloud_loop, "cloud_analyzer", None)
+        if analyzer is None:
+            return {"prompt": 0, "completion": 0, "total": 0}
+        prompt = int(getattr(analyzer, "total_prompt_tokens", 0) or 0)
+        completion = int(getattr(analyzer, "total_completion_tokens", 0) or 0)
+        return {"prompt": prompt, "completion": completion,
+                "total": prompt + completion}
+
+    def _write_group_metric(group_id, epoch, ingested, generated_count, fired,
+                            small_tokens, large_before, large_after,
+                            rollout_seconds, cloud_seconds, total_seconds):
+        """Write one GRPO-comparable aggregate row per rollout group."""
+        records = [record for record, _ in ingested]
+        n = len(records)
+        group_wins = sum(int(record["won"]) for record in records)
+        lengths = [int(record["used_steps"]) for record in records]
+        valid_actions = sum(int(record["valid_actions"]) for record in records)
+        action_count = sum(lengths)
+
+        for key in ("prompt", "response", "total"):
+            small_model_token_totals[key] += int(small_tokens.get(key, 0) or 0)
+
+        large_delta = {
+            "prompt": max(0, large_after["prompt"] - large_before["prompt"]),
+            "completion": max(0, large_after["completion"] - large_before["completion"]),
+        }
+        large_delta["total"] = large_delta["prompt"] + large_delta["completion"]
+
+        metrics = {
+            # group_id is the no-RL equivalent of one GRPO training step.
+            "training/group": group_id,
+            "training/global_step": group_id,
+            "training/epoch": epoch + 1,
+            "rollout/global_episode_end": global_step,
+            "episode/count": n,
+            "episode/generated_count": int(generated_count),
+            "episode/wins": group_wins,
+            "episode/success_rate": round(group_wins / max(n, 1), 6),
+            "episode/length/mean": round(sum(lengths) / max(n, 1), 6),
+            "episode/length/max": max(lengths) if lengths else 0,
+            "episode/length/min": min(lengths) if lengths else 0,
+            "episode/valid_action_ratio": round(valid_actions / max(action_count, 1), 6),
+            "experiment/skill_tree_enabled": int(enable_skill_tree),
+            "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
+            "experiment/skill_bullets_enabled": int(enable_coskill),
+            "experiment/cloud_round": cloud_updates,
+            "coskill/cloud_update_fired": bool(fired),
+            "tokens/small_model/prompt": int(small_tokens.get("prompt", 0) or 0),
+            "tokens/small_model/response": int(small_tokens.get("response", 0) or 0),
+            "tokens/small_model/total": int(small_tokens.get("total", 0) or 0),
+            "tokens/small_model/accounting": "vllm_request_tokens_two_stage",
+            "tokens/small_model/prompt_cumulative": small_model_token_totals["prompt"],
+            "tokens/small_model/response_cumulative": small_model_token_totals["response"],
+            "tokens/small_model/total_cumulative": small_model_token_totals["total"],
+            "tokens/large_model/prompt": large_delta["prompt"],
+            "tokens/large_model/completion": large_delta["completion"],
+            "tokens/large_model/total": large_delta["total"],
+            "tokens/large_model/accounting": "provider_api_usage",
+            "tokens/large_model/prompt_cumulative": large_after["prompt"],
+            "tokens/large_model/completion_cumulative": large_after["completion"],
+            "tokens/large_model/total_cumulative": large_after["total"],
+            "timing_s/rollout": round(float(rollout_seconds), 6),
+            "timing_s/cloud_update": round(float(cloud_seconds), 6),
+            "timing_s/group_total": round(float(total_seconds), 6),
+            "perf/total_num_tokens": int(small_tokens.get("total", 0) or 0),
+            "perf/throughput_episodes_per_second": round(n / max(rollout_seconds, 1e-9), 6),
+            "perf/throughput_small_tokens_per_second": round(
+                int(small_tokens.get("total", 0) or 0) / max(rollout_seconds, 1e-9), 6),
+            **cloud_loop.metrics(traces_pool, skill_lib),
+        }
+        by_type = {}
+        for record in records:
+            tt = record["detected_type"]
+            stat = by_type.setdefault(tt, {"episodes": 0, "wins": 0})
+            stat["episodes"] += 1
+            stat["wins"] += int(record["won"])
+        for tt, stat in sorted(by_type.items()):
+            metrics[f"episode/{tt}/episodes"] = stat["episodes"]
+            metrics[f"episode/{tt}/wins"] = stat["wins"]
+            metrics[f"episode/{tt}/success_rate"] = round(
+                stat["wins"] / max(stat["episodes"], 1), 6)
+
+        _append_jsonl(group_metrics_path, {
+            "step": group_id,
+            "global_episode_end": global_step,
+            "metrics": metrics,
+        })
+        print(f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
+              f"success={100.0 * group_wins / max(n, 1):.1f}% "
+              f"small_tokens={small_tokens.get('total', 0)} "
+              f"large_tokens={large_delta['total']} rollout={rollout_seconds:.1f}s")
+
     def _atomic_json_dump(obj, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp_path = f"{path}.tmp"
@@ -822,6 +930,10 @@ def main():
             "skill_tree_nodes": {tt: rec["n_nodes"] for tt, rec in trees.items()},
             # Backward-compatible scalar: max version among task trees.
             "skill_tree_version": max([rec["version"] for rec in trees.values()] or [0]),
+            "token_usage": {
+                "small_model": dict(small_model_token_totals),
+                "large_model": _large_model_token_usage(),
+            },
             "final_coskill_metrics": cloud_loop.metrics(traces_pool, skill_lib),
             "phase_stats": _phase_stats(per_game),
             "per_game": per_game,
@@ -877,9 +989,13 @@ def main():
             replies.append(msg)
         replies.sort(key=lambda x: x["worker_id"])
         group_results = []
+        small_tokens = {"prompt": 0, "response": 0, "total": 0}
         for msg in replies:
             group_results.extend(msg["results"])
-        return group_results
+            usage = msg.get("small_model_tokens") or {}
+            for key in small_tokens:
+                small_tokens[key] += int(usage.get(key, 0) or 0)
+        return group_results, small_tokens
 
     def _shutdown_data_parallel_workers():
         for in_q in dp_in_queues:
@@ -922,7 +1038,9 @@ def main():
                 print(f"[driver] dispatch dp group{group_id} epoch{epoch+1} "
                       f"group_ep{ep_i+1}-{ep_i+n_to_count}/{episodes_per_epoch} "
                       f"(global_step={global_step+1})")
-                group_results = _run_data_parallel_group(group_id)
+                group_started = time.time()
+                group_results, small_tokens = _run_data_parallel_group(group_id)
+                rollout_seconds = time.time() - group_started
                 ingested = []
                 for ep_result in group_results[:n_to_count]:
                     ingested.append(_ingest_episode_result(epoch, ep_result))
@@ -933,9 +1051,13 @@ def main():
                 force_reason = None
                 if args.cloud_update_every > 0 and global_step % args.cloud_update_every == 0:
                     force_reason = f"episode_interval_{args.cloud_update_every}"
+                large_before = _large_model_token_usage()
+                cloud_started = time.time()
                 fired = cloud_loop.maybe_update(
                     traces_pool, skill_lib, global_step, force_reason=force_reason
                 )
+                cloud_seconds = time.time() - cloud_started
+                large_after = _large_model_token_usage()
                 if fired:
                     cloud_updates += 1
                     cloud_update_steps.append(global_step)
@@ -944,6 +1066,12 @@ def main():
                     is_last = (j == len(ingested) - 1)
                     ep_record["cloud_update_fired_after_episode"] = bool(fired and is_last)
                     _write_episode_metric(epoch, ep_record, pb_used, fired and is_last)
+
+                _write_group_metric(
+                    group_id, epoch, ingested, len(group_results), fired,
+                    small_tokens, large_before, large_after,
+                    rollout_seconds, cloud_seconds, time.time() - group_started,
+                )
 
                 completed_groups += 1
                 if args.checkpoint_every_groups > 0 and completed_groups % args.checkpoint_every_groups == 0:
@@ -956,10 +1084,15 @@ def main():
                 continue
 
             if batch_rollout_size == 1:
+                group_id = completed_groups + 1
+                group_started = time.time()
+                small_before = agent.get_token_usage()
                 tag = f" epoch{epoch+1} ep{ep_i+1}/{episodes_per_epoch} (global_step={global_step+1})"
                 won, used, raw_trace, tt_detected, injected, nval, logrows = \
                     rollout_episode(env, agent, builder, args.max_steps, tag=tag,
                                     keep_logrows=bool(args.log_trajectories))
+                rollout_seconds = time.time() - group_started
+                small_tokens = _token_delta(agent.get_token_usage(), small_before)
                 pb_rec = skill_lib.get_playbook_record(tt_detected) if enable_skill_tree and hasattr(
                     skill_lib, "get_playbook_record") else None
                 ep_result = {"won": won, "used": used, "raw_trace": raw_trace,
@@ -972,14 +1105,23 @@ def main():
                 force_reason = None
                 if args.cloud_update_every > 0 and global_step % args.cloud_update_every == 0:
                     force_reason = f"episode_interval_{args.cloud_update_every}"
+                large_before = _large_model_token_usage()
+                cloud_started = time.time()
                 fired = cloud_loop.maybe_update(
                     traces_pool, skill_lib, global_step, force_reason=force_reason
                 )
+                cloud_seconds = time.time() - cloud_started
+                large_after = _large_model_token_usage()
                 ep_record["cloud_update_fired_after_episode"] = bool(fired)
                 if fired:
                     cloud_updates += 1
                     cloud_update_steps.append(global_step)
                 _write_episode_metric(epoch, ep_record, pb_used, fired)
+                _write_group_metric(
+                    group_id, epoch, [(ep_record, pb_used)], 1, fired,
+                    small_tokens, large_before, large_after,
+                    rollout_seconds, cloud_seconds, time.time() - group_started,
+                )
                 completed_groups += 1
                 if args.checkpoint_every_groups > 0 and completed_groups % args.checkpoint_every_groups == 0:
                     _save_progress_checkpoint(
@@ -999,7 +1141,12 @@ def main():
 
             tag = f" epoch{epoch+1} group_ep{ep_i+1}-{ep_i+n_to_count}/{episodes_per_epoch} "\
                   f"(global_step={global_step+1})"
+            group_id = completed_groups + 1
+            group_started = time.time()
+            small_before = agent.get_token_usage()
             group_results = rollout_batch_group(env, agent, skill_lib, args, batch_rollout_size, tag=tag)
+            rollout_seconds = time.time() - group_started
+            small_tokens = _token_delta(agent.get_token_usage(), small_before)
             ingested = []
             for ep_result in group_results[:n_to_count]:
                 ingested.append(_ingest_episode_result(epoch, ep_result))
@@ -1010,9 +1157,13 @@ def main():
             force_reason = None
             if args.cloud_update_every > 0 and global_step % args.cloud_update_every == 0:
                 force_reason = f"episode_interval_{args.cloud_update_every}"
+            large_before = _large_model_token_usage()
+            cloud_started = time.time()
             fired = cloud_loop.maybe_update(
                 traces_pool, skill_lib, global_step, force_reason=force_reason
             )
+            cloud_seconds = time.time() - cloud_started
+            large_after = _large_model_token_usage()
             if fired:
                 cloud_updates += 1
                 cloud_update_steps.append(global_step)
@@ -1021,6 +1172,12 @@ def main():
                 is_last = (j == len(ingested) - 1)
                 ep_record["cloud_update_fired_after_episode"] = bool(fired and is_last)
                 _write_episode_metric(epoch, ep_record, pb_used, fired and is_last)
+
+            _write_group_metric(
+                group_id, epoch, ingested, len(group_results), fired,
+                small_tokens, large_before, large_after,
+                rollout_seconds, cloud_seconds, time.time() - group_started,
+            )
 
             completed_groups += 1
             if args.checkpoint_every_groups > 0 and completed_groups % args.checkpoint_every_groups == 0:

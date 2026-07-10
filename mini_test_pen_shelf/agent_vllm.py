@@ -85,6 +85,28 @@ class VLLMAgent:
             max_tokens=256, stop=["</action>"], include_stop_str_in_output=True,
         )
         self.enable_thinking = enable_thinking
+        # Exact inference-token accounting from vLLM RequestOutput objects.
+        # Prompt tokens count every model invocation.  With two-stage budget
+        # forcing this intentionally includes both the thinking request and the
+        # action request (whose prompt contains the generated thinking), because
+        # both consume accelerator compute.
+        self.total_prompt_tokens = 0
+        self.total_response_tokens = 0
+
+    def _record_token_usage(self, request_outputs):
+        for request_output in request_outputs:
+            prompt_ids = getattr(request_output, "prompt_token_ids", None) or []
+            self.total_prompt_tokens += len(prompt_ids)
+            outputs = getattr(request_output, "outputs", None) or []
+            if outputs:
+                token_ids = getattr(outputs[0], "token_ids", None) or []
+                self.total_response_tokens += len(token_ids)
+
+    def get_token_usage(self):
+        """Return exact cumulative vLLM inference tokens for this agent."""
+        prompt = int(self.total_prompt_tokens)
+        response = int(self.total_response_tokens)
+        return {"prompt": prompt, "response": response, "total": prompt + response}
 
     # 反思词子串（小写）。命中即视为回溯词——只放【不会误伤】的长词。
     # 注意 "wait"/"hmm" 不在此列：wait 是 Kuwait/await/WaitForSeconds 的子串，放子串组
@@ -169,6 +191,7 @@ class VLLMAgent:
 
         # 阶段 1：思考（stop=</think>，include_stop_str_in_output 使输出含 </think>）
         out1 = self.llm.generate([prompt], self.think_sampling, use_tqdm=False)
+        self._record_token_usage(out1)
         comp1 = out1[0].outputs[0]
         think_text = comp1.text
         got_close = "</think>" in think_text
@@ -185,6 +208,7 @@ class VLLMAgent:
         # 保证 <action> 紧跟在 </think> 之后、格式规整，不与阶段1残留拼接）
         action_prompt = prompt + think_part + "\n"
         out2 = self.llm.generate([action_prompt], self.action_sampling, use_tqdm=False)
+        self._record_token_usage(out2)
         action_text = out2[0].outputs[0].text.strip()
         # 只保留 action_text 里第一个 <action>...</action>，去掉多余内容
         ma = re.search(r"<action>.*?</action>", action_text, re.DOTALL | re.IGNORECASE)
@@ -197,6 +221,7 @@ class VLLMAgent:
     def act_batch(self, obs_texts):
         prompts = [self._build_prompt(t) for t in obs_texts]
         outs = self.llm.generate(prompts, self.sampling, use_tqdm=False)
+        self._record_token_usage(outs)
         return [
             self._restore_think(p, o.outputs[0].text)
             for p, o in zip(prompts, outs)
@@ -213,6 +238,7 @@ class VLLMAgent:
         prompts = [self._build_prompt(t) for t in obs_texts]
 
         outs1 = self.llm.generate(prompts, self.think_sampling, use_tqdm=False)
+        self._record_token_usage(outs1)
         think_parts = []
         forced_flags = []
         for out in outs1:
@@ -227,6 +253,7 @@ class VLLMAgent:
 
         action_prompts = [p + t + "\n" for p, t in zip(prompts, think_parts)]
         outs2 = self.llm.generate(action_prompts, self.action_sampling, use_tqdm=False)
+        self._record_token_usage(outs2)
 
         results = []
         for prompt, think_part, forced, out in zip(prompts, think_parts, forced_flags, outs2):
