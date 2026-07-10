@@ -86,7 +86,7 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 # export DEEPSEEK_API_KEY=...   # 需在环境里提供
 
 PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_v5"
+EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_v6"
 OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
