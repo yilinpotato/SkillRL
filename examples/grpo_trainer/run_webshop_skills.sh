@@ -30,19 +30,22 @@ fi
 
 # Respect an explicit CUDA_VISIBLE_DEVICES/GPUS/GPU setting.  Otherwise use at
 # most two GPUs, matching the A800 reference while remaining runnable on 1x3090.
-if [ -n "${CUDA_VISIBLE_DEVICES:-}" ] && [ "$CUDA_VISIBLE_DEVICES" != "0" ]; then
-    echo "This shared-server launcher only permits CUDA_VISIBLE_DEVICES=0." >&2
-    exit 1
-fi
-export CUDA_VISIBLE_DEVICES=0
-if command -v nvidia-smi >/dev/null 2>&1; then
+if [ -d /GLOBALFS/hit_wxia_1 ]; then
+    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
+    NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
+else
+    if [ -n "${CUDA_VISIBLE_DEVICES:-}" ] && [ "$CUDA_VISIBLE_DEVICES" != "0" ]; then
+        echo "Local shared-server launcher only permits CUDA_VISIBLE_DEVICES=0." >&2
+        exit 1
+    fi
+    export CUDA_VISIBLE_DEVICES=0
     GPU0_ACTIVE_PIDS=$(nvidia-smi --id=0 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)
     if [ -n "$GPU0_ACTIVE_PIDS" ]; then
         echo "GPU 0 is in use by PID(s): $GPU0_ACTIVE_PIDS. Refusing to start." >&2
         exit 1
     fi
 fi
-NUM_VISIBLE_GPUS=1
+NUM_VISIBLE_GPUS=${NUM_VISIBLE_GPUS:-1}
 RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
 
 # Small model (actor, trained locally)
