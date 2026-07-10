@@ -79,24 +79,6 @@ def parse_model_output(raw):
     return think, action
 
 
-def salvage_action_from_back(raw, adm):
-    """thinking 被截断、没有合法 <action> 标签时的兜底：
-    从模型原始文本【末尾往前】扫，找最后一个出现在 admissible 列表里的动作。
-    模型常在思考收尾处写出 'the action is go to drawer 1' 之类，越靠后越接近最终意图，
-    所以从后往前匹配最稳。返回 (action_str, matched_bool)。"""
-    low = raw.lower()
-    best = None  # (位置, 动作)
-    for cmd in adm:
-        if cmd == "help":
-            continue
-        pos = low.rfind(cmd.lower())   # 该动作在文本中最后一次出现的位置
-        if pos != -1 and (best is None or pos > best[0]):
-            best = (pos, cmd)
-    if best:
-        return best[1], True
-    return "", False
-
-
 def track_recep(action):
     m = re.search(r"(?:go to|open|examine|close)\s+(.+)", action.strip(), re.IGNORECASE)
     return m.group(1).strip() if m else None
@@ -154,19 +136,15 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, builder, outdir):
         prompt = builder.build(obs_text, adm, init=(step == 1))
         raw, forced = agent.act_with_meta(prompt)
         think, _ = parse_model_output(raw)
+        # alfworld_projection 现在自己就会做 admissible_commands 精确匹配 + salvage +
+        # 安全默认动作兜底，返回的 action 已经保证合法，不需要在这里再手工补救一次。
         actions, valids = alfworld_projection([raw], [adm])
         action = actions[0]
         valid = bool(valids[0])
-        salvaged = False
-        # 仍兜底：万一动作阶段也没吐出合法 <action>，从后往前匹配救回。
-        if not valid:
-            sa, ok = salvage_action_from_back(raw, adm)
-            if ok:
-                action = sa
-                salvaged = True
+        salvaged = not valid  # valid=0 时 action 是 salvage 或安全默认动作救回来的
         if forced:
             n_truncated += 1
-            tag = "✅出action" if valid or salvaged else "⚠仍无action"
+            tag = "✅精确匹配" if valid else "⚠已救回(salvage/默认)"
             print(f"  ⏱ [预算强制] Step {step} thinking 到 think_budget 被强制收尾 → {tag}: {action!r}")
         if valid:
             n_valid += 1

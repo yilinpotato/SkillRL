@@ -29,9 +29,7 @@ from mini_test_pen_shelf.env_utils import (
     load_tw_config_types, find_games_by_type, make_single_env, make_batch_env, _TASK_TYPE_TO_ID,
 )
 from mini_test_pen_shelf.prod_prompt import ProdObsBuilder
-from mini_test_pen_shelf.run_generic import (
-    extract_task, parse_model_output, salvage_action_from_back,
-)
+from mini_test_pen_shelf.run_generic import extract_task, parse_model_output
 
 
 def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
@@ -96,6 +94,65 @@ def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
     return games, task_types, tids
 
 
+def _load_resume_state(args):
+    """``--resume 1`` 时从上一次留在 ``args.outdir`` 里的 checkpoint 恢复技能库 +
+    进度；否则返回等价于当前"从零开始"行为的默认状态。
+
+    技能库恢复优先用 ``skill_lib/skills_latest_checkpoint.json``（每次
+    ``--checkpoint_every_groups`` 触发都会整份覆盖写，schema 与 ``--skills_json``
+    种子文件完全一致，见 ``SkillsOnlyMemory.save_skills``/``__init__``），其次退回
+    ``skills_latest_rollout.json``（每个 rollout group 开始前都会写一次，更新更频繁）。
+    进度（epoch/episode 位置、累计胜局、per_game 历史）从 ``summary_partial.json``
+    里同一批 checkpoint 写的字段读回。
+    """
+    state = {
+        "resume": False,
+        "skills_json_path": args.skills_json,
+        "epoch0": 0,
+        "ep_i0": 0,
+        "completed_groups": 0,
+        "wins": 0,
+        "per_game": [],
+    }
+    if not args.resume:
+        return state
+
+    summary_path = os.path.join(args.outdir, "summary_partial.json")
+    if not os.path.isfile(summary_path):
+        print(f"[driver][resume] --resume 1 但 {summary_path} 不存在，"
+              "视为全新运行（从 --skills_json 种子文件、episode 0 开始）")
+        return state
+
+    with open(summary_path) as f:
+        prev_summary = json.load(f)
+
+    skill_dir = os.path.join(args.outdir, "skill_lib")
+    for candidate in ("skills_latest_checkpoint.json", "skills_latest_rollout.json"):
+        candidate_path = os.path.join(skill_dir, candidate)
+        if os.path.isfile(candidate_path):
+            state["skills_json_path"] = candidate_path
+            break
+    else:
+        print(f"[driver][resume] 未在 {skill_dir} 找到任何技能库 checkpoint，"
+              f"技能库仍从种子文件 {args.skills_json} 加载（其余进度照常恢复）")
+
+    state["resume"] = True
+    state["epoch0"] = max(0, int(prev_summary.get("current_epoch", 1)) - 1)
+    state["ep_i0"] = max(0, int(prev_summary.get("next_episode_index_in_epoch", 1)) - 1)
+    state["completed_groups"] = int(prev_summary.get("completed_rollout_groups", 0) or 0)
+    state["wins"] = int(prev_summary.get("wins", 0) or 0)
+    state["per_game"] = list(prev_summary.get("per_game", []) or [])
+
+    print(f"[driver][resume] 从 {summary_path} 恢复：epoch={state['epoch0']+1} "
+          f"ep_i={state['ep_i0']} completed_groups={state['completed_groups']} "
+          f"wins={state['wins']}/{len(state['per_game'])} "
+          f"skill_lib<-{state['skills_json_path']}")
+    print("[driver][resume] 注意：游戏顺序由 TextWorld 内部 shuffled_cycle 决定，"
+          "跳过已完成局数是靠重建 env 后空转对应次数 reset() 对齐——同一 seed + 同一批 "
+          "game_files 下可复现，但不是数学上绝对保证的精确重放。")
+    return state
+
+
 def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
     """跑一局（冻结模型）。返回 (won, steps_used, raw_trace, task_type, injected_ids, n_valid, logrows)。
 
@@ -131,13 +188,11 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         prompt = builder.build(obs_text, adm, init=(step == 1))
         raw, forced = agent.act_with_meta(prompt)
         _, _think = None, None
+        # alfworld_projection 已经内置 admissible_commands 精确匹配 + salvage + 安全默认
+        # 动作兜底，返回的 action 一定合法，不需要在这里再手工补救一次。
         actions, valids = alfworld_projection([raw], [adm])
         action = actions[0]
         valid = bool(valids[0])
-        if not valid:
-            sa, ok = salvage_action_from_back(raw, adm)
-            if ok:
-                action = sa
         if valid:
             n_valid += 1
 
@@ -237,6 +292,8 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
         raws = [x[0] for x in raw_forced]
         forceds = [x[1] for x in raw_forced]
         active_adms = [adms[i] for i in active]
+        # alfworld_projection 已经内置 admissible_commands 精确匹配 + salvage + 安全默认
+        # 动作兜底，返回的 action 一定合法，不需要在这里再手工补救一次。
         actions, valids = alfworld_projection(raws, active_adms)
 
         full_actions = []
@@ -247,10 +304,6 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
         for local_i, i in enumerate(active):
             action = actions[local_i]
             valid = bool(valids[local_i])
-            if not valid:
-                sa, ok = salvage_action_from_back(raws[local_i], adms[i])
-                if ok:
-                    action = sa
             if valid:
                 n_valid[i] += 1
             action_by_idx[i] = action
@@ -338,13 +391,20 @@ def _token_delta(after, before):
 
 
 def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
-                       fixed_batch_size, in_q, out_q):
+                       fixed_batch_size, in_q, out_q, resume_skip_groups=0):
     """Persistent rollout worker for single-GPU data parallel inference.
 
     The worker owns one ALFWorld batch env and one vLLM engine pinned to one GPU.
     For every command it reloads the latest skill_lib snapshot, runs exactly one
     fixed-size rollout group, and returns raw episode records to the parent.  The
     parent is the only process that mutates TracesPool / cloud skill state.
+
+    ``resume_skip_groups`` (--resume 1 续跑用)：本 worker 自己的 env 在之前那次运行里
+    已经被 ``reset()`` 过这么多次（= 已完成的 rollout group 数，见 ``_load_resume_state``
+    的调用点）。同一个 seed + 同一份 game_files 下，``env.reset()`` 推进的是 TextWorld
+    内部确定性的 shuffled_cycle 迭代器，所以在真正开始收命令之前先空转这么多次 reset()
+    （丢弃返回值），才能让本次运行接着上次的游戏序列继续，而不是从头重新发一遍已经跑过
+    的局。这是尽力而为的对齐，不是数学上绝对保证的精确重放。
     """
     try:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
@@ -355,6 +415,12 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
         config = load_tw_config_types(task_type_ids, num_games=len(game_files))
         env = make_batch_env(game_files, config, batch_size=fixed_batch_size,
                              seed=int(args.seed) + 1009 * (worker_id + 1))
+        if resume_skip_groups > 0:
+            _t0 = time.time()
+            for _ in range(resume_skip_groups):
+                env.reset()
+            print(f"[dp-worker{worker_id}][resume] skipped {resume_skip_groups} reset() "
+                  f"calls to align with prior run ({time.time()-_t0:.1f}s)")
 
         from mini_test_pen_shelf.agent_vllm import VLLMAgent
         agent = VLLMAgent(
@@ -517,9 +583,15 @@ def main():
     ap.add_argument("--loop_threshold", type=int, default=3)
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--log_trajectories", type=int, default=1)
+    ap.add_argument("--resume", type=int, default=0,
+                    help="1 则从同一个 --outdir 里上一次留下的 skill_lib checkpoint + "
+                         "summary_partial.json 恢复技能库和 epoch/episode 进度，而不是从 "
+                         "--skills_json 种子文件、episode 0 重新开始。显式 opt-in，避免误用"
+                         "旧 outdir 的陈旧状态覆盖一次本想全新开始的运行。")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
+    resume_state = _load_resume_state(args)
     enable_coskill = bool(args.enable_coskill)
     enable_skill_tree = bool(args.enable_skill_tree)
     enable_skill_tree_evolve = enable_skill_tree and bool(args.enable_playbook_evolve)
@@ -527,8 +599,10 @@ def main():
         print("[driver] enable_skill_tree=0, so skill tree evolution is disabled too")
 
     # 1) 共享技能库（与训练脚本同参）。skill tree 进化写回它、rollout 从它检索，形成闭环。
+    #    --resume 1 时 resume_state["skills_json_path"] 已指向上次的 checkpoint，否则
+    #    等于 args.skills_json（种子文件），行为与不加 --resume 完全一致。
     skill_lib = HierarchicalSkillLib(
-        skills_json_path=args.skills_json,
+        skills_json_path=resume_state["skills_json_path"],
         retrieval_mode=args.retrieval_mode,
         embedding_model_path=args.embedding_model_path,
         enable_hierarchy=bool(args.enable_hierarchy),
@@ -662,7 +736,7 @@ def main():
             proc = ctx.Process(
                 target=_dp_rollout_worker,
                 args=(wid, gpu_id, args_dict, worker_games, all_tids,
-                      worker_bs, in_q, dp_out_q),
+                      worker_bs, in_q, dp_out_q, resume_state["completed_groups"]),
                 daemon=False,
             )
             proc.start()
@@ -678,6 +752,16 @@ def main():
             env = make_batch_env(all_game_files, config, batch_size=batch_rollout_size, seed=args.seed)
             print(f"[driver] batch_rollout_size={batch_rollout_size}: cloud updates are checked "
                   "only after a full rollout group finishes")
+
+        if resume_state["completed_groups"] > 0:
+            # --resume 1：同一 seed + 同一份 all_game_files 下，env.reset() 推进的是
+            # TextWorld 内部确定性的 shuffled_cycle 迭代器；空转跳过之前那次运行已经
+            # reset() 过的次数，才能接着上次的游戏序列继续，而不是重新发一遍已跑过的局。
+            _t0 = time.time()
+            for _ in range(resume_state["completed_groups"]):
+                env.reset()
+            print(f"[driver][resume] skipped {resume_state['completed_groups']} reset() "
+                  f"calls to align with prior run ({time.time()-_t0:.1f}s)")
 
         # 5) vLLM 冻结模型（只此一份）。放在所有 env 建好之后，避免上面的 fork-after-CUDA 问题。
         from mini_test_pen_shelf.agent_vllm import VLLMAgent
@@ -705,9 +789,9 @@ def main():
 
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
     group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
-    per_game = []
-    wins = 0
-    global_step = 0
+    per_game = list(resume_state["per_game"])
+    wins = resume_state["wins"]
+    global_step = len(per_game)
     tt_stats = {}  # detected_type -> {"episodes":int, "wins":int}
     cloud_updates = 0
     cloud_update_steps = []
@@ -1015,11 +1099,12 @@ def main():
         atexit.register(_shutdown_data_parallel_workers)
 
     stop_early = False
-    completed_groups = 0
-    for epoch in range(args.epochs):
+    completed_groups = resume_state["completed_groups"]
+    for epoch in range(resume_state["epoch0"], args.epochs):
         if stop_early:
             break
-        ep_i = 0
+        # 只有恢复到的第一个 epoch 从中断的 episode 位置续跑，之后的 epoch 仍从 0 开始。
+        ep_i = resume_state["ep_i0"] if epoch == resume_state["epoch0"] else 0
         while ep_i < episodes_per_epoch:
             if args.max_episodes > 0 and global_step >= args.max_episodes:
                 print(f"[driver] max_episodes={args.max_episodes} reached, stopping early")

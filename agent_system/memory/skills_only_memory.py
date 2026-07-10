@@ -162,12 +162,16 @@ class SkillsOnlyMemory(BaseMemory):
                 return 'look_at_obj_in_light'
             elif 'clean' in goal:
                 return 'clean'
-            elif 'heat' in goal:
+            elif 'heat' in goal or 'hot' in goal:
                 return 'heat'
             elif 'cool' in goal:
                 return 'cool'
             elif 'examine' in goal or 'find' in goal:
-                return 'examine'
+                # Same official ALFWorld task_type as 'look_at_obj_in_light' — it
+                # just uses the "examine the X with the Y" template instead of
+                # "look at X under the Y". Keep one label so stats/skill-tree
+                # samples aren't split across two keys.
+                return 'look_at_obj_in_light'
             else:
                 return 'pick_and_place'
 
