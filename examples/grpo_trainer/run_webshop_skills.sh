@@ -72,16 +72,16 @@ export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
 # Exported BEFORE `ray start` so the Ray actors inherit it (same as JSONL_PATH).
 export TRAJECTORY_DUMP_DIR="$OUTPUT_DIR/trajectories"
 
-num_cpus_per_env_worker=0.35 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
+num_cpus_per_env_worker="${ENV_WORKER_CPUS:-0.35}"
 
 # Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
 ray stop --force 2>/dev/null || true
 ray start --head --num-cpus="$RAY_NUM_CPUS" --num-gpus="$NUM_VISIBLE_GPUS"
 sleep 3
 
-train_data_size=12  # Minimal test (divisible by 1)
-val_data_size=32    # Minimal test
-group_size=6        # GRPO group size (trajectories per prompt)
+train_data_size="${TRAIN_DATA_SIZE:-12}"
+val_data_size="${VAL_DATA_SIZE:-32}"
+group_size="${GROUP_SIZE:-6}"
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -96,8 +96,8 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$DATA_ROOT/text/test.parquet \
     data.train_batch_size=$train_data_size \
     data.val_batch_size=$val_data_size \
-    data.max_prompt_length=8192 \
-    data.max_response_length=4096 \
+    data.max_prompt_length=${MAX_PROMPT_LENGTH:-8192} \
+    data.max_response_length=${MAX_RESPONSE_LENGTH:-4096} \
     data.filter_overlong_prompts=True \
     data.truncation='left' \
     data.return_raw_chat=True \
@@ -107,8 +107,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.target_modules=all-linear \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=36 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE:-36} \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-6} \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -152,7 +152,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=$NUM_VISIBLE_GPUS \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \
-    trainer.save_freq=10 \
-    trainer.test_freq=5 \
-    trainer.total_epochs=150 \
+    trainer.save_freq=${SAVE_FREQ:-10} \
+    trainer.test_freq=${TEST_FREQ:-5} \
+    trainer.total_epochs=${TOTAL_TRAINING_STEPS:-150} \
     trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"

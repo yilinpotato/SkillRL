@@ -320,8 +320,18 @@ class vLLMRollout(BaseRollout):
             # example with Qwen).  They must be visible when deciding whether
             # an action has already been produced.
             text = self.tokenizer.decode(ids, skip_special_tokens=False)
-            if "</action>" in text:
-                continue  # already produced an action — keep stage-1 output as is
+            action_start = text.find("<action>")
+            think_start = text.find("<think>")
+            think_end = text.find("</think>")
+            strict_complete = (
+                text.count("<think>") == 1
+                and text.count("</think>") == 1
+                and text.count("<action>") == 1
+                and text.count("</action>") == 1
+                and 0 <= think_start < think_end < action_start
+            )
+            if strict_complete:
+                continue
             # If stage 1 ended in EOS, retaining it in the continuation prompt
             # can make vLLM terminate stage 2 immediately.  Preserve all
             # reasoning tokens but drop trailing EOS markers before forcing the
