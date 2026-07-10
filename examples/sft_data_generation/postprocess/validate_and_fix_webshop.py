@@ -24,6 +24,7 @@ from collections import Counter
 # ---------------------------------------------------------------------------
 
 ACTION_RE = re.compile(r"<action>(.*?)</action>", re.DOTALL)
+THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 ADMISSIBLE_RE = re.compile(
     r"(admissible actions.*?:\s*\[)(.*?)(\]\.)", re.DOTALL
 )
@@ -71,6 +72,24 @@ THINK_TEMPLATES = {
 def parse_action(output: str) -> str | None:
     m = ACTION_RE.search(output)
     return m.group(1).strip() if m else None
+
+
+def has_one_strict_action_block(output: str) -> bool:
+    """Whether an SFT target has one ordered thinking/action pair.
+
+    Runtime rollouts require ``<think>...</think><action>...</action>``.
+    Enforcing the same contract on the final SFT artefact prevents bare
+    actions or action-only completions from teaching a conflicting format.
+    """
+    action_matches = list(ACTION_RE.finditer(output))
+    think_matches = list(THINK_RE.finditer(output))
+    return (
+        len(action_matches) == 1
+        and len(think_matches) == 1
+        and bool(think_matches[0].group(1).strip())
+        and think_matches[0].end() <= action_matches[0].start()
+        and bool(VALID_ACTION_RE.fullmatch(action_matches[0].group(1).strip()))
+    )
 
 
 def parse_admissible(instruction: str) -> list[str] | None:
@@ -812,7 +831,7 @@ def validate_and_fix(input_path: str, output_path: str, dry_run: bool = False):
     final_data = []
     for item in new_data:
         action = parse_action(item["output"])
-        if not action or not VALID_ACTION_RE.match(action):
+        if not action or not has_one_strict_action_block(item["output"]):
             stats["final_removed_invalid"] += 1
             continue
 

@@ -24,8 +24,7 @@ Your admissible actions of the current situation are:
 ].
 
 Now it's your turn to take one action for the current step.
-You should first reason step-by-step about the current situation, then think carefully which admissible action best advances the shopping goal. This reasoning process MUST be enclosed within <think> </think> tags. 
-Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+First reason about the current situation inside exactly one <think>...</think> block. Then return exactly one action block in this form: <action>click[...]</action> or <action>search[...]</action>. Do not output a bare action or any text after </action>.
 """
 
 WEBSHOP_TEMPLATE = """
@@ -39,8 +38,7 @@ Your admissible actions of the current situation are:
 ].
 
 Now it's your turn to take one action for the current step.
-You should first reason step-by-step about the current situation, then think carefully which admissible action best advances the shopping goal. This reasoning process MUST be enclosed within <think> </think> tags.
-Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+First reason about the current situation inside exactly one <think>...</think> block. Then return exactly one action block in this form: <action>click[...]</action> or <action>search[...]</action>. Do not output a bare action or any text after </action>.
 """
 
 WEBSHOP_TEMPLATE_WITH_MEMORY = """
@@ -61,6 +59,5 @@ Your admissible actions of the current situation are:
 ].
 
 Now it's your turn to take one action for the current step.
-You should first reason step-by-step about the current situation, then think carefully which admissible action best advances the shopping goal. This reasoning process MUST be enclosed within <think> </think> tags.
-Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+First reason about the current situation inside exactly one <think>...</think> block. Then return exactly one action block in this form: <action>click[...]</action> or <action>search[...]</action>. Do not output a bare action or any text after </action>.
 """

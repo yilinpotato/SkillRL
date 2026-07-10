@@ -410,7 +410,12 @@ class TrajectoryCollector:
 
             batch = batch.union(batch_output)
             
-            text_actions = self.tokenizer.batch_decode(batch.batch['responses'], skip_special_tokens=True)
+            # ``<action>`` and ``</action>`` are special tokens for some Qwen
+            # tokenizers.  They are part of WebShop's wire protocol, so do not
+            # silently strip them before handing the response to the environment.
+            text_actions = self.tokenizer.batch_decode(
+                batch.batch['responses'], skip_special_tokens=False
+            )
             
             next_obs, rewards, dones, infos = envs.step(text_actions)
 

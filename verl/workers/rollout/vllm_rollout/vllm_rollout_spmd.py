@@ -316,14 +316,39 @@ class vLLMRollout(BaseRollout):
         # Decide which samples still need a forced action.
         force_positions, force_prompts, force_suffix_ids = [], [], []
         for k, ids in enumerate(s1_tokens):
-            text = self.tokenizer.decode(ids, skip_special_tokens=True)
+            # The action delimiters can be tokenizer special tokens (for
+            # example with Qwen).  They must be visible when deciding whether
+            # an action has already been produced.
+            text = self.tokenizer.decode(ids, skip_special_tokens=False)
             if "</action>" in text:
                 continue  # already produced an action — keep stage-1 output as is
-            force_str = "\n</think>\n\n<action>" if "</think>" not in text else "\n<action>"
+            # If stage 1 ended in EOS, retaining it in the continuation prompt
+            # can make vLLM terminate stage 2 immediately.  Preserve all
+            # reasoning tokens but drop trailing EOS markers before forcing the
+            # opening action tag.
+            eos_ids = self.tokenizer.eos_token_id
+            if not isinstance(eos_ids, (list, tuple, set)):
+                eos_ids = (eos_ids,)
+            base_ids = list(ids)
+            while base_ids and base_ids[-1] in eos_ids:
+                base_ids.pop()
+            s1_tokens[k] = base_ids
+
+            # WebShop shares ALFWorld's strict two-block protocol.  Close an
+            # unfinished thought when present; if the model did not open one,
+            # insert a minimal completed thought before forcing the action.
+            has_unclosed_think = "<think>" in text and "</think>" not in text
+            has_completed_think = "<think>" in text and "</think>" in text
+            if has_unclosed_think:
+                force_str = "\n</think>\n\n<action>"
+            elif has_completed_think:
+                force_str = "\n<action>"
+            else:
+                force_str = "\n<think>\nChoose one admissible action.\n</think>\n\n<action>"
             suffix_ids = self.tokenizer.encode(force_str, add_special_tokens=False)
             force_positions.append(k)
             force_prompts.append({
-                "prompt_token_ids": list(vllm_inputs[prompt_idx_of[k]]["prompt_token_ids"]) + ids + suffix_ids
+                "prompt_token_ids": list(vllm_inputs[prompt_idx_of[k]]["prompt_token_ids"]) + base_ids + suffix_ids
             })
             force_suffix_ids.append(suffix_ids)
 
@@ -335,6 +360,7 @@ class vLLMRollout(BaseRollout):
                 "n": 1,
                 "max_tokens": action_reserve,
                 "detokenize": True,
+                "ignore_eos": True,
                 "stop": ["</action>"],
                 "include_stop_str_in_output": True,
             })
