@@ -29,6 +29,7 @@ class VLLMAgent:
         no_wait=False,     # NoWait: 抑制 "Wait/Hmm/Alternatively..." 回溯词。默认关闭，
                            # 需要时显式开启（budget forcing 已能控制思考长度）。
         think_budget=3500, # 思考预算：第一阶段生成上限。到此还没 </think> 就强制收尾出 action
+        action_budget=256, # 第二阶段动作预算；WebShop 用 128，使 640+128 对齐 response=768
     ):
         from vllm import LLM, SamplingParams
         from transformers import AutoTokenizer
@@ -82,9 +83,10 @@ class VLLMAgent:
         # 动作阶段：思考已被强制关闭，只需很短长度吐出 <action>...</action>。
         self.action_sampling = SamplingParams(
             temperature=temperature, top_p=0.95,
-            max_tokens=256, stop=["</action>"], include_stop_str_in_output=True,
+            max_tokens=action_budget, stop=["</action>"], include_stop_str_in_output=True,
         )
         self.enable_thinking = enable_thinking
+        self.action_budget = action_budget
         # Exact inference-token accounting from vLLM RequestOutput objects.
         # Prompt tokens count every model invocation.  With two-stage budget
         # forcing this intentionally includes both the thinking request and the

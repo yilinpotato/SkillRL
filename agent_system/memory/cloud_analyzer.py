@@ -39,6 +39,7 @@ class CloudAnalyzer:
         max_new_skills_per_update: int = 3,
         max_completion_tokens: int = 4096,
         output_dir: Optional[str] = None,
+        environment_name: str = "generic",
     ):
         from openai import AzureOpenAI, OpenAI  # 延迟导入，避免无依赖时整包不可用
 
@@ -67,6 +68,7 @@ class CloudAnalyzer:
 
         self.max_completion_tokens = max_completion_tokens
         self.max_new_skills_per_update = max_new_skills_per_update
+        self.environment_name = str(environment_name or "generic")
         self.update_history: List[Dict] = []
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
@@ -244,8 +246,14 @@ class CloudAnalyzer:
             )
         forks = self._format_forks(prefix_tree)
 
+        domain_context = self._domain_context()
         return f"""Role: You are an expert failure-analysis agent for sequential decision-making agent
-tasks (task-agnostic — reason from the trajectories themselves, do not assume any specific domain).
+tasks. The current environment is {self.environment_name}. Reason from the trajectories and the
+environment contract below; do not import assumptions from a different benchmark.
+
+ENVIRONMENT CONTRACT:
+{domain_context}
+
 Goal: For each FAILED trajectory, diagnose WHY it failed. Use the SUCCESSFUL trajectories of the
 same task_type as the ground-truth reference of correct behaviour, and the environment's success
 criterion as the correctness anchor. Each step shows the action taken and the OBSERVATION DELTA
@@ -285,7 +293,9 @@ Return ONLY the JSON array, no other text."""
         for tr in traces:
             steps = tr.get("steps", [])
             fold = self._fold_count(steps, consensus)
-            lines = [f"\n[ref={tr.get('_ref', '?')}] task: {tr.get('task', '')}"]
+            score = tr.get("task_score")
+            score_text = f" task_score={score}" if score is not None else ""
+            lines = [f"\n[ref={tr.get('_ref', '?')}]{score_text} task: {tr.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded)")
             for s in steps[fold:fold + 12]:
@@ -397,14 +407,17 @@ Return ONLY the JSON array, no other text."""
                    "(none — no shared successful opening yet)")
 
         return f"""You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is {self.environment_name}.
+ENVIRONMENT CONTRACT: {self._domain_context()}
+
 This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
 the current goal family "{task_type}" and will be read at the TOP of the agent's prompt when a future
 task is detected as the same family. Do not mix in rules for unrelated goal families.
 
 Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
 goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
-hard-code benchmark labels, exact sampled object IDs, room layouts, or ALFWorld-specific task-type
-names as if they were the method. The skill tree should teach the agent how to assess its own
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
 situation and what to do next — the goal, the decision flow, and the concrete actions — using only
 what the prompt already contains, with no externally injected state hints.
 
@@ -575,7 +588,31 @@ Return ONLY the JSON object, no other text."""
             f'"dyn_{next_dyn_idx + j:03d}"' for j in range(self.max_new_skills_per_update)
         )
 
-        return f"""You are an expert at distilling embodied-agent experience into reusable skills.
+        observed_types = sorted({
+            str(trace.get("task_type") or "unknown")
+            for trace in ((batch.get("success_samples", []) or [])
+                          + (batch.get("failure_samples", []) or []))
+        })
+        allowed_types = ", ".join(f'"{tt}"' for tt in observed_types)
+        example_task_type = observed_types[0] if observed_types else "unknown"
+        if self.environment_name.lower() == "webshop":
+            seed_example = (
+                f'{{"skill_id": "dyn_{next_dyn_idx:03d}", "title": "Verify Before Purchase", '
+                f'"scope": "task_specific", "task_type": "{example_task_type}", '
+                '"principle": "Before buying, verify the product text, price, and every required option; select each matching option first.", '
+                '"when_to_apply": "On a product page before click[buy now]."}'
+            )
+        else:
+            seed_example = (
+                f'{{"skill_id": "dyn_{next_dyn_idx:03d}", "title": "Open Before Search", '
+                f'"scope": "task_specific", "task_type": "{example_task_type}", '
+                '"principle": "If the target may be inside a closed container, open each closed container before searching its contents.", '
+                '"when_to_apply": "When the goal object is not visible and closed containers remain."}'
+            )
+
+        return f"""You are an expert at distilling sequential-agent experience into reusable skills.
+The current environment is {self.environment_name}.
+ENVIRONMENT CONTRACT: {self._domain_context()}
 
 You are given COMPRESSED trajectories for task_type="{task_type}". Each step shows the action
 taken and the OBSERVATION DELTA (only what changed in the environment: +added / -removed lines).
@@ -596,21 +633,42 @@ TASK — Contrastive Analysis:
 3. Avoid duplicating these existing skills: {existing_titles}
 
 WRITING STYLE — keep skills SHORT and SIMPLE so a small 4B model can follow them.
-Match the format of these hand-written seed skills exactly:
-  {{"skill_id": "gen_001", "title": "Systematic Exploration", "principle": "Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations.", "when_to_apply": "Anytime the goal object count is not yet met and unexplored locations remain."}}
+Match the concise format of the existing hand-written seed skills.
 
 Return ONLY a JSON array. Each skill MUST have EXACTLY these fields (no extra fields):
   - "skill_id":      one of {example_ids}
   - "title":         3-5 word title
   - "scope":         "general" or "task_specific"
-  - "task_type":     "{task_type}" (or "" if general)
+  - "task_type":     one of [{allowed_types}] when task_specific, or "" if general. Never use "ALL".
   - "principle":     ONE or TWO plain sentences stating the rule. Keep it under 30 words. No JSON, no lists.
   - "when_to_apply": ONE short sentence naming the situation that triggers this skill. Under 20 words.
 
 Example:
-[{{"skill_id": "dyn_{next_dyn_idx:03d}", "title": "Open Before Search", "scope": "task_specific", "task_type": "{task_type}", "principle": "If the target may be inside a closed container, open each closed container before searching its contents.", "when_to_apply": "When the goal object is not visible and closed containers remain."}}]
+[{seed_example}]
 
 Return ONLY the JSON array, no other text."""
+
+    def _domain_context(self) -> str:
+        """Short action/reward contract injected into every cloud prompt."""
+        env = self.environment_name.lower()
+        if env == "webshop":
+            return (
+                "Actions are exactly search[query] or click[visible text]. Search queries are free-form; "
+                "click targets must be visible/clickable. The goal is to purchase a product satisfying "
+                "all requested attributes, options, and price. click[buy now] terminates; only task_score "
+                "1.0 is a success, while a lower terminal score is a failed partial match. Never invent "
+                "ALFWorld rooms, receptacles, or manipulation actions."
+            )
+        if env == "alfworld":
+            return (
+                "Actions must be selected from the provided admissible household actions. Success means "
+                "the requested object manipulation/state goal is completed. Do not invent shopping search, "
+                "product-option, or purchase actions."
+            )
+        return (
+            "Infer legal actions and the success criterion only from the supplied goals, observations, "
+            "actions, rewards, and successful reference trajectories."
+        )
 
     @staticmethod
     def _fold_count(steps: List[Dict], consensus: Optional[List[str]]) -> int:
@@ -633,7 +691,9 @@ Return ONLY the JSON array, no other text."""
         for i, tr in enumerate(traces[:limit]):
             steps = tr.get("steps", [])
             fold = self._fold_count(steps, consensus)
-            lines = [f"\nTrajectory {i + 1} [{tr.get('outcome', '?')}] task: {tr.get('task', '')}"]
+            score = tr.get("task_score")
+            score_text = f" task_score={score}" if score is not None else ""
+            lines = [f"\nTrajectory {i + 1} [{tr.get('outcome', '?')}]{score_text} task: {tr.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded, already mastered)")
             for s in steps[fold:fold + 12]:
@@ -714,6 +774,11 @@ Return ONLY the JSON array, no other text."""
         """重分配 dyn_ ID、补全兼容字段（principle/when_to_apply）、附 evidence。"""
         n_succ = len(batch.get("success_samples", []))
         n_fail = len(batch.get("failure_samples", []))
+        observed_types = {
+            str(trace.get("task_type") or "unknown")
+            for trace in ((batch.get("success_samples", []) or [])
+                          + (batch.get("failure_samples", []) or []))
+        }
         out: List[Dict] = []
         for i, s in enumerate(skills):
             patch = dict(s)
@@ -735,6 +800,16 @@ Return ONLY the JSON array, no other text."""
             patch.pop("avoid", None)
             patch.pop("trigger", None)
             patch.setdefault("scope", "general")
+            if patch.get("scope") == "task_specific":
+                patch_type = str(patch.get("task_type") or "")
+                if patch_type not in observed_types:
+                    # A mixed export has task_type=ALL; never create an
+                    # unreachable `task_specific_skills["ALL"]` bucket.
+                    if len(observed_types) == 1:
+                        patch["task_type"] = next(iter(observed_types))
+                    else:
+                        patch["scope"] = "general"
+                        patch["task_type"] = ""
             patch["evidence"] = {"from_success": n_succ, "from_failure": n_fail}
             out.append(patch)
         return out

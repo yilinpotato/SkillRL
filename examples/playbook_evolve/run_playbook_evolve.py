@@ -632,6 +632,7 @@ def main():
         max_new_skills=args.max_new_skills,
         playbook_evolve_min_samples=args.playbook_evolve_min_samples,
         coskill_debug=bool(args.coskill_debug),
+        environment_name="ALFWorld",
     )
 
     # 4) 建所有 task_type 的环境（在加载 vLLM/CUDA 之前！）。

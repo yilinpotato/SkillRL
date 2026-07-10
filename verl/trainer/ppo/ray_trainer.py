@@ -1183,6 +1183,7 @@ class RayPPOTrainer:
                 max_new_skills=cfg.get('max_new_skills', 3),
                 playbook_evolve_min_samples=cfg.get('playbook_evolve_min_samples', 6),
                 coskill_debug=cfg.get('coskill_debug', False),
+                environment_name=str(self.config.env.env_name),
             )
         return self._coskill_loop
 

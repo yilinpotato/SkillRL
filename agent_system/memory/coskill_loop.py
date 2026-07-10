@@ -45,6 +45,7 @@ class CoSkillCloudLoop:
         max_new_skills: int = 3,
         playbook_evolve_min_samples: int = 6,
         coskill_debug: bool = False,
+        environment_name: str = "generic",
     ):
         self.output_dir = output_dir
         self.enable_coskill = enable_coskill
@@ -53,6 +54,7 @@ class CoSkillCloudLoop:
         self.max_new_skills = max_new_skills
         self.playbook_evolve_min_samples = playbook_evolve_min_samples
         self.coskill_debug = coskill_debug
+        self.environment_name = str(environment_name or "generic")
 
         self.cloud_analyzer = None
         self._analyzer_init_failed = False
@@ -69,6 +71,7 @@ class CoSkillCloudLoop:
                 self.cloud_analyzer = CloudAnalyzer(
                     max_new_skills_per_update=self.max_new_skills,
                     output_dir=self.output_dir,
+                    environment_name=self.environment_name,
                 )
             except Exception as e:
                 # e.g. missing DEEPSEEK_API_KEY. The compressed batch is already

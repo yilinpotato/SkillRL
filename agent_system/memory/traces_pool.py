@@ -152,6 +152,11 @@ class TracesPool:
             # (task_type="ALL"),下游 playbook 进化需按 task_type 分组成功/失败样本。
             "task_type": task_type,
             "outcome": outcome,
+            "episode_reward": raw_trace.get("episode_reward", 0),
+            # WebShop exposes a graded terminal score even though CoSkill uses
+            # strict score==1.0 for success.  Preserve it so the cloud can tell
+            # a near match from a completely wrong purchase.
+            "task_score": (raw_trace.get("meta") or {}).get("task_score"),
             "steps": diff_steps,
             "dropped_loops": dropped,
             "skill_ids_used": (raw_trace.get("meta") or {}).get("skill_ids_used", []),
