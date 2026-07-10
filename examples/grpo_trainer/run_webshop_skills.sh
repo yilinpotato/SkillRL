@@ -78,6 +78,13 @@ num_cpus_per_env_worker="${ENV_WORKER_CPUS:-0.35}"
 # Ray release with a newer Click whose Sentinel cannot be deep-copied by the
 # Ray CLI. main_ppo calls Python's ray.init() itself, which avoids that broken
 # command-line entry point and receives the CPU limit below via ray_init.*.
+ray_init_args=("ray_init.num_cpus=$RAY_NUM_CPUS")
+if [ -n "${RAY_ADDRESS:-}" ]; then
+    # Ray will connect to the scheduler-provided cluster. Passing local
+    # resource declarations in this mode is rejected by ray.init().
+    ray_init_args=()
+    echo "Using existing Ray cluster at RAY_ADDRESS=$RAY_ADDRESS"
+fi
 
 train_data_size="${TRAIN_DATA_SIZE:-12}"
 val_data_size="${VAL_DATA_SIZE:-32}"
@@ -155,5 +162,5 @@ python3 -m verl.trainer.main_ppo \
     trainer.save_freq=${SAVE_FREQ:-10} \
     trainer.test_freq=${TEST_FREQ:-5} \
     trainer.total_epochs=${TOTAL_TRAINING_STEPS:-150} \
-    ray_init.num_cpus=$RAY_NUM_CPUS \
+    "${ray_init_args[@]}" \
     trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"
