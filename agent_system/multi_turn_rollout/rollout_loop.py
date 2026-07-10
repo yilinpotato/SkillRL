@@ -422,7 +422,11 @@ class TrajectoryCollector:
 
             batch = batch.union(batch_output)
             
-            text_actions = self.tokenizer.batch_decode(batch.batch['responses'], skip_special_tokens=True)
+            # Preserve Qwen's <think>/<action> protocol tokens until WebShop
+            # projection validates and extracts the executable action.
+            text_actions = self.tokenizer.batch_decode(
+                batch.batch['responses'], skip_special_tokens=False
+            )
 
             # Snapshot raw model outputs BEFORE envs.step(): the projection step
             # mutates text_actions in place (lowercases / truncates), so we must
