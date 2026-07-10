@@ -69,15 +69,15 @@ echo "Ray resources: CPUs=$RAY_NUM_CPUS GPUs=$NUM_VISIBLE_GPUS"
 export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
 
 # Per-episode rollout trajectories (prompt/response/reward) for human inspection.
-# Exported BEFORE `ray start` so the Ray actors inherit it (same as JSONL_PATH).
+# Exported before Python starts so the Ray actors inherit it (same as JSONL_PATH).
 export TRAJECTORY_DUMP_DIR="$OUTPUT_DIR/trajectories"
 
 num_cpus_per_env_worker="${ENV_WORKER_CPUS:-0.35}"
 
-# Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
-ray stop --force 2>/dev/null || true
-ray start --head --num-cpus="$RAY_NUM_CPUS" --num-gpus="$NUM_VISIBLE_GPUS"
-sleep 3
+# Do not call `ray start` / `ray stop`: some cluster environments combine a
+# Ray release with a newer Click whose Sentinel cannot be deep-copied by the
+# Ray CLI. main_ppo calls Python's ray.init() itself, which avoids that broken
+# command-line entry point and receives the CPU limit below via ray_init.*.
 
 train_data_size="${TRAIN_DATA_SIZE:-12}"
 val_data_size="${VAL_DATA_SIZE:-32}"
@@ -155,4 +155,5 @@ python3 -m verl.trainer.main_ppo \
     trainer.save_freq=${SAVE_FREQ:-10} \
     trainer.test_freq=${TEST_FREQ:-5} \
     trainer.total_epochs=${TOTAL_TRAINING_STEPS:-150} \
+    ray_init.num_cpus=$RAY_NUM_CPUS \
     trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"
