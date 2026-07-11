@@ -60,10 +60,16 @@ PROJECT_NAME="verl_agent_webshop"
 EXPERIMENT_NAME="grpo_qwen3_4b_webshop_skills_dynamic_lora"
 OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
+# datasets.load_dataset("parquet") writes dataset_info.json while building its
+# cache.  A shared global HF cache on the supercomputer can contain stale
+# *.incomplete entries or be written by another job, so isolate it per run.
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$OUTPUT_DIR/hf_datasets_cache}"
+mkdir -p "$HF_DATASETS_CACHE"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 echo "Run environment detected: $RUN_ENV"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
 echo "Ray resources: CPUs=$RAY_NUM_CPUS GPUs=$NUM_VISIBLE_GPUS"
+echo "HF_DATASETS_CACHE: $HF_DATASETS_CACHE"
 
 # Per-step training metrics are appended here as one JSON object per line.
 export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
