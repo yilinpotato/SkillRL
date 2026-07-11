@@ -416,6 +416,14 @@ class TrajectoryCollector:
             text_actions = self.tokenizer.batch_decode(
                 batch.batch['responses'], skip_special_tokens=False
             )
+            projected_actions = [None] * batch_size
+            action_details = [None] * batch_size
+            if "webshop" in str(self.config.env.env_name).lower():
+                # Debug-only protocol audit. This mirrors the CoSkill WebShop
+                # report without changing the action that envs.step receives.
+                from agent_system.environments.env_package.webshop.projection import webshop_projection
+                projected_actions, _, action_details = webshop_projection(
+                    list(text_actions), return_details=True)
             
             next_obs, rewards, dones, infos = envs.step(text_actions)
 
@@ -457,6 +465,17 @@ class TrajectoryCollector:
                         'step': int(_step),
                         'observation': cur_obs_text[i] if cur_obs_text is not None else None,
                         'model_response': text_actions[i],
+                        'projected_action': projected_actions[i],
+                        'valid_action': (
+                            action_details[i].get('valid_action') if action_details[i] else None
+                        ),
+                        'strict_valid_action': (
+                            action_details[i].get('strict_valid_action') if action_details[i] else None
+                        ),
+                        'execution_source': (
+                            action_details[i].get('execution_source') if action_details[i] else None
+                        ),
+                        'env_action': info_i.get('env_action', None),
                         'reward': float(torch_to_numpy(rewards)[i]),
                         'is_action_valid': bool(batch.non_tensor_batch['is_action_valid'][i]),
                         'done': bool(dones[i]),
@@ -512,6 +531,7 @@ class TrajectoryCollector:
             self._traj_dump_count += 1
 
             n_written = 0
+            written_episodes = []
             with open(fpath, 'w', encoding='utf-8') as f:
                 for i in range(batch_size):
                     if n_written >= self._traj_dump_max:
@@ -525,10 +545,33 @@ class TrajectoryCollector:
                         'episode_length': int(episode_lengths[i]),
                         'success': bool(success_flags[i]) if success_flags is not None and i < len(success_flags) else None,
                         'num_valid_actions': int(sum(s['is_action_valid'] for s in traj_records[i])),
+                        'num_relaxed_valid_actions': int(sum(
+                            bool(s.get('valid_action')) for s in traj_records[i]
+                        )),
+                        'num_strict_valid_actions': int(sum(
+                            bool(s.get('strict_valid_action')) for s in traj_records[i]
+                        )),
                         'steps': traj_records[i],
                     }
                     f.write(json.dumps(episode, ensure_ascii=False) + '\n')
+                    written_episodes.append(episode)
                     n_written += 1
+            readable_path = os.path.splitext(fpath)[0] + '.txt'
+            with open(readable_path, 'w', encoding='utf-8') as f:
+                for ep_idx, episode in enumerate(written_episodes, 1):
+                    f.write(
+                        f"{'=' * 78}\nEpisode {ep_idx} success={episode['success']} "
+                        f"reward={episode['episode_reward']} steps={episode['episode_length']}\n"
+                    )
+                    for step in episode['steps']:
+                        f.write(
+                            f"[{step['step']}] valid={step.get('valid_action')} "
+                            f"strict={step.get('strict_valid_action')} "
+                            f"source={step.get('execution_source')} "
+                            f"env_action={step.get('env_action')} reward={step['reward']}\n"
+                        )
+                        f.write(f"obs: {step.get('observation')}\n")
+                        f.write(f"raw: {step.get('model_response')}\n")
             print(f"[TrajectoryDump] Wrote {n_written} episodes to {fpath}")
         except Exception as e:
             # Never let trajectory logging break training.

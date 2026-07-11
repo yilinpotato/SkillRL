@@ -16,7 +16,7 @@
 from typing import List
 import re
 
-def webshop_projection(actions: List[str]):
+def webshop_projection(actions: List[str], return_details: bool = False):
     """
     A function to process the actions.
     actions: the list of actions to be processed, it is a list of strings.
@@ -30,6 +30,7 @@ def webshop_projection(actions: List[str]):
     """
 
     valids = [0] * len(actions)
+    details = []
 
     for i in range(len(actions)):
         original_str = actions[i]  # keep the original string
@@ -40,20 +41,13 @@ def webshop_projection(actions: List[str]):
         end_tag = "</action>"
         start_idx = actions[i].find(start_tag)
         end_idx = actions[i].find(end_tag)
-        try:
-            if start_idx == -1 or end_idx == -1:
-                # If we can't find a valid <action>...</action> block, mark as invalid
-                actions[i] = actions[i][-20:]  # 0 is invalid action for Sokoban
-                continue
-
-            # Extract just the content between the tags
+        has_action_block = start_idx != -1 and end_idx != -1 and start_idx < end_idx
+        if has_action_block:
             extracted_action = actions[i][start_idx + len(start_tag):end_idx].strip().lower()
-            
             actions[i] = extracted_action
-            valids[i] = 1
-
-        except:
-            # randomly choose an action from the action list if illegal
+        else:
+            # Preserve historical malformed-output handling; the environment
+            # decides whether this suffix is executable.
             actions[i] = actions[i][-20:]
 
         # Require one completed thinking block before the action.  Do this on
@@ -62,20 +56,33 @@ def webshop_projection(actions: List[str]):
         think_start_idx = original_str.find("<think>")
         think_end_idx = original_str.find("</think>")
         action_start_idx = original_str.find("<action>")
-        if (
-            original_str.count("<think>") != 1
-            or original_str.count("</think>") != 1
-            or original_str.count("<action>") != 1
-            or original_str.count("</action>") != 1
-            or think_start_idx == -1
-            or think_end_idx == -1
-            or think_start_idx >= think_end_idx
-            or think_end_idx > action_start_idx
-        ):
-            valids[i] = 0
+        strict_valid_action = has_action_block and (
+            original_str.count("<think>") == 1
+            and original_str.count("</think>") == 1
+            and original_str.count("<action>") == 1
+            and original_str.count("</action>") == 1
+            and think_start_idx != -1
+            and think_end_idx != -1
+            and think_start_idx < think_end_idx < action_start_idx < original_str.find("</action>")
+        )
 
         # check if contains any Chinese characters
-        if re.search(r'[\u4e00-\u9fff]', original_str):
-            valids[i] = 0
+        contains_cjk = bool(re.search(r'[\u4e00-\u9fff]', original_str))
+        if contains_cjk:
+            strict_valid_action = False
 
+        # valid_action is the historical, non-strict action-block metric;
+        # strict_valid_action is the complete dual-block protocol metric.
+        valids[i] = int(strict_valid_action)
+        details.append({
+            "valid_action": bool(has_action_block),
+            "strict_valid_action": bool(strict_valid_action),
+            "execution_source": "direct" if has_action_block else "malformed",
+            "has_action_block": bool(has_action_block),
+            "has_think_block": think_start_idx != -1 and think_end_idx != -1,
+            "contains_cjk": contains_cjk,
+        })
+
+    if return_details:
+        return actions, valids, details
     return actions, valids
