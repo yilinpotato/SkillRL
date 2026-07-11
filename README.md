@@ -23,6 +23,10 @@ Bridging the gap between raw experience and policy improvement through automatic
 
 SkillRL is a framework that enables LLM agents to learn high-level, reusable behavioral patterns from past experiences. While traditional memory-based methods store redundant and noisy raw trajectories, SKILLRL abstracts these into a hierarchical skill library.
 
+> CoSkill 的 ALFWorld / WebShop 冻结模型端云协同实验，请阅读
+> [COSKILL运行与实验指南.md](COSKILL运行与实验指南.md)。其中包含启动命令、全部运行参数、
+> GPU/数据要求、输出指标、恢复、消融与评测边界。
+
 ## 🤖 Key Features
 
 - **Experience-based Skill Distillation**: Transforms successful trajectories into strategic patterns and failed ones into concise lessons from failure.
