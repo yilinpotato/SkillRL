@@ -76,7 +76,7 @@ num_cpus_per_env_worker="${ENV_WORKER_CPUS:-0.35}"
 # 4,096-token WebShop trajectories can exceed an A800's activation budget with
 # the previous 6-sample micro-batch. Conservative defaults keep the formal
 # 12×6 rollout batch while reducing per-GPU backward memory.
-export PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-12}"
+export PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-36}"
 export PPO_MICRO_BATCH_SIZE_PER_GPU="${PPO_MICRO_BATCH_SIZE_PER_GPU:-2}"
 export LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
 export REF_LOG_PROB_MICRO_BATCH_PER_GPU="${REF_LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
