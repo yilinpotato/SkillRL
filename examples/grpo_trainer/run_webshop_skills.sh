@@ -73,6 +73,15 @@ export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
 export TRAJECTORY_DUMP_DIR="$OUTPUT_DIR/trajectories"
 
 num_cpus_per_env_worker="${ENV_WORKER_CPUS:-0.35}"
+# 4,096-token WebShop trajectories can exceed an A800's activation budget with
+# the previous 6-sample micro-batch. Conservative defaults keep the formal
+# 12×6 rollout batch while reducing per-GPU backward memory.
+export PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-12}"
+export PPO_MICRO_BATCH_SIZE_PER_GPU="${PPO_MICRO_BATCH_SIZE_PER_GPU:-2}"
+export LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
+export REF_LOG_PROB_MICRO_BATCH_PER_GPU="${REF_LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
+export FSDP_PARAM_OFFLOAD="${FSDP_PARAM_OFFLOAD:-True}"
+export FSDP_OPTIMIZER_OFFLOAD="${FSDP_OPTIMIZER_OFFLOAD:-True}"
 
 # Do not call `ray start` / `ray stop`: some cluster environments combine a
 # Ray release with a newer Click whose Sentinel cannot be deep-copied by the
@@ -114,15 +123,15 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.target_modules=all-linear \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE:-36} \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-6} \
+    actor_rollout_ref.actor.ppo_mini_batch_size=$PPO_MINI_BATCH_SIZE \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$PPO_MICRO_BATCH_SIZE_PER_GPU \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
-    actor_rollout_ref.actor.fsdp_config.param_offload=False \
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
+    actor_rollout_ref.actor.fsdp_config.param_offload=$FSDP_PARAM_OFFLOAD \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=$FSDP_OPTIMIZER_OFFLOAD \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=$LOG_PROB_MICRO_BATCH_PER_GPU \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
@@ -133,8 +142,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.max_num_seqs=32 \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
-    actor_rollout_ref.ref.fsdp_config.param_offload=False \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$REF_LOG_PROB_MICRO_BATCH_PER_GPU \
+    actor_rollout_ref.ref.fsdp_config.param_offload=$FSDP_PARAM_OFFLOAD \
     actor_rollout_ref.actor.use_invalid_action_penalty=True \
     actor_rollout_ref.actor.invalid_action_penalty_coef=0.1 \
     algorithm.use_kl_in_reward=False \
