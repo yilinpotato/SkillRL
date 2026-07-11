@@ -6,14 +6,15 @@
      ``ALFWORLD_TEMPLATE_WITH_MEMORY``，没开就用 ``ALFWORLD_TEMPLATE``。
   2. history：``SimpleMemory`` 存「step 前 raw obs + 动作」，每步取最近
      ``history_length`` 条（主管线默认 2）。
-  3. 注入物：playbook（``seed_playbooks`` 经 ``format_for_prompt`` 放最前）+
-     skill bullets（general/task/mistakes）。
+    3. 注入物：仅运行中由云端从轨迹生成、并存入共享 ``skill_lib`` 的
+     playbook + skill bullets（general/task/mistakes）。
 
 本模块用**同一套** SkillsOnlyMemory + SimpleMemory + 模板，做单环境忠实镜像，
 让 mini_test 不再用自己那套 ``strategy.py`` 头 + ``[INVENTORY]/[ALREADY SEARCHED]``
 每步注入，从而与训练时小模型实际看到的 prompt 一致。
 
-默认：playbook 开、skill bullets 关、history=2 —— 即「playbook 默认加、skills 先不加」。
+默认：允许注入已由云端生成的 playbook、skill bullets 关、history=2。新运行在首次
+云端周期前没有 playbook；本模块不会加载任何手写 seed playbook。
 把 ``with_skills=True`` 即把 bullets 接回来，与主管线 skills-on 路径一致。
 """
 import os
@@ -42,20 +43,16 @@ class ProdObsBuilder:
         skills_json_path: 技能库 JSON（与主管线同一份）。
         history_length:   最近历史步数，主管线默认 2。
         with_skills:      是否注入 general/task/mistakes 三类 bullet 技能。默认 False。
-        enable_playbook:  是否注入结构化 playbook。默认 True。
+        enable_playbook:  是否注入运行中由云端生成的结构化 playbook。默认 True。
     """
 
     def __init__(self, skills_json_path: Optional[str] = None,
                  history_length: int = 2, with_skills: bool = False, top_k: int = 6,
-                 enable_playbook: bool = True, playbook_examples: bool = True,
-                 mem_lib=None):
+                 enable_playbook: bool = True, mem_lib=None):
         self.history_length = history_length
         self.with_skills = with_skills
         self.top_k = top_k
         self.enable_playbook = enable_playbook
-        # playbook_examples=False -> use the lean playbook (concrete few-shot
-        # examples / object->location lists stripped) to ablate their effect.
-        self.playbook_examples = playbook_examples
         # mem_lib injection: the standalone playbook-evolution driver passes a
         # LIVE HierarchicalSkillLib (embedding mode, same args as the training
         # script) so the prompt matches env_manager.build_text_obs byte-for-byte
@@ -86,13 +83,6 @@ class ProdObsBuilder:
         self._task = task
         self.history.reset(1)
         self.retrieved = self.mem_lib.retrieve(task_description=task, top_k=self.top_k)
-        # Swap to the lean (no-examples) playbook if requested.
-        if self.enable_playbook and not self.playbook_examples:
-            from agent_system.memory.seed_playbooks import get_seed_playbook
-            lean = get_seed_playbook(self.retrieved.get("task_type"), with_examples=False)
-            if lean:
-                self.retrieved = dict(self.retrieved)
-                self.retrieved["playbook"] = lean
         if not self.with_skills:
             # 关掉 bullets：清空三类技能，仅保留 playbook（format_for_prompt 会跳过空段）。
             self.retrieved = dict(self.retrieved)

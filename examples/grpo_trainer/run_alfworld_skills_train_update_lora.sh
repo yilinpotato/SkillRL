@@ -175,7 +175,7 @@ python3 -m verl.trainer.main_ppo \
     `# 之后每次 watermark 触发, 大模型读新轨迹判断小模型是否看懂/用对 playbook, 决定 keep/refine/rewrite。` \
     `# 与 skill 蒸馏(enable_coskill)解耦: 可 skills 关、playbook 开。产物落盘 OUTPUT_DIR/playbook_io/。` \
     +env.skills_only_memory.enable_playbook_evolve=True \
-    `# 每云端周期一次批量失败诊断(以同类成功轨迹为 gold 参照), 给每条失败轨迹附错误原因, 喂给 playbook 进化。` \
+    `# 每云端周期一次批量失败诊断(以同类成功 rollout 为参照), 给每条失败轨迹附错误原因, 喂给 playbook 进化。` \
     +env.skills_only_memory.enable_failure_analysis=True \
     `# 某 task_type 至少累积多少条(成功+失败)轨迹才进化其 playbook, 避免样本不足时乱改。` \
     +env.skills_only_memory.playbook_evolve_min_samples=6 \

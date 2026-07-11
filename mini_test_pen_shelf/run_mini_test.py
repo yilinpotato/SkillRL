@@ -228,13 +228,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--num_games", type=int, default=3)
     ap.add_argument("--max_steps", type=int, default=40)
-    # prompt 与主管线对齐：playbook 默认开、history 默认 2、skill-bullets 默认关。
+    # prompt 与主管线对齐：只允许注入云端运行中生成的 playbook、history 默认 2、skill-bullets 默认关。
     ap.add_argument("--with_skills", action="store_true",
                     help="注入 general/task/mistakes 三类 bullet 技能（默认关，先不加 skills）")
     ap.add_argument("--no_playbook", action="store_true",
                     help="关闭结构化 playbook（默认开）")
-    ap.add_argument("--no_playbook_examples", action="store_true",
-                    help="去掉 playbook 里的具体示例(few-shot: 物体→位置列表、e.g. 例子)，用精简版")
     ap.add_argument("--history_length", type=int, default=2,
                     help="最近历史步数，与主管线默认一致(=2)")
     ap.add_argument("--skills_json", default=None,
@@ -290,10 +288,9 @@ def main():
     builder = ProdObsBuilder(skills_json_path=args.skills_json,
                              history_length=args.history_length,
                              with_skills=args.with_skills,
-                             enable_playbook=not args.no_playbook,
-                             playbook_examples=not args.no_playbook_examples)
+                             enable_playbook=not args.no_playbook)
     print(f"[prod_prompt] playbook={'on' if not args.no_playbook else 'off'} "
-          f"examples={'on' if not args.no_playbook_examples else 'off'} "
+          "handwritten_seed=off "
           f"skills(bullets)={'on' if args.with_skills else 'off'} "
           f"history_length={args.history_length}")
 
@@ -338,7 +335,7 @@ def main():
     summary = {
         "with_skills": bool(args.with_skills),
         "playbook": (not args.no_playbook),
-        "playbook_examples": (not args.no_playbook_examples),
+        "handwritten_seed_playbook": False,
         "history_length": args.history_length,
         "split": args.split,
         "num_base_games": len(games),

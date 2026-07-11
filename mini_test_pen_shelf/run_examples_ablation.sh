@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# run_examples_ablation.sh — 单卡(默认GPU1)顺序跑，做「playbook 去掉 few-shot 示例」的消融。
+# run_examples_ablation.sh — 单卡(默认GPU1)顺序跑，做「云端生成 playbook 开/关」的消融。
 #
-# 复用已有结果: pickplace playbook-ON+examples (90%) / playbook-OFF (70%)。
-# 本脚本补齐 4 个 run：
-#   1) picktwo  playbook-ON +examples   (上次被中断，重跑)
-#   2) picktwo  playbook-OFF            (基线)
-#   3) pickplace playbook-ON -examples  (消融)
-#   4) picktwo  playbook-ON -examples   (消融)
-# 然后出 3 份对比报告。两臂都 skills-off；--sample_seed 0 保证各条件用同一批游戏可比。
+# 手写 seed playbook 已移除；新运行在第一轮云端更新前没有 playbook。
+# 本脚本仅保留 playbook 开/关的历史 mini-test 对比入口。
 #
 # 用法: GPU=1 bash mini_test_pen_shelf/run_examples_ablation.sh
 set -u
@@ -36,8 +31,6 @@ run () {  # $1=mode $2=max_steps $3=extra_flags $4=outdir
 
 run pick_two 40 ""                       "$ROOT/output_picktwo_strategy"
 run pick_two 40 "--no_playbook"          "$ROOT/output_picktwo_baseline"
-run generic  30 "--no_playbook_examples" "$ROOT/output_pickplace_strategy_noex"
-run pick_two 40 "--no_playbook_examples" "$ROOT/output_picktwo_strategy_noex"
 
 CMP="$ROOT/output_ab"; mkdir -p "$CMP"
 echo ">>> 生成对比报告..."
@@ -46,14 +39,4 @@ python -m mini_test_pen_shelf.compare_ab \
   --with_strategy "$ROOT/output_picktwo_strategy/summary.json" \
   --no_strategy   "$ROOT/output_picktwo_baseline/summary.json" \
   --archive "$CMP/picktwo_report" || true
-# pickplace: examples on vs off (both playbook-on)
-python -m mini_test_pen_shelf.compare_ab \
-  --with_strategy "$ROOT/output_pickplace_strategy/summary.json" \
-  --no_strategy   "$ROOT/output_pickplace_strategy_noex/summary.json" \
-  --archive "$CMP/pickplace_examples_report" || true
-# picktwo: examples on vs off (both playbook-on)
-python -m mini_test_pen_shelf.compare_ab \
-  --with_strategy "$ROOT/output_picktwo_strategy/summary.json" \
-  --no_strategy   "$ROOT/output_picktwo_strategy_noex/summary.json" \
-  --archive "$CMP/picktwo_examples_report" || true
 echo ">>> ALL DONE  $(date +%H:%M:%S)"

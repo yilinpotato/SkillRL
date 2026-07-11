@@ -161,8 +161,8 @@ class CloudAnalyzer:
     ) -> Dict[str, List[Dict]]:
         """一次 LLM 调用，诊断本批**所有失败轨迹**的错误原因。
 
-        以同类**成功轨迹**为 gold 参照、环境成功判据为正确性锚（无需 ground-truth
-        文件），给每条失败轨迹产出结构化诊断，按 task_type 分组返回。产物喂给
+        以同类**成功 rollout**为参照、环境成功判据为正确性锚（不读取 oracle 或
+        ground-truth 文件），给每条失败轨迹产出结构化诊断，按 task_type 分组返回。产物喂给
         :meth:`evolve_playbook`（``skill_tree_gap`` + ``patch_location`` 指出本可由
         skill tree 避免的错误、以及补丁该加在 skill tree 的哪个位置）。
 
@@ -241,7 +241,7 @@ class CloudAnalyzer:
             sections.append(
                 f"=== task_type: {tt} ===\n"
                 f"{con_line}"
-                f"GOLD REFERENCE — SUCCESSFUL trajectories (how it is done right):\n{succ_txt}\n\n"
+                f"SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):\n{succ_txt}\n\n"
                 f"FAILED trajectories to diagnose (each tagged [ref=...]):\n{fail_txt}"
             )
         forks = self._format_forks(prefix_tree)
@@ -254,9 +254,10 @@ environment contract below; do not import assumptions from a different benchmark
 ENVIRONMENT CONTRACT:
 {domain_context}
 
-Goal: For each FAILED trajectory, diagnose WHY it failed. Use the SUCCESSFUL trajectories of the
-same task_type as the ground-truth reference of correct behaviour, and the environment's success
-criterion as the correctness anchor. Each step shows the action taken and the OBSERVATION DELTA
+Goal: For each FAILED trajectory, diagnose WHY it failed. Use successful rollouts of the same
+task_type as observed references of successful behaviour, and the environment's success criterion
+as the correctness anchor. They are not oracle demonstrations or ground-truth action plans. Each
+step shows the action taken and the OBSERVATION DELTA
 (+added / -removed lines).
 
 {chr(10).join(sections)}
