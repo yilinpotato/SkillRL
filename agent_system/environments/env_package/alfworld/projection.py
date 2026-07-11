@@ -107,11 +107,20 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]],
         if contains_cjk:
             valids[i] = 0
 
+        # Legacy/non-strict validity only requires one extractable action block,
+        # one closed think block, and a directly admissible action.  Preserve it
+        # for continuity with prior ALFWorld metrics.  Strict validity additionally
+        # enforces the exact one-think/one-action protocol and their order.
+        strict_valid_action = bool(valids[i]) and (
+            original_str.count("<think>") == 1
+            and original_str.count("</think>") == 1
+            and original_str.count("<action>") == 1
+            and original_str.count("</action>") == 1
+            and think_start_idx < think_end_idx < start_idx < end_idx
+        )
         details.append({
-            # ``valid_action`` intentionally keeps the historical ``valids``
-            # semantics: the model emitted a tagged, directly admissible action
-            # and a closed think block, without relying on rescue logic.
             "valid_action": bool(valids[i]),
+            "strict_valid_action": strict_valid_action,
             "execution_source": execution_source,
             "has_action_block": bool(format_valid),
             "direct_admissible_action": bool(matched_directly),

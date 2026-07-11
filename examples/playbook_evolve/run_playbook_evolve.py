@@ -180,6 +180,7 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
     won = False
     step = 0
     n_valid = 0
+    n_strict_valid = 0
     last_action = None
     repeat = 0
 
@@ -197,6 +198,8 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         action_detail = action_details[0]
         if valid:
             n_valid += 1
+        if action_detail["strict_valid_action"]:
+            n_strict_valid += 1
 
         nobs_list, scores, dones, ninfos = env.step([action])
         nobs = nobs_list[0]
@@ -211,12 +214,14 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         steps.append({
             "step": step, "observation": obs_text, "action": action, "reward": reward,
             "valid_action": valid,
+            "strict_valid_action": action_detail["strict_valid_action"],
             "execution_source": action_detail["execution_source"],
             "direct_admissible_action": action_detail["direct_admissible_action"],
         })
         if keep_logrows:
             logrows.append({"step": step, "prompt": prompt, "action": action, "valid": valid,
                             "valid_action": valid,
+                            "strict_valid_action": action_detail["strict_valid_action"],
                             "execution_source": action_detail["execution_source"],
                             "direct_admissible_action": action_detail["direct_admissible_action"],
                             "forced": bool(forced), "obs": nobs, "reward": reward, "won": won})
@@ -243,6 +248,8 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
             "skill_ids_used": injected_ids, "model_version": "frozen",
             "n_valid_actions": n_valid,
             "valid_action_ratio": n_valid / max(step, 1),
+            "n_strict_valid_actions": n_strict_valid,
+            "strict_valid_action_ratio": n_strict_valid / max(step, 1),
             "n_salvaged_actions": sum(s["execution_source"] == "salvaged" for s in steps),
             "n_fallback_actions": sum(s["execution_source"] == "fallback" for s in steps),
         },
@@ -289,6 +296,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
     done = [False for _ in range(batch_size)]
     used = [0 for _ in range(batch_size)]
     n_valid = [0 for _ in range(batch_size)]
+    n_strict_valid = [0 for _ in range(batch_size)]
     last_action = [None for _ in range(batch_size)]
     repeat = [0 for _ in range(batch_size)]
 
@@ -324,6 +332,8 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
             valid = bool(valids[local_i])
             if valid:
                 n_valid[i] += 1
+            if action_details[local_i]["strict_valid_action"]:
+                n_strict_valid[i] += 1
             action_by_idx[i] = action
             valid_by_idx[i] = valid
             forced_by_idx[i] = bool(forceds[local_i])
@@ -353,6 +363,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                 "step": step, "observation": obs_list[i],
                 "action": action, "reward": reward,
                 "valid_action": valid_by_idx[i],
+                "strict_valid_action": action_detail["strict_valid_action"],
                 "execution_source": action_detail["execution_source"],
                 "direct_admissible_action": action_detail["direct_admissible_action"],
             })
@@ -361,6 +372,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                     "step": step, "prompt": prompts[active.index(i)],
                     "action": action, "valid": valid_by_idx[i],
                     "valid_action": valid_by_idx[i],
+                    "strict_valid_action": action_detail["strict_valid_action"],
                     "execution_source": action_detail["execution_source"],
                     "direct_admissible_action": action_detail["direct_admissible_action"],
                     "forced": forced_by_idx[i], "obs": nobs_list[i],
@@ -396,6 +408,8 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                 "skill_ids_used": injected_ids[i], "model_version": "frozen",
                 "n_valid_actions": n_valid[i],
                 "valid_action_ratio": n_valid[i] / max(used[i], 1),
+                "n_strict_valid_actions": n_strict_valid[i],
+                "strict_valid_action_ratio": n_strict_valid[i] / max(used[i], 1),
                 "n_salvaged_actions": sum(
                     s.get("execution_source") == "salvaged" for s in steps[i]),
                 "n_fallback_actions": sum(
@@ -848,6 +862,7 @@ def main():
         nval = ep_result["n_valid"]
         logrows = ep_result["logrows"]
         action_meta = raw_trace.get("meta") or {}
+        n_strict_valid = int(action_meta.get("n_strict_valid_actions", 0) or 0)
         n_salvaged = int(action_meta.get("n_salvaged_actions", 0) or 0)
         n_fallback = int(action_meta.get("n_fallback_actions", 0) or 0)
         pb_rec = ep_result.get("playbook_record")
@@ -867,6 +882,8 @@ def main():
                      "won": bool(won), "used_steps": used,
                      "valid_actions": nval, "step": global_step,
                      "valid_action_ratio": round(nval / max(used, 1), 6),
+                     "strict_valid_actions": n_strict_valid,
+                     "strict_valid_action_ratio": round(n_strict_valid / max(used, 1), 6),
                      "salvaged_actions": n_salvaged,
                      "fallback_actions": n_fallback,
                      "cloud_round_used": cloud_updates,
@@ -899,6 +916,8 @@ def main():
                 "episode/length": ep_record["used_steps"],
                 "episode/valid_actions": ep_record["valid_actions"],
                 "episode/valid_action_ratio": ep_record["valid_action_ratio"],
+                "episode/strict_valid_actions": ep_record["strict_valid_actions"],
+                "episode/strict_valid_action_ratio": ep_record["strict_valid_action_ratio"],
                 "episode/salvaged_actions": ep_record["salvaged_actions"],
                 "episode/fallback_actions": ep_record["fallback_actions"],
                 "experiment/skill_tree_enabled": int(enable_skill_tree),
@@ -938,6 +957,7 @@ def main():
         group_wins = sum(int(record["won"]) for record in records)
         lengths = [int(record["used_steps"]) for record in records]
         valid_actions = sum(int(record["valid_actions"]) for record in records)
+        strict_valid_actions = sum(int(record["strict_valid_actions"]) for record in records)
         salvaged_actions = sum(int(record["salvaged_actions"]) for record in records)
         fallback_actions = sum(int(record["fallback_actions"]) for record in records)
         action_count = sum(lengths)
@@ -965,6 +985,8 @@ def main():
             "episode/length/max": max(lengths) if lengths else 0,
             "episode/length/min": min(lengths) if lengths else 0,
             "episode/valid_action_ratio": round(valid_actions / max(action_count, 1), 6),
+            "episode/strict_valid_action_ratio": round(
+                strict_valid_actions / max(action_count, 1), 6),
             "episode/salvaged_action_ratio": round(salvaged_actions / max(action_count, 1), 6),
             "episode/fallback_action_ratio": round(fallback_actions / max(action_count, 1), 6),
             "experiment/skill_tree_enabled": int(enable_skill_tree),
@@ -1015,6 +1037,7 @@ def main():
         print(f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
               f"success={100.0 * group_wins / max(n, 1):.1f}% "
               f"valid_action={100.0 * valid_actions / max(action_count, 1):.1f}% "
+              f"strict_valid_action={100.0 * strict_valid_actions / max(action_count, 1):.1f}% "
               f"small_tokens={small_tokens.get('total', 0)} "
               f"large_tokens={large_delta['total']} rollout={rollout_seconds:.1f}s")
 
@@ -1418,6 +1441,7 @@ def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps
             lines.append("/" * 78)
             lines.append(f"// step {s['step']}  action={s['action']!r}  "
                          f"valid_action={s['valid']}  "
+                         f"strict_valid_action={s.get('strict_valid_action', s['valid'])}  "
                          f"source={s.get('execution_source', 'unknown')}")
             lines.append("/" * 78)
             lines.append(s.get("prompt", ""))

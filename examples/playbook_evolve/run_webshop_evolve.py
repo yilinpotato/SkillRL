@@ -123,7 +123,9 @@ def _dump_episode(outdir, episode_idx, result):
         lines.extend([
             "",
             f"-- step {step['step']:>2} [{'OK' if step['valid'] else 'INVALID'}] "
-            f"action={step['action']!r} reward={step.get('reward', 0)} "
+            f"action={step['action']!r} valid_action={step.get('valid_action', False)} "
+            f"strict_valid_action={step.get('strict_valid_action', step['valid'])} "
+            f"source={step.get('execution_source', 'unknown')} reward={step.get('reward', 0)} "
             f"task_score={step.get('task_score', 0)} won={step.get('won', False)}",
             "   obs: " + " ".join(str(step.get("obs", "")).split())[:1200],
         ])
@@ -139,7 +141,10 @@ def _dump_episode(outdir, episode_idx, result):
     for step in result.get("logrows") or []:
         prompts.extend([
             "", "/" * 78,
-            f"// step {step['step']} action={step['action']!r} valid={step['valid']}",
+            f"// step {step['step']} action={step['action']!r} "
+            f"valid_action={step.get('valid_action', False)} "
+            f"strict_valid_action={step.get('strict_valid_action', step['valid'])} "
+            f"source={step.get('execution_source', 'unknown')}",
             "/" * 78, step.get("prompt", ""),
         ])
     with open(os.path.join(directory, base + "_prompts.txt"), "w") as handle:
@@ -182,6 +187,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
     done = [False] * batch_size
     used = [0] * batch_size
     valid_count = [0] * batch_size
+    relaxed_valid_count = [0] * batch_size
     task_scores = [0.0] * batch_size
     last_action = [None] * batch_size
     repeat = [0] * batch_size
@@ -200,10 +206,12 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
         generated = agent.act_batch_with_meta(prompts)
         raw_outputs = [item[0] for item in generated]
         forced = [bool(item[1]) for item in generated]
-        actions, valid_flags = webshop_projection(list(raw_outputs))
+        actions, valid_flags, action_details = webshop_projection(
+            list(raw_outputs), return_details=True)
 
         action_by_index = dict(zip(active, actions))
         valid_by_index = {i: bool(flag) for i, flag in zip(active, valid_flags)}
+        action_detail_by_index = dict(zip(active, action_details))
         forced_by_index = dict(zip(active, forced))
         full_actions = [action_by_index.get(i, "click[__inactive__]")
                         for i in range(batch_size)]
@@ -212,8 +220,11 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
         for i in active:
             action = action_by_index[i]
             valid = valid_by_index[i]
+            action_detail = action_detail_by_index[i]
             if valid:
                 valid_count[i] += 1
+            if action_detail["valid_action"]:
+                relaxed_valid_count[i] += 1
             raw_score = float(next_infos[i].get("task_score", 0.0) or 0.0)
             slot_won = bool(next_infos[i].get("won", False))
             slot_done = bool(dones[i])
@@ -225,6 +236,9 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
                 "action": action,
                 "reward": float(rewards[i] or 0.0),
                 "task_score": raw_score,
+                "valid_action": action_detail["valid_action"],
+                "strict_valid_action": valid,
+                "execution_source": action_detail["execution_source"],
             })
             if bool(args.log_trajectories):
                 logrows[i].append({
@@ -232,6 +246,9 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
                     "prompt": prompts[active.index(i)],
                     "action": action,
                     "valid": valid,
+                    "valid_action": action_detail["valid_action"],
+                    "strict_valid_action": valid,
+                    "execution_source": action_detail["execution_source"],
                     "forced": forced_by_index[i],
                     "obs": next_observations[i],
                     "reward": float(rewards[i] or 0.0),
@@ -271,6 +288,10 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
                 "model_version": "frozen",
                 "task_score": task_scores[i],
                 "goal_index": goal_indices[i],
+                "n_valid_actions": relaxed_valid_count[i],
+                "valid_action_ratio": relaxed_valid_count[i] / max(used[i], 1),
+                "n_strict_valid_actions": valid_count[i],
+                "strict_valid_action_ratio": valid_count[i] / max(used[i], 1),
             },
         }
         results.append({
@@ -282,6 +303,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
             "task_type": categories[i],
             "injected": injected_ids[i],
             "n_valid": valid_count[i],
+            "n_relaxed_valid": relaxed_valid_count[i],
             "logrows": logrows[i],
             "playbook_record": tree_records[i],
         })
@@ -656,6 +678,8 @@ def main():
                     "task_score": float(result["task_score"]),
                     "used_steps": int(result["used"]),
                     "valid_actions": int(result["n_valid"]),
+                    "strict_valid_actions": int(result["n_valid"]),
+                    "relaxed_valid_actions": int(result["n_relaxed_valid"]),
                     "goal_index": result.get("goal_index"),
                     "cloud_round_used": cloud_updates,
                     "skill_ids_used": list(result.get("injected") or []),
@@ -698,6 +722,10 @@ def main():
                         "episode/length": row["used_steps"],
                         "episode/valid_action_ratio": round(
                             row["valid_actions"] / max(row["used_steps"], 1), 6),
+                        "episode/strict_valid_action_ratio": round(
+                            row["strict_valid_actions"] / max(row["used_steps"], 1), 6),
+                        "episode/relaxed_valid_action_ratio": round(
+                            row["relaxed_valid_actions"] / max(row["used_steps"], 1), 6),
                         "episode/success_rate": round(
                             row["running_total_wins"] /
                             max(row["running_total_episodes"], 1), 6),
@@ -751,6 +779,12 @@ def main():
                 "episode/length/min": min(lengths or [0]),
                 "episode/valid_action_ratio": round(
                     sum(row["valid_actions"] for row in group_rows) /
+                    max(sum(lengths), 1), 6),
+                "episode/strict_valid_action_ratio": round(
+                    sum(row["strict_valid_actions"] for row in group_rows) /
+                    max(sum(lengths), 1), 6),
+                "episode/relaxed_valid_action_ratio": round(
+                    sum(row["relaxed_valid_actions"] for row in group_rows) /
                     max(sum(lengths), 1), 6),
                 "experiment/skill_tree_enabled": int(enable_tree),
                 "experiment/skill_tree_evolve_enabled": int(enable_tree_evolve),
