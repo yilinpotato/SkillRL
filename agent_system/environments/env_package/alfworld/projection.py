@@ -35,7 +35,8 @@ def salvage_action_from_back(raw: str, adm: List[str]) -> Tuple[str, bool]:
     return "", False
 
 
-def alfworld_projection(actions: List[str], action_pools: List[List[str]]):
+def alfworld_projection(actions: List[str], action_pools: List[List[str]],
+                        return_details: bool = False):
     """
     An function to process the actions
     actions: the list of actions to be processeed, it is a list of strings.
@@ -51,6 +52,7 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]]):
     """
 
     valids = [0] * len(actions)
+    details = []
 
     for i in range(len(actions)):
         original_str = actions[i]  # keep the original string
@@ -76,14 +78,17 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]]):
         # Exact match against admissible_commands. Only a hit here is trusted
         # as-is; anything else goes through salvage / a safe default below.
         matched_directly = extracted_action is not None and extracted_action in lowered_pool
+        execution_source = "direct"
         if matched_directly:
             actions[i] = lowered_pool[extracted_action]
         else:
             salvaged, ok = salvage_action_from_back(original_str, pool)
             if ok:
                 actions[i] = salvaged
+                execution_source = "salvaged"
             else:
                 actions[i] = "look" if "look" in pool else (pool[0] if pool else "look")
+                execution_source = "fallback"
 
         # valid means the model directly named an admissible action with no
         # rescue needed — salvage/default-fallback never counts as valid, even
@@ -93,11 +98,27 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]]):
         # check <think>...</think>
         think_start_idx = original_str.find("<think>")
         think_end_idx = original_str.find("</think>")
-        if think_start_idx == -1 or think_end_idx == -1:
+        has_think_block = think_start_idx != -1 and think_end_idx != -1
+        if not has_think_block:
             valids[i] = 0
 
         # check if contains any Chinese characters
-        if re.search(r'[\u4e00-\u9fff]', original_str):
+        contains_cjk = bool(re.search(r'[\u4e00-\u9fff]', original_str))
+        if contains_cjk:
             valids[i] = 0
 
+        details.append({
+            # ``valid_action`` intentionally keeps the historical ``valids``
+            # semantics: the model emitted a tagged, directly admissible action
+            # and a closed think block, without relying on rescue logic.
+            "valid_action": bool(valids[i]),
+            "execution_source": execution_source,
+            "has_action_block": bool(format_valid),
+            "direct_admissible_action": bool(matched_directly),
+            "has_think_block": has_think_block,
+            "contains_cjk": contains_cjk,
+        })
+
+    if return_details:
+        return actions, valids, details
     return actions, valids

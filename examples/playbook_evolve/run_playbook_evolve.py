@@ -190,9 +190,11 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         _, _think = None, None
         # alfworld_projection 已经内置 admissible_commands 精确匹配 + salvage + 安全默认
         # 动作兜底，返回的 action 一定合法，不需要在这里再手工补救一次。
-        actions, valids = alfworld_projection([raw], [adm])
+        actions, valids, action_details = alfworld_projection(
+            [raw], [adm], return_details=True)
         action = actions[0]
         valid = bool(valids[0])
+        action_detail = action_details[0]
         if valid:
             n_valid += 1
 
@@ -206,9 +208,17 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
               f"valid={valid} forced={forced} won={won} ({_time.time()-_t0:.1f}s)")
 
         # RawTrace step: 模型这一步所基于的 raw obs + 采取的动作 + reward。
-        steps.append({"step": step, "observation": obs_text, "action": action, "reward": reward})
+        steps.append({
+            "step": step, "observation": obs_text, "action": action, "reward": reward,
+            "valid_action": valid,
+            "execution_source": action_detail["execution_source"],
+            "direct_admissible_action": action_detail["direct_admissible_action"],
+        })
         if keep_logrows:
             logrows.append({"step": step, "prompt": prompt, "action": action, "valid": valid,
+                            "valid_action": valid,
+                            "execution_source": action_detail["execution_source"],
+                            "direct_admissible_action": action_detail["direct_admissible_action"],
                             "forced": bool(forced), "obs": nobs, "reward": reward, "won": won})
 
         builder.record(obs_text, action)
@@ -229,7 +239,13 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         "outcome": "success" if won else "failure",
         "episode_reward": 1.0 if won else 0.0,
         "steps": steps,
-        "meta": {"skill_ids_used": injected_ids, "model_version": "frozen"},
+        "meta": {
+            "skill_ids_used": injected_ids, "model_version": "frozen",
+            "n_valid_actions": n_valid,
+            "valid_action_ratio": n_valid / max(step, 1),
+            "n_salvaged_actions": sum(s["execution_source"] == "salvaged" for s in steps),
+            "n_fallback_actions": sum(s["execution_source"] == "fallback" for s in steps),
+        },
     }
     return won, step, raw_trace, task_type, injected_ids, n_valid, logrows
 
@@ -294,12 +310,14 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
         active_adms = [adms[i] for i in active]
         # alfworld_projection 已经内置 admissible_commands 精确匹配 + salvage + 安全默认
         # 动作兜底，返回的 action 一定合法，不需要在这里再手工补救一次。
-        actions, valids = alfworld_projection(raws, active_adms)
+        actions, valids, action_details = alfworld_projection(
+            raws, active_adms, return_details=True)
 
         full_actions = []
         action_by_idx = {}
         valid_by_idx = {}
         forced_by_idx = {}
+        action_detail_by_idx = {}
         raw_by_idx = {}
         for local_i, i in enumerate(active):
             action = actions[local_i]
@@ -309,6 +327,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
             action_by_idx[i] = action
             valid_by_idx[i] = valid
             forced_by_idx[i] = bool(forceds[local_i])
+            action_detail_by_idx[i] = action_details[local_i]
             raw_by_idx[i] = raws[local_i]
 
         for i in range(batch_size):
@@ -328,15 +347,22 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
             slot_won = bool(wins[i])
             slot_done = bool(dones[i]) or slot_won
             action = action_by_idx[i]
+            action_detail = action_detail_by_idx[i]
 
             steps[i].append({
                 "step": step, "observation": obs_list[i],
                 "action": action, "reward": reward,
+                "valid_action": valid_by_idx[i],
+                "execution_source": action_detail["execution_source"],
+                "direct_admissible_action": action_detail["direct_admissible_action"],
             })
             if keep_logrows:
                 logrows[i].append({
                     "step": step, "prompt": prompts[active.index(i)],
                     "action": action, "valid": valid_by_idx[i],
+                    "valid_action": valid_by_idx[i],
+                    "execution_source": action_detail["execution_source"],
+                    "direct_admissible_action": action_detail["direct_admissible_action"],
                     "forced": forced_by_idx[i], "obs": nobs_list[i],
                     "reward": reward, "won": slot_won,
                 })
@@ -366,7 +392,15 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
             "outcome": "success" if won[i] else "failure",
             "episode_reward": 1.0 if won[i] else 0.0,
             "steps": steps[i],
-            "meta": {"skill_ids_used": injected_ids[i], "model_version": "frozen"},
+            "meta": {
+                "skill_ids_used": injected_ids[i], "model_version": "frozen",
+                "n_valid_actions": n_valid[i],
+                "valid_action_ratio": n_valid[i] / max(used[i], 1),
+                "n_salvaged_actions": sum(
+                    s.get("execution_source") == "salvaged" for s in steps[i]),
+                "n_fallback_actions": sum(
+                    s.get("execution_source") == "fallback" for s in steps[i]),
+            },
         }
         episodes.append({
             "won": won[i], "used": used[i] or args.max_steps,
@@ -813,6 +847,9 @@ def main():
         injected = ep_result["injected"]
         nval = ep_result["n_valid"]
         logrows = ep_result["logrows"]
+        action_meta = raw_trace.get("meta") or {}
+        n_salvaged = int(action_meta.get("n_salvaged_actions", 0) or 0)
+        n_fallback = int(action_meta.get("n_fallback_actions", 0) or 0)
         pb_rec = ep_result.get("playbook_record")
         wins += int(won)
 
@@ -829,6 +866,9 @@ def main():
         ep_record = {"epoch": epoch + 1, "detected_type": tt_detected,
                      "won": bool(won), "used_steps": used,
                      "valid_actions": nval, "step": global_step,
+                     "valid_action_ratio": round(nval / max(used, 1), 6),
+                     "salvaged_actions": n_salvaged,
+                     "fallback_actions": n_fallback,
                      "cloud_round_used": cloud_updates,
                      "skill_tree_enabled": enable_skill_tree,
                      "skill_tree_evolve_enabled": enable_skill_tree_evolve,
@@ -857,6 +897,10 @@ def main():
                 "episode/detected_type": tt_detected,
                 "episode/won": bool(ep_record["won"]),
                 "episode/length": ep_record["used_steps"],
+                "episode/valid_actions": ep_record["valid_actions"],
+                "episode/valid_action_ratio": ep_record["valid_action_ratio"],
+                "episode/salvaged_actions": ep_record["salvaged_actions"],
+                "episode/fallback_actions": ep_record["fallback_actions"],
                 "experiment/skill_tree_enabled": int(enable_skill_tree),
                 "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
                 "experiment/skill_bullets_enabled": int(enable_coskill),
@@ -894,6 +938,8 @@ def main():
         group_wins = sum(int(record["won"]) for record in records)
         lengths = [int(record["used_steps"]) for record in records]
         valid_actions = sum(int(record["valid_actions"]) for record in records)
+        salvaged_actions = sum(int(record["salvaged_actions"]) for record in records)
+        fallback_actions = sum(int(record["fallback_actions"]) for record in records)
         action_count = sum(lengths)
 
         for key in ("prompt", "response", "total"):
@@ -919,6 +965,8 @@ def main():
             "episode/length/max": max(lengths) if lengths else 0,
             "episode/length/min": min(lengths) if lengths else 0,
             "episode/valid_action_ratio": round(valid_actions / max(action_count, 1), 6),
+            "episode/salvaged_action_ratio": round(salvaged_actions / max(action_count, 1), 6),
+            "episode/fallback_action_ratio": round(fallback_actions / max(action_count, 1), 6),
             "experiment/skill_tree_enabled": int(enable_skill_tree),
             "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
             "experiment/skill_bullets_enabled": int(enable_coskill),
@@ -966,6 +1014,7 @@ def main():
         })
         print(f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
               f"success={100.0 * group_wins / max(n, 1):.1f}% "
+              f"valid_action={100.0 * valid_actions / max(action_count, 1):.1f}% "
               f"small_tokens={small_tokens.get('total', 0)} "
               f"large_tokens={large_delta['total']} rollout={rollout_seconds:.1f}s")
 
@@ -1352,6 +1401,7 @@ def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps
             forced = " [BUDGET-FORCED]" if s.get("forced") else ""
             lines.append("")
             lines.append(f"-- step {s['step']:>2} [{flag}]{forced} action={s['action']!r} "
+                         f"source={s.get('execution_source', 'unknown')} "
                          f"reward={s.get('reward', 0)} won={s.get('won', False)}")
             lines.append(f"   obs: {_oneline(s.get('obs', ''))}")
         with open(os.path.join(d, base + "_trajectory.txt"), "w") as f:
@@ -1366,7 +1416,9 @@ def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps
         for s in logrows:
             lines.append("")
             lines.append("/" * 78)
-            lines.append(f"// step {s['step']}  action={s['action']!r}  valid={s['valid']}")
+            lines.append(f"// step {s['step']}  action={s['action']!r}  "
+                         f"valid_action={s['valid']}  "
+                         f"source={s.get('execution_source', 'unknown')}")
             lines.append("/" * 78)
             lines.append(s.get("prompt", ""))
         with open(os.path.join(d, base + "_prompts.txt"), "w") as f:
