@@ -128,6 +128,7 @@ def _dump_episode(outdir, episode_idx, result):
             f"source={step.get('execution_source', 'unknown')} reward={step.get('reward', 0)} "
             f"task_score={step.get('task_score', 0)} won={step.get('won', False)}",
             "   obs: " + " ".join(str(step.get("obs", "")).split())[:1200],
+            "   raw_model_output: " + repr(step.get("raw_model_output", ""))[:4000],
         ])
     with open(os.path.join(directory, base + "_trajectory.txt"), "w") as handle:
         handle.write("\n".join(lines) + "\n")
@@ -146,6 +147,7 @@ def _dump_episode(outdir, episode_idx, result):
             f"strict_valid_action={step.get('strict_valid_action', step['valid'])} "
             f"source={step.get('execution_source', 'unknown')}",
             "/" * 78, step.get("prompt", ""),
+            "\n// raw_model_output\n" + str(step.get("raw_model_output", "")),
         ])
     with open(os.path.join(directory, base + "_prompts.txt"), "w") as handle:
         handle.write("\n".join(prompts) + "\n")
@@ -213,6 +215,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
         valid_by_index = {i: bool(flag) for i, flag in zip(active, valid_flags)}
         action_detail_by_index = dict(zip(active, action_details))
         forced_by_index = dict(zip(active, forced))
+        raw_output_by_index = dict(zip(active, raw_outputs))
         full_actions = [action_by_index.get(i, "click[__inactive__]")
                         for i in range(batch_size)]
         next_observations, rewards, dones, next_infos = env.step(full_actions)
@@ -233,6 +236,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
             steps[i].append({
                 "step": step_index,
                 "observation": trace_observation,
+                "raw_model_output": raw_output_by_index[i],
                 "action": action,
                 "reward": float(rewards[i] or 0.0),
                 "task_score": raw_score,
@@ -244,6 +248,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
                 logrows[i].append({
                     "step": step_index,
                     "prompt": prompts[active.index(i)],
+                    "raw_model_output": raw_output_by_index[i],
                     "action": action,
                     "valid": valid,
                     "valid_action": action_detail["valid_action"],

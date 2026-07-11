@@ -249,13 +249,22 @@ class WebShopObsBuilder:
             current_observation=observation,
             available_actions=self._actions_text(available),
         )
-        # CoSkill uses the same first-step policy as the ALFWorld no-RL driver:
-        # the compact skill tree is available immediately, while flat bullets
-        # enter through the normal WITH_MEMORY branch from step 2 onward.
+        # The initial decision is often the decisive search query.  Do not leave
+        # it unassisted just because there is no history yet: inject the same
+        # retrieved, non-oracle skill context used from step 2 onward.  This is
+        # deliberately separate from a playbook: fresh runs still have no
+        # handwritten seed tree, and a task tree appears only after a successful
+        # rollout has been analysed by the cloud loop.
+        sections = []
         tree = (self.retrieved or {}).get("playbook")
         if self.enable_skill_tree and isinstance(tree, str) and tree.strip():
-            prompt = tree.strip() + "\n\n" + prompt
-        return prompt
+            sections.append(tree.strip())
+        if self._retrieval_active():
+            memories = self.mem_lib.format_for_prompt(self.retrieved)
+            if memories.strip():
+                sections.append("## Retrieved Relevant Experience\n\n" + memories.strip())
+        sections.append(prompt)
+        return "\n\n".join(sections)
 
     def build(self, observation: str, available: Dict[str, Any], init: bool) -> str:
         if init or self.history_length <= 0:

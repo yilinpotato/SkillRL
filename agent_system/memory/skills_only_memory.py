@@ -199,7 +199,7 @@ class SkillsOnlyMemory(BaseMemory):
                 return 'accessories'
             elif any(kw in goal for kw in [
                 'furniture', 'lamp', 'curtain', 'pillow', 'bedding',
-                'decor', 'candle', 'vase', 'rug',
+                'decor', 'candle', 'vase', 'rug', 'desk', 'table', 'mat',
             ]):
                 return 'home_decor'
             elif any(kw in goal for kw in [
