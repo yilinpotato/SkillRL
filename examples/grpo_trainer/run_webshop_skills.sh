@@ -6,6 +6,7 @@ if [ "$#" -gt 0 ]; then
     shift  # Remove engine so $@ only contains extra params.
 fi
 export VLLM_ATTENTION_BACKEND=FLASH_ATTN
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
 # Enable more verbose logging
 export RAY_BACKEND_LOG_LEVEL=debug
