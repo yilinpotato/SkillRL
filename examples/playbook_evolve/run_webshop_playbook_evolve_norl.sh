@@ -16,6 +16,9 @@ export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export PYTHONUNBUFFERED=1
+# Stable physical-device ordering; the Python driver snapshots one visible GPU
+# per spawned vLLM worker to prevent KV-cache allocation collisions.
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
 # 超算默认双卡；本地共享 3090 只允许空闲的 GPU 0。
 if [ -d /GLOBALFS/hit_wxia_1 ]; then

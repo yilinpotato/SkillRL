@@ -483,7 +483,9 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             no_wait=args.nowait,
             think_budget=args.think_budget,
         )
-        print(f"[dp-worker{worker_id}] ready gpu={gpu_id} batch={fixed_batch_size} "
+        print(f"[dp-worker{worker_id}] ready gpu={gpu_id} "
+              f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} "
+              f"batch={fixed_batch_size} "
               f"games={len(game_files)}")
 
         while True:
@@ -788,7 +790,20 @@ def main():
                       worker_bs, in_q, dp_out_q, resume_state["completed_groups"]),
                 daemon=False,
             )
-            proc.start()
+            # ``spawn`` captures environment variables before the target body
+            # runs.  Apply a one-GPU mask before spawning so each vLLM
+            # EngineCore inherits its assigned device rather than the driver's
+            # whole ``0,1`` mask; otherwise both replicas can allocate their KV
+            # cache on GPU 0 on some cluster configurations.
+            parent_cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+            try:
+                proc.start()
+            finally:
+                if parent_cuda_visible is None:
+                    os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+                else:
+                    os.environ["CUDA_VISIBLE_DEVICES"] = parent_cuda_visible
             dp_in_queues.append(in_q)
             dp_processes.append(proc)
         print(f"[driver] data_parallel_workers={data_parallel_workers} "

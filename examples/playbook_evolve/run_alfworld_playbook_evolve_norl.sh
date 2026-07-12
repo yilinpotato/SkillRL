@@ -19,6 +19,10 @@ export HF_HUB_OFFLINE=1
 
 # vLLM v1 需 spawn（agent_vllm 内也设了，这里兜底）
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
+# Keep physical-device enumeration stable across the parent, its data-parallel
+# workers, and vLLM EngineCore grandchildren.  Each worker is masked to one
+# entry by the Python driver before it is spawned.
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
 # 关键：stdout 被下面的 `| tee` 管道重定向后，Python 默认切到【全缓冲】（不是行缓冲），
 # 我们自己的 print() 会攒够几 KB 才真正写出——vLLM 走 logging 模块会立刻刷出来，两者

@@ -319,6 +319,11 @@ def _rollout_worker(worker_id, gpu_id, args_dict, base_task_count,
                     base_task_offset, input_queue, output_queue):
     group_id = None
     try:
+        # The parent also applies this mask *before* spawning us.  Keep this
+        # assignment as a defensive check for direct/programmatic callers, but
+        # do not rely on an in-worker assignment alone: vLLM's own spawned
+        # EngineCore otherwise can inherit the parent's multi-GPU mask and two
+        # supposedly data-parallel replicas can allocate KV cache on GPU 0.
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
         args = argparse.Namespace(**args_dict)
@@ -346,6 +351,7 @@ def _rollout_worker(worker_id, gpu_id, args_dict, base_task_count,
             action_budget=args.action_budget,
         )
         print(f"[webshop-worker{worker_id}] ready gpu={gpu_id} "
+              f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} "
               f"base_tasks={base_task_count} batch={env.batch_size} goals={env.num_goals}")
         while True:
             command = input_queue.get()
@@ -524,7 +530,21 @@ def main():
                   input_queue, output_queue),
             daemon=False,
         )
-        process.start()
+        # ``spawn`` copies the parent's environment at ``start()`` time.  The
+        # old implementation changed CUDA_VISIBLE_DEVICES only inside the
+        # target function.  That was too late for vLLM EngineCore descendants
+        # on some cluster launches, so both replicas could see and fill GPU 0.
+        # Snapshot a one-GPU mask before spawning each persistent worker, then
+        # restore the driver's original multi-GPU mask immediately afterwards.
+        parent_cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        try:
+            process.start()
+        finally:
+            if parent_cuda_visible is None:
+                os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+            else:
+                os.environ["CUDA_VISIBLE_DEVICES"] = parent_cuda_visible
         input_queues.append(input_queue)
         processes.append(process)
         offset += base_count

@@ -93,6 +93,8 @@ CUDA_VISIBLE_DEVICES=0 DATA_PARALLEL_WORKERS=1 ROLLOUT_WORKER_GPUS=0 \
   bash examples/playbook_evolve/run_alfworld_playbook_evolve_norl.sh
 ~~~
 
+两个 CoSkill driver 会在 `multiprocessing spawn` **之前**向每个 rollout worker 写入仅含其分配 GPU 的 `CUDA_VISIBLE_DEVICES`，并在 worker ready 日志中打印该值；随后父进程恢复双卡可见列表。这样 vLLM EngineCore 子进程不会继承 `0,1` 后同时在 GPU 0 建立 KV cache。所有入口同时设置 `CUDA_DEVICE_ORDER=PCI_BUS_ID`，保证编号稳定。
+
 常用环境变量：
 
 | 变量 | 用途 |
@@ -383,6 +385,10 @@ bash examples/playbook_evolve/run_alfworld_playbook_evolve_norl.sh --resume 1
 ### 本地 GPU 0 被拒绝
 
 共享服务器保护正常生效。运行 nvidia-smi --id=0，等待 GPU 0 无计算进程后再启动；不要改用其他本地 GPU 绕过规则。
+
+### 超算 vLLM EngineCore 在 KV cache 初始化时 OOM
+
+若日志显示两个 EngineCore 的 OOM，且每张 80GB 卡只剩不足 1GB、另一个 vLLM 进程已占约 36--42GB，首先确认使用的是包含上述 spawn 前 GPU mask 修复的版本。该症状是两个 data-parallel 副本争用同一张卡，不是 WebShop reward、动作协议或 4,096-token 预算本身造成的。修复后 worker 日志必须分别显示 `CUDA_VISIBLE_DEVICES=0` 和 `CUDA_VISIBLE_DEVICES=1`（或调度器分配的两张卡）。不要通过缩小 rollout 数、response budget 或 PPO batch 来掩盖此绑定错误。
 
 ### valid action 比率低
 
