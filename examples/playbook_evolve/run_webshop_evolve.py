@@ -319,12 +319,15 @@ def _rollout_worker(worker_id, gpu_id, args_dict, base_task_count,
                     base_task_offset, input_queue, output_queue):
     group_id = None
     try:
-        # The parent also applies this mask *before* spawning us.  Keep this
-        # assignment as a defensive check for direct/programmatic callers, but
-        # do not rely on an in-worker assignment alone: vLLM's own spawned
-        # EngineCore otherwise can inherit the parent's multi-GPU mask and two
-        # supposedly data-parallel replicas can allocate KV cache on GPU 0.
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        # ``spawn`` copied this one-GPU mask from the parent at ``start()``.
+        # Do not rewrite it here: a second assignment can be interpreted in a
+        # different CUDA visibility namespace by vLLM's EngineCore descendants
+        # and remap worker 1 back onto GPU 0.
+        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+        if visible_devices != str(gpu_id):
+            raise RuntimeError(
+                f"worker {worker_id} expected CUDA_VISIBLE_DEVICES={gpu_id!r}, "
+                f"got {visible_devices!r}; refusing unsafe vLLM launch")
         os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
         args = argparse.Namespace(**args_dict)
         env = LocalBatchWebShopEnv(

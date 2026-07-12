@@ -455,7 +455,15 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
     的局。这是尽力而为的对齐，不是数学上绝对保证的精确重放。
     """
     try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        # ``spawn`` copied this one-GPU mask from the parent at ``start()``.
+        # Do not rewrite it here: a second assignment can be interpreted in a
+        # different CUDA visibility namespace by vLLM's EngineCore descendants
+        # and remap worker 1 back onto GPU 0.
+        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+        if visible_devices != str(gpu_id):
+            raise RuntimeError(
+                f"worker {worker_id} expected CUDA_VISIBLE_DEVICES={gpu_id!r}, "
+                f"got {visible_devices!r}; refusing unsafe vLLM launch")
         os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
         args = argparse.Namespace(**args_dict)
         args.tensor_parallel_size = 1
