@@ -799,7 +799,6 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
         use_retrieval = (
             self.retrieval_memory is not None
             and self.retrieved_memories is not None
-            and not init
         )
 
         for i in range(len(text_obs)):
@@ -807,7 +806,25 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
             available_actions = self.format_avail_actions(infos[i]['available_actions'])
             reformatted_available_actions = "\n".join(f"'{s}'," for s in available_actions)
 
-            if init or self.config.env.history_length <= 0:
+            # The first decision is usually the search query, so include the
+            # same task-retrieved skills even before a trajectory history
+            # exists.  These are static retrieved skills only: no seed tree,
+            # reference trajectory, or environment-side privileged data.
+            if init and use_retrieval:
+                memory_context = self.retrieval_memory.format_for_prompt(
+                    self.retrieved_memories[i]
+                )
+                obs = WEBSHOP_TEMPLATE_WITH_MEMORY.format(
+                    task_description=self.tasks[i],
+                    retrieved_memories=memory_context,
+                    step_count=0,
+                    history_length=0,
+                    action_history="None",
+                    current_step=1,
+                    current_observation=text_obs[i],
+                    available_actions=reformatted_available_actions,
+                )
+            elif init or self.config.env.history_length <= 0:
                 obs = WEBSHOP_TEMPLATE_NO_HIS.format(
                     task_description=self.tasks[i],
                     current_observation=text_obs[i],
