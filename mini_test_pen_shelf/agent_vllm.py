@@ -42,6 +42,26 @@ class VLLMAgent:
               f"tensor_parallel_size={tensor_parallel_size}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        self.max_model_len = int(max_model_len)
+        # A forced close appends ``</think>`` after stage 1.  Reserve its exact
+        # token length (with a small floor for tokenizer variants) so a prompt
+        # at the advertised input budget still leaves room for stage 2.
+        self._forced_close_token_slack = max(
+            4,
+            len(self.tokenizer.encode("\n</think>\n", add_special_tokens=False)),
+        )
+        self._prompt_token_limit = self.max_model_len - max(
+            int(max_tokens),
+            int(think_budget) + int(action_budget) + self._forced_close_token_slack,
+        )
+        self._action_prompt_token_limit = self.max_model_len - int(action_budget)
+        if self._prompt_token_limit <= 0 or self._action_prompt_token_limit <= 0:
+            raise ValueError(
+                "max_model_len must leave room for the configured thinking and action budgets")
+        self.context_guard_prompt_trims = 0
+        self.context_guard_think_trims = 0
+        self.context_guard_trimmed_tokens = 0
+        self._context_guard_reported = False
         self.llm = LLM(
             model=model_path,
             gpu_memory_utilization=gpu_memory_utilization,
@@ -153,10 +173,9 @@ class VLLMAgent:
     def _build_prompt(self, obs_text):
         """单条 user message -> chat template 字符串（与项目 rollout_loop 一致）。"""
         chat = [{"role": "user", "content": obs_text}]
-        kwargs = {}
         # Qwen3 支持 enable_thinking 开关
         try:
-            return self.tokenizer.apply_chat_template(
+            prompt = self.tokenizer.apply_chat_template(
                 chat,
                 add_generation_prompt=True,
                 tokenize=False,
@@ -164,9 +183,88 @@ class VLLMAgent:
             )
         except TypeError:
             # 某些 tokenizer 不接受 enable_thinking 参数
-            return self.tokenizer.apply_chat_template(
+            prompt = self.tokenizer.apply_chat_template(
                 chat, add_generation_prompt=True, tokenize=False
             )
+        return self._fit_initial_prompt(prompt)
+
+    def _token_ids(self, text):
+        return self.tokenizer.encode(text, add_special_tokens=False)
+
+    def _decode_ids(self, token_ids):
+        return self.tokenizer.decode(
+            token_ids,
+            skip_special_tokens=False,
+            clean_up_tokenization_spaces=False,
+        )
+
+    def _trim_middle_tokens(self, token_ids, token_limit):
+        """Keep both task/header and latest observation/action suffix."""
+        if len(token_ids) <= token_limit:
+            return token_ids, 0
+        marker = self._token_ids("\n[Earlier prompt context omitted for context limit.]\n")
+        if token_limit <= len(marker) + 2:
+            kept = token_ids[-token_limit:]
+        else:
+            usable = token_limit - len(marker)
+            head = usable // 2
+            tail = usable - head
+            kept = token_ids[:head] + marker + token_ids[-tail:]
+        return kept, len(token_ids) - len(kept)
+
+    def _report_context_guard(self, kind, removed):
+        if removed <= 0:
+            return
+        self.context_guard_trimmed_tokens += int(removed)
+        if not self._context_guard_reported:
+            print(
+                f"[vLLM][context-guard] {kind}: trimmed {removed} tokens "
+                f"to preserve max_model_len={self.max_model_len} and the configured action budget"
+            )
+            self._context_guard_reported = True
+
+    def _fit_initial_prompt(self, prompt):
+        """Enforce the declared input budget before stage-1 thinking starts."""
+        token_ids = self._token_ids(prompt)
+        kept, removed = self._trim_middle_tokens(token_ids, self._prompt_token_limit)
+        if removed:
+            self.context_guard_prompt_trims += 1
+            self._report_context_guard("initial prompt", removed)
+            return self._decode_ids(kept)
+        return prompt
+
+    def _fit_action_prompt(self, prompt, think_part):
+        """Last-resort token guard for the prompt fed to stage-2 action decoding.
+
+        The normal path is already bounded by :meth:`_fit_initial_prompt`.
+        This second check covers tokenizer/output edge cases without letting
+        vLLM fail an entire rollout batch for one overlong sample.
+        """
+        suffix = think_part + "\n"
+        prefix_ids = self._token_ids(prompt)
+        suffix_ids = self._token_ids(suffix)
+        overflow = len(prefix_ids) + len(suffix_ids) - self._action_prompt_token_limit
+        if overflow <= 0:
+            return prompt + suffix, think_part
+
+        # Preserve the end of the thought, including ``</think>``, because it
+        # contains the most recent conclusion and keeps the strict protocol
+        # well formed after _restore_think adds a missing opening tag.
+        if overflow < len(suffix_ids):
+            suffix_ids = suffix_ids[overflow:]
+            fitted_think = self._decode_ids(suffix_ids).rstrip()
+            self.context_guard_think_trims += 1
+            self._report_context_guard("action-context thought", overflow)
+            return prompt + self._decode_ids(suffix_ids), fitted_think
+
+        # This is only reachable if the input itself was unexpectedly longer
+        # than the bounded stage-1 limit.  Keep a compact head/tail prompt and
+        # the complete protocol suffix rather than crashing the whole batch.
+        allowed_prefix = max(1, self._action_prompt_token_limit - len(suffix_ids))
+        kept_prefix, removed = self._trim_middle_tokens(prefix_ids, allowed_prefix)
+        self.context_guard_prompt_trims += 1
+        self._report_context_guard("action-context prompt", removed)
+        return self._decode_ids(kept_prefix) + suffix, think_part
 
     @staticmethod
     def _restore_think(prompt, text):
@@ -208,7 +306,7 @@ class VLLMAgent:
 
         # 阶段 2：续写动作（无论阶段1是否自然收尾都重新干净生成一次 action，
         # 保证 <action> 紧跟在 </think> 之后、格式规整，不与阶段1残留拼接）
-        action_prompt = prompt + think_part + "\n"
+        action_prompt, think_part = self._fit_action_prompt(prompt, think_part)
         out2 = self.llm.generate([action_prompt], self.action_sampling, use_tqdm=False)
         self._record_token_usage(out2)
         action_text = out2[0].outputs[0].text.strip()
@@ -253,7 +351,9 @@ class VLLMAgent:
             think_parts.append(think_part)
             forced_flags.append(not got_close)
 
-        action_prompts = [p + t + "\n" for p, t in zip(prompts, think_parts)]
+        fitted = [self._fit_action_prompt(p, t) for p, t in zip(prompts, think_parts)]
+        action_prompts = [item[0] for item in fitted]
+        think_parts = [item[1] for item in fitted]
         outs2 = self.llm.generate(action_prompts, self.action_sampling, use_tqdm=False)
         self._record_token_usage(outs2)
 

@@ -150,7 +150,7 @@ export OUTPUT_DIR=/GLOBALFS/hit_wxia_1/myl/CoSkill/outputs/webshop/run_001
 bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
 ~~~
 
-默认：train_data_size=12、group_size=6，即 72 局/group；total_groups=100，至多 7200 局；单局 15 步。脚本对齐的 token 设置是 prompt 不超过 8192 token、response 4096 token，其中 thinking=3840、action=256。
+默认：train_data_size=12、group_size=6，即 72 局/group；total_groups=100，至多 7200 局；单局 15 步。脚本对齐的 token 设置是名义 prompt 不超过 8192 token、response 4096 token，其中 thinking=3840、action=256。端侧 agent 会按实际 tokenizer 在首阶段前压缩超长 chat prompt，并为强制 `</think>` 闭合预留少量 token；因此第二阶段 action prompt 始终保留 256-token 动作空间，不会越过 `max_model_len=12288`。这不改变 response/rollout 预算，只在输入超过上下文窗口时压缩中间的旧上下文，同时保留任务开头和最新 observation/action 后缀。
 
 本地最小 smoke test：
 
