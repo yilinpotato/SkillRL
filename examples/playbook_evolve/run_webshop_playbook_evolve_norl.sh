@@ -96,6 +96,18 @@ if [ "$NUM_VISIBLE_GPUS" -lt "$REQUIRED_GPUS" ]; then
     exit 1
 fi
 ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
+# CUDA Graph capture pays back over long A800 training runs; retain eager mode
+# by default for the shared 3090 smoke-test path where startup memory is tighter.
+if [ -d /GLOBALFS/hit_wxia_1 ]; then
+    DEFAULT_VLLM_ENFORCE_EAGER=0
+else
+    DEFAULT_VLLM_ENFORCE_EAGER=1
+fi
+VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-$DEFAULT_VLLM_ENFORCE_EAGER}"
+if [ "$VLLM_ENFORCE_EAGER" != "0" ] && [ "$VLLM_ENFORCE_EAGER" != "1" ]; then
+    echo "VLLM_ENFORCE_EAGER must be 0 or 1." >&2
+    exit 1
+fi
 
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
 if [ -d /GLOBALFS/hit_wxia_1 ]; then
@@ -169,6 +181,7 @@ echo "DATA_ROOT: $DATA_ROOT"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
 echo "vLLM topology: $VLLM_PARALLEL_TOPOLOGY (DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE PP=$PIPELINE_PARALLEL_SIZE; GPUs=$REQUIRED_GPUS)"
 echo "vLLM max_num_seqs: ${VLLM_MAX_NUM_SEQS:-0} (0 means each worker's actual rollout batch size)"
+echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER (0 enables CUDA Graphs after warm-up)"
 echo "WebShop data: $WEBSHOP_DATA_DIR"
 echo "Rollout standard: train=$TRAIN_DATA_SIZE val=$VAL_DATA_SIZE group_size=$GROUP_SIZE groups=$TOTAL_GROUPS max_episodes=$MAX_EPISODES"
 echo "Token standard: prompt<=8192, response=$MAX_TOKENS (think=$THINK_BUDGET action=$ACTION_BUDGET)"
@@ -191,6 +204,7 @@ python3 -u -m examples.playbook_evolve.run_webshop_evolve \
     --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
     --pipeline_parallel_size "$PIPELINE_PARALLEL_SIZE" \
     --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
+    --vllm_enforce_eager "$VLLM_ENFORCE_EAGER" \
     --checkpoint_every_groups "$CHECKPOINT_EVERY_GROUPS" \
     --history_length 8 \
     --prompt_char_limit "$PROMPT_CHAR_LIMIT" \

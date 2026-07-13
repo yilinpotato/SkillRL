@@ -108,6 +108,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 \
 
 `VLLM_MAX_NUM_SEQS=0`（默认）会把每个 worker 的 vLLM scheduler 上限设为它实际处理的 rollout batch（DP=2 时为 36，DP=4 时为 18），而非 vLLM 的 1024-request 默认预热。所有实际请求数、rollout、token 预算和 action protocol 保持不变；此开关只消除从不发生的空余调度容量和对应的 sampler warm-up。显式提高该值可用于吞吐实验，但不能低于该 worker batch。
 
+WebShop rollout 已按每个环境 step 批量调用 vLLM：整批先生成 think，再整批续写 action。后者是严格双段协议的一部分，不能合并为单次自由生成而不改变策略分布。vLLM V1 默认启用 prefix caching，第二阶段可以复用第一阶段 chat prompt 的块级 KV 前缀。超算 launcher 默认 `VLLM_ENFORCE_EAGER=0`，使 A800 在 warm-up 后使用 CUDA Graph 提升长生成 decode 吞吐；该开关不修改 prompt、采样参数、token/rollout 预算或环境接口。若短本地 smoke 出现 CUDA Graph 显存问题，可显式设 `VLLM_ENFORCE_EAGER=1`。
+
 常用环境变量：
 
 | 变量 | 用途 |

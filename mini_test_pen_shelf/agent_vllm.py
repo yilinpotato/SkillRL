@@ -32,6 +32,7 @@ class VLLMAgent:
         action_budget=256, # 第二阶段动作预算；WebShop 用 128，使 640+128 对齐 response=768
         pipeline_parallel_size=1,
         max_num_seqs=None,
+        enforce_eager=True,
     ):
         from vllm import LLM, SamplingParams
         from transformers import AutoTokenizer
@@ -43,7 +44,7 @@ class VLLMAgent:
         print(f"[vLLM] gpu_mem_util={gpu_memory_utilization}, max_model_len={max_model_len}, "
               f"tensor_parallel_size={tensor_parallel_size}, "
               f"pipeline_parallel_size={pipeline_parallel_size}, "
-              f"max_num_seqs={max_num_seqs}")
+              f"max_num_seqs={max_num_seqs}, enforce_eager={enforce_eager}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         self.max_model_len = int(max_model_len)
@@ -74,7 +75,10 @@ class VLLMAgent:
             trust_remote_code=True,
             tensor_parallel_size=tensor_parallel_size,
             pipeline_parallel_size=pipeline_parallel_size,
-            enforce_eager=True,   # 单任务调试，跳过 CUDA graph 编译省启动时间
+            # Eager is useful for tiny local smoke tests.  Production A800
+            # runs use CUDA Graphs after warm-up to raise decode throughput;
+            # this changes execution capture, not prompt/sampling semantics.
+            enforce_eager=bool(enforce_eager),
             seed=seed,
         )
         # This rollout code never submits more than one environment batch at

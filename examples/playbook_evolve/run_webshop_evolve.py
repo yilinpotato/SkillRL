@@ -395,6 +395,7 @@ def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
             tensor_parallel_size=args.tensor_parallel_size,
             pipeline_parallel_size=args.pipeline_parallel_size,
             max_num_seqs=vllm_max_num_seqs,
+            enforce_eager=bool(args.vllm_enforce_eager),
             no_wait=args.nowait,
             think_budget=args.think_budget,
             action_budget=args.action_budget,
@@ -403,6 +404,7 @@ def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
               f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} "
               f"TP={args.tensor_parallel_size} PP={args.pipeline_parallel_size} "
               f"max_num_seqs={vllm_max_num_seqs} "
+              f"enforce_eager={bool(args.vllm_enforce_eager)} "
               f"base_tasks={base_task_count} batch={env.batch_size} goals={env.num_goals}")
         while True:
             command = input_queue.get()
@@ -461,6 +463,8 @@ def _parse_args():
     parser.add_argument("--pipeline_parallel_size", type=int, default=1)
     parser.add_argument("--vllm_max_num_seqs", type=int, default=0,
                         help="0 uses this worker's rollout batch size; a positive override must be no smaller")
+    parser.add_argument("--vllm_enforce_eager", type=int, choices=[0, 1], default=1,
+                        help="0 enables vLLM CUDA Graphs after warm-up; 1 is eager-only")
     parser.add_argument("--checkpoint_every_groups", type=int, default=2)
     parser.add_argument("--cloud_update_every", type=int, default=0)
     parser.add_argument("--history_length", type=int, default=8)
@@ -669,6 +673,7 @@ def main():
                 args.vllm_max_num_seqs or count * args.group_size
                 for count in base_splits
             ],
+            "vllm_enforce_eager": bool(args.vllm_enforce_eager),
             "checkpoint_every_groups": args.checkpoint_every_groups,
             "skill_tree_enabled": enable_tree,
             "skill_tree_evolve_enabled": enable_tree_evolve,
@@ -825,6 +830,7 @@ def main():
                         "parallel/data_parallel_workers": args.data_parallel_workers,
                         "parallel/tensor_parallel_size": args.tensor_parallel_size,
                         "parallel/pipeline_parallel_size": args.pipeline_parallel_size,
+                        "parallel/vllm_enforce_eager": bool(args.vllm_enforce_eager),
                         "experiment/cloud_round_used": row["cloud_round_used"],
                         "coskill/cloud_update_fired": bool(
                             fired and index == len(ingested) - 1),
@@ -875,6 +881,7 @@ def main():
                 "parallel/data_parallel_workers": args.data_parallel_workers,
                 "parallel/tensor_parallel_size": args.tensor_parallel_size,
                 "parallel/pipeline_parallel_size": args.pipeline_parallel_size,
+                "parallel/vllm_enforce_eager": bool(args.vllm_enforce_eager),
                 "experiment/cloud_round": cloud_updates,
                 "coskill/cloud_update_fired": bool(fired),
                 "tokens/small_model/prompt": small_tokens["prompt"],
