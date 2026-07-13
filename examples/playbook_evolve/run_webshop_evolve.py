@@ -49,6 +49,44 @@ def _split_int(total, parts):
     return [base + int(i < remainder) for i in range(parts)]
 
 
+def _parse_gpu_ids(raw):
+    return [item.strip() for item in (raw or "").split(",") if item.strip()]
+
+
+def _resolve_worker_gpu_groups(args):
+    """Map visible GPUs to one disjoint vLLM group per DP worker.
+
+    A group has ``tensor_parallel_size * pipeline_parallel_size`` GPUs.  This
+    keeps the existing DP task split stable when a four-GPU run uses DP=2,
+    TP=2, while still allowing an explicit DP=4, TP=1 throughput topology.
+    """
+    if args.rollout_worker_gpus:
+        gpu_ids = _parse_gpu_ids(args.rollout_worker_gpus)
+    elif os.environ.get("CUDA_VISIBLE_DEVICES"):
+        gpu_ids = _parse_gpu_ids(os.environ["CUDA_VISIBLE_DEVICES"])
+    else:
+        raw = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"], text=True)
+        gpu_ids = [line.strip() for line in raw.splitlines() if line.strip()]
+
+    if args.tensor_parallel_size < 1 or args.pipeline_parallel_size < 1:
+        raise ValueError("tensor_parallel_size and pipeline_parallel_size must both be >= 1")
+    devices_per_worker = args.tensor_parallel_size * args.pipeline_parallel_size
+    required_gpus = args.data_parallel_workers * devices_per_worker
+    if len(gpu_ids) < required_gpus:
+        raise ValueError(
+            f"Need {required_gpus} GPUs for DP={args.data_parallel_workers}, "
+            f"TP={args.tensor_parallel_size}, PP={args.pipeline_parallel_size}; "
+            f"found {gpu_ids}")
+    gpu_ids = gpu_ids[:required_gpus]
+    if len(set(gpu_ids)) != len(gpu_ids):
+        raise ValueError(f"Rollout GPU list contains duplicates: {gpu_ids}")
+    return [
+        ",".join(gpu_ids[start:start + devices_per_worker])
+        for start in range(0, required_gpus, devices_per_worker)
+    ]
+
+
 def _token_delta(after, before):
     prompt = max(0, int(after.get("prompt", 0)) - int(before.get("prompt", 0)))
     response = max(0, int(after.get("response", 0)) - int(before.get("response", 0)))
@@ -315,18 +353,19 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
     return results
 
 
-def _rollout_worker(worker_id, gpu_id, args_dict, base_task_count,
+def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
                     base_task_offset, input_queue, output_queue):
     group_id = None
     try:
-        # ``spawn`` copied this one-GPU mask from the parent at ``start()``.
+        # ``spawn`` copied this worker's disjoint GPU mask from the parent at
+        # ``start()``.  It may name one GPU (DP) or a TP/PP GPU group.
         # Do not rewrite it here: a second assignment can be interpreted in a
         # different CUDA visibility namespace by vLLM's EngineCore descendants
         # and remap worker 1 back onto GPU 0.
         visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
-        if visible_devices != str(gpu_id):
+        if visible_devices != str(gpu_group):
             raise RuntimeError(
-                f"worker {worker_id} expected CUDA_VISIBLE_DEVICES={gpu_id!r}, "
+                f"worker {worker_id} expected CUDA_VISIBLE_DEVICES={gpu_group!r}, "
                 f"got {visible_devices!r}; refusing unsafe vLLM launch")
         os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
         args = argparse.Namespace(**args_dict)
@@ -340,6 +379,11 @@ def _rollout_worker(worker_id, gpu_id, args_dict, base_task_count,
             attr_path=args.webshop_attr_path,
         )
         from mini_test_pen_shelf.agent_vllm import VLLMAgent
+        vllm_max_num_seqs = int(args.vllm_max_num_seqs or env.batch_size)
+        if vllm_max_num_seqs < env.batch_size:
+            raise ValueError(
+                f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than "
+                f"this worker's rollout batch={env.batch_size}")
         agent = VLLMAgent(
             model_path=args.model_path,
             gpu_memory_utilization=args.gpu_mem_util,
@@ -348,13 +392,17 @@ def _rollout_worker(worker_id, gpu_id, args_dict, base_task_count,
             temperature=args.temperature,
             enable_thinking=not args.no_thinking,
             seed=args.seed + worker_id,
-            tensor_parallel_size=1,
+            tensor_parallel_size=args.tensor_parallel_size,
+            pipeline_parallel_size=args.pipeline_parallel_size,
+            max_num_seqs=vllm_max_num_seqs,
             no_wait=args.nowait,
             think_budget=args.think_budget,
             action_budget=args.action_budget,
         )
-        print(f"[webshop-worker{worker_id}] ready gpu={gpu_id} "
+        print(f"[webshop-worker{worker_id}] ready gpu_group={gpu_group} "
               f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} "
+              f"TP={args.tensor_parallel_size} PP={args.pipeline_parallel_size} "
+              f"max_num_seqs={vllm_max_num_seqs} "
               f"base_tasks={base_task_count} batch={env.batch_size} goals={env.num_goals}")
         while True:
             command = input_queue.get()
@@ -377,7 +425,7 @@ def _rollout_worker(worker_id, gpu_id, args_dict, base_task_count,
             )
             results = rollout_webshop_group(
                 env, agent, skill_lib, args, group_id,
-                worker_tag=f" worker{worker_id} gpu={gpu_id}",
+                worker_tag=f" worker{worker_id} gpu_group={gpu_group}",
             )
             output_queue.put({
                 "worker_id": worker_id,
@@ -409,6 +457,10 @@ def _parse_args():
     parser.add_argument("--webshop_attr_path", required=True)
     parser.add_argument("--data_parallel_workers", type=int, default=2)
     parser.add_argument("--rollout_worker_gpus", default=None)
+    parser.add_argument("--tensor_parallel_size", type=int, default=1)
+    parser.add_argument("--pipeline_parallel_size", type=int, default=1)
+    parser.add_argument("--vllm_max_num_seqs", type=int, default=0,
+                        help="0 uses this worker's rollout batch size; a positive override must be no smaller")
     parser.add_argument("--checkpoint_every_groups", type=int, default=2)
     parser.add_argument("--cloud_update_every", type=int, default=0)
     parser.add_argument("--history_length", type=int, default=8)
@@ -508,28 +560,18 @@ def main():
         environment_name="WebShop",
     )
 
-    if args.rollout_worker_gpus:
-        gpu_ids = [item.strip() for item in args.rollout_worker_gpus.split(",") if item.strip()]
-    elif os.environ.get("CUDA_VISIBLE_DEVICES"):
-        gpu_ids = [item.strip() for item in os.environ["CUDA_VISIBLE_DEVICES"].split(",") if item.strip()]
-    else:
-        raw = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"], text=True)
-        gpu_ids = [line.strip() for line in raw.splitlines() if line.strip()]
-    if len(gpu_ids) < args.data_parallel_workers:
-        raise ValueError(f"Need {args.data_parallel_workers} GPUs, found {gpu_ids}")
-    gpu_ids = gpu_ids[:args.data_parallel_workers]
+    worker_gpu_groups = _resolve_worker_gpu_groups(args)
     base_splits = _split_int(args.train_data_size, args.data_parallel_workers)
 
     context = mp.get_context("spawn")
     output_queue = context.Queue()
     input_queues, processes = [], []
     offset = 0
-    for worker_id, (gpu_id, base_count) in enumerate(zip(gpu_ids, base_splits)):
+    for worker_id, (gpu_group, base_count) in enumerate(zip(worker_gpu_groups, base_splits)):
         input_queue = context.Queue(maxsize=2)
         process = context.Process(
             target=_rollout_worker,
-            args=(worker_id, gpu_id, vars(args).copy(), base_count, offset,
+            args=(worker_id, gpu_group, vars(args).copy(), base_count, offset,
                   input_queue, output_queue),
             daemon=False,
         )
@@ -537,10 +579,10 @@ def main():
         # old implementation changed CUDA_VISIBLE_DEVICES only inside the
         # target function.  That was too late for vLLM EngineCore descendants
         # on some cluster launches, so both replicas could see and fill GPU 0.
-        # Snapshot a one-GPU mask before spawning each persistent worker, then
+        # Snapshot this worker's disjoint GPU mask before spawning, then
         # restore the driver's original multi-GPU mask immediately afterwards.
         parent_cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_group)
         try:
             process.start()
         finally:
@@ -552,7 +594,8 @@ def main():
         processes.append(process)
         offset += base_count
     print(f"[webshop-driver] data_parallel_workers={args.data_parallel_workers} "
-          f"gpus={gpu_ids} base_task_splits={base_splits} "
+          f"gpu_groups={worker_gpu_groups} TP={args.tensor_parallel_size} "
+          f"PP={args.pipeline_parallel_size} base_task_splits={base_splits} "
           f"worker_batches={[count * args.group_size for count in base_splits]}")
 
     def shutdown():
@@ -617,6 +660,15 @@ def main():
             "max_episodes": episode_cap,
             "data_parallel_workers": args.data_parallel_workers,
             "data_parallel_base_task_splits": base_splits,
+            "rollout_worker_gpu_groups": worker_gpu_groups,
+            "tensor_parallel_size": args.tensor_parallel_size,
+            "pipeline_parallel_size": args.pipeline_parallel_size,
+            "vllm_max_num_seqs": args.vllm_max_num_seqs or max(
+                count * args.group_size for count in base_splits),
+            "vllm_max_num_seqs_by_worker": [
+                args.vllm_max_num_seqs or count * args.group_size
+                for count in base_splits
+            ],
             "checkpoint_every_groups": args.checkpoint_every_groups,
             "skill_tree_enabled": enable_tree,
             "skill_tree_evolve_enabled": enable_tree_evolve,
@@ -770,6 +822,9 @@ def main():
                         "experiment/skill_tree_enabled": int(enable_tree),
                         "experiment/skill_tree_evolve_enabled": int(enable_tree_evolve),
                         "experiment/skill_bullets_enabled": int(bool(args.enable_coskill)),
+                        "parallel/data_parallel_workers": args.data_parallel_workers,
+                        "parallel/tensor_parallel_size": args.tensor_parallel_size,
+                        "parallel/pipeline_parallel_size": args.pipeline_parallel_size,
                         "experiment/cloud_round_used": row["cloud_round_used"],
                         "coskill/cloud_update_fired": bool(
                             fired and index == len(ingested) - 1),
@@ -817,6 +872,9 @@ def main():
                 "experiment/skill_tree_enabled": int(enable_tree),
                 "experiment/skill_tree_evolve_enabled": int(enable_tree_evolve),
                 "experiment/skill_bullets_enabled": int(bool(args.enable_coskill)),
+                "parallel/data_parallel_workers": args.data_parallel_workers,
+                "parallel/tensor_parallel_size": args.tensor_parallel_size,
+                "parallel/pipeline_parallel_size": args.pipeline_parallel_size,
                 "experiment/cloud_round": cloud_updates,
                 "coskill/cloud_update_fired": bool(fired),
                 "tokens/small_model/prompt": small_tokens["prompt"],

@@ -6,7 +6,8 @@ set -euo pipefail
 #
 # Comparison standard follows run_alfworld_playbook_evolve_norl.sh:
 #   train_data_size=12, val_data_size=32, group_size=6 -> 72 episodes/group
-#   100 groups -> 7200 episodes, 2-GPU data parallel, checkpoint every 2 groups
+#   100 groups -> 7200 episodes, checkpoint every 2 groups.  With four GPUs,
+#   default topology is 2 data-parallel workers x tensor parallel size 2.
 # WebShop-specific contract follows examples/grpo_trainer/run_webshop_skills.sh:
 #   small 1000-product simulator, max_steps=15, prompt=8192, response=4096.
 # =============================================================================
@@ -16,8 +17,8 @@ export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export PYTHONUNBUFFERED=1
-# Stable physical-device ordering; the Python driver snapshots one visible GPU
-# per spawned vLLM worker to prevent KV-cache allocation collisions.
+# Stable physical-device ordering; the Python driver snapshots a disjoint GPU
+# group per spawned vLLM worker to prevent KV-cache allocation collisions.
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
 # 超算默认双卡；本地共享 3090 只允许空闲的 GPU 0。
@@ -37,7 +38,63 @@ else
     fi
     NUM_VISIBLE_GPUS=1
 fi
-DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$NUM_VISIBLE_GPUS}"
+# Four-GPU policy:
+#   auto (default): DP=2 x TP=2.  It keeps the prior two-worker task split
+#   (6+6 base tasks, 72 rollouts/group) while using four GPUs for vLLM.
+#   dp4: DP=4 x TP=1, the throughput-oriented option.  It keeps the same total
+#   rollout count but changes sampling scheduling, so use it only for a new
+#   seed-controlled run rather than bitwise continuation of an existing DP=2 run.
+#   manual: honor explicit DATA_PARALLEL_WORKERS / TENSOR_PARALLEL_SIZE /
+#   PIPELINE_PARALLEL_SIZE values.
+VLLM_PARALLEL_TOPOLOGY="${VLLM_PARALLEL_TOPOLOGY:-auto}"
+case "$VLLM_PARALLEL_TOPOLOGY" in
+    auto)
+        if [ "$NUM_VISIBLE_GPUS" -ge 4 ]; then
+            DEFAULT_DP=2
+            DEFAULT_TP=2
+        else
+            DEFAULT_DP="$NUM_VISIBLE_GPUS"
+            DEFAULT_TP=1
+        fi
+        DEFAULT_PP=1
+        ;;
+    dp2_tp2)
+        if [ "$NUM_VISIBLE_GPUS" -lt 4 ]; then
+            echo "VLLM_PARALLEL_TOPOLOGY=dp2_tp2 requires four visible GPUs." >&2
+            exit 1
+        fi
+        DEFAULT_DP=2
+        DEFAULT_TP=2
+        DEFAULT_PP=1
+        ;;
+    dp4)
+        if [ "$NUM_VISIBLE_GPUS" -lt 4 ]; then
+            echo "VLLM_PARALLEL_TOPOLOGY=dp4 requires four visible GPUs." >&2
+            exit 1
+        fi
+        DEFAULT_DP=4
+        DEFAULT_TP=1
+        DEFAULT_PP=1
+        ;;
+    manual)
+        DEFAULT_DP="$NUM_VISIBLE_GPUS"
+        DEFAULT_TP=1
+        DEFAULT_PP=1
+        ;;
+    *)
+        echo "Unknown VLLM_PARALLEL_TOPOLOGY=$VLLM_PARALLEL_TOPOLOGY (use auto, dp2_tp2, dp4, or manual)." >&2
+        exit 1
+        ;;
+esac
+DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$DEFAULT_DP}"
+TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-$DEFAULT_TP}"
+PIPELINE_PARALLEL_SIZE="${PIPELINE_PARALLEL_SIZE:-$DEFAULT_PP}"
+VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-0}"
+REQUIRED_GPUS=$((DATA_PARALLEL_WORKERS * TENSOR_PARALLEL_SIZE * PIPELINE_PARALLEL_SIZE))
+if [ "$NUM_VISIBLE_GPUS" -lt "$REQUIRED_GPUS" ]; then
+    echo "Need $REQUIRED_GPUS visible GPUs for DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE PP=$PIPELINE_PARALLEL_SIZE; only $NUM_VISIBLE_GPUS are visible." >&2
+    exit 1
+fi
 ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
 
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
@@ -110,7 +167,8 @@ echo "Run environment: $RUN_ENV"
 echo "CACHE_ROOT: $CACHE_ROOT"
 echo "DATA_ROOT: $DATA_ROOT"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
-echo "data_parallel_workers: $DATA_PARALLEL_WORKERS"
+echo "vLLM topology: $VLLM_PARALLEL_TOPOLOGY (DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE PP=$PIPELINE_PARALLEL_SIZE; GPUs=$REQUIRED_GPUS)"
+echo "vLLM max_num_seqs: ${VLLM_MAX_NUM_SEQS:-0} (0 means each worker's actual rollout batch size)"
 echo "WebShop data: $WEBSHOP_DATA_DIR"
 echo "Rollout standard: train=$TRAIN_DATA_SIZE val=$VAL_DATA_SIZE group_size=$GROUP_SIZE groups=$TOTAL_GROUPS max_episodes=$MAX_EPISODES"
 echo "Token standard: prompt<=8192, response=$MAX_TOKENS (think=$THINK_BUDGET action=$ACTION_BUDGET)"
@@ -130,6 +188,9 @@ python3 -u -m examples.playbook_evolve.run_webshop_evolve \
     --seed 0 \
     --data_parallel_workers "$DATA_PARALLEL_WORKERS" \
     --rollout_worker_gpus "$ROLLOUT_WORKER_GPUS" \
+    --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
+    --pipeline_parallel_size "$PIPELINE_PARALLEL_SIZE" \
+    --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
     --checkpoint_every_groups "$CHECKPOINT_EVERY_GROUPS" \
     --history_length 8 \
     --prompt_char_limit "$PROMPT_CHAR_LIMIT" \

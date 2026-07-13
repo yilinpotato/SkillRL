@@ -93,7 +93,20 @@ CUDA_VISIBLE_DEVICES=0 DATA_PARALLEL_WORKERS=1 ROLLOUT_WORKER_GPUS=0 \
   bash examples/playbook_evolve/run_alfworld_playbook_evolve_norl.sh
 ~~~
 
-两个 CoSkill driver 会在 `multiprocessing spawn` **之前**向每个 rollout worker 写入仅含其分配 GPU 的 `CUDA_VISIBLE_DEVICES`，并在 worker ready 日志中打印该值；随后父进程恢复双卡可见列表。worker 只校验并继承这个单卡 mask，不会在子进程中再次重设它，以免 vLLM EngineCore 在不同 CUDA 可见性命名空间中把第二个副本重新映射到 GPU 0。若继承值不匹配，driver 会在加载模型前失败。所有入口同时设置 `CUDA_DEVICE_ORDER=PCI_BUS_ID`，保证编号稳定。
+两个 CoSkill driver 会在 `multiprocessing spawn` **之前**向每个 rollout worker 写入仅含其分配 GPU group 的 `CUDA_VISIBLE_DEVICES`，并在 worker ready 日志中打印该值；随后父进程恢复原始可见列表。worker 只校验并继承这个 GPU group mask，不会在子进程中再次重设它，以免 vLLM EngineCore 在不同 CUDA 可见性命名空间中把第二个副本重新映射到 GPU 0。若继承值不匹配，driver 会在加载模型前失败。所有入口同时设置 `CUDA_DEVICE_ORDER=PCI_BUS_ID`，保证编号稳定。
+
+### 4.2 CoSkill WebShop 四卡并行（不改变 rollout 规模）
+
+WebShop launcher 按调度器分配的 `CUDA_VISIBLE_DEVICES` 自动检查可见 GPU 数。若可见卡至少为四张，`VLLM_PARALLEL_TOPOLOGY=auto` 默认采用 `DP=2 × TP=2 × PP=1`：两个常驻 rollout worker 分别继承 `0,1`、`2,3`（或调度器给出的前四张卡），每个 worker 仍处理 6 个基础任务、每组仍合计 72 条 rollout。模型、任务、种子、token 预算、云端更新边界均不变；只改变 vLLM 的模型分片方式。
+
+~~~bash
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+  bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
+~~~
+
+`VLLM_PARALLEL_TOPOLOGY=dp4` 使用 `DP=4 × TP=1`，常常有更高吞吐，但改变了采样调度，不应用于与已经启动的 DP=2 运行做逐 token 续跑。`manual` 模式允许设置 `DATA_PARALLEL_WORKERS`、`TENSOR_PARALLEL_SIZE` 和 `PIPELINE_PARALLEL_SIZE`；pipeline parallel 默认 1，因为 Qwen3-4B 通常不会从 PP 获得额外吞吐。每个 worker 必须获得互不重叠的 GPU group；不足 `DP×TP×PP` 张可见卡时，launcher 会在启动模型前失败。
+
+`VLLM_MAX_NUM_SEQS=0`（默认）会把每个 worker 的 vLLM scheduler 上限设为它实际处理的 rollout batch（DP=2 时为 36，DP=4 时为 18），而非 vLLM 的 1024-request 默认预热。所有实际请求数、rollout、token 预算和 action protocol 保持不变；此开关只消除从不发生的空余调度容量和对应的 sampler warm-up。显式提高该值可用于吞吐实验，但不能低于该 worker batch。
 
 常用环境变量：
 

@@ -30,6 +30,8 @@ class VLLMAgent:
                            # 需要时显式开启（budget forcing 已能控制思考长度）。
         think_budget=3500, # 思考预算：第一阶段生成上限。到此还没 </think> 就强制收尾出 action
         action_budget=256, # 第二阶段动作预算；WebShop 用 128，使 640+128 对齐 response=768
+        pipeline_parallel_size=1,
+        max_num_seqs=None,
     ):
         from vllm import LLM, SamplingParams
         from transformers import AutoTokenizer
@@ -39,7 +41,9 @@ class VLLMAgent:
 
         print(f"[vLLM] 加载模型: {model_path}")
         print(f"[vLLM] gpu_mem_util={gpu_memory_utilization}, max_model_len={max_model_len}, "
-              f"tensor_parallel_size={tensor_parallel_size}")
+              f"tensor_parallel_size={tensor_parallel_size}, "
+              f"pipeline_parallel_size={pipeline_parallel_size}, "
+              f"max_num_seqs={max_num_seqs}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         self.max_model_len = int(max_model_len)
@@ -62,16 +66,23 @@ class VLLMAgent:
         self.context_guard_think_trims = 0
         self.context_guard_trimmed_tokens = 0
         self._context_guard_reported = False
-        self.llm = LLM(
+        llm_kwargs = dict(
             model=model_path,
             gpu_memory_utilization=gpu_memory_utilization,
             max_model_len=max_model_len,
             dtype="bfloat16",
             trust_remote_code=True,
             tensor_parallel_size=tensor_parallel_size,
+            pipeline_parallel_size=pipeline_parallel_size,
             enforce_eager=True,   # 单任务调试，跳过 CUDA graph 编译省启动时间
             seed=seed,
         )
+        # This rollout code never submits more than one environment batch at
+        # once.  Bounding vLLM's scheduler avoids an unnecessary 1024-request
+        # dummy sampler warm-up without changing any generated request.
+        if max_num_seqs is not None:
+            llm_kwargs["max_num_seqs"] = int(max_num_seqs)
+        self.llm = LLM(**llm_kwargs)
         # NoWait（论文版）：抑制"反思类"回溯词，迫使模型不反复回头、更快收敛到
         # <action>，缩短 thinking、减少 max_tokens 截断。
         # 论文做法 = 扫全词表，凡 decode 后命中 wait/hmm/alternatively/... 子串的
