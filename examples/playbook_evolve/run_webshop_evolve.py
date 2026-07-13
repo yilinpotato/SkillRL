@@ -15,6 +15,7 @@ import atexit
 import json
 import multiprocessing as mp
 import os
+import re
 import subprocess
 import time
 import traceback
@@ -189,6 +190,80 @@ def _dump_episode(outdir, episode_idx, result):
         ])
     with open(os.path.join(directory, base + "_prompts.txt"), "w") as handle:
         handle.write("\n".join(prompts) + "\n")
+
+
+def _tag_block(text, tag):
+    match = re.search(
+        rf"<{tag}>.*?</{tag}>", str(text or ""), flags=re.IGNORECASE | re.DOTALL)
+    return match.group(0) if match else ""
+
+
+def _dump_thinking_samples(outdir, group_id, ingested, max_samples):
+    """Save a few complete, human-readable thought trajectories.
+
+    This is observation-only: the selected model outputs were already sampled
+    and executed.  It neither changes the prompt nor enters TracesPool, reward,
+    cloud updates, or the skill library.
+    """
+    if max_samples <= 0:
+        return
+    jsonl_path = os.path.join(outdir, "thinking_samples.jsonl")
+    text_path = os.path.join(outdir, "thinking_samples.txt")
+    saved = 0
+    for row, result in ingested:
+        if saved >= max_samples:
+            break
+        steps = result.get("raw_trace", {}).get("steps", [])
+        step_records = []
+        for step in steps:
+            raw_output = str(step.get("raw_model_output", ""))
+            step_records.append({
+                "step": step.get("step"),
+                "observation": step.get("observation", ""),
+                "strict_valid_action": bool(step.get("strict_valid_action", False)),
+                "valid_action": bool(step.get("valid_action", False)),
+                "execution_source": step.get("execution_source"),
+                "executed_action": step.get("action"),
+                "reward": float(step.get("reward", 0.0) or 0.0),
+                "task_score": float(step.get("task_score", 0.0) or 0.0),
+                "think": _tag_block(raw_output, "think"),
+                "action_block": _tag_block(raw_output, "action"),
+                "raw_model_output": raw_output,
+            })
+        if not any(step["raw_model_output"] for step in step_records):
+            continue
+        payload = {
+            "group": group_id,
+            "episode": row["step"],
+            "goal_index": row.get("goal_index"),
+            "task_type": row["detected_type"],
+            "task": result["raw_trace"].get("task"),
+            "won": bool(result["won"]),
+            "task_score": float(result["task_score"]),
+            "steps": step_records,
+        }
+        _append_jsonl(jsonl_path, payload)
+        with open(text_path, "a", encoding="utf-8") as handle:
+            handle.write(
+                f"{'=' * 78}\n"
+                f"group={group_id} episode={row['step']} goal={row.get('goal_index')} "
+                f"type={row['detected_type']} won={bool(result['won'])} "
+                f"score={float(result['task_score']):.4f}\n"
+                f"task: {payload['task']}\n"
+            )
+            for step in step_records:
+                handle.write(
+                    f"\n-- step {step['step']} action={step['executed_action']!r} "
+                    f"strict_valid={step['strict_valid_action']} "
+                    f"valid={step['valid_action']} source={step['execution_source']} "
+                    f"reward={step['reward']:.4f} task_score={step['task_score']:.4f}\n"
+                    f"[OBSERVATION]\n{step['observation']}\n"
+                    f"[THINK]\n{step['think'] or '(no complete <think> block)'}\n"
+                    f"[ACTION]\n{step['action_block'] or '(no complete <action> block)'}\n"
+                )
+        saved += 1
+    if saved:
+        print(f"[webshop-driver] saved {saved} thought samples to {text_path}", flush=True)
 
 
 def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
@@ -502,6 +577,10 @@ def _parse_args():
     parser.add_argument("--loop_threshold", type=int, default=3)
     parser.add_argument("--coskill_debug", type=int, default=0)
     parser.add_argument("--log_trajectories", type=int, default=0)
+    parser.add_argument("--think_trace_samples_per_group", type=int, default=0,
+                        help="Save this many complete think/action episodes at audit groups; 0 disables")
+    parser.add_argument("--think_trace_every_groups", type=int, default=10,
+                        help="Audit group interval for think samples; group 1 is always included")
     parser.add_argument("--outdir", required=True)
     return parser.parse_args()
 
@@ -524,6 +603,10 @@ def main():
         raise ValueError("train_data_size must be >= data_parallel_workers")
     if args.think_budget + args.action_budget > args.max_tokens:
         raise ValueError("think_budget + action_budget must be <= max_tokens for WebShop alignment")
+    if args.think_trace_samples_per_group < 0:
+        raise ValueError("think_trace_samples_per_group must be >= 0")
+    if args.think_trace_every_groups < 1:
+        raise ValueError("think_trace_every_groups must be >= 1")
 
     enable_tree = bool(args.enable_skill_tree)
     enable_tree_evolve = enable_tree and bool(args.enable_skill_tree_evolve)
@@ -779,6 +862,16 @@ def main():
                 ingested.append((row, result))
                 if bool(args.log_trajectories):
                     _dump_episode(args.outdir, global_episode, result)
+
+            if args.think_trace_samples_per_group and (
+                group_id == 1 or group_id % args.think_trace_every_groups == 0
+            ):
+                _dump_thinking_samples(
+                    args.outdir,
+                    group_id,
+                    ingested,
+                    args.think_trace_samples_per_group,
+                )
 
             force_reason = None
             if args.cloud_update_every > 0 and group_id % args.cloud_update_every == 0:

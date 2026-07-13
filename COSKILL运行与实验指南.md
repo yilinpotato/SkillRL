@@ -126,6 +126,7 @@ WebShop rollout 已按每个环境 step 批量调用 vLLM：整批先生成 thin
 | WEBSHOP_DATA_DIR | WebShop 数据目录 |
 | MAX_EPISODES、TOTAL_GROUPS、GROUP_SIZE | 脚本层面的规模覆盖 |
 | LOG_TRAJECTORIES | 1 时保存完整 prompt 和轨迹；磁盘占用显著增加 |
+| THINK_TRACE_SAMPLES_PER_GROUP、THINK_TRACE_EVERY_GROUPS | WebShop 保存少量完整 episode（最多 15 步）的实际 `<think>`/`<action>` 审计样本；默认每 10 group 取 1 局，另含 group 1 |
 
 每次新实验必须用新的 OUTPUT_DIR。metrics.jsonl 和 group_metrics.jsonl 是追加写入；同一目录重新以 resume=0 启动会混入旧记录。
 
@@ -345,6 +346,8 @@ ALFWorld 的 won 由环境 won 判定。WebShop 仅 terminal task_score 等于 1
 ALFWorld 中 episode/valid_action_ratio 为宽松口径，另有 episode/strict_valid_action_ratio。WebShop 为兼容既有日志，episode/valid_action_ratio 保持历史严格口径；另写入 episode/strict_valid_action_ratio 与 episode/relaxed_valid_action_ratio。
 
 WebShop 的第一步同样注入检索到的静态技能：首步常常决定搜索 query，不能因为尚无 history 而退化为无技能模板。CoSkill 的 no-RL driver 与其 GRPO 环境管理器均采用该规则，且已与 SkillRL、Skill0 的 WebShop GRPO 路径对齐。该注入不包含手写 seed playbook，也不读取 oracle；新运行的任务树仍为空，只有云端从训练期 successful rollout 分析得到的树才会被写入并注入。启用 `LOG_TRAJECTORIES=1` 时，每步 JSON/TXT 额外写入 `raw_model_output`，可直接判断 malformed 是模型未产出动作块，还是后续投影/环境执行问题。
+
+WebShop 默认开启 Qwen thinking：prompt 要求恰好一个 `<think>...</think>` 后接一个 `<action>...</action>`；driver 先批量生成最多 3,840 token 的 think，再批量生成最多 256 token 的 action。为便于检查真实推理而不写出全部 trajectory，launcher 默认在 group 1 和之后每 10 个 group 各保存 1 局完整 episode（最多 15 步）到 `thinking_samples.txt` 与 `thinking_samples.jsonl`；逐步包含 observation、完整 think、action、投影后执行动作、有效性和环境得分。这些文件只复制已经生成、已经执行的模型输出，不参与 TracesPool、云端更新、奖励或指标。设 `THINK_TRACE_SAMPLES_PER_GROUP=0` 可关闭。
 
 常见指标前缀：
 

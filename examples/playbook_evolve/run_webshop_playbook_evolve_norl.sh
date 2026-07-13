@@ -162,6 +162,11 @@ TOTAL_GROUPS="${TOTAL_GROUPS:-100}"
 MAX_EPISODES="${MAX_EPISODES:-7200}"
 CHECKPOINT_EVERY_GROUPS="${CHECKPOINT_EVERY_GROUPS:-2}"
 LOG_TRAJECTORIES="${LOG_TRAJECTORIES:-0}"
+# Keep a compact audit trail of actual model thinking without writing every
+# prompt/trajectory.  Group 1 plus each tenth group yields 11 full episodes in a
+# standard 100-group run; these files do not feed learning or evaluation.
+THINK_TRACE_SAMPLES_PER_GROUP="${THINK_TRACE_SAMPLES_PER_GROUP:-1}"
+THINK_TRACE_EVERY_GROUPS="${THINK_TRACE_EVERY_GROUPS:-10}"
 # Match both GRPO WebShop paths: an 8,192-token prompt budget plus a 4,096-token
 # response budget.  CoSkill's two-stage generator reserves the latter as
 # 3,840 thinking tokens + 256 action tokens.
@@ -185,6 +190,7 @@ echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER (0 enables CUDA Graphs after warm-
 echo "WebShop data: $WEBSHOP_DATA_DIR"
 echo "Rollout standard: train=$TRAIN_DATA_SIZE val=$VAL_DATA_SIZE group_size=$GROUP_SIZE groups=$TOTAL_GROUPS max_episodes=$MAX_EPISODES"
 echo "Token standard: prompt<=8192, response=$MAX_TOKENS (think=$THINK_BUDGET action=$ACTION_BUDGET)"
+echo "Thought audit: $THINK_TRACE_SAMPLES_PER_GROUP samples at group 1 and every $THINK_TRACE_EVERY_GROUPS groups"
 echo "Outputs: $OUTPUT_DIR"
 
 python3 -u -m examples.playbook_evolve.run_webshop_evolve \
@@ -234,4 +240,6 @@ python3 -u -m examples.playbook_evolve.run_webshop_evolve \
     --min_samples 16 \
     --loop_threshold 3 \
     --log_trajectories "$LOG_TRAJECTORIES" \
+    --think_trace_samples_per_group "$THINK_TRACE_SAMPLES_PER_GROUP" \
+    --think_trace_every_groups "$THINK_TRACE_EVERY_GROUPS" \
     "$@" 2>&1 | tee "$OUTPUT_DIR/driver.log"
