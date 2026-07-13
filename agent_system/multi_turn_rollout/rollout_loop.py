@@ -15,6 +15,7 @@
 
 import os
 import json
+import re
 import time
 import torch
 import numpy as np
@@ -87,6 +88,27 @@ class TrajectoryCollector:
                 print(f"[TrajectoryDump] Could not create dir '{self._traj_dump_dir}' ({e}); "
                       f"disabling trajectory dump.")
                 self._traj_dump_enabled = False
+
+    def _prompts_open_think(self, input_ids, attention_mask):
+        """Return whether Qwen's rendered prompt already opened ``<think>``."""
+        flags = []
+        for token_ids, mask in zip(input_ids, attention_mask):
+            prompt_ids = token_ids[mask.to(dtype=torch.bool)][-32:]
+            tail = self.tokenizer.decode(
+                prompt_ids.detach().cpu().tolist(), skip_special_tokens=False
+            )
+            flags.append(tail.rstrip().endswith("<think>"))
+        return flags
+
+    @staticmethod
+    def _render_protocol_response(response: str, prompt_opens_think: bool):
+        """Reconstruct a complete protocol transcript without changing tokens."""
+        response = "" if response is None else str(response)
+        has_open = bool(re.search(r"<think>", response, flags=re.IGNORECASE))
+        has_close = bool(re.search(r"</think>", response, flags=re.IGNORECASE))
+        if prompt_opens_think and not has_open and has_close:
+            return "<think>\n" + response, True
+        return response, False
 
     def preprocess_single_sample(
         self,
@@ -383,6 +405,12 @@ class TrajectoryCollector:
             active_masks = np.logical_not(is_done)
 
             batch = self.preprocess_batch(gen_batch=gen_batch, obs=obs)
+            is_webshop = "webshop" in str(self.config.env.env_name).lower()
+            prompt_opens_think = (
+                self._prompts_open_think(
+                    batch.batch["input_ids"], batch.batch["attention_mask"]
+                ) if is_webshop else [False] * batch_size
+            )
 
             batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
             non_tensor_batch_keys_to_pop = ["raw_prompt_ids"]
@@ -413,14 +441,21 @@ class TrajectoryCollector:
             # ``<action>`` and ``</action>`` are special tokens for some Qwen
             # tokenizers.  They are part of WebShop's wire protocol, so do not
             # silently strip them before handing the response to the environment.
-            text_actions = self.tokenizer.batch_decode(
+            raw_text_actions = self.tokenizer.batch_decode(
                 batch.batch['responses'], skip_special_tokens=False
             )
+            text_actions, restored_prompt_think = zip(*[
+                self._render_protocol_response(response, opens_think)
+                for response, opens_think in zip(raw_text_actions, prompt_opens_think)
+            ])
+            text_actions = list(text_actions)
+            restored_prompt_think = list(restored_prompt_think)
             projected_actions = [None] * batch_size
             action_details = [None] * batch_size
-            if "webshop" in str(self.config.env.env_name).lower():
-                # Debug-only protocol audit. This mirrors the CoSkill WebShop
-                # report without changing the action that envs.step receives.
+            if is_webshop:
+                # Validate the full protocol transcript; Qwen's <think>
+                # opener can be supplied by the rendered chat prompt instead
+                # of the sampled response tokens.
                 from agent_system.environments.env_package.webshop.projection import webshop_projection
                 projected_actions, _, action_details = webshop_projection(
                     list(text_actions), return_details=True)
@@ -464,7 +499,9 @@ class TrajectoryCollector:
                     traj_records[i].append({
                         'step': int(_step),
                         'observation': cur_obs_text[i] if cur_obs_text is not None else None,
-                        'model_response': text_actions[i],
+                        'model_response': raw_text_actions[i],
+                        'protocol_response': text_actions[i],
+                        'restored_prompt_think': bool(restored_prompt_think[i]),
                         'projected_action': projected_actions[i],
                         'valid_action': (
                             action_details[i].get('valid_action') if action_details[i] else None
@@ -572,6 +609,9 @@ class TrajectoryCollector:
                         )
                         f.write(f"obs: {step.get('observation')}\n")
                         f.write(f"raw: {step.get('model_response')}\n")
+                        if step.get("restored_prompt_think"):
+                            f.write("protocol: restored <think> opener from the chat prompt\n")
+                            f.write(f"rendered: {step.get('protocol_response')}\n")
             print(f"[TrajectoryDump] Wrote {n_written} episodes to {fpath}")
         except Exception as e:
             # Never let trajectory logging break training.
