@@ -45,6 +45,193 @@ def _atomic_json_dump(obj, path):
     os.replace(tmp, path)
 
 
+def _atomic_write_lines(path, lines):
+    """Atomically replace a small JSONL prefix while preserving durability."""
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.writelines(lines)
+    os.replace(tmp, path)
+
+
+def _trim_uncheckpointed_jsonl_tail(path, keep_lines, label):
+    """Keep a checkpoint-consistent JSONL prefix and archive any newer tail.
+
+    A stopped rollout can have already appended per-episode diagnostics after
+    the most recent checkpoint.  Resuming from that checkpoint must not append
+    a second copy of those records to the main logs.  The discarded tail is
+    retained beside the log for post-mortem inspection.
+    """
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as handle:
+        lines = handle.readlines()
+    if len(lines) < keep_lines:
+        raise RuntimeError(
+            f"Cannot resume: {label} has only {len(lines)} rows, but the "
+            f"checkpoint requires {keep_lines}. Do not resume into this outdir."
+        )
+    if len(lines) <= keep_lines:
+        return
+    suffix = time.strftime("%Y%m%d_%H%M%S")
+    archived = f"{path}.uncheckpointed_tail_{suffix}"
+    with open(archived, "w", encoding="utf-8") as handle:
+        handle.writelines(lines[keep_lines:])
+    _atomic_write_lines(path, lines[:keep_lines])
+    print(f"[webshop-driver][resume] archived {len(lines) - keep_lines} "
+          f"uncheckpointed {label} rows to {archived}")
+
+
+def _load_resume_state(args):
+    """Load a checkpoint-consistent WebShop CoSkill continuation state."""
+    state = {
+        "resume": False,
+        "skills_json_path": args.skills_json,
+        "completed_groups": 0,
+        "per_game": [],
+        "wins": 0,
+        "score_sum": 0.0,
+        "category_stats": {},
+        "cloud_update_steps": [],
+        "small_cumulative": {"prompt": 0, "response": 0, "total": 0},
+        "large_cumulative": {"prompt": 0, "completion": 0, "total": 0},
+    }
+    if not args.resume:
+        return state
+
+    summary_path = os.path.join(args.outdir, "summary_partial.json")
+    if not os.path.isfile(summary_path):
+        raise FileNotFoundError(
+            f"--resume 1 requires {summary_path}. Resume is explicit to avoid "
+            "silently mixing a new run with an old output directory."
+        )
+    with open(summary_path, encoding="utf-8") as handle:
+        previous = json.load(handle)
+
+    per_game = list(previous.get("per_game") or [])
+    completed_groups = int(previous.get("completed_rollout_groups", 0) or 0)
+    saved_episodes = int(previous.get("total_episodes", len(per_game)) or 0)
+    if saved_episodes != len(per_game):
+        raise RuntimeError(
+            f"Resume checkpoint is inconsistent: total_episodes={saved_episodes}, "
+            f"but per_game has {len(per_game)} rows."
+        )
+
+    skill_path = previous.get("skill_lib_checkpoint")
+    candidates = [skill_path] if skill_path else []
+    candidates.extend([
+        os.path.join(args.outdir, "skill_lib", "skills_latest_checkpoint.json"),
+        os.path.join(args.outdir, "skill_lib", "skills_latest_rollout.json"),
+    ])
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            state["skills_json_path"] = candidate
+            break
+    else:
+        raise FileNotFoundError(
+            "--resume 1 found progress metadata but no skill library checkpoint "
+            f"under {os.path.join(args.outdir, 'skill_lib')}"
+        )
+
+    category_stats = {}
+    for row in per_game:
+        category = row.get("detected_type", "unknown")
+        stat = category_stats.setdefault(category, {
+            "episodes": 0, "wins": 0, "task_score_sum": 0.0,
+        })
+        stat["episodes"] += 1
+        stat["wins"] += int(bool(row.get("won", False)))
+        stat["task_score_sum"] += float(row.get("task_score", 0.0) or 0.0)
+
+    token_usage = previous.get("token_usage") or {}
+    small_usage = token_usage.get("small_model") or {}
+    large_usage = token_usage.get("large_model") or {}
+    state.update({
+        "resume": True,
+        "completed_groups": completed_groups,
+        "per_game": per_game,
+        "wins": int(previous.get("wins", sum(s["wins"] for s in category_stats.values())) or 0),
+        "score_sum": sum(s["task_score_sum"] for s in category_stats.values()),
+        "category_stats": category_stats,
+        "cloud_update_steps": [int(step) for step in previous.get("cloud_update_steps", [])],
+        "small_cumulative": {
+            key: int(small_usage.get(key, 0) or 0)
+            for key in ("prompt", "response", "total")
+        },
+        "large_cumulative": {
+            key: int(large_usage.get(key, 0) or 0)
+            for key in ("prompt", "completion", "total")
+        },
+    })
+
+    # Make the primary append-only logs match the checkpoint before adding new
+    # rows. The archived files retain diagnostics from a partially completed
+    # rollout group that will be re-run after resume.
+    _trim_uncheckpointed_jsonl_tail(
+        os.path.join(args.outdir, "metrics.jsonl"), len(per_game), "episode metric"
+    )
+    _trim_uncheckpointed_jsonl_tail(
+        os.path.join(args.outdir, "group_metrics.jsonl"), completed_groups, "group metric"
+    )
+    _trim_uncheckpointed_jsonl_tail(
+        os.path.join(args.outdir, "traces_pool", "raw_traces.jsonl"),
+        len(per_game), "raw trace"
+    )
+    print(f"[webshop-driver][resume] checkpoint={summary_path} "
+          f"groups={completed_groups} episodes={len(per_game)} "
+          f"skill_lib<-{state['skills_json_path']}")
+    return state
+
+
+def _rehydrate_traces_pool(traces_pool, outdir, state):
+    """Restore pending trace-pool state without duplicating its raw JSONL log."""
+    if not state["resume"] or not state["per_game"]:
+        return
+    raw_path = os.path.join(outdir, "traces_pool", "raw_traces.jsonl")
+    if not os.path.isfile(raw_path):
+        raise FileNotFoundError(
+            f"Cannot restore pending CoSkill traces: {raw_path} is missing."
+        )
+    records = []
+    with open(raw_path, encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"Cannot restore pending CoSkill traces: malformed JSON at "
+                    f"{raw_path}:{line_number}") from exc
+    expected = len(state["per_game"])
+    if len(records) != expected:
+        raise RuntimeError(
+            f"Cannot restore pending CoSkill traces: expected {expected} records "
+            f"from the checkpoint, found {len(records)}."
+        )
+
+    raw_log_path = traces_pool._raw_log_path
+    output_dir = traces_pool.output_dir
+    traces_pool._raw_log_path = None
+    traces_pool.output_dir = None
+    update_steps = set(state["cloud_update_steps"])
+    try:
+        for episode_index, raw_trace in enumerate(records, start=1):
+            traces_pool.add_trace(raw_trace)
+            if episode_index in update_steps:
+                # A previous successful cloud update exported/cleared the pool.
+                # Repeating only that local clear reconstructs the pending pool
+                # without invoking the cloud or rewriting any artifacts.
+                traces_pool.export_batch(trigger_reason="resume_rehydrate")
+    finally:
+        traces_pool._raw_log_path = raw_log_path
+        traces_pool.output_dir = output_dir
+    print(f"[webshop-driver][resume] rehydrated trace pool from {expected} traces; "
+          f"pending_since_last_cloud_update={traces_pool.stats()['pending_added']}")
+
+
 def _split_int(total, parts):
     base, remainder = divmod(total, parts)
     return [base + int(i < remainder) for i in range(parts)]
@@ -581,6 +768,8 @@ def _parse_args():
                         help="Save this many complete think/action episodes at audit groups; 0 disables")
     parser.add_argument("--think_trace_every_groups", type=int, default=10,
                         help="Audit group interval for think samples; group 1 is always included")
+    parser.add_argument("--resume", type=int, choices=[0, 1], default=0,
+                        help="1 resumes from summary_partial.json and its skill checkpoint in --outdir")
     parser.add_argument("--outdir", required=True)
     return parser.parse_args()
 
@@ -588,6 +777,7 @@ def _parse_args():
 def main():
     args = _parse_args()
     os.makedirs(args.outdir, exist_ok=True)
+    resume_state = _load_resume_state(args)
     for path in (args.webshop_file_path, args.webshop_attr_path, args.skills_json):
         if not os.path.isfile(path):
             raise FileNotFoundError(path)
@@ -613,12 +803,22 @@ def main():
     batch_rollout_size = args.train_data_size * args.group_size
     episode_cap = args.max_episodes if args.max_episodes > 0 else (
         args.total_groups * batch_rollout_size)
+    if resume_state["completed_groups"] > args.total_groups:
+        raise ValueError(
+            f"Resume checkpoint already completed {resume_state['completed_groups']} groups, "
+            f"but total_groups={args.total_groups}. Increase TOTAL_GROUPS or start a new run."
+        )
+    if len(resume_state["per_game"]) > episode_cap:
+        raise ValueError(
+            f"Resume checkpoint already contains {len(resume_state['per_game'])} episodes, "
+            f"but max_episodes={episode_cap}. Increase MAX_EPISODES or start a new run."
+        )
     print(f"[webshop-driver] groups={args.total_groups} train_data_size={args.train_data_size} "
           f"group_size={args.group_size} batch={batch_rollout_size} "
           f"max_episodes={episode_cap} max_steps={args.max_steps}")
 
     skill_lib = HierarchicalSkillLib(
-        skills_json_path=args.skills_json,
+        skills_json_path=resume_state["skills_json_path"],
         retrieval_mode=args.retrieval_mode,
         embedding_model_path=args.embedding_model_path,
         enable_hierarchy=bool(args.enable_hierarchy),
@@ -636,6 +836,7 @@ def main():
         loop_threshold=args.loop_threshold,
         output_dir=args.outdir,
     )
+    _rehydrate_traces_pool(traces_pool, args.outdir, resume_state)
     cloud_loop = CoSkillCloudLoop(
         output_dir=args.outdir,
         enable_coskill=bool(args.enable_coskill),
@@ -646,6 +847,10 @@ def main():
         coskill_debug=bool(args.coskill_debug),
         environment_name="WebShop",
     )
+    analyzer = getattr(cloud_loop, "cloud_analyzer", None)
+    if analyzer is not None and resume_state["resume"]:
+        analyzer.total_prompt_tokens = resume_state["large_cumulative"]["prompt"]
+        analyzer.total_completion_tokens = resume_state["large_cumulative"]["completion"]
 
     worker_gpu_groups = _resolve_worker_gpu_groups(args)
     base_splits = _split_int(args.train_data_size, args.data_parallel_workers)
@@ -702,13 +907,14 @@ def main():
     atexit.register(shutdown)
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
     group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
-    per_game, category_stats = [], {}
-    wins = 0
-    score_sum = 0.0
-    global_episode = 0
-    cloud_updates = 0
-    cloud_update_steps = []
-    small_cumulative = {"prompt": 0, "response": 0, "total": 0}
+    per_game = list(resume_state["per_game"])
+    category_stats = dict(resume_state["category_stats"])
+    wins = resume_state["wins"]
+    score_sum = resume_state["score_sum"]
+    global_episode = len(per_game)
+    cloud_update_steps = list(resume_state["cloud_update_steps"])
+    cloud_updates = len(cloud_update_steps)
+    small_cumulative = dict(resume_state["small_cumulative"])
 
     def large_tokens():
         analyzer = getattr(cloud_loop, "cloud_analyzer", None)
@@ -788,12 +994,15 @@ def main():
                           f"group_interval_{args.checkpoint_every_groups}")
         payload["skill_lib_checkpoint"] = skill_path
         _atomic_json_dump(payload, os.path.join(args.outdir, "summary_partial.json"))
-        _atomic_json_dump(payload, os.path.join(
-            args.outdir, "checkpoints", f"step{global_episode:06d}.json"))
+        checkpoint_path = os.path.join(
+            args.outdir, "checkpoints", f"step{global_episode:06d}.json")
+        _atomic_json_dump(payload, checkpoint_path)
+        print(f"[webshop-driver] checkpoint saved groups={completed_groups} "
+              f"episodes={global_episode} -> {checkpoint_path}", flush=True)
 
-    completed_groups = 0
+    completed_groups = resume_state["completed_groups"]
     try:
-        for group_id in range(1, args.total_groups + 1):
+        for group_id in range(completed_groups + 1, args.total_groups + 1):
             if global_episode >= episode_cap:
                 break
             group_started = time.time()

@@ -161,6 +161,11 @@ GROUP_SIZE="${GROUP_SIZE:-6}"
 TOTAL_GROUPS="${TOTAL_GROUPS:-100}"
 MAX_EPISODES="${MAX_EPISODES:-7200}"
 CHECKPOINT_EVERY_GROUPS="${CHECKPOINT_EVERY_GROUPS:-2}"
+RESUME="${RESUME:-0}"
+if [ "$RESUME" != "0" ] && [ "$RESUME" != "1" ]; then
+    echo "RESUME must be 0 (new run) or 1 (continue from summary_partial.json)." >&2
+    exit 1
+fi
 LOG_TRAJECTORIES="${LOG_TRAJECTORIES:-0}"
 # Keep a compact audit trail of actual model thinking without writing every
 # prompt/trajectory.  Group 1 plus each tenth group yields 11 full episodes in a
@@ -189,6 +194,7 @@ echo "vLLM max_num_seqs: ${VLLM_MAX_NUM_SEQS:-0} (0 means each worker's actual r
 echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER (0 enables CUDA Graphs after warm-up)"
 echo "WebShop data: $WEBSHOP_DATA_DIR"
 echo "Rollout standard: train=$TRAIN_DATA_SIZE val=$VAL_DATA_SIZE group_size=$GROUP_SIZE groups=$TOTAL_GROUPS max_episodes=$MAX_EPISODES"
+echo "Resume: $RESUME (requires checkpoint-consistent summary_partial.json in OUTPUT_DIR)"
 echo "Token standard: prompt<=8192, response=$MAX_TOKENS (think=$THINK_BUDGET action=$ACTION_BUDGET)"
 echo "Thought audit: $THINK_TRACE_SAMPLES_PER_GROUP samples at group 1 and every $THINK_TRACE_EVERY_GROUPS groups"
 echo "Outputs: $OUTPUT_DIR"
@@ -212,6 +218,7 @@ python3 -u -m examples.playbook_evolve.run_webshop_evolve \
     --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
     --vllm_enforce_eager "$VLLM_ENFORCE_EAGER" \
     --checkpoint_every_groups "$CHECKPOINT_EVERY_GROUPS" \
+    --resume "$RESUME" \
     --history_length 8 \
     --prompt_char_limit "$PROMPT_CHAR_LIMIT" \
     --max_model_len "$MAX_MODEL_LEN" \
