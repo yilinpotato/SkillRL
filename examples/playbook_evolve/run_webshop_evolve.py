@@ -12,6 +12,7 @@ coskill_status.json.
 
 import argparse
 import atexit
+import fcntl
 import json
 import multiprocessing as mp
 import os
@@ -39,7 +40,7 @@ def _append_jsonl(path, obj):
 
 def _atomic_json_dump(obj, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
+    tmp = f"{path}.tmp.{os.getpid()}.{uuid.uuid4().hex}"
     with open(tmp, "w") as handle:
         json.dump(obj, handle, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
@@ -50,10 +51,32 @@ def _atomic_write_lines(path, lines):
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
-    tmp = path + ".tmp"
+    tmp = f"{path}.tmp.{os.getpid()}.{uuid.uuid4().hex}"
     with open(tmp, "w", encoding="utf-8") as handle:
         handle.writelines(lines)
     os.replace(tmp, path)
+
+
+def _acquire_run_lock(outdir):
+    """Ensure exactly one CoSkill WebShop driver owns an output directory."""
+    path = os.path.join(outdir, ".run_webshop_evolve.lock")
+    handle = open(path, "a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        handle.close()
+        raise RuntimeError(
+            f"Another CoSkill WebShop driver already owns {outdir}. "
+            f"Do not launch a second RESUME=1 process into the same OUTPUT_DIR. "
+            f"Inspect {path} and the running process first."
+        ) from exc
+    handle.seek(0)
+    handle.truncate()
+    handle.write(f"pid={os.getpid()} started={time.strftime('%Y-%m-%dT%H:%M:%S%z')}\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+    print(f"[webshop-driver] acquired output lock {path}", flush=True)
+    return handle
 
 
 def _trim_uncheckpointed_jsonl_tail(path, keep_lines, label):
@@ -777,6 +800,8 @@ def _parse_args():
 def main():
     args = _parse_args()
     os.makedirs(args.outdir, exist_ok=True)
+    run_lock = _acquire_run_lock(args.outdir)
+    atexit.register(run_lock.close)
     resume_state = _load_resume_state(args)
     for path in (args.webshop_file_path, args.webshop_attr_path, args.skills_json):
         if not os.path.isfile(path):
