@@ -199,6 +199,14 @@ echo "Token standard: prompt<=8192, response=$MAX_TOKENS (think=$THINK_BUDGET ac
 echo "Thought audit: $THINK_TRACE_SAMPLES_PER_GROUP samples at group 1 and every $THINK_TRACE_EVERY_GROUPS groups"
 echo "Outputs: $OUTPUT_DIR"
 
+TEE_ARGS=()
+if [ "$RESUME" = "1" ]; then
+    # Keep the two-GPU driver's evidence and append a clear boundary for the
+    # four-GPU continuation instead of silently truncating driver.log.
+    TEE_ARGS=(-a)
+    printf '\n===== CoSkill WebShop resume: %s =====\n' "$(date -Is)" >> "$OUTPUT_DIR/driver.log"
+fi
+
 python3 -u -m examples.playbook_evolve.run_webshop_evolve \
     --outdir "$OUTPUT_DIR" \
     --model_path "$MODEL_PATH" \
@@ -249,4 +257,4 @@ python3 -u -m examples.playbook_evolve.run_webshop_evolve \
     --log_trajectories "$LOG_TRAJECTORIES" \
     --think_trace_samples_per_group "$THINK_TRACE_SAMPLES_PER_GROUP" \
     --think_trace_every_groups "$THINK_TRACE_EVERY_GROUPS" \
-    "$@" 2>&1 | tee "$OUTPUT_DIR/driver.log"
+    "$@" 2>&1 | tee "${TEE_ARGS[@]}" "$OUTPUT_DIR/driver.log"
