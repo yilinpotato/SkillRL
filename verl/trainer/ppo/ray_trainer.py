@@ -460,6 +460,169 @@ class RayPPOTrainer:
         self._validate_config()
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
 
+        # Method-neutral ALFWorld group metrics.  Loading is deferred until the
+        # first train record so a resumed run continues the same cumulative
+        # ledger without changing rollout or optimization behavior.
+        self._comparison_totals_loaded = False
+        self._comparison_totals = {}
+        self._comparison_large_raw = None
+        self._comparison_update_raw = None
+
+    def _comparison_metrics_path(self):
+        path = self.config.trainer.get("comparison_metrics_jsonl_path", None)
+        if path:
+            return os.path.expanduser(str(path))
+        base = self.config.trainer.get("default_local_dir", None)
+        return os.path.join(os.path.expanduser(str(base)), "comparison_metrics.jsonl") if base else None
+
+    @staticmethod
+    def _comparison_scalar(value, default=0.0):
+        if isinstance(value, torch.Tensor):
+            return float(value.detach().cpu().item()) if value.numel() == 1 else default
+        if isinstance(value, np.generic):
+            return value.item()
+        return value if isinstance(value, (int, float, bool)) else default
+
+    def _load_comparison_totals(self):
+        if self._comparison_totals_loaded:
+            return
+        totals = {
+            "episodes": 0, "wins": 0, "actions": 0,
+            "small_prompt": 0, "small_response": 0, "small_total": 0,
+            "large_prompt": 0, "large_completion": 0, "large_total": 0,
+            "cloud_round": 0,
+        }
+        path = self._comparison_metrics_path()
+        last = None
+        if path and os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    for line in handle:
+                        try:
+                            payload = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        row = payload.get("metrics", payload)
+                        if isinstance(row, dict) and "comparison/schema_version" in row:
+                            last = row
+            except OSError as exc:
+                print(f"[comparison-metrics] cannot read '{path}': {exc}")
+        if last:
+            mapping = {
+                "episodes": "rollout/global_episode_end",
+                "wins": "episode/wins_cumulative",
+                "actions": "episode/action_count_cumulative",
+                "small_prompt": "tokens/small_model/prompt_cumulative",
+                "small_response": "tokens/small_model/response_cumulative",
+                "small_total": "tokens/small_model/total_cumulative",
+                "large_prompt": "tokens/large_model/prompt_cumulative",
+                "large_completion": "tokens/large_model/completion_cumulative",
+                "large_total": "tokens/large_model/total_cumulative",
+                "cloud_round": "experiment/cloud_round",
+            }
+            for target, source in mapping.items():
+                totals[target] = int(self._comparison_scalar(last.get(source, totals[target]), totals[target]))
+        self._comparison_totals = totals
+        self._comparison_totals_loaded = True
+
+    def _add_comparison_metrics(self, metrics: Dict, timing_raw: Dict[str, float]):
+        """Add common ALFWorld group metrics without affecting GRPO updates."""
+        self._load_comparison_totals()
+        totals = self._comparison_totals
+        get = self._comparison_scalar
+
+        count = int(get(metrics.get("episode/count", 0), 0))
+        wins = int(get(metrics.get("episode/wins", 0), 0))
+        actions = int(get(metrics.get("episode/action_count", 0), 0))
+        small_prompt = int(get(metrics.get("tokens/small_model/prompt", 0), 0))
+        small_response = int(get(metrics.get("tokens/small_model/response", 0), 0))
+        small_total = int(get(metrics.get("tokens/small_model/total", 0), 0))
+        for key, delta in (
+            ("episodes", count), ("wins", wins), ("actions", actions),
+            ("small_prompt", small_prompt), ("small_response", small_response),
+            ("small_total", small_total),
+        ):
+            totals[key] += max(0, delta)
+
+        summary = {}
+        updater = getattr(self, "skill_updater", None)
+        if updater is not None:
+            summary = updater.get_update_summary() or {}
+        raw_large = (
+            int(get(summary.get("large_model_prompt_tokens", 0), 0)),
+            int(get(summary.get("large_model_completion_tokens", 0), 0)),
+            int(get(summary.get("large_model_total_tokens", 0), 0)),
+        )
+        raw_updates = int(get(summary.get("total_updates", 0), 0))
+        if self._comparison_large_raw is None:
+            large_delta = raw_large
+            update_delta = raw_updates
+        elif raw_large[2] >= self._comparison_large_raw[2] and raw_updates >= self._comparison_update_raw:
+            large_delta = tuple(a - b for a, b in zip(raw_large, self._comparison_large_raw))
+            update_delta = raw_updates - self._comparison_update_raw
+        else:
+            # SkillUpdater counters restart from zero after checkpoint resume.
+            large_delta = raw_large
+            update_delta = raw_updates
+        self._comparison_large_raw = raw_large
+        self._comparison_update_raw = raw_updates
+        totals["large_prompt"] += max(0, large_delta[0])
+        totals["large_completion"] += max(0, large_delta[1])
+        totals["large_total"] += max(0, large_delta[2])
+        totals["cloud_round"] += max(0, update_delta)
+
+        rollout_seconds = float(get(timing_raw.get("gen", 0.0), 0.0))
+        group_seconds = float(get(timing_raw.get("step", 0.0), 0.0))
+        method = str(self.config.trainer.get("comparison_method", "skillrl"))
+        benchmark = str(self.config.trainer.get("comparison_benchmark", "alfworld"))
+        metrics.update({
+            "comparison/schema_version": 1,
+            "comparison/method": method,
+            "comparison/benchmark": benchmark,
+            "comparison/rollout_accounting": "active_env_decisions",
+            "training/group": self.global_steps,
+            "rollout/global_episode_end": totals["episodes"],
+            "episode/count_cumulative": totals["episodes"],
+            "episode/wins_cumulative": totals["wins"],
+            "episode/action_count_cumulative": totals["actions"],
+            "tokens/small_model/accounting": "actor_rollout_request_tokens",
+            "tokens/small_model/prompt_cumulative": totals["small_prompt"],
+            "tokens/small_model/response_cumulative": totals["small_response"],
+            "tokens/small_model/total_cumulative": totals["small_total"],
+            "tokens/large_model/prompt": max(0, large_delta[0]),
+            "tokens/large_model/completion": max(0, large_delta[1]),
+            "tokens/large_model/total": max(0, large_delta[2]),
+            "tokens/large_model/accounting": "provider_api_usage",
+            "tokens/large_model/prompt_cumulative": totals["large_prompt"],
+            "tokens/large_model/completion_cumulative": totals["large_completion"],
+            "tokens/large_model/total_cumulative": totals["large_total"],
+            "experiment/skill_tree_enabled": 0,
+            "experiment/skill_tree_evolve_enabled": 0,
+            "experiment/skill_bullets_enabled": int(bool(self.config.env.get("use_skills_only_memory", False))),
+            "experiment/cloud_round": totals["cloud_round"],
+            "coskill/cloud_update_fired": bool(update_delta > 0),
+            "skill_tree/n_nodes": 0,
+            "timing_s/rollout": rollout_seconds,
+            "timing_s/cloud_update": 0.0,
+            "timing_s/group_total": group_seconds,
+            "comparison/timing_cloud_update_measured": 0,
+            "perf/throughput_episodes_per_second": count / max(rollout_seconds, 1e-9),
+            "perf/throughput_small_tokens_per_second": small_total / max(rollout_seconds, 1e-9),
+        })
+        metrics.setdefault("perf/total_num_tokens", small_total)
+
+    def _append_comparison_metrics_jsonl(self, metrics: Dict, step: int):
+        path = self._comparison_metrics_path()
+        if not path:
+            return
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "step": int(step),
+                "global_episode_end": int(self._comparison_scalar(metrics.get("rollout/global_episode_end", 0), 0)),
+                "metrics": metrics,
+            }, ensure_ascii=False) + "\n")
+
     def _validate_config(self):
         config = self.config
         # number of GPUs total
@@ -1607,7 +1770,7 @@ class RayPPOTrainer:
                 metrics.update(compute_throughout_metrics(batch=batch, timing_raw=timing_raw, n_gpus=n_gpus))
 
                 # Large model (SkillUpdater) cumulative token counts
-                if hasattr(self, 'skill_updater'):
+                if getattr(self, 'skill_updater', None) is not None:
                     summary = self.skill_updater.get_update_summary()
                     metrics.update({
                         "tokens/large_model/prompt_cumulative": summary.get('large_model_prompt_tokens', 0),
@@ -1615,8 +1778,11 @@ class RayPPOTrainer:
                         "tokens/large_model/total_cumulative": summary.get('large_model_total_tokens', 0),
                     })
 
+                self._add_comparison_metrics(metrics, timing_raw)
+
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)
+                self._append_comparison_metrics_jsonl(metrics, self.global_steps)
 
                 progress_bar.update(1)
                 self.global_steps += 1

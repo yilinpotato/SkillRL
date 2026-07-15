@@ -17,17 +17,19 @@ export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B
 export SKILL_UPDATER_BACKEND="deepseek"
 # export DEEPSEEK_API_KEY=""
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
-export TRAJECTORY_DUMP_DIR="$OUTPUT_DIR/trajectories"
 
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
-PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="grpo_qwen3_4b_skills_dynamic_lora_v2"
+PROJECT_NAME="${PROJECT_NAME:-verl_agent_alfworld}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-grpo_qwen3_4b_skills_dynamic_lora_v2}"
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/outputs/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
 
 # Per-step training metrics are appended here as one JSON object per line.
 export JSONL_PATH="$OUTPUT_DIR/metrics.jsonl"
+# Canonical, nested group records shared with CoSkill and Skill0.  The native
+# metrics.jsonl remains unchanged for existing tooling.
+export COMPARISON_METRICS_PATH="$OUTPUT_DIR/comparison_metrics.jsonl"
 
 # Per-episode rollout trajectories (prompt/response/reward) for human inspection.
 # Exported BEFORE `ray start` so the Ray actors inherit it (same as JSONL_PATH).
@@ -108,6 +110,9 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name='verl_agent_alfworld' \
     trainer.experiment_name='grpo_qwen3_4b_skills_dynamic_lora' \
     trainer.default_local_dir="$OUTPUT_DIR" \
+    ++trainer.comparison_metrics_jsonl_path="$COMPARISON_METRICS_PATH" \
+    ++trainer.comparison_method=skillrl \
+    ++trainer.comparison_benchmark=alfworld \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \

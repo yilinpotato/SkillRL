@@ -119,6 +119,16 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
     valid_adv = torch.masked_select(advantages, response_mask)
     valid_returns = torch.masked_select(returns, response_mask)
     unique_traj_uid, unique_idx = np.unique(batch.non_tensor_batch['traj_uid'], return_index=True)
+    episode_count = int(len(unique_idx))
+    episode_lengths = np.asarray(batch.non_tensor_batch["episode_lengths"])[unique_idx]
+    episode_success = np.asarray(
+        batch.non_tensor_batch.get("episode_success", np.zeros(len(batch.non_tensor_batch['traj_uid'])))
+    )[unique_idx]
+    episode_wins = int(np.sum(episode_success > 0.5))
+    action_valid = np.asarray(
+        batch.non_tensor_batch.get("is_action_valid", np.ones(len(batch.non_tensor_batch['traj_uid'])))
+    )
+    valid_action_ratio = float(action_valid.astype(np.float32).mean()) if action_valid.size else 0.0
 
     if use_critic:
         values = batch.batch["values"]
@@ -189,6 +199,19 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
         "tokens/small_model/prompt": torch.sum(prompt_length).detach().item(),
         "tokens/small_model/response": torch.sum(response_length).detach().item(),
         "tokens/small_model/total": (torch.sum(prompt_length) + torch.sum(response_length)).detach().item(),
+        # Common ALFWorld comparison schema.  These count actual active
+        # environment decisions; strict/relaxed both mean environment-accepted
+        # actions here, because this baseline has no action-salvage fallback.
+        "episode/count": episode_count,
+        "episode/generated_count": episode_count,
+        "episode/wins": episode_wins,
+        "episode/success_rate": float(episode_wins / max(episode_count, 1)),
+        "episode/action_count": int(np.sum(episode_lengths)),
+        "episode/valid_action_ratio": valid_action_ratio,
+        "episode/strict_valid_action_ratio": valid_action_ratio,
+        "episode/relaxed_valid_action_ratio": valid_action_ratio,
+        "episode/salvaged_action_ratio": 0.0,
+        "episode/fallback_action_ratio": 0.0,
     }
     return metrics
 

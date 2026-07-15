@@ -340,6 +340,12 @@ class TrajectoryCollector:
                     data['episode_lengths'] = episode_lengths[bs]
                     # tool_callings
                     data['tool_callings'] = tool_callings[bs]
+                    # Preserve the exact outcome of this trajectory on each
+                    # active decision.  ``success_rate`` remains below for
+                    # backward compatibility, but is only a batch aggregate.
+                    data['episode_success'] = float(
+                        success.get('success_rate', np.zeros(batch_size))[bs]
+                    )
                     # success_rate
                     for key, value in success_rate.items():
                         data[key] = value
