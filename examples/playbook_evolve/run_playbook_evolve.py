@@ -113,6 +113,10 @@ def _load_resume_state(args):
         "completed_groups": 0,
         "wins": 0,
         "per_game": [],
+        "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
+        "large_model_tokens": {"prompt": 0, "completion": 0, "total": 0},
+        "cloud_updates": 0,
+        "cloud_update_steps": [],
     }
     if not args.resume:
         return state
@@ -142,6 +146,18 @@ def _load_resume_state(args):
     state["completed_groups"] = int(prev_summary.get("completed_rollout_groups", 0) or 0)
     state["wins"] = int(prev_summary.get("wins", 0) or 0)
     state["per_game"] = list(prev_summary.get("per_game", []) or [])
+    saved_small_tokens = (prev_summary.get("token_usage", {}) or {}).get("small_model", {}) or {}
+    state["small_model_tokens"] = {
+        key: int(saved_small_tokens.get(key, 0) or 0)
+        for key in ("prompt", "response", "total")
+    }
+    saved_large_tokens = (prev_summary.get("token_usage", {}) or {}).get("large_model", {}) or {}
+    state["large_model_tokens"] = {
+        key: int(saved_large_tokens.get(key, 0) or 0)
+        for key in ("prompt", "completion", "total")
+    }
+    state["cloud_update_steps"] = list(prev_summary.get("cloud_update_steps", []) or [])
+    state["cloud_updates"] = len(state["cloud_update_steps"])
 
     print(f"[driver][resume] 从 {summary_path} 恢复：epoch={state['epoch0']+1} "
           f"ep_i={state['ep_i0']} completed_groups={state['completed_groups']} "
@@ -861,13 +877,17 @@ def main():
 
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
     group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
+    # Canonical group-level file shared with the two GRPO baselines.  Keep the
+    # historical per-episode and group files untouched for backward compatibility.
+    comparison_metrics_path = os.path.join(args.outdir, "comparison_metrics.jsonl")
     per_game = list(resume_state["per_game"])
     wins = resume_state["wins"]
     global_step = len(per_game)
     tt_stats = {}  # detected_type -> {"episodes":int, "wins":int}
-    cloud_updates = 0
-    cloud_update_steps = []
-    small_model_token_totals = {"prompt": 0, "response": 0, "total": 0}
+    cloud_updates = int(resume_state.get("cloud_updates", 0) or 0)
+    cloud_update_steps = list(resume_state.get("cloud_update_steps", []) or [])
+    small_model_token_totals = dict(resume_state.get("small_model_tokens", {}))
+    large_model_token_offset = dict(resume_state.get("large_model_tokens", {}))
 
     # env.seed() 只在 make_single_env() 建环境时调用过一次（见上方注释）：接下来的
     # reset() 全部靠 textworld 自带的 shuffled_cycle 自然推进 + 整轮重洗，不再逐局
@@ -968,8 +988,11 @@ def main():
             return {"prompt": 0, "completion": 0, "total": 0}
         prompt = int(getattr(analyzer, "total_prompt_tokens", 0) or 0)
         completion = int(getattr(analyzer, "total_completion_tokens", 0) or 0)
-        return {"prompt": prompt, "completion": completion,
-                "total": prompt + completion}
+        return {
+            "prompt": int(large_model_token_offset.get("prompt", 0) or 0) + prompt,
+            "completion": int(large_model_token_offset.get("completion", 0) or 0) + completion,
+            "total": int(large_model_token_offset.get("total", 0) or 0) + prompt + completion,
+        }
 
     def _write_group_metric(group_id, epoch, ingested, generated_count, fired,
                             small_tokens, large_before, large_after,
@@ -984,6 +1007,7 @@ def main():
         salvaged_actions = sum(int(record["salvaged_actions"]) for record in records)
         fallback_actions = sum(int(record["fallback_actions"]) for record in records)
         action_count = sum(lengths)
+        action_count_cumulative = sum(int(row.get("used_steps", 0) or 0) for row in per_game)
 
         for key in ("prompt", "response", "total"):
             small_model_token_totals[key] += int(small_tokens.get(key, 0) or 0)
@@ -1004,12 +1028,20 @@ def main():
             "episode/generated_count": int(generated_count),
             "episode/wins": group_wins,
             "episode/success_rate": round(group_wins / max(n, 1), 6),
+            "episode/count_cumulative": global_step,
+            "episode/wins_cumulative": wins,
+            "episode/action_count": action_count,
+            "episode/action_count_cumulative": action_count_cumulative,
             "episode/length/mean": round(sum(lengths) / max(n, 1), 6),
             "episode/length/max": max(lengths) if lengths else 0,
             "episode/length/min": min(lengths) if lengths else 0,
             "episode/valid_action_ratio": round(valid_actions / max(action_count, 1), 6),
             "episode/strict_valid_action_ratio": round(
                 strict_valid_actions / max(action_count, 1), 6),
+            # ALFWorld has no separate relaxed projection: its relaxed notion
+            # is the parser-valid action count already reported above.
+            "episode/relaxed_valid_action_ratio": round(
+                valid_actions / max(action_count, 1), 6),
             "episode/salvaged_action_ratio": round(salvaged_actions / max(action_count, 1), 6),
             "episode/fallback_action_ratio": round(fallback_actions / max(action_count, 1), 6),
             "experiment/skill_tree_enabled": int(enable_skill_tree),
@@ -1038,6 +1070,11 @@ def main():
             "perf/throughput_episodes_per_second": round(n / max(rollout_seconds, 1e-9), 6),
             "perf/throughput_small_tokens_per_second": round(
                 int(small_tokens.get("total", 0) or 0) / max(rollout_seconds, 1e-9), 6),
+            "comparison/schema_version": 1,
+            "comparison/method": "coskill",
+            "comparison/benchmark": "alfworld",
+            "comparison/rollout_accounting": "active_env_decisions",
+            "comparison/timing_cloud_update_measured": 1,
             **cloud_loop.metrics(traces_pool, skill_lib),
         }
         by_type = {}
@@ -1052,11 +1089,13 @@ def main():
             metrics[f"episode/{tt}/success_rate"] = round(
                 stat["wins"] / max(stat["episodes"], 1), 6)
 
-        _append_jsonl(group_metrics_path, {
+        canonical_record = {
             "step": group_id,
             "global_episode_end": global_step,
             "metrics": metrics,
-        })
+        }
+        _append_jsonl(group_metrics_path, canonical_record)
+        _append_jsonl(comparison_metrics_path, canonical_record)
         print(f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
               f"success={100.0 * group_wins / max(n, 1):.1f}% "
               f"valid_action={100.0 * valid_actions / max(action_count, 1):.1f}% "
