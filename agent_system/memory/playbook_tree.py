@@ -100,13 +100,28 @@ def find(root: PBNode, path_titles: List[str]) -> Optional[PBNode]:
     return node
 
 
-def to_markdown(root: PBNode, skip_ids: Optional[Set[str]] = None) -> str:
-    """渲染回 markdown；skip_ids 中的节点连同其子树整体跳过（剪枝/内化用）。"""
+def to_markdown(
+    root: PBNode,
+    skip_ids: Optional[Set[str]] = None,
+    elide_ids: Optional[Set[str]] = None,
+) -> str:
+    """Render a playbook tree back to markdown.
+
+    ``skip_ids`` removes a node *and its whole subtree*.  It is therefore the
+    right operation for a deprecated/incorrect branch.  ``elide_ids`` removes
+    only the node's own heading/body and promotes its children by one heading
+    level.  It is the operation used after a rule has been internalized into
+    the policy: children must remain visible while the parent rule disappears
+    from the prompt.  Keeping these two operations separate is essential for
+    root-to-leaf internalization; treating an internalized root as ``skip``
+    would accidentally erase every descendant rule as well.
+    """
     skip = skip_ids or set()
+    elide = elide_ids or set()
     out: List[str] = []
     out.extend(root.body)
 
-    def emit(node: PBNode, path: List[str], seen: Set[str]):
+    def emit(node: PBNode, path: List[str], seen: Set[str], hidden_levels: int = 0):
         for child in node.children:
             p = path + [child.title]
             base = "/".join(_slug(t) for t in p)
@@ -118,9 +133,15 @@ def to_markdown(root: PBNode, skip_ids: Optional[Set[str]] = None) -> str:
             seen.add(nid)
             if nid in skip:
                 continue  # 跳过该节点及其整棵子树
-            out.append("#" * child.level + " " + child.title)
+            if nid in elide:
+                # Hide just this rule while preserving its descendants.  Markdown
+                # headings are compacted so a removed root (#) turns each direct
+                # child (##) into a valid new root (#).
+                emit(child, p, seen, hidden_levels + 1)
+                continue
+            out.append("#" * max(1, child.level - hidden_levels) + " " + child.title)
             out.extend(child.body)
-            emit(child, p, seen)
+            emit(child, p, seen, hidden_levels)
 
     emit(root, [], set())
     # 去掉首尾多余空行，保持整洁

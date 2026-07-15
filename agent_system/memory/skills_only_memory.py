@@ -229,6 +229,113 @@ class SkillsOnlyMemory(BaseMemory):
             pb = pb.get('content')
         return pb if (isinstance(pb, str) and pb.strip()) else None
 
+    def _tree_rl_states(self) -> Dict[str, Dict[str, Any]]:
+        """Return the persisted progressive tree-RL state map.
+
+        The state lives inside ``skills`` so a normal ``save_skills`` checkpoint
+        is enough to resume a curriculum exactly where it stopped.  It is not
+        created by ordinary no-RL retrieval; only the Ray trainer calls
+        :meth:`advance_tree_rl_curriculum`.
+        """
+        states = self.skills.get("skill_tree_rl")
+        if not isinstance(states, dict):
+            states = {}
+            self.skills["skill_tree_rl"] = states
+        return states
+
+    @staticmethod
+    def _live_playbook_levels(playbook: Dict[str, Any]) -> List[int]:
+        """Return levels that still have a visible, non-deprecated rule."""
+        return sorted({
+            int(node.get("level", 0) or 0)
+            for node in (playbook.get("nodes") or {}).values()
+            if not node.get("deprecated", False)
+            and not node.get("internalized", False)
+            and int(node.get("level", 0) or 0) > 0
+        })
+
+    @staticmethod
+    def _tree_rl_target_ids(playbook: Dict[str, Any], level: Optional[int]) -> List[str]:
+        if level is None:
+            return []
+        return sorted(
+            node_id
+            for node_id, node in (playbook.get("nodes") or {}).items()
+            if int(node.get("level", 0) or 0) == int(level)
+            and not node.get("deprecated", False)
+            and not node.get("internalized", False)
+        )
+
+    def _reset_tree_rl_stage(
+        self,
+        task_type: str,
+        playbook: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        global_step: int,
+        order: str,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """Select the next whole tree layer and start (or finish) its RL stage."""
+        levels = self._live_playbook_levels(playbook)
+        target_level = (min(levels) if order == "root" else max(levels)) if levels else None
+        target_ids = self._tree_rl_target_ids(playbook, target_level)
+        state.update({
+            "order": order,
+            "tree_version": int(playbook.get("version", 0) or 0),
+            "phase": "train" if target_ids else "done",
+            "target_level": target_level,
+            "target_node_ids": target_ids,
+            "stage_started_step": int(global_step),
+            "train_calls": 0,
+            "train_successes": 0,
+            "probe_calls": 0,
+            "probe_successes": 0,
+            "last_transition_reason": reason,
+        })
+        return state
+
+    def _tree_rl_state_for_playbook(
+        self,
+        task_type: str,
+        playbook: Dict[str, Any],
+        *,
+        order: str,
+        global_step: int,
+    ) -> Dict[str, Any]:
+        states = self._tree_rl_states()
+        state = states.get(task_type)
+        if not isinstance(state, dict):
+            state = {"attempts": 0, "completed_levels": []}
+            states[task_type] = state
+
+        # Changing the requested direction must not silently carry a partially
+        # hidden layer into the opposite curriculum.  Permanently internalized
+        # nodes stay internalized; only the in-flight stage is restarted.
+        if state.get("order") != order:
+            state["attempts"] = 0
+            state["completed_levels"] = list(state.get("completed_levels") or [])
+            return self._reset_tree_rl_stage(
+                task_type, playbook, state, global_step=global_step, order=order,
+                reason="initialize" if not state.get("order") else "order_changed",
+            )
+
+        target_ids = set(state.get("target_node_ids") or [])
+        current_ids = set((playbook.get("nodes") or {}).keys())
+        # A cloud rewrite can remove/rewrite the target nodes.  Do not keep
+        # hiding stale ids: safely choose a fresh layer from the new tree.
+        if state.get("phase") != "done" and (not target_ids or not target_ids <= current_ids):
+            return self._reset_tree_rl_stage(
+                task_type, playbook, state, global_step=global_step, order=order,
+                reason="tree_rewritten",
+            )
+        if state.get("phase") == "done" and self._live_playbook_levels(playbook):
+            return self._reset_tree_rl_stage(
+                task_type, playbook, state, global_step=global_step, order=order,
+                reason="new_live_layer",
+            )
+        return state
+
     def get_playbook(self, task_type: str) -> Optional[str]:
         """Return the natural-language skill-tree CONTENT for ``task_type``.
 
@@ -238,8 +345,9 @@ class SkillsOnlyMemory(BaseMemory):
         task only sees a tree that was authored for that task type.
 
         If the record carries a node tree with deprecated/internalized nodes, the
-        content is RE-RENDERED skipping those subtrees (context pruning) so the
-        agent only sees the live nodes.
+        content is re-rendered.  Deprecated nodes remove their subtree; an
+        internalized node is *elided* while its children remain, which is what
+        permits root-to-leaf progressive internalization.
         """
         if not self.enable_playbook:
             return None
@@ -249,11 +357,21 @@ class SkillsOnlyMemory(BaseMemory):
             return None
         if isinstance(pb, dict):
             skip = {nid for nid, lc in (pb.get("nodes") or {}).items()
-                    if lc.get("deprecated") or lc.get("internalized")}
-            if skip:
+                    if lc.get("deprecated")}
+            elide = {nid for nid, lc in (pb.get("nodes") or {}).items()
+                     if lc.get("internalized")}
+            # During the RL probe the target layer is temporarily absent from
+            # the prompt.  Its descendants stay visible and it is only marked
+            # internalized after the probe's held-out online evidence passes.
+            states = self.skills.get("skill_tree_rl") or {}
+            state = states.get(task_type) if isinstance(states, dict) else None
+            if isinstance(state, dict) and state.get("phase") == "probe":
+                elide.update(state.get("target_node_ids") or [])
+            if skip or elide:
                 try:
                     from . import playbook_tree as _pt
-                    return _pt.to_markdown(_pt.parse(content), skip_ids=skip)
+                    return _pt.to_markdown(
+                        _pt.parse(content), skip_ids=skip, elide_ids=elide)
                 except Exception:
                     return content
         return content
@@ -345,8 +463,10 @@ class SkillsOnlyMemory(BaseMemory):
                     "body_hash": info["body_hash"],
                     "last_changed_version": version if changed else prev.get("last_changed_version", version),
                     "stable_versions": 0 if changed else prev.get("stable_versions", 0) + 1,
-                    # a node re-authored by the LLM is implicitly un-deprecated.
+                    # A re-authored rule is a new rule: it must be visible again
+                    # even if an earlier version had been pruned/internalized.
                     "deprecated": False if changed else prev.get("deprecated", False),
+                    "internalized": False if changed else prev.get("internalized", False),
                 }
         return nodes
 
@@ -359,12 +479,149 @@ class SkillsOnlyMemory(BaseMemory):
         pb = self.task_playbooks.get(task_type)
         if not isinstance(pb, dict):
             return
+        states = self.skills.get("skill_tree_rl") or {}
+        state = states.get(task_type) if isinstance(states, dict) else None
+        probe_target_ids = set()
+        if isinstance(state, dict) and state.get("phase") == "probe":
+            probe_target_ids = set(state.get("target_node_ids") or [])
+            if probe_target_ids:
+                state["probe_calls"] = int(state.get("probe_calls", 0) or 0) + 1
+                state["probe_successes"] = int(state.get("probe_successes", 0) or 0) + int(bool(success))
+        elif isinstance(state, dict) and state.get("phase") == "train":
+            target_ids = set(state.get("target_node_ids") or [])
+            if target_ids:
+                state["train_calls"] = int(state.get("train_calls", 0) or 0) + 1
+                state["train_successes"] = int(state.get("train_successes", 0) or 0) + int(bool(success))
+
         for nid, lc in (pb.get("nodes") or {}).items():
-            if lc.get("deprecated") or lc.get("internalized"):
+            if (lc.get("deprecated") or lc.get("internalized")
+                    or nid in probe_target_ids):
                 continue
             lc["call_count"] = lc.get("call_count", 0) + 1
             if success:
                 lc["success_when_used"] = lc.get("success_when_used", 0) + 1
+
+    def advance_tree_rl_curriculum(
+        self,
+        *,
+        global_step: int,
+        order: str = "root",
+        min_rl_updates: int = 5,
+        min_train_episodes: int = 24,
+        train_success_threshold: float = 0.7,
+        min_probe_episodes: int = 24,
+        probe_success_threshold: float = 0.7,
+    ) -> List[Dict[str, Any]]:
+        """Advance a whole-layer skill-tree RL curriculum.
+
+        Normal GRPO updates are the learning signal.  After a layer has received
+        enough RL updates and successful *with-tree* episodes, it enters a
+        probe: that layer alone is elided from future prompts while the policy
+        continues on-policy rollouts.  Only enough successful probe episodes
+        permanently mark the layer internalized.  A failed probe restores the
+        text layer and starts another RL attempt.  This prevents a training-loss
+        threshold from being mistaken for actual skill acquisition.
+        """
+        if order not in {"root", "leaf"}:
+            raise ValueError("tree_rl order must be 'root' or 'leaf'")
+        if min_rl_updates < 1 or min_train_episodes < 1 or min_probe_episodes < 1:
+            raise ValueError("tree_rl minimum update/episode counts must be positive")
+        if not 0.0 <= train_success_threshold <= 1.0:
+            raise ValueError("tree_rl train_success_threshold must be in [0, 1]")
+        if not 0.0 <= probe_success_threshold <= 1.0:
+            raise ValueError("tree_rl probe_success_threshold must be in [0, 1]")
+
+        events: List[Dict[str, Any]] = []
+        for task_type, playbook in sorted(self.task_playbooks.items()):
+            if not isinstance(playbook, dict) or not (playbook.get("nodes") or {}):
+                continue
+            state = self._tree_rl_state_for_playbook(
+                task_type, playbook, order=order, global_step=global_step)
+            phase = state.get("phase")
+            target_ids = self._tree_rl_target_ids(playbook, state.get("target_level"))
+            # If a prior cloud update made the target empty/internalized, pick a
+            # new layer before evaluating stale counters.
+            if phase != "done" and not target_ids:
+                state = self._reset_tree_rl_stage(
+                    task_type, playbook, state, global_step=global_step, order=order,
+                    reason="target_no_longer_live")
+                phase = state.get("phase")
+
+            if phase == "train":
+                train_calls = int(state.get("train_calls", 0) or 0)
+                train_successes = int(state.get("train_successes", 0) or 0)
+                train_rate = train_successes / max(train_calls, 1)
+                updates = int(global_step) - int(state.get("stage_started_step", global_step) or global_step) + 1
+                if (updates >= min_rl_updates and train_calls >= min_train_episodes
+                        and train_rate >= train_success_threshold):
+                    state.update({
+                        "phase": "probe", "probe_calls": 0, "probe_successes": 0,
+                        "last_transition_reason": "trained_then_probe",
+                    })
+                    events.append({
+                        "task_type": task_type, "event": "probe_started",
+                        "level": state.get("target_level"), "node_ids": target_ids,
+                        "train_calls": train_calls, "train_success_rate": train_rate,
+                    })
+            elif phase == "probe":
+                probe_calls = int(state.get("probe_calls", 0) or 0)
+                probe_successes = int(state.get("probe_successes", 0) or 0)
+                probe_rate = probe_successes / max(probe_calls, 1)
+                if probe_calls >= min_probe_episodes:
+                    if probe_rate >= probe_success_threshold:
+                        for node_id in target_ids:
+                            playbook["nodes"][node_id]["internalized"] = True
+                            playbook["nodes"][node_id]["internalized_at_step"] = int(global_step)
+                        completed = list(state.get("completed_levels") or [])
+                        completed.append(int(state.get("target_level")))
+                        state["completed_levels"] = completed
+                        events.append({
+                            "task_type": task_type, "event": "layer_internalized",
+                            "level": state.get("target_level"), "node_ids": target_ids,
+                            "probe_calls": probe_calls, "probe_success_rate": probe_rate,
+                        })
+                        self._reset_tree_rl_stage(
+                            task_type, playbook, state, global_step=global_step, order=order,
+                            reason="probe_passed",
+                        )
+                    else:
+                        state["attempts"] = int(state.get("attempts", 0) or 0) + 1
+                        events.append({
+                            "task_type": task_type, "event": "probe_failed_restore_layer",
+                            "level": state.get("target_level"), "node_ids": target_ids,
+                            "probe_calls": probe_calls, "probe_success_rate": probe_rate,
+                        })
+                        self._reset_tree_rl_stage(
+                            task_type, playbook, state, global_step=global_step, order=order,
+                            reason="probe_failed",
+                        )
+        return events
+
+    def tree_rl_metrics(self) -> Dict[str, Any]:
+        """Return scalar aggregate observability for the JSONL training metric."""
+        states = self.skills.get("skill_tree_rl") or {}
+        all_nodes = [
+            node for pb in self.task_playbooks.values() if isinstance(pb, dict)
+            for node in (pb.get("nodes") or {}).values()
+        ]
+        active = [s for s in states.values() if isinstance(s, dict)]
+        probing = [s for s in active if s.get("phase") == "probe"]
+        training = [s for s in active if s.get("phase") == "train"]
+        target_levels = [int(s.get("target_level")) for s in active
+                         if s.get("target_level") is not None]
+        return {
+            "coskill/tree_rl/enabled": int(bool(active)),
+            "coskill/tree_rl/n_trees": len(active),
+            "coskill/tree_rl/n_training_trees": len(training),
+            "coskill/tree_rl/n_probe_trees": len(probing),
+            "coskill/tree_rl/n_internalized_nodes": sum(
+                int(bool(node.get("internalized", False))) for node in all_nodes),
+            "coskill/tree_rl/n_live_nodes": sum(
+                int(not node.get("deprecated", False) and not node.get("internalized", False))
+                for node in all_nodes),
+            "coskill/tree_rl/target_level_min": min(target_levels) if target_levels else 0,
+            "coskill/tree_rl/target_level_max": max(target_levels) if target_levels else 0,
+        }
 
     def deprecate_playbook_node(self, task_type: str, node_id: str) -> bool:
         """Prune a node from the injected context (stop rendering it + its subtree).

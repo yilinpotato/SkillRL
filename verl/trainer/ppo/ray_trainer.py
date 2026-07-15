@@ -1145,6 +1145,10 @@ class RayPPOTrainer:
                     )
                     injected = retrieved.get('injected_skill_ids', [])
                     skill_lib.record_usage(injected, success=success, task_type=task_type)
+                    if (hasattr(skill_lib, 'record_playbook_usage')
+                            and not self.config.env.get('skills_only_memory', {}).get(
+                                'enable_tree_rl_internalize', False)):
+                        skill_lib.record_playbook_usage(task_type, success=success)
                 except Exception as e:
                     print(f"[CoSkill] record_usage failed: {e}")
 
@@ -1187,6 +1191,107 @@ class RayPPOTrainer:
             )
         return self._coskill_loop
 
+    def _record_tree_rl_batch_outcomes(self, batch) -> None:
+        """Record one success/failure outcome per rollout episode for tree RL.
+
+        This deliberately runs on *every* training step when enabled, rather
+        than piggy-backing on the cloud-update watermark.  The progressive
+        curriculum needs fresh on-policy probe evidence even during intervals
+        where no cloud call is warranted.  ``traj_uid`` groups the multi-turn
+        rows back into one episode so a 15-step failure is not counted 15 times.
+        """
+        skill_lib = getattr(getattr(self, "envs", None), "retrieval_memory", None)
+        if skill_lib is None or not hasattr(skill_lib, "record_playbook_usage"):
+            return
+        if "token_level_scores" not in batch.batch:
+            return
+        try:
+            from collections import OrderedDict
+
+            inputs = self.tokenizer.batch_decode(
+                batch.batch["prompts"], skip_special_tokens=True)
+            traj_uids = batch.non_tensor_batch.get("traj_uid", [None] * len(inputs))
+            episode_rewards = batch.non_tensor_batch.get("episode_rewards", None)
+            if episode_rewards is None and "episode_rewards" in batch.batch:
+                episode_rewards = batch.batch["episode_rewards"].detach().cpu().tolist()
+
+            by_uid = OrderedDict()
+            for index, (prompt, uid) in enumerate(zip(inputs, traj_uids)):
+                key = uid if uid is not None else f"__row_{index}"
+                by_uid.setdefault(key, (prompt, index))
+
+            reward_by_uid = {}
+            if episode_rewards is not None:
+                for uid, reward in zip(traj_uids, episode_rewards):
+                    if uid is not None and uid not in reward_by_uid:
+                        reward_by_uid[uid] = float(reward)
+            fallback_scores = batch.batch["token_level_scores"].sum(-1).detach().cpu().tolist()
+
+            for uid, (prompt, row_index) in by_uid.items():
+                reward = reward_by_uid.get(uid, float(fallback_scores[row_index]))
+                task_type = self._detect_task_type_from_input(prompt)
+                skill_lib.record_playbook_usage(task_type, success=(reward > 0.0))
+        except Exception as exc:
+            # Never turn a recoverable metric/accounting problem into a failed
+            # distributed training job.
+            print(f"[CoSkillTreeRL] outcome attribution failed: {exc}")
+
+    def _advance_tree_rl_curriculum(self) -> None:
+        """Move the root/leaf progressive tree-internalization controller.
+
+        The actor has just received a normal GRPO update through Ray/FSDP.  The
+        memory controller may now hide a layer for an on-policy probe, restore
+        it after a failed probe, or permanently elide it after a passed probe.
+        No extra optimizer or non-Ray training path is introduced here.
+        """
+        som = self.config.env.get("skills_only_memory", {})
+        if not som.get("enable_tree_rl_internalize", False):
+            return
+        skill_lib = getattr(getattr(self, "envs", None), "retrieval_memory", None)
+        if skill_lib is None or not hasattr(skill_lib, "advance_tree_rl_curriculum"):
+            print("[CoSkillTreeRL] hierarchical skill-tree memory is unavailable; curriculum skipped")
+            return
+        try:
+            events = skill_lib.advance_tree_rl_curriculum(
+                global_step=int(self.global_steps),
+                order=str(som.get("tree_rl_order", "root")),
+                min_rl_updates=int(som.get("tree_rl_min_updates", 5)),
+                min_train_episodes=int(som.get("tree_rl_min_train_episodes", 24)),
+                train_success_threshold=float(som.get("tree_rl_train_success_threshold", 0.7)),
+                min_probe_episodes=int(som.get("tree_rl_min_probe_episodes", 24)),
+                probe_success_threshold=float(som.get("tree_rl_probe_success_threshold", 0.7)),
+            )
+        except Exception as exc:
+            print(f"[CoSkillTreeRL] curriculum transition failed: {exc}")
+            return
+
+        self._tree_rl_stats = {
+            "last_step": int(self.global_steps),
+            "last_events": len(events),
+        }
+        if events:
+            output_dir = self._coskill_output_dir()
+            try:
+                event_path = os.path.join(output_dir, "skill_tree_rl_events.jsonl")
+                with open(event_path, "a", encoding="utf-8") as handle:
+                    for event in events:
+                        handle.write(json.dumps({"step": int(self.global_steps), **event}, ensure_ascii=False) + "\n")
+                print(f"[CoSkillTreeRL] step={self.global_steps} events={events}")
+            except Exception as exc:
+                print(f"[CoSkillTreeRL] event log write failed: {exc}")
+
+        # Persist state independently from cloud updates: a Ray checkpoint can
+        # occur between two cloud watermarks, and resume must not forget which
+        # layer was being probed.  This is tiny JSON, not a model checkpoint.
+        save_freq = max(1, int(som.get("tree_rl_state_save_freq", 1)))
+        if events or int(self.global_steps) % save_freq == 0:
+            try:
+                save_dir = os.path.join(self._coskill_output_dir(), "skill_lib")
+                os.makedirs(save_dir, exist_ok=True)
+                skill_lib.save_skills(os.path.join(save_dir, "skills_tree_rl_latest.json"))
+            except Exception as exc:
+                print(f"[CoSkillTreeRL] state save failed: {exc}")
+
     def _coskill_metrics(self) -> dict:
         """Collect CoSkill observability metrics for metrics.jsonl.
         Only includes blocks whose backing object exists."""
@@ -1203,6 +1308,12 @@ class RayPPOTrainer:
             m['coskill/internalize/n_skills'] = istats.get('n_skills', 0)
             m['coskill/internalize/n_samples'] = istats.get('n_samples', 0)
             m['coskill/internalize/seconds'] = istats.get('seconds', 0.0)
+        if skill_lib is not None and hasattr(skill_lib, "tree_rl_metrics"):
+            m.update(skill_lib.tree_rl_metrics())
+        tree_stats = getattr(self, "_tree_rl_stats", None)
+        if tree_stats:
+            m["coskill/tree_rl/last_step"] = tree_stats.get("last_step", 0)
+            m["coskill/tree_rl/last_events"] = tree_stats.get("last_events", 0)
         return m
 
     # ------------------------------------------------------------------ #
@@ -1949,6 +2060,13 @@ class RayPPOTrainer:
                             gigpo_similarity_thresh=self.config.algorithm.gigpo.similarity_thresh,
                         )
 
+                    # Tree-RL uses normal on-policy GRPO rewards, but its
+                    # curriculum/probe controller needs one outcome per episode
+                    # on every step (not only on cloud-update watermarks).
+                    som_cfg = self.config.env.get('skills_only_memory', {})
+                    if som_cfg.get('enable_tree_rl_internalize', False):
+                        self._record_tree_rl_batch_outcomes(batch)
+
                     # Update skill bank from training batch (avoids val-data leakage).
                     if (self.config.env.get('skills_only_memory', {}).get('enable_dynamic_update', False)
                             and self.config.env.get('skills_only_memory', {}).get('update_skills_from_train', False)):
@@ -1996,6 +2114,9 @@ class RayPPOTrainer:
                             actor_output = self.actor_rollout_wg.update_actor(batch)
                         actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
                         metrics.update(actor_output_metrics)
+                        if som_cfg.get('enable_tree_rl_internalize', False):
+                            with _timer("tree_rl_curriculum", timing_raw):
+                                self._advance_tree_rl_curriculum()
 
                     # Log rollout generations if enabled
                     rollout_data_dir = self.config.trainer.get("rollout_data_dir", None)
@@ -2040,6 +2161,33 @@ class RayPPOTrainer:
                 n_gpus = self.resource_pool_manager.get_n_gpus()
                 metrics.update(compute_throughout_metrics(batch=batch, timing_raw=timing_raw, n_gpus=n_gpus))
 
+                # Keep comparison metadata in the *primary* Ray metrics.jsonl.
+                # Unlike the old no-RL duplicate comparison file, this creates
+                # no parallel metric stream and therefore cannot drift on resume.
+                env_name = str(self.config.env.get('env_name', '')).lower()
+                benchmark = (
+                    'webshop' if 'webshop' in env_name
+                    else 'alfworld' if 'alfworld' in env_name
+                    else env_name or 'unknown'
+                )
+                _som_for_comparison = self.config.env.get('skills_only_memory', {})
+                metrics.update({
+                    'comparison/schema_version': 1,
+                    # Method remains ``coskill`` so the existing three-method
+                    # comparison tooling can group it correctly.  RL is an
+                    # experiment condition, not a fourth method label.
+                    'comparison/method': 'coskill',
+                    'comparison/benchmark': benchmark,
+                    'comparison/rollout_accounting': 'active_env_decisions',
+                    'comparison/timing_cloud_update_measured': int(bool(
+                        _som_for_comparison.get('enable_coskill', False)
+                        or _som_for_comparison.get('enable_playbook_evolve', False))),
+                    'tokens/small_model/accounting': 'actor_prompt_plus_response_tokens',
+                    'experiment/rl_enabled': 1,
+                    'experiment/tree_rl_internalize_enabled': int(bool(
+                        _som_for_comparison.get('enable_tree_rl_internalize', False))),
+                })
+
                 # Large model (SkillUpdater) cumulative token counts
                 if hasattr(self, 'skill_updater'):
                     summary = self.skill_updater.get_update_summary()
@@ -2052,7 +2200,9 @@ class RayPPOTrainer:
                 # CoSkill closed-loop observability metrics (pool / skill-lib /
                 # cloud / timing). Surfaced into metrics.jsonl for inspection.
                 _som = self.config.env.get('skills_only_memory', {})
-                if _som.get('enable_coskill', False) or _som.get('enable_playbook_evolve', False):
+                if (_som.get('enable_coskill', False)
+                        or _som.get('enable_playbook_evolve', False)
+                        or _som.get('enable_tree_rl_internalize', False)):
                     try:
                         metrics.update(self._coskill_metrics())
                     except Exception as e:

@@ -548,6 +548,27 @@ for each task in stream:
   用 `<think>`/`<action>` 正则分离。
 - 开关：`+env.dump_raw_trajectories=True`（默认关，关时零开销）。
 
+### 13.4 技能树逐层 Ray RL 内化（默认关闭）
+
+扁平 L2 Skill2param 与技能树不是同一对象。技能树 RL 使用 Ray GRPO 的正常 on-policy
+`update_actor` 训练，不额外引入 SFT 或非 Ray 优化器；只有
+`+env.skills_only_memory.enable_tree_rl_internalize=True` 才开启。
+
+每个 task type 独立维护可 checkpoint 的课程状态：
+
+1. 按 `tree_rl_order=root|leaf` 选择当前整层标题节点；
+2. 保持该层注入，累计正常 GRPO 更新和成功 episode；
+3. 达到 `tree_rl_min_updates`、`tree_rl_min_train_episodes`、
+   `tree_rl_train_success_threshold` 后，临时隐藏该层，继续做 on-policy probe；
+4. probe 达到 `tree_rl_min_probe_episodes` 且成功率超过
+   `tree_rl_probe_success_threshold`，才把该层节点标为 `internalized` 并进入下一层；
+5. probe 未通过，恢复该层文本并开始下一次 GRPO 尝试。
+
+树的永久内化不是 `skip subtree`：根节点被省略时，会保留并提升其子标题，因此“根到叶”不会把
+尚未学习的细粒度规则一起删掉。事件写入 `skill_tree_rl_events.jsonl`，状态写入
+`skill_lib/skills_tree_rl_latest.json`，标量状态进入主 `metrics.jsonl` 的
+`coskill/tree_rl/*`。入口由 `rl=1` 显式触发，默认 no-RL 行为不变。
+
 ### 13.3 自适应差分压缩
 
 原 `_diff_compress` 无条件对所有观测求 `+/-` 增量，导致短观测也被拆成零散增量行、

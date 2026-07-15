@@ -1179,6 +1179,9 @@ def main():
             lengths = [row["used_steps"] for row in group_rows]
             group_wins = sum(int(row["won"]) for row in group_rows)
             group_score = sum(row["task_score"] for row in group_rows)
+            action_count = sum(lengths)
+            action_count_cumulative = sum(
+                int(row.get("used_steps", 0) or 0) for row in per_game)
             group_metric = {
                 "training/group": group_id,
                 "training/global_step": group_id,
@@ -1187,6 +1190,10 @@ def main():
                 "episode/generated_count": len(group_results),
                 "episode/wins": group_wins,
                 "episode/success_rate": round(group_wins / max(len(group_rows), 1), 6),
+                "episode/count_cumulative": global_episode,
+                "episode/wins_cumulative": wins,
+                "episode/action_count": action_count,
+                "episode/action_count_cumulative": action_count_cumulative,
                 "episode/task_score/mean": round(group_score / max(len(group_rows), 1), 6),
                 "episode/task_score/max": max([row["task_score"] for row in group_rows] or [0]),
                 "episode/task_score/min": min([row["task_score"] for row in group_rows] or [0]),
@@ -1205,6 +1212,8 @@ def main():
                 "experiment/skill_tree_enabled": int(enable_tree),
                 "experiment/skill_tree_evolve_enabled": int(enable_tree_evolve),
                 "experiment/skill_bullets_enabled": int(bool(args.enable_coskill)),
+                "experiment/rl_enabled": 0,
+                "experiment/tree_rl_internalize_enabled": 0,
                 "parallel/data_parallel_workers": args.data_parallel_workers,
                 "parallel/tensor_parallel_size": args.tensor_parallel_size,
                 "parallel/pipeline_parallel_size": args.pipeline_parallel_size,
@@ -1214,12 +1223,14 @@ def main():
                 "tokens/small_model/prompt": small_tokens["prompt"],
                 "tokens/small_model/response": small_tokens["response"],
                 "tokens/small_model/total": small_tokens["total"],
+                "tokens/small_model/accounting": "vllm_request_tokens_two_stage",
                 "tokens/small_model/prompt_cumulative": small_cumulative["prompt"],
                 "tokens/small_model/response_cumulative": small_cumulative["response"],
                 "tokens/small_model/total_cumulative": small_cumulative["total"],
                 "tokens/large_model/prompt": large_delta["prompt"],
                 "tokens/large_model/completion": large_delta["completion"],
                 "tokens/large_model/total": large_delta["total"],
+                "tokens/large_model/accounting": "provider_api_usage",
                 "tokens/large_model/prompt_cumulative": large_after["prompt"],
                 "tokens/large_model/completion_cumulative": large_after["completion"],
                 "tokens/large_model/total_cumulative": large_after["total"],
@@ -1230,6 +1241,14 @@ def main():
                     len(group_rows) / max(rollout_seconds, 1e-9), 6),
                 "perf/throughput_small_tokens_per_second": round(
                     small_tokens["total"] / max(rollout_seconds, 1e-9), 6),
+                "perf/total_num_tokens": small_tokens["total"],
+                # The comparison schema is embedded in the primary group log
+                # (rather than mirrored into a second comparison_metrics file).
+                "comparison/schema_version": 1,
+                "comparison/method": "coskill",
+                "comparison/benchmark": "webshop",
+                "comparison/rollout_accounting": "active_env_decisions",
+                "comparison/timing_cloud_update_measured": 1,
                 **cloud_loop.metrics(traces_pool, skill_lib),
             }
             group_categories = {}

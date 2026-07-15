@@ -12,6 +12,19 @@ set -euo pipefail
 #   small 1000-product simulator, max_steps=15, prompt=8192, response=4096.
 # =============================================================================
 
+# Keep the existing frozen rollout as the default.  ``rl=1`` (or ``RL=1``)
+# delegates to the Ray/GRPO progressive skill-tree curriculum; choose its
+# direction with TREE_RL_ORDER=root (default) or TREE_RL_ORDER=leaf.
+RL_MODE="${rl:-${RL:-0}}"
+if [[ "$RL_MODE" != "0" && "$RL_MODE" != "1" ]]; then
+    echo "rl/RL must be 0 (default no-RL) or 1 (Ray skill-tree RL)." >&2
+    exit 1
+fi
+if [[ "$RL_MODE" == "1" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    exec bash "$SCRIPT_DIR/../grpo_trainer/run_coskill_tree_rl.sh" webshop "$@"
+fi
+
 export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1

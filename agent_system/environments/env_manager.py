@@ -682,18 +682,40 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
     def __init__(self, envs, projection_f, config):
         self.memory = SimpleMemory()
 
-        # Skills-only memory (same interface as AlfWorldEnvironmentManager)
+        # CoSkill WebShop uses the same hierarchical/tree-capable memory as
+        # ALFWorld when explicitly requested.  The former flat construction
+        # silently discarded ``enable_playbook`` / lifecycle settings, so a
+        # WebShop Ray run could claim tree RL while never injecting a tree.
         if config.env.get('use_skills_only_memory', False):
-            from agent_system.memory import SkillsOnlyMemory
             som_cfg = config.env.skills_only_memory
-            self.retrieval_memory = SkillsOnlyMemory(
-                skills_json_path=som_cfg.skills_json_path,
-                retrieval_mode=som_cfg.get('retrieval_mode', 'template'),
-                embedding_model_path=som_cfg.get('embedding_model_path', None),
-                task_specific_top_k=som_cfg.get('task_specific_top_k', None),
-            )
+            if som_cfg.get('enable_hierarchy', False):
+                from agent_system.memory import HierarchicalSkillLib
+                self.retrieval_memory = HierarchicalSkillLib(
+                    skills_json_path=som_cfg.skills_json_path,
+                    retrieval_mode=som_cfg.get('retrieval_mode', 'template'),
+                    embedding_model_path=som_cfg.get('embedding_model_path', None),
+                    task_specific_top_k=som_cfg.get('task_specific_top_k', None),
+                    enable_hierarchy=True,
+                    stable_cycles_l1=som_cfg.get('stable_cycles_l1', 3),
+                    stable_cycles_l2=som_cfg.get('stable_cycles_l2', 5),
+                    success_l1=som_cfg.get('success_l1', 0.7),
+                    demote_threshold=som_cfg.get('demote_threshold', 0.3),
+                    min_calls=som_cfg.get('min_calls', 20),
+                    enable_playbook=som_cfg.get('enable_playbook', True),
+                )
+                memory_name = 'CoSkill HierarchicalSkillLib'
+            else:
+                from agent_system.memory import SkillsOnlyMemory
+                self.retrieval_memory = SkillsOnlyMemory(
+                    skills_json_path=som_cfg.skills_json_path,
+                    retrieval_mode=som_cfg.get('retrieval_mode', 'template'),
+                    embedding_model_path=som_cfg.get('embedding_model_path', None),
+                    task_specific_top_k=som_cfg.get('task_specific_top_k', None),
+                    enable_playbook=som_cfg.get('enable_playbook', True),
+                )
+                memory_name = 'SkillsOnlyMemory'
             self.retrieved_memories = None
-            print(f"[WebshopEnvironmentManager] Skills-only memory enabled "
+            print(f"[WebshopEnvironmentManager] {memory_name} enabled "
                   f"(mode={som_cfg.get('retrieval_mode', 'template')})")
         else:
             self.retrieval_memory = None
@@ -1024,12 +1046,18 @@ def make_envs(config):
         return envs, val_envs
     elif "webshop" in config.env.env_name.lower():
         from agent_system.environments.env_package.webshop import build_webshop_envs, webshop_projection
+        # Keep Ray/WebShop aligned with the no-RL launcher: the large data assets
+        # may live in a sibling checkout rather than inside this repository.
+        # Explicit WEBSHOP_DATA_DIR always wins, while the bundled path remains
+        # the backward-compatible default.
+        webshop_data_dir = os.environ.get("WEBSHOP_DATA_DIR") or os.path.join(
+            os.path.dirname(__file__), 'env_package/webshop/webshop/data')
         if config.env.webshop.use_small:
-            file_path = os.path.join(os.path.dirname(__file__), 'env_package/webshop/webshop/data/items_shuffle_1000.json')
-            attr_path = os.path.join(os.path.dirname(__file__), 'env_package/webshop/webshop/data/items_ins_v2_1000.json')
+            file_path = os.path.join(webshop_data_dir, 'items_shuffle_1000.json')
+            attr_path = os.path.join(webshop_data_dir, 'items_ins_v2_1000.json')
         else:
-            file_path = os.path.join(os.path.dirname(__file__), 'env_package/webshop/webshop/data/items_shuffle.json')
-            attr_path = os.path.join(os.path.dirname(__file__), 'env_package/webshop/webshop/data/items_ins_v2.json')
+            file_path = os.path.join(webshop_data_dir, 'items_shuffle.json')
+            attr_path = os.path.join(webshop_data_dir, 'items_ins_v2.json')
         env_kwargs = {
                     'observation_mode': 'text', 
                     'num_products': None, 

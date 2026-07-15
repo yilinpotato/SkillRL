@@ -877,9 +877,10 @@ def main():
 
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
     group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
-    # Canonical group-level file shared with the two GRPO baselines.  Keep the
-    # historical per-episode and group files untouched for backward compatibility.
-    comparison_metrics_path = os.path.join(args.outdir, "comparison_metrics.jsonl")
+    # ``group_metrics.jsonl`` is the sole canonical group-level comparison log.
+    # It already contains every ``comparison/*`` field below.  Older runs may
+    # still have a duplicated comparison_metrics.jsonl; never delete it, but do
+    # not create a second parallel metric stream for new/resumed runs.
     per_game = list(resume_state["per_game"])
     wins = resume_state["wins"]
     global_step = len(per_game)
@@ -1047,6 +1048,8 @@ def main():
             "experiment/skill_tree_enabled": int(enable_skill_tree),
             "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
             "experiment/skill_bullets_enabled": int(enable_coskill),
+            "experiment/rl_enabled": 0,
+            "experiment/tree_rl_internalize_enabled": 0,
             "experiment/cloud_round": cloud_updates,
             "coskill/cloud_update_fired": bool(fired),
             "tokens/small_model/prompt": int(small_tokens.get("prompt", 0) or 0),
@@ -1095,7 +1098,6 @@ def main():
             "metrics": metrics,
         }
         _append_jsonl(group_metrics_path, canonical_record)
-        _append_jsonl(comparison_metrics_path, canonical_record)
         print(f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
               f"success={100.0 * group_wins / max(n, 1):.1f}% "
               f"valid_action={100.0 * valid_actions / max(action_count, 1):.1f}% "
