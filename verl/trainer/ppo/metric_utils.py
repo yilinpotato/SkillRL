@@ -17,7 +17,7 @@ Metrics related to the PPO trainer.
 
 from collections import defaultdict
 from functools import partial
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -76,6 +76,39 @@ def _compute_response_info(batch: DataProto) -> Dict[str, Any]:
     )
 
 
+def compute_action_validity_metrics(
+    action_valid: Any,
+    strict_action_valid: Optional[Any] = None,
+    non_strict_action_valid: Optional[Any] = None,
+    *,
+    prefix: str = "episode",
+) -> Dict[str, float]:
+    """Return the penalty predicate and strict/non-strict diagnostic rates.
+
+    ``action_valid`` is the predicate consumed by the invalid-action penalty.
+    The named strict/non-strict predicates are diagnostics and can coincide with
+    it: WebShop currently penalizes the strict protocol, while ALFWorld uses the
+    original SkillRL non-strict protocol.
+    """
+    action_valid = np.asarray(action_valid, dtype=np.float32)
+    strict_action_valid = np.asarray(
+        action_valid if strict_action_valid is None else strict_action_valid,
+        dtype=np.float32,
+    )
+    non_strict_action_valid = np.asarray(
+        action_valid if non_strict_action_valid is None else non_strict_action_valid,
+        dtype=np.float32,
+    )
+    return {
+        f"{prefix}/valid_action_ratio": float(action_valid.mean()),
+        f"{prefix}/strict_valid_action_ratio": float(strict_action_valid.mean()),
+        f"{prefix}/non_strict_valid_action_ratio": float(non_strict_action_valid.mean()),
+        # ``relaxed`` is the historical name used by the no-RL WebShop driver.
+        # Keep it as an exact alias so old and new plots need no schema fork.
+        f"{prefix}/relaxed_valid_action_ratio": float(non_strict_action_valid.mean()),
+    }
+
+
 def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str, Any]:
     """
     Computes various metrics from a batch of data for PPO training.
@@ -115,6 +148,15 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
     response_info = _compute_response_info(batch)
     prompt_length = response_info["prompt_length"]
     response_length = response_info["response_length"]
+
+    non_tensor_batch = batch.non_tensor_batch
+    validity_metrics = {}
+    if isinstance(non_tensor_batch, dict) and "is_action_valid" in non_tensor_batch:
+        validity_metrics = compute_action_validity_metrics(
+            non_tensor_batch["is_action_valid"],
+            non_tensor_batch.get("strict_action_valid"),
+            non_tensor_batch.get("non_strict_action_valid"),
+        )
 
     valid_adv = torch.masked_select(advantages, response_mask)
     valid_returns = torch.masked_select(returns, response_mask)
@@ -189,6 +231,7 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
         "tokens/small_model/prompt": torch.sum(prompt_length).detach().item(),
         "tokens/small_model/response": torch.sum(response_length).detach().item(),
         "tokens/small_model/total": (torch.sum(prompt_length) + torch.sum(response_length)).detach().item(),
+        **validity_metrics,
     }
     return metrics
 

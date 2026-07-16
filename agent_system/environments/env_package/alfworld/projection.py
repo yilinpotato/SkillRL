@@ -90,29 +90,25 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]],
                 actions[i] = "look" if "look" in pool else (pool[0] if pool else "look")
                 execution_source = "fallback"
 
-        # valid means the model directly named an admissible action with no
-        # rescue needed — salvage/default-fallback never counts as valid, even
-        # though we still hand the environment a legal action either way.
-        valids[i] = 1 if (format_valid and matched_directly) else 0
-
-        # check <think>...</think>
+        # The original SkillRL ALFWorld reward contract deliberately does not
+        # require a direct admissible-command match.  Qwen Thinking can put the
+        # opening <think> in the prompt, so a response-side closing tag is the
+        # stable evidence that reasoning completed.  Keep this relaxed predicate
+        # for the invalid-action penalty; direct admissibility remains available
+        # below as a strict diagnostic only.
         think_start_idx = original_str.find("<think>")
         think_end_idx = original_str.find("</think>")
         has_think_block = think_start_idx != -1 and think_end_idx != -1
-        if not has_think_block:
-            valids[i] = 0
 
-        # check if contains any Chinese characters
         contains_cjk = bool(re.search(r'[\u4e00-\u9fff]', original_str))
-        if contains_cjk:
-            valids[i] = 0
+        has_closed_think = think_end_idx != -1
+        valids[i] = int(format_valid and has_closed_think and not contains_cjk)
 
-        # Legacy/non-strict validity only requires one extractable action block,
-        # one closed think block, and a directly admissible action.  Preserve it
-        # for continuity with prior ALFWorld metrics.  Strict validity additionally
-        # enforces the exact one-think/one-action protocol and their order.
+        # Strict validity is only diagnostic: it preserves the stronger CoSkill
+        # protocol check without using it to add an extra reward penalty.
         strict_valid_action = bool(valids[i]) and (
-            original_str.count("<think>") == 1
+            matched_directly
+            and original_str.count("<think>") == 1
             and original_str.count("</think>") == 1
             and original_str.count("<action>") == 1
             and original_str.count("</action>") == 1

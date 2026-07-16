@@ -46,6 +46,7 @@ from verl.single_controller.ray.base import create_colocated_worker_cls
 from verl.trainer.ppo import core_algos
 from verl.trainer.ppo.core_algos import agg_loss
 from verl.trainer.ppo.metric_utils import (
+    compute_action_validity_metrics,
     compute_data_metrics,
     compute_throughout_metrics,
     compute_timing_metrics,
@@ -243,9 +244,10 @@ def apply_invalid_action_penalty(data: DataProto, invalid_action_penalty_coef=fl
         if 'step_rewards' in data.batch.keys():
             step_rewards[i] -= invalid_action_penalty_coef * action_invalids
     
-    valid_action_ratio = np.mean(data.non_tensor_batch['is_action_valid'].astype(np.float32)).item()
-    metrics = {'episode/valid_action_ratio': valid_action_ratio}
-    return data, metrics
+    # compute_data_metrics emits the penalty predicate plus the strict/non-strict
+    # diagnostic pair even when this penalty is disabled.  Keep this function
+    # responsible only for reward modification.
+    return data, {}
 
 def compute_response_mask(data: DataProto):
     """Compute the attention mask for the response part of the sequence.
@@ -722,6 +724,7 @@ class RayPPOTrainer:
         data_source_lst = []
         tool_calling_list = []
         traj_uid_list = []
+        action_validity_list = defaultdict(list)
         success_rate_dict = {}
 
         # Lists to collect samples for the table
@@ -810,6 +813,15 @@ class RayPPOTrainer:
             data_source_lst.append(test_batch.non_tensor_batch.get('data_source', ['unknown'] * reward_tensor.shape[0]))
             tool_calling_list.append(test_output_gen_batch.non_tensor_batch['tool_callings'])
             traj_uid_list.append(test_output_gen_batch.non_tensor_batch['traj_uid'])
+            for validity_key in (
+                'is_action_valid',
+                'strict_action_valid',
+                'non_strict_action_valid',
+            ):
+                if validity_key in test_output_gen_batch.non_tensor_batch:
+                    action_validity_list[validity_key].append(
+                        np.asarray(test_output_gen_batch.non_tensor_batch[validity_key], dtype=np.float32)
+                    )
             # success rate
             for k in test_batch.non_tensor_batch.keys():
                 if 'success_rate' in k:
@@ -826,6 +838,11 @@ class RayPPOTrainer:
         data_sources = np.concatenate(data_source_lst, axis=0)
         tool_callings = np.concatenate(tool_calling_list, axis=0)
         traj_uids = np.concatenate(traj_uid_list, axis=0)
+        action_validity = {
+            key: np.concatenate(values, axis=0)
+            for key, values in action_validity_list.items()
+            if values
+        }
         success_rate = {k: np.mean(v) for k, v in success_rate_dict.items()}
 
         # evaluate test_score based on data source
@@ -857,6 +874,16 @@ class RayPPOTrainer:
             metric_dict[f'val/{data_source}/tool_call_count/mean'] = np.mean(tool_calls)
             # metric_dict[f'val/{data_source}/tool_call_count/max'] = np.max(tool_calls)
             # metric_dict[f'val/{data_source}/tool_call_count/min'] = np.min(tool_calls)
+
+        if 'is_action_valid' in action_validity:
+            for data_source in np.unique(data_sources):
+                source_mask = data_sources == data_source
+                metric_dict.update(compute_action_validity_metrics(
+                    action_validity['is_action_valid'][source_mask],
+                    action_validity.get('strict_action_valid', action_validity['is_action_valid'])[source_mask],
+                    action_validity.get('non_strict_action_valid', action_validity['is_action_valid'])[source_mask],
+                    prefix=f'val/{data_source}',
+                ))
 
         for k, v in success_rate.items():
             metric_dict[f'val/{k}'] = v

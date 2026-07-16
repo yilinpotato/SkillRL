@@ -230,6 +230,7 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         steps.append({
             "step": step, "observation": obs_text, "action": action, "reward": reward,
             "valid_action": valid,
+            "non_strict_valid_action": valid,
             "strict_valid_action": action_detail["strict_valid_action"],
             "execution_source": action_detail["execution_source"],
             "direct_admissible_action": action_detail["direct_admissible_action"],
@@ -237,6 +238,7 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         if keep_logrows:
             logrows.append({"step": step, "prompt": prompt, "action": action, "valid": valid,
                             "valid_action": valid,
+                            "non_strict_valid_action": valid,
                             "strict_valid_action": action_detail["strict_valid_action"],
                             "execution_source": action_detail["execution_source"],
                             "direct_admissible_action": action_detail["direct_admissible_action"],
@@ -264,6 +266,8 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
             "skill_ids_used": injected_ids, "model_version": "frozen",
             "n_valid_actions": n_valid,
             "valid_action_ratio": n_valid / max(step, 1),
+            "n_non_strict_valid_actions": n_valid,
+            "non_strict_valid_action_ratio": n_valid / max(step, 1),
             "n_strict_valid_actions": n_strict_valid,
             "strict_valid_action_ratio": n_strict_valid / max(step, 1),
             "n_salvaged_actions": sum(s["execution_source"] == "salvaged" for s in steps),
@@ -379,6 +383,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                 "step": step, "observation": obs_list[i],
                 "action": action, "reward": reward,
                 "valid_action": valid_by_idx[i],
+                "non_strict_valid_action": valid_by_idx[i],
                 "strict_valid_action": action_detail["strict_valid_action"],
                 "execution_source": action_detail["execution_source"],
                 "direct_admissible_action": action_detail["direct_admissible_action"],
@@ -388,6 +393,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                     "step": step, "prompt": prompts[active.index(i)],
                     "action": action, "valid": valid_by_idx[i],
                     "valid_action": valid_by_idx[i],
+                    "non_strict_valid_action": valid_by_idx[i],
                     "strict_valid_action": action_detail["strict_valid_action"],
                     "execution_source": action_detail["execution_source"],
                     "direct_admissible_action": action_detail["direct_admissible_action"],
@@ -424,6 +430,8 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                 "skill_ids_used": injected_ids[i], "model_version": "frozen",
                 "n_valid_actions": n_valid[i],
                 "valid_action_ratio": n_valid[i] / max(used[i], 1),
+                "n_non_strict_valid_actions": n_valid[i],
+                "non_strict_valid_action_ratio": n_valid[i] / max(used[i], 1),
                 "n_strict_valid_actions": n_strict_valid[i],
                 "strict_valid_action_ratio": n_strict_valid[i] / max(used[i], 1),
                 "n_salvaged_actions": sum(
@@ -907,6 +915,7 @@ def main():
         logrows = ep_result["logrows"]
         action_meta = raw_trace.get("meta") or {}
         n_strict_valid = int(action_meta.get("n_strict_valid_actions", 0) or 0)
+        n_non_strict_valid = int(action_meta.get("n_non_strict_valid_actions", nval) or 0)
         n_salvaged = int(action_meta.get("n_salvaged_actions", 0) or 0)
         n_fallback = int(action_meta.get("n_fallback_actions", 0) or 0)
         pb_rec = ep_result.get("playbook_record")
@@ -926,6 +935,8 @@ def main():
                      "won": bool(won), "used_steps": used,
                      "valid_actions": nval, "step": global_step,
                      "valid_action_ratio": round(nval / max(used, 1), 6),
+                     "non_strict_valid_actions": n_non_strict_valid,
+                     "non_strict_valid_action_ratio": round(n_non_strict_valid / max(used, 1), 6),
                      "strict_valid_actions": n_strict_valid,
                      "strict_valid_action_ratio": round(n_strict_valid / max(used, 1), 6),
                      "salvaged_actions": n_salvaged,
@@ -960,6 +971,8 @@ def main():
                 "episode/length": ep_record["used_steps"],
                 "episode/valid_actions": ep_record["valid_actions"],
                 "episode/valid_action_ratio": ep_record["valid_action_ratio"],
+                "episode/non_strict_valid_actions": ep_record["non_strict_valid_actions"],
+                "episode/non_strict_valid_action_ratio": ep_record["non_strict_valid_action_ratio"],
                 "episode/strict_valid_actions": ep_record["strict_valid_actions"],
                 "episode/strict_valid_action_ratio": ep_record["strict_valid_action_ratio"],
                 "episode/salvaged_actions": ep_record["salvaged_actions"],
@@ -1042,6 +1055,8 @@ def main():
             # ALFWorld has no separate relaxed projection: its relaxed notion
             # is the parser-valid action count already reported above.
             "episode/relaxed_valid_action_ratio": round(
+                valid_actions / max(action_count, 1), 6),
+            "episode/non_strict_valid_action_ratio": round(
                 valid_actions / max(action_count, 1), 6),
             "episode/salvaged_action_ratio": round(salvaged_actions / max(action_count, 1), 6),
             "episode/fallback_action_ratio": round(fallback_actions / max(action_count, 1), 6),

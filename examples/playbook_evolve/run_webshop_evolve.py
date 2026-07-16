@@ -371,6 +371,8 @@ def _validation_metrics(results, *, group_id, global_episode, token_delta,
             valid / max(total_actions, 1), 6),
         "validation/episode/relaxed_valid_action_ratio": round(
             relaxed / max(total_actions, 1), 6),
+        "validation/episode/non_strict_valid_action_ratio": round(
+            relaxed / max(total_actions, 1), 6),
         "validation/tokens/small_model/prompt": int(token_delta["prompt"]),
         "validation/tokens/small_model/response": int(token_delta["response"]),
         "validation/tokens/small_model/total": int(token_delta["total"]),
@@ -640,6 +642,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
                 "reward": float(rewards[i] or 0.0),
                 "task_score": raw_score,
                 "valid_action": action_detail["valid_action"],
+                "non_strict_valid_action": action_detail["valid_action"],
                 "strict_valid_action": valid,
                 "execution_source": action_detail["execution_source"],
             })
@@ -651,6 +654,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
                     "action": action,
                     "valid": valid,
                     "valid_action": action_detail["valid_action"],
+                    "non_strict_valid_action": action_detail["valid_action"],
                     "strict_valid_action": valid,
                     "execution_source": action_detail["execution_source"],
                     "forced": forced_by_index[i],
@@ -694,6 +698,8 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
                 "goal_index": goal_indices[i],
                 "n_valid_actions": relaxed_valid_count[i],
                 "valid_action_ratio": relaxed_valid_count[i] / max(used[i], 1),
+                "n_non_strict_valid_actions": relaxed_valid_count[i],
+                "non_strict_valid_action_ratio": relaxed_valid_count[i] / max(used[i], 1),
                 "n_strict_valid_actions": valid_count[i],
                 "strict_valid_action_ratio": valid_count[i] / max(used[i], 1),
             },
@@ -708,6 +714,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
             "injected": injected_ids[i],
             "n_valid": valid_count[i],
             "n_relaxed_valid": relaxed_valid_count[i],
+            "n_non_strict_valid": relaxed_valid_count[i],
             "logrows": logrows[i],
             "playbook_record": tree_records[i],
         })
@@ -1310,6 +1317,7 @@ def main():
                     "valid_actions": int(result["n_valid"]),
                     "strict_valid_actions": int(result["n_valid"]),
                     "relaxed_valid_actions": int(result["n_relaxed_valid"]),
+                    "non_strict_valid_actions": int(result["n_non_strict_valid"]),
                     "goal_index": result.get("goal_index"),
                     "cloud_round_used": cloud_updates,
                     "skill_ids_used": list(result.get("injected") or []),
@@ -1366,6 +1374,8 @@ def main():
                             row["strict_valid_actions"] / max(row["used_steps"], 1), 6),
                         "episode/relaxed_valid_action_ratio": round(
                             row["relaxed_valid_actions"] / max(row["used_steps"], 1), 6),
+                        "episode/non_strict_valid_action_ratio": round(
+                            row["non_strict_valid_actions"] / max(row["used_steps"], 1), 6),
                         "episode/success_rate": round(
                             row["running_total_wins"] /
                             max(row["running_total_episodes"], 1), 6),
@@ -1436,6 +1446,9 @@ def main():
                     max(sum(lengths), 1), 6),
                 "episode/relaxed_valid_action_ratio": round(
                     sum(row["relaxed_valid_actions"] for row in group_rows) /
+                    max(sum(lengths), 1), 6),
+                "episode/non_strict_valid_action_ratio": round(
+                    sum(row["non_strict_valid_actions"] for row in group_rows) /
                     max(sum(lengths), 1), 6),
                 "experiment/skill_tree_enabled": int(enable_tree),
                 "experiment/skill_tree_evolve_enabled": int(enable_tree_evolve),

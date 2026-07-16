@@ -138,13 +138,19 @@ def run_one_game(env, agent, traj, mode, max_steps, run_idx, builder, outdir):
         think, _ = parse_model_output(raw)
         # alfworld_projection 现在自己就会做 admissible_commands 精确匹配 + salvage +
         # 安全默认动作兜底，返回的 action 已经保证合法，不需要在这里再手工补救一次。
-        actions, valids = alfworld_projection([raw], [adm])
+        actions, valids, action_details = alfworld_projection(
+            [raw], [adm], return_details=True
+        )
         action = actions[0]
         valid = bool(valids[0])
-        salvaged = not valid  # valid=0 时 action 是 salvage 或安全默认动作救回来的
+        # ``valid`` is now the SkillRL-compatible non-strict protocol score;
+        # it intentionally does not say whether the executable action needed a
+        # salvage/default fallback.  Keep the mini-test recovery statistic tied
+        # to the projection's execution source instead.
+        salvaged = action_details[0]["execution_source"] != "direct"
         if forced:
             n_truncated += 1
-            tag = "✅精确匹配" if valid else "⚠已救回(salvage/默认)"
+            tag = "✅直接执行" if not salvaged else "⚠已救回(salvage/默认)"
             print(f"  ⏱ [预算强制] Step {step} thinking 到 think_budget 被强制收尾 → {tag}: {action!r}")
         if valid:
             n_valid += 1

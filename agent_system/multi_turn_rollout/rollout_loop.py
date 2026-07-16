@@ -505,6 +505,19 @@ class TrajectoryCollector:
             else:
                 batch.non_tensor_batch['is_action_valid'] = np.ones(batch_size, dtype=bool)
 
+            # ``is_action_valid`` remains the predicate used for the reward
+            # penalty.  Keep the strict/non-strict diagnostic predicates beside
+            # it so their rates can be reported without changing any reward.
+            # Environments without an explicit pair retain their legacy value.
+            batch.non_tensor_batch['non_strict_action_valid'] = np.array(
+                [info.get('non_strict_action_valid', info.get('is_action_valid', True)) for info in infos],
+                dtype=bool,
+            )
+            batch.non_tensor_batch['strict_action_valid'] = np.array(
+                [info.get('strict_action_valid', info.get('is_action_valid', True)) for info in infos],
+                dtype=bool,
+            )
+
             if 'tool_calling' in infos[0]:
                 tool_callings[active_masks] += np.array([info['tool_calling'] for info in infos], dtype=np.float32)[active_masks]
             # Create reward tensor, only assign rewards for active environments
@@ -581,6 +594,12 @@ class TrajectoryCollector:
                             "model_output": raw_resp,
                             "env_action": env_action,
                             "is_action_valid": int(batch.non_tensor_batch['is_action_valid'][i]),
+                            "non_strict_action_valid": int(
+                                batch.non_tensor_batch['non_strict_action_valid'][i]
+                            ),
+                            "strict_action_valid": int(
+                                batch.non_tensor_batch['strict_action_valid'][i]
+                            ),
                             "reward": float(rewards[i]),
                             "done": bool(dones[i]),
                             "won": bool(infos[i].get('won', False)) if isinstance(infos[i], dict) else False,

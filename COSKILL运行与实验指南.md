@@ -355,11 +355,12 @@ ALFWorld 的 won 由环境 won 判定。WebShop 仅 terminal task_score 等于 1
 
 | 字段 | 含义 |
 | --- | --- |
-| valid_action | 宽松/历史口径。ALFWorld：模型直接给出可提取、命中 admissible action 的动作并有闭合 think；WebShop：可提取 action 块。 |
+| valid_action | **实际奖惩口径**。ALFWorld 与原始 SkillRL 一致：可提取 `<action>`、有 `</think>`、且无中文即可，不要求 action 直接命中 admissible_commands；WebShop 保持严格双段协议口径。 |
 | strict_valid_action | 恰好一个完整 think 块和 action 块，think 在前，并满足环境的直接动作要求。 |
+| non_strict_valid_action | 诊断用宽松口径。ALFWorld 与 `valid_action` 相同；WebShop 只要求可提取的 action 块，不要求完整双段协议。 |
 | execution_source | ALFWorld：direct、salvaged、fallback；WebShop：direct 或 malformed。 |
 
-ALFWorld 中 episode/valid_action_ratio 为宽松口径，另有 episode/strict_valid_action_ratio。WebShop 为兼容既有日志，episode/valid_action_ratio 保持历史严格口径；另写入 episode/strict_valid_action_ratio 与 episode/relaxed_valid_action_ratio。
+因此 `episode/valid_action_ratio` 始终表示实际是否扣 invalid-action penalty；同时每个训练 step 都有 `episode/strict_valid_action_ratio` 和 `episode/non_strict_valid_action_ratio`。为兼容已有 no-RL WebShop 输出，`episode/relaxed_valid_action_ratio` 是后者的等值别名，两个字段都会保留。验证使用对应的 `val/<data_source>/...`（GRPO）或 `validation/episode/...`（no-RL）字段。ALFWorld 的 strict 指标仅用于诊断，WebShop 的 strict 指标与奖惩口径相同。
 
 WebShop 的第一步同样注入检索到的静态技能：首步常常决定搜索 query，不能因为尚无 history 而退化为无技能模板。CoSkill 的 no-RL driver 与其 GRPO 环境管理器均采用该规则，且已与 SkillRL、Skill0 的 WebShop GRPO 路径对齐。该注入不包含手写 seed playbook，也不读取 oracle；新运行的任务树仍为空，只有云端从训练期 successful rollout 分析得到的树才会被写入并注入。历史过长时，两条 CoSkill 路径只从最旧处删除完整的 observation/action 对，保留当前任务、当前 observation、admissible actions、检索技能和技能树；不会再退化为丢失检索信息的无历史模板。
 

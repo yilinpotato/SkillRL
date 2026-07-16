@@ -295,14 +295,18 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         return {'text': full_text_obs, 'image': image_obs, 'anchor': text_obs}, infos
 
     def step(self, text_actions: List[str]):
-        actions, valids = self.projection_f(text_actions, self.envs.get_admissible_commands)
+        actions, valids, validity_details = self.projection_f(
+            text_actions, self.envs.get_admissible_commands, return_details=True
+        )
         text_obs, image_obs, rewards, dones, infos = self.envs.step(actions)
         self.memory.store({'text_obs': self.pre_text_obs, 'action': actions})
         self.pre_text_obs = text_obs
 
         # Per-step playbook debug trace: pair each model response (answer to the
         # PREVIOUS prompt) with its projected action and the resulting obs.
-        self._dbg_log_step(text_actions, actions, valids, text_obs, rewards, dones, infos)
+        self._dbg_log_step(
+            text_actions, actions, valids, validity_details, text_obs, rewards, dones, infos
+        )
 
         full_text_obs = self.build_text_obs(text_obs, self.envs.get_admissible_commands)
         self._dbg_last_prompt = full_text_obs
@@ -312,6 +316,8 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         # add action_valid to infos
         for i, info in enumerate(infos):
             info['is_action_valid'] = to_numpy(valids[i])
+            info['non_strict_action_valid'] = to_numpy(validity_details[i]['valid_action'])
+            info['strict_action_valid'] = to_numpy(validity_details[i]['strict_valid_action'])
 
         next_observations = {'text': full_text_obs, 'image': image_obs, 'anchor': text_obs}
         rewards = to_numpy(rewards)
@@ -418,7 +424,8 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         except Exception as e:
             print(f"[playbook_debug] begin_episode failed: {e}")
 
-    def _dbg_log_step(self, text_actions, actions, valids, text_obs, rewards, dones, infos):
+    def _dbg_log_step(self, text_actions, actions, valids, validity_details,
+                      text_obs, rewards, dones, infos):
         if not getattr(self, '_dbg_enabled', False) or self._dbg_last_prompt is None:
             return
         try:
@@ -432,6 +439,8 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                     'think': self._dbg_extract_think(text_actions[i] if i < len(text_actions) else ''),
                     'action': actions[i] if i < len(actions) else '',
                     'valid': bool(valids[i]),
+                    'non_strict_valid': bool(validity_details[i]['valid_action']),
+                    'strict_valid': bool(validity_details[i]['strict_valid_action']),
                     'reward': float(rewards[i]),
                     'obs': " ".join(str(text_obs[i]).split()),
                 }
@@ -471,7 +480,9 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
             for s in steps:
                 flag = "valid" if s['valid'] else "INVALID"
                 lines += ["",
-                          f"┌── step {s['step']:>2}  [{flag}]  reward={s['reward']}",
+                          f"┌── step {s['step']:>2}  [{flag}]  reward={s['reward']}"
+                          f"  non_strict={int(s['non_strict_valid'])}"
+                          f" strict={int(s['strict_valid'])}",
                           f"│ think : {s['think'] or '(none)'}",
                           f"│ action: {s['action']}",
                           f"│ obs   : {s['obs']}",
@@ -752,7 +763,9 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
         return observations, infos
 
     def step(self, text_actions: List[str]):
-        actions, valids = self.projection_f(text_actions)
+        actions, valids, validity_details = self.projection_f(
+            text_actions, return_details=True
+        )
         next_obs, rewards, dones, infos = self.envs.step(actions)
 
         next_obs = self.format_obs(next_obs)
@@ -768,6 +781,8 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
         # add action_valid to infos
         for i, info in enumerate(infos):
             info['is_action_valid'] = to_numpy(valids[i])
+            info['non_strict_action_valid'] = to_numpy(validity_details[i]['valid_action'])
+            info['strict_action_valid'] = to_numpy(validity_details[i]['strict_valid_action'])
 
         rewards = to_numpy(rewards)
         dones = to_numpy(dones)
