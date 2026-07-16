@@ -189,7 +189,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 TREE_RL_ORDER=root rl=1 \
   bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
 ~~~
 
-该路径在 2 卡和 4 卡都固定 `TRAIN_DATA_SIZE=12`、`GROUP_SIZE=6`，所以每次 GRPO 更新恒为 **72 条 rollout**；4 卡只把这 72 条展开轨迹按每卡 18 条分片，不得改成 96。默认 `VAL_DATA_SIZE=32`、`TEST_FREQ=5`，并且 `VAL_BEFORE_TRAIN=True`：验证来自 WebShop `[0,500)` held-out split，`val/*` 指标会与 `training/*` 指标写入同一主 metrics 流。`TREE_RL_ORDER=root` 从根层开始、`leaf` 从叶层开始；层达到训练/独立 probe 门槛后才被隐藏，未通过会恢复，验证不参与该控制器。
+该路径在 2 卡和 4 卡都固定 `TRAIN_DATA_SIZE=12`、`GROUP_SIZE=6`，所以每次 GRPO 更新恒为 **72 条 rollout**；4 卡只把这 72 条展开轨迹按每卡 18 条分片，不得改成 96。全局 `ppo_mini_batch_size=36` 固定不变：2 卡默认每卡 micro-batch=2，4 卡自动改为每卡 micro-batch=1。两者均对应每个 36-sample PPO mini-batch 的 9 次、每次 4-sample 的全局微批累积，因此不会改变有效训练 batch 或 rollout 规模；脚本会在启动前检查整除关系，防止 4 卡错误使用 micro=2 而触发 FSDP 初始化断言。默认 `VAL_DATA_SIZE=32`、`TEST_FREQ=5`，并且 `VAL_BEFORE_TRAIN=True`：验证来自 WebShop `[0,500)` held-out split，`val/*` 指标会与 `training/*` 指标写入同一主 metrics 流。`TREE_RL_ORDER=root` 从根层开始、`leaf` 从叶层开始；层达到训练/独立 probe 门槛后才被隐藏，未通过会恢复，验证不参与该控制器。
 
 ## 5. CoSkill 功能开关
 
