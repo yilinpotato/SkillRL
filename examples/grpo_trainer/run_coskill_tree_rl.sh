@@ -66,22 +66,23 @@ if [[ "$TREE_RL_ORDER" != "root" && "$TREE_RL_ORDER" != "leaf" ]]; then
     exit 1
 fi
 
-# Keep each Ray/FSDP rank fed evenly.  The two-GPU setting retains the existing
-# 12 x 6 = 72 rollouts/group standard.  Four ranks need a multiple of four, so
-# its default is 16 x 6 = 96; this is written to run_config.env and must only
-# be compared with another run using the same 4-GPU batch setting.
-if [[ "$NUM_GPUS" == "2" ]]; then
-    DEFAULT_TRAIN_DATA_SIZE=12
-    DEFAULT_PPO_MINI_BATCH=36
-else
-    DEFAULT_TRAIN_DATA_SIZE=16
-    DEFAULT_PPO_MINI_BATCH=48
-fi
+# Experiment contract: every CoSkill Tree-RL update contains exactly
+# 12 distinct WebShop/ALFWorld goals × 6 GRPO samples = 72 rollouts,
+# regardless of whether FSDP uses two or four A800s.  Only the dispatch is
+# sharded more finely on four GPUs.  Ray/verl requires the *expanded* rollout
+# batch (not the number of base goals) to divide across ranks.
+DEFAULT_TRAIN_DATA_SIZE=12
+DEFAULT_PPO_MINI_BATCH=36
 TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-$DEFAULT_TRAIN_DATA_SIZE}"
 GROUP_SIZE="${GROUP_SIZE:-6}"
 VAL_DATA_SIZE="${VAL_DATA_SIZE:-32}"
-if (( TRAIN_DATA_SIZE % NUM_GPUS != 0 )); then
-    echo "TRAIN_DATA_SIZE=$TRAIN_DATA_SIZE must be divisible by $NUM_GPUS Ray/FSDP ranks." >&2
+ROLLOUTS_PER_STEP=$((TRAIN_DATA_SIZE * GROUP_SIZE))
+if (( ROLLOUTS_PER_STEP % NUM_GPUS != 0 )); then
+    echo "Expanded rollout batch TRAIN_DATA_SIZE×GROUP_SIZE=${ROLLOUTS_PER_STEP} must be divisible by $NUM_GPUS Ray/FSDP ranks." >&2
+    exit 1
+fi
+if (( VAL_DATA_SIZE % NUM_GPUS != 0 )); then
+    echo "VAL_DATA_SIZE=$VAL_DATA_SIZE must be divisible by $NUM_GPUS Ray/FSDP ranks." >&2
     exit 1
 fi
 
@@ -110,6 +111,7 @@ export ENV_WORKER_CPUS="${ENV_WORKER_CPUS:-0.1}"
 export TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-100}"
 export SAVE_FREQ="${SAVE_FREQ:-10}"
 export TEST_FREQ="${TEST_FREQ:-5}"
+export VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
 export ACTOR_LR="${ACTOR_LR:-1e-6}"
 export LORA_RANK="${LORA_RANK:-32}"
 export LORA_ALPHA="${LORA_ALPHA:-64}"
@@ -159,7 +161,8 @@ fi
 
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"
 echo "GPU allocation: CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS"
-echo "GRPO rollout: train_data_size=$TRAIN_DATA_SIZE group_size=$GROUP_SIZE total=$((TRAIN_DATA_SIZE * GROUP_SIZE))"
+echo "GRPO rollout: train_data_size=$TRAIN_DATA_SIZE group_size=$GROUP_SIZE total=$ROLLOUTS_PER_STEP (fixed across GPU counts)"
+echo "Validation: val_data_size=$VAL_DATA_SIZE test_freq=$TEST_FREQ val_before_train=$VAL_BEFORE_TRAIN"
 echo "Tree curriculum: order=$TREE_RL_ORDER train>=${TREE_RL_MIN_TRAIN_EPISODES}@${TREE_RL_TRAIN_SUCCESS_THRESHOLD} probe>=${TREE_RL_MIN_PROBE_EPISODES}@${TREE_RL_PROBE_SUCCESS_THRESHOLD}"
 echo "Output: $OUTPUT_DIR"
 
@@ -266,7 +269,7 @@ ppo_args=(
     "trainer.test_freq=$TEST_FREQ"
     "trainer.total_training_steps=$TOTAL_TRAINING_STEPS"
     "trainer.total_epochs=$TOTAL_TRAINING_STEPS"
-    trainer.val_before_train=False
+    "trainer.val_before_train=$VAL_BEFORE_TRAIN"
 )
 
 if [[ "$BENCHMARK" == "webshop" ]]; then
@@ -283,10 +286,10 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV CUDA_VISIBLE_DEVICES NUM_GPUS N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ; do
+    for key in BENCHMARK RUN_ENV CUDA_VISIBLE_DEVICES NUM_GPUS N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS TEST_FREQ VAL_BEFORE_TRAIN TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ; do
         echo "$key=${!key}"
     done
-    echo "ROLLOUTS_PER_STEP=$((TRAIN_DATA_SIZE * GROUP_SIZE))"
+    echo "ROLLOUTS_PER_STEP=$ROLLOUTS_PER_STEP"
     [[ "$BENCHMARK" == "webshop" ]] && echo "WEBSHOP_DATA_DIR=$WEBSHOP_DATA_DIR"
 } > "$OUTPUT_DIR/run_config.env"
 printf '%s\n' "${ppo_args[@]}" > "$OUTPUT_DIR/ppo_args.txt"

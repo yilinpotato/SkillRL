@@ -173,6 +173,10 @@ VAL_DATA_SIZE="${VAL_DATA_SIZE:-32}"
 GROUP_SIZE="${GROUP_SIZE:-6}"
 TOTAL_GROUPS="${TOTAL_GROUPS:-100}"
 MAX_EPISODES="${MAX_EPISODES:-7200}"
+VALIDATION_EVERY_GROUPS="${VALIDATION_EVERY_GROUPS:-5}"
+VALIDATION_BEFORE_TRAIN="${VALIDATION_BEFORE_TRAIN:-1}"
+VALIDATION_TEMPERATURE="${VALIDATION_TEMPERATURE:-0.4}"
+VALIDATION_SEED="${VALIDATION_SEED:-1000}"
 CHECKPOINT_EVERY_GROUPS="${CHECKPOINT_EVERY_GROUPS:-2}"
 RESUME="${RESUME:-0}"
 if [ "$RESUME" != "0" ] && [ "$RESUME" != "1" ]; then
@@ -207,6 +211,7 @@ echo "vLLM max_num_seqs: ${VLLM_MAX_NUM_SEQS:-0} (0 means each worker's actual r
 echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER (0 enables CUDA Graphs after warm-up)"
 echo "WebShop data: $WEBSHOP_DATA_DIR"
 echo "Rollout standard: train=$TRAIN_DATA_SIZE val=$VAL_DATA_SIZE group_size=$GROUP_SIZE groups=$TOTAL_GROUPS max_episodes=$MAX_EPISODES"
+echo "Held-out validation: split=[0,500) goals=$VAL_DATA_SIZE every=$VALIDATION_EVERY_GROUPS groups before_train=$VALIDATION_BEFORE_TRAIN temp=$VALIDATION_TEMPERATURE"
 echo "Resume: $RESUME (requires checkpoint-consistent summary_partial.json in OUTPUT_DIR)"
 echo "Token standard: prompt<=8192, response=$MAX_TOKENS (think=$THINK_BUDGET action=$ACTION_BUDGET)"
 echo "Thought audit: $THINK_TRACE_SAMPLES_PER_GROUP samples at group 1 and every $THINK_TRACE_EVERY_GROUPS groups"
@@ -227,6 +232,10 @@ python3 -u -m examples.playbook_evolve.run_webshop_evolve \
     --webshop_attr_path "$WEBSHOP_DATA_DIR/items_ins_v2_1000.json" \
     --train_data_size "$TRAIN_DATA_SIZE" \
     --val_data_size "$VAL_DATA_SIZE" \
+    --validation_every_groups "$VALIDATION_EVERY_GROUPS" \
+    --validation_before_train "$VALIDATION_BEFORE_TRAIN" \
+    --validation_temperature "$VALIDATION_TEMPERATURE" \
+    --validation_seed "$VALIDATION_SEED" \
     --group_size "$GROUP_SIZE" \
     --total_groups "$TOTAL_GROUPS" \
     --max_episodes "$MAX_EPISODES" \

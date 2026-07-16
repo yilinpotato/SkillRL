@@ -166,7 +166,7 @@ export OUTPUT_DIR=/GLOBALFS/hit_wxia_1/myl/CoSkill/outputs/webshop/run_001
 bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
 ~~~
 
-默认：train_data_size=12、group_size=6，即 72 局/group；total_groups=100，至多 7200 局；单局 15 步。脚本对齐的 token 设置是名义 prompt 不超过 8192 token、response 4096 token，其中 thinking=3840、action=256。端侧 agent 会按实际 tokenizer 在首阶段前压缩超长 chat prompt，并为强制 `</think>` 闭合预留少量 token；因此第二阶段 action prompt 始终保留 256-token 动作空间，不会越过 `max_model_len=12288`。这不改变 response/rollout 预算，只在输入超过上下文窗口时压缩中间的旧上下文，同时保留任务开头和最新 observation/action 后缀。
+默认：train_data_size=12、group_size=6，即每个训练 group 固定 72 局；total_groups=100，至多 7200 局；单局 15 步。它另外在训练前和之后每 5 个 group 做一次 held-out validation：固定从 WebShop `[0, 500)` 中抽取 32 个目标、每目标只 rollout 一次。验证只读取当前 skills 快照，不进入 TracesPool、云端分析、技能树更新或训练成功率，故不会发生验证泄漏。脚本对齐的 token 设置是名义 prompt 不超过 8192 token、response 4096 token，其中 thinking=3840、action=256。端侧 agent 会按实际 tokenizer 在首阶段前压缩超长 chat prompt，并为强制 `</think>` 闭合预留少量 token；因此第二阶段 action prompt 始终保留 256-token 动作空间，不会越过 `max_model_len=12288`。这不改变 response/rollout 预算，只在输入超过上下文窗口时压缩中间的旧上下文，同时保留任务开头和最新 observation/action 后缀。
 
 本地最小 smoke test：
 
@@ -174,9 +174,22 @@ bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
 TRAIN_DATA_SIZE=1 GROUP_SIZE=1 TOTAL_GROUPS=1 MAX_EPISODES=1 \
 DATA_PARALLEL_WORKERS=1 ROLLOUT_WORKER_GPUS=0 \
 MAX_TOKENS=64 THINK_BUDGET=48 ACTION_BUDGET=16 LOG_TRAJECTORIES=1 \
+VALIDATION_BEFORE_TRAIN=0 VALIDATION_EVERY_GROUPS=0 \
 OUTPUT_DIR=/data2/myl/smoke_outputs/coskill_webshop \
 bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
 ~~~
+
+### 4.3 CoSkill Tree-RL（2 或 4 张 A800）
+
+`rl=1` 会从 no-RL launcher 路由到 Ray/GRPO Tree-RL，而不是在冻结模型 driver 中偷偷更新权重：
+
+~~~bash
+cd /GLOBALFS/hit_wxia_1/myl/CoSkill
+CUDA_VISIBLE_DEVICES=0,1,2,3 TREE_RL_ORDER=root rl=1 \
+  bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
+~~~
+
+该路径在 2 卡和 4 卡都固定 `TRAIN_DATA_SIZE=12`、`GROUP_SIZE=6`，所以每次 GRPO 更新恒为 **72 条 rollout**；4 卡只把这 72 条展开轨迹按每卡 18 条分片，不得改成 96。默认 `VAL_DATA_SIZE=32`、`TEST_FREQ=5`，并且 `VAL_BEFORE_TRAIN=True`：验证来自 WebShop `[0,500)` held-out split，`val/*` 指标会与 `training/*` 指标写入同一主 metrics 流。`TREE_RL_ORDER=root` 从根层开始、`leaf` 从叶层开始；层达到训练/独立 probe 门槛后才被隐藏，未通过会恢复，验证不参与该控制器。
 
 ## 5. CoSkill 功能开关
 
@@ -297,7 +310,10 @@ fixed_games_manifest 可以固定 ON/OFF 两臂的 game 文件。driver 会检�
 | 参数 | 默认 | 说明 |
 | --- | ---: | --- |
 | --train_data_size | 12 | 每个 group 的不同购物任务数 |
-| --val_data_size | 32 | 记录比较设定；当前 no-RL driver 不执行 validation rollout |
+| --val_data_size | 32 | 固定 held-out WebShop `[0,500)` 目标数；每目标 validation 只 rollout 一次 |
+| --validation_every_groups | 5 | 每 N 个训练 group 做一次 held-out validation；0 才显式关闭 |
+| --validation_before_train | 1 | group 0 先做一次 held-out validation；只产生指标，不学习 |
+| --validation_temperature、--validation_seed | 0.4、1000 | 验证专用采样参数；请求级固定 seed，不消耗训练 rollout 的 RNG 流 |
 | --group_size | 6 | 每个任务的 rollout 数；group 总局数为 train_data_size 乘 group_size |
 | --total_groups | 100 | 最大 rollout group 数 |
 | --max_episodes | 0 | 总局数硬上限；0 时按 total_groups 计算 |
@@ -311,7 +327,7 @@ fixed_games_manifest 可以固定 ON/OFF 两臂的 game 文件。driver 会检�
 | --prompt_char_limit | 13000 | launcher 实际覆盖为 24000 字符 |
 | --action_budget | 128 | launcher 实际覆盖为 256 |
 
-WebShop 强制 think_budget 加 action_budget 不超过 max_tokens。val_data_size 不是当前 driver 生成的 held-out 成绩。
+WebShop 强制 think_budget 加 action_budget 不超过 max_tokens。`validation_metrics.jsonl` 保存每轮 held-out 指标，且同一轮字段同步写入对应的 `group_metrics.jsonl` 行；训练 token 与验证 token 分开记录，并额外给出 `total_including_validation`。
 
 ## 9. 输出、成功标准与 valid action
 

@@ -22,6 +22,8 @@ import time
 import traceback
 import uuid
 
+import numpy as np
+
 from agent_system.environments.env_package.webshop.projection import webshop_projection
 from agent_system.memory import CoSkillCloudLoop, HierarchicalSkillLib, TracesPool
 from mini_test_pen_shelf.webshop_utils import (
@@ -119,6 +121,8 @@ def _load_resume_state(args):
         "category_stats": {},
         "cloud_update_steps": [],
         "small_cumulative": {"prompt": 0, "response": 0, "total": 0},
+        "validation_history": [],
+        "validation_small_cumulative": {"prompt": 0, "response": 0, "total": 0},
         "large_cumulative": {"prompt": 0, "completion": 0, "total": 0},
     }
     if not args.resume:
@@ -170,6 +174,7 @@ def _load_resume_state(args):
 
     token_usage = previous.get("token_usage") or {}
     small_usage = token_usage.get("small_model") or {}
+    validation_small_usage = small_usage.get("validation") or {}
     large_usage = token_usage.get("large_model") or {}
     state.update({
         "resume": True,
@@ -181,6 +186,11 @@ def _load_resume_state(args):
         "cloud_update_steps": [int(step) for step in previous.get("cloud_update_steps", [])],
         "small_cumulative": {
             key: int(small_usage.get(key, 0) or 0)
+            for key in ("prompt", "response", "total")
+        },
+        "validation_history": list(previous.get("validation_history") or []),
+        "validation_small_cumulative": {
+            key: int(validation_small_usage.get(key, 0) or 0)
             for key in ("prompt", "response", "total")
         },
         "large_cumulative": {
@@ -197,6 +207,10 @@ def _load_resume_state(args):
     )
     _trim_uncheckpointed_jsonl_tail(
         os.path.join(args.outdir, "group_metrics.jsonl"), completed_groups, "group metric"
+    )
+    _trim_uncheckpointed_jsonl_tail(
+        os.path.join(args.outdir, "validation_metrics.jsonl"),
+        len(state["validation_history"]), "validation metric"
     )
     _trim_uncheckpointed_jsonl_tail(
         os.path.join(args.outdir, "traces_pool", "raw_traces.jsonl"),
@@ -329,6 +343,56 @@ def _phase_stats(rows):
             cat["mean_task_score"] = round(
                 cat.pop("task_score_sum") / max(cat["episodes"], 1), 6)
     return phases
+
+
+def _validation_metrics(results, *, group_id, global_episode, token_delta,
+                        token_cumulative):
+    """Summarize a held-out WebShop pass in the common metric schema."""
+    count = len(results)
+    lengths = [int(item.get("used", 0) or 0) for item in results]
+    wins = sum(int(bool(item.get("won", False))) for item in results)
+    scores = [float(item.get("task_score", 0.0) or 0.0) for item in results]
+    valid = sum(int(item.get("n_valid", 0) or 0) for item in results)
+    relaxed = sum(int(item.get("n_relaxed_valid", 0) or 0) for item in results)
+    total_actions = sum(lengths)
+    metric = {
+        "validation/group": int(group_id),
+        "validation/global_episode": int(global_episode),
+        "validation/episode/count": count,
+        "validation/episode/wins": wins,
+        "validation/episode/success_rate": round(wins / max(count, 1), 6),
+        "validation/episode/task_score/mean": round(sum(scores) / max(count, 1), 6),
+        "validation/episode/task_score/max": max(scores or [0.0]),
+        "validation/episode/task_score/min": min(scores or [0.0]),
+        "validation/episode/length/mean": round(sum(lengths) / max(count, 1), 6),
+        "validation/episode/length/max": max(lengths or [0]),
+        "validation/episode/length/min": min(lengths or [0]),
+        "validation/episode/strict_valid_action_ratio": round(
+            valid / max(total_actions, 1), 6),
+        "validation/episode/relaxed_valid_action_ratio": round(
+            relaxed / max(total_actions, 1), 6),
+        "validation/tokens/small_model/prompt": int(token_delta["prompt"]),
+        "validation/tokens/small_model/response": int(token_delta["response"]),
+        "validation/tokens/small_model/total": int(token_delta["total"]),
+        "validation/tokens/small_model/prompt_cumulative": int(token_cumulative["prompt"]),
+        "validation/tokens/small_model/response_cumulative": int(token_cumulative["response"]),
+        "validation/tokens/small_model/total_cumulative": int(token_cumulative["total"]),
+        "validation/rollout_accounting": "heldout_active_env_decisions",
+    }
+    by_category = {}
+    for item in results:
+        category = str(item.get("task_type", "unknown"))
+        stat = by_category.setdefault(category, {"count": 0, "wins": 0, "score": 0.0})
+        stat["count"] += 1
+        stat["wins"] += int(bool(item.get("won", False)))
+        stat["score"] += float(item.get("task_score", 0.0) or 0.0)
+    for category, stat in sorted(by_category.items()):
+        prefix = f"validation/episode/{category}"
+        metric[f"{prefix}/count"] = stat["count"]
+        metric[f"{prefix}/wins"] = stat["wins"]
+        metric[f"{prefix}/success_rate"] = round(stat["wins"] / max(stat["count"], 1), 6)
+        metric[f"{prefix}/task_score/mean"] = round(stat["score"] / max(stat["count"], 1), 6)
+    return metric
 
 
 def _dump_episode(outdir, episode_idx, result):
@@ -476,8 +540,16 @@ def _dump_thinking_samples(outdir, group_id, ingested, max_samples):
         print(f"[webshop-driver] saved {saved} thought samples to {text_path}", flush=True)
 
 
-def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
-    observations, infos = env.reset(group_id=group_id)
+def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
+                          goal_indices=None, sampling_temperature=None,
+                          sampling_seed=None):
+    """Roll out one WebShop batch without mutating the supplied skill library.
+
+    Training calls use the historical sampler.  Validation passes explicit
+    held-out goal indices plus request-local sampling parameters, so it cannot
+    enter TracesPool/cloud updates or perturb the training rollout RNG stream.
+    """
+    observations, infos = env.reset(group_id=group_id, goal_indices=goal_indices)
     batch_size = len(observations)
     tasks = [extract_webshop_task(observation) for observation in observations]
     formatted = [
@@ -528,7 +600,11 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
                 formatted[i], infos[i]["available_actions"], init=(step_index == 1))
             for i in active
         ]
-        generated = agent.act_batch_with_meta(prompts)
+        generated = agent.act_batch_with_meta(
+            prompts,
+            temperature=sampling_temperature,
+            sampling_seed=sampling_seed,
+        )
         raw_outputs = [item[0] for item in generated]
         forced = [bool(item[1]) for item in generated]
         actions, valid_flags, action_details = webshop_projection(
@@ -639,7 +715,8 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag=""):
 
 
 def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
-                    base_task_offset, input_queue, output_queue):
+                    base_task_offset, val_base_task_count, val_base_task_offset,
+                    input_queue, output_queue):
     group_id = None
     try:
         # ``spawn`` copied this worker's disjoint GPU mask from the parent at
@@ -663,12 +740,25 @@ def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
             file_path=args.webshop_file_path,
             attr_path=args.webshop_attr_path,
         )
+        val_env = LocalBatchWebShopEnv(
+            seed=args.seed + 1000,
+            base_task_count=val_base_task_count,
+            group_size=1,
+            base_task_offset=val_base_task_offset,
+            total_base_tasks=args.val_data_size,
+            file_path=args.webshop_file_path,
+            attr_path=args.webshop_attr_path,
+        )
         from mini_test_pen_shelf.agent_vllm import VLLMAgent
-        vllm_max_num_seqs = int(args.vllm_max_num_seqs or env.batch_size)
-        if vllm_max_num_seqs < env.batch_size:
+        validation_enabled = bool(
+            args.validation_before_train or args.validation_every_groups > 0)
+        required_max_num_seqs = max(
+            env.batch_size, val_env.batch_size if validation_enabled else 0)
+        vllm_max_num_seqs = int(args.vllm_max_num_seqs or required_max_num_seqs)
+        if vllm_max_num_seqs < required_max_num_seqs:
             raise ValueError(
                 f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than "
-                f"this worker's rollout batch={env.batch_size}")
+                f"this worker's largest active batch={required_max_num_seqs}")
         agent = VLLMAgent(
             model_path=args.model_path,
             gpu_memory_utilization=args.gpu_mem_util,
@@ -690,13 +780,19 @@ def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
               f"TP={args.tensor_parallel_size} PP={args.pipeline_parallel_size} "
               f"max_num_seqs={vllm_max_num_seqs} "
               f"enforce_eager={bool(args.vllm_enforce_eager)} "
-              f"base_tasks={base_task_count} batch={env.batch_size} goals={env.num_goals}")
+              f"train_base_tasks={base_task_count} train_batch={env.batch_size} "
+              f"val_base_tasks={val_base_task_count} val_batch={val_env.batch_size} "
+              f"goals={env.num_goals}")
         while True:
             command = input_queue.get()
             if command is None:
                 env.close()
+                val_env.close()
                 return
             group_id = int(command["group_id"])
+            phase = str(command.get("phase", "train"))
+            if phase not in {"train", "validation"}:
+                raise ValueError(f"Unknown WebShop rollout phase: {phase}")
             tokens_before = agent.get_token_usage()
             skill_lib = HierarchicalSkillLib(
                 skills_json_path=command["skill_path"],
@@ -711,12 +807,23 @@ def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
                 enable_playbook=bool(args.enable_skill_tree),
             )
             results = rollout_webshop_group(
-                env, agent, skill_lib, args, group_id,
-                worker_tag=f" worker{worker_id} gpu_group={gpu_group}",
+                val_env if phase == "validation" else env,
+                agent,
+                skill_lib,
+                args,
+                group_id,
+                worker_tag=(f" worker{worker_id} gpu_group={gpu_group} "
+                            f"phase={phase}"),
+                goal_indices=command.get("goal_indices"),
+                sampling_temperature=(args.validation_temperature
+                                      if phase == "validation" else None),
+                sampling_seed=(int(args.validation_seed) + group_id
+                               if phase == "validation" else None),
             )
             output_queue.put({
                 "worker_id": worker_id,
                 "group_id": group_id,
+                "phase": phase,
                 "results": results,
                 "small_model_tokens": _token_delta(agent.get_token_usage(), tokens_before),
                 "error": None,
@@ -733,7 +840,15 @@ def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--train_data_size", type=int, default=12)
     parser.add_argument("--val_data_size", type=int, default=32,
-                        help="Recorded comparison setting; no-RL driver, like ALFWorld, runs train rollout only")
+                        help="Number of fixed held-out WebShop goals from split [0, 500)")
+    parser.add_argument("--validation_every_groups", type=int, default=5,
+                        help="Run held-out validation every N train groups; 0 disables it")
+    parser.add_argument("--validation_before_train", type=int, choices=[0, 1], default=1,
+                        help="Run a held-out validation pass at group 0")
+    parser.add_argument("--validation_temperature", type=float, default=0.4,
+                        help="Sampling temperature for held-out validation only")
+    parser.add_argument("--validation_seed", type=int, default=1000,
+                        help="Request-local seed for held-out validation sampling")
     parser.add_argument("--group_size", type=int, default=6)
     parser.add_argument("--total_groups", type=int, default=100)
     parser.add_argument("--max_episodes", type=int, default=0)
@@ -816,6 +931,12 @@ def main():
             raise FileNotFoundError(f"Required WebShop asset not found: {path}")
     if args.train_data_size < args.data_parallel_workers:
         raise ValueError("train_data_size must be >= data_parallel_workers")
+    if args.val_data_size <= 0 or args.val_data_size > 500:
+        raise ValueError("val_data_size must be in [1, 500] for WebShop's held-out split")
+    if args.val_data_size < args.data_parallel_workers:
+        raise ValueError("val_data_size must be >= data_parallel_workers")
+    if args.validation_every_groups < 0:
+        raise ValueError("validation_every_groups must be >= 0")
     if args.think_budget + args.action_budget > args.max_tokens:
         raise ValueError("think_budget + action_budget must be <= max_tokens for WebShop alignment")
     if args.think_trace_samples_per_group < 0:
@@ -840,7 +961,9 @@ def main():
         )
     print(f"[webshop-driver] groups={args.total_groups} train_data_size={args.train_data_size} "
           f"group_size={args.group_size} batch={batch_rollout_size} "
-          f"max_episodes={episode_cap} max_steps={args.max_steps}")
+          f"max_episodes={episode_cap} max_steps={args.max_steps} "
+          f"validation={args.val_data_size} heldout goals every "
+          f"{args.validation_every_groups or 'disabled'} groups")
 
     skill_lib = HierarchicalSkillLib(
         skills_json_path=resume_state["skills_json_path"],
@@ -879,16 +1002,35 @@ def main():
 
     worker_gpu_groups = _resolve_worker_gpu_groups(args)
     base_splits = _split_int(args.train_data_size, args.data_parallel_workers)
+    val_base_splits = _split_int(args.val_data_size, args.data_parallel_workers)
+    validation_goal_indices = np.random.RandomState(args.validation_seed).choice(
+        np.arange(500), size=args.val_data_size, replace=False).tolist()
+    validation_goal_shards = []
+    val_offset = 0
+    for count in val_base_splits:
+        validation_goal_shards.append(validation_goal_indices[val_offset:val_offset + count])
+        val_offset += count
+    validation_enabled = bool(
+        args.validation_before_train or args.validation_every_groups > 0)
+    vllm_max_num_seqs_by_worker = [
+        int(args.vllm_max_num_seqs or max(
+            train_count * args.group_size,
+            val_count if validation_enabled else 0,
+        ))
+        for train_count, val_count in zip(base_splits, val_base_splits)
+    ]
 
     context = mp.get_context("spawn")
     output_queue = context.Queue()
     input_queues, processes = [], []
     offset = 0
-    for worker_id, (gpu_group, base_count) in enumerate(zip(worker_gpu_groups, base_splits)):
+    for worker_id, (gpu_group, base_count, val_base_count) in enumerate(
+            zip(worker_gpu_groups, base_splits, val_base_splits)):
         input_queue = context.Queue(maxsize=2)
         process = context.Process(
             target=_rollout_worker,
             args=(worker_id, gpu_group, vars(args).copy(), base_count, offset,
+                  val_base_count, sum(val_base_splits[:worker_id]),
                   input_queue, output_queue),
             daemon=False,
         )
@@ -913,7 +1055,8 @@ def main():
     print(f"[webshop-driver] data_parallel_workers={args.data_parallel_workers} "
           f"gpu_groups={worker_gpu_groups} TP={args.tensor_parallel_size} "
           f"PP={args.pipeline_parallel_size} base_task_splits={base_splits} "
-          f"worker_batches={[count * args.group_size for count in base_splits]}")
+          f"worker_batches={[count * args.group_size for count in base_splits]} "
+          f"val_task_splits={val_base_splits} fixed_val_goals={args.val_data_size}")
 
     def shutdown():
         for queue in input_queues:
@@ -932,6 +1075,7 @@ def main():
     atexit.register(shutdown)
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
     group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
+    validation_metrics_path = os.path.join(args.outdir, "validation_metrics.jsonl")
     per_game = list(resume_state["per_game"])
     category_stats = dict(resume_state["category_stats"])
     wins = resume_state["wins"]
@@ -940,6 +1084,8 @@ def main():
     cloud_update_steps = list(resume_state["cloud_update_steps"])
     cloud_updates = len(cloud_update_steps)
     small_cumulative = dict(resume_state["small_cumulative"])
+    validation_history = list(resume_state["validation_history"])
+    validation_small_cumulative = dict(resume_state["validation_small_cumulative"])
 
     def large_tokens():
         analyzer = getattr(cloud_loop, "cloud_analyzer", None)
@@ -961,6 +1107,72 @@ def main():
                 }
         return snapshot
 
+    def run_validation(validation_group, *, global_episode):
+        """Evaluate the current frozen policy/skill snapshot on held-out goals.
+
+        This function never calls ``record_usage``, ``TracesPool.add_trace``,
+        or the cloud loop.  It is therefore reporting-only and cannot leak
+        test trajectories into future skill updates.
+        """
+        validation_started = time.time()
+        skill_dir = os.path.join(args.outdir, "skill_lib")
+        os.makedirs(skill_dir, exist_ok=True)
+        skill_path = os.path.join(
+            skill_dir, f"skills_validation_group{validation_group:04d}.json")
+        skill_lib.save_skills(skill_path)
+        for queue, goal_shard in zip(input_queues, validation_goal_shards):
+            queue.put({
+                "phase": "validation",
+                "group_id": validation_group,
+                "skill_path": skill_path,
+                "goal_indices": goal_shard,
+            })
+        replies = []
+        for _ in input_queues:
+            reply = output_queue.get()
+            if reply.get("error"):
+                raise RuntimeError(
+                    f"WebShop validation worker {reply.get('worker_id')} failed:\n"
+                    f"{reply['error']}")
+            if reply.get("phase") != "validation":
+                raise RuntimeError(f"Expected validation reply, got {reply.get('phase')!r}")
+            replies.append(reply)
+        replies.sort(key=lambda item: item["worker_id"])
+        results = []
+        token_delta = {"prompt": 0, "response": 0, "total": 0}
+        for reply in replies:
+            results.extend(reply["results"])
+            for key in token_delta:
+                token_delta[key] += int(reply["small_model_tokens"].get(key, 0))
+        if len(results) != args.val_data_size:
+            raise RuntimeError(
+                f"Validation expected {args.val_data_size} episodes, got {len(results)}")
+        for key in validation_small_cumulative:
+            validation_small_cumulative[key] += token_delta[key]
+        metric = _validation_metrics(
+            results,
+            group_id=validation_group,
+            global_episode=global_episode,
+            token_delta=token_delta,
+            token_cumulative=validation_small_cumulative,
+        )
+        metric["validation/timing_s/rollout"] = round(time.time() - validation_started, 6)
+        metric["validation/temperature"] = float(args.validation_temperature)
+        metric["validation/fixed_goal_split"] = "WebShop[0:500)"
+        row = {
+            "step": int(validation_group),
+            "global_episode_end": int(global_episode),
+            "metrics": metric,
+        }
+        validation_history.append(row)
+        _append_jsonl(validation_metrics_path, row)
+        print(f"[webshop-driver] validation group={validation_group} "
+              f"episodes={len(results)} wins={metric['validation/episode/wins']} "
+              f"success={100 * metric['validation/episode/success_rate']:.1f}% "
+              f"score={metric['validation/episode/task_score/mean']:.3f} "
+              f"tokens={token_delta['total']}", flush=True)
+        return metric
+
     def summary(status, completed_groups, reason=None):
         trees = tree_snapshot()
         return {
@@ -972,6 +1184,11 @@ def main():
             "completed_rollout_groups": completed_groups,
             "train_data_size": args.train_data_size,
             "val_data_size": args.val_data_size,
+            "validation_every_groups": args.validation_every_groups,
+            "validation_before_train": bool(args.validation_before_train),
+            "validation_temperature": args.validation_temperature,
+            "validation_seed": args.validation_seed,
+            "validation_goal_split": "WebShop[0:500)",
             "group_size": args.group_size,
             "batch_rollout_size": batch_rollout_size,
             "max_steps": args.max_steps,
@@ -982,11 +1199,8 @@ def main():
             "tensor_parallel_size": args.tensor_parallel_size,
             "pipeline_parallel_size": args.pipeline_parallel_size,
             "vllm_max_num_seqs": args.vllm_max_num_seqs or max(
-                count * args.group_size for count in base_splits),
-            "vllm_max_num_seqs_by_worker": [
-                args.vllm_max_num_seqs or count * args.group_size
-                for count in base_splits
-            ],
+                vllm_max_num_seqs_by_worker),
+            "vllm_max_num_seqs_by_worker": vllm_max_num_seqs_by_worker,
             "vllm_enforce_eager": bool(args.vllm_enforce_eager),
             "checkpoint_every_groups": args.checkpoint_every_groups,
             "skill_tree_enabled": enable_tree,
@@ -1001,11 +1215,19 @@ def main():
             "skill_tree_versions": {key: value["version"] for key, value in trees.items()},
             "skill_tree_nodes": {key: value["n_nodes"] for key, value in trees.items()},
             "token_usage": {
-                "small_model": dict(small_cumulative),
+                "small_model": {
+                    **dict(small_cumulative),
+                    "validation": dict(validation_small_cumulative),
+                    "including_validation": {
+                        key: int(small_cumulative[key]) + int(validation_small_cumulative[key])
+                        for key in small_cumulative
+                    },
+                },
                 "large_model": large_tokens(),
             },
             "final_coskill_metrics": cloud_loop.metrics(traces_pool, skill_lib),
             "phase_stats": _phase_stats(per_game),
+            "validation_history": validation_history,
             "per_game": per_game,
         }
 
@@ -1026,6 +1248,12 @@ def main():
               f"episodes={global_episode} -> {checkpoint_path}", flush=True)
 
     completed_groups = resume_state["completed_groups"]
+    if (args.validation_before_train and completed_groups == 0
+            and not validation_history):
+        run_validation(0, global_episode=global_episode)
+        # Persist the initial held-out result.  If the job is interrupted
+        # before group 1, RESUME=1 retains the same validation timeline.
+        save_checkpoint(0)
     try:
         for group_id in range(completed_groups + 1, args.total_groups + 1):
             if global_episode >= episode_cap:
@@ -1266,6 +1494,18 @@ def main():
                     stat["wins"] / max(stat["episodes"], 1), 6)
                 group_metric[f"episode/{category}/mean_task_score"] = round(
                     stat["score"] / max(stat["episodes"], 1), 6)
+            validation_metric = None
+            if (args.validation_every_groups > 0
+                    and group_id % args.validation_every_groups == 0):
+                validation_metric = run_validation(group_id, global_episode=global_episode)
+                group_metric.update(validation_metric)
+                group_metric["validation/ran"] = 1
+            else:
+                group_metric["validation/ran"] = 0
+            group_metric["tokens/small_model/total_including_validation"] = (
+                int(group_metric["tokens/small_model/total"])
+                + int((validation_metric or {}).get(
+                    "validation/tokens/small_model/total", 0)))
             _append_jsonl(group_metrics_path, {
                 "step": group_id,
                 "global_episode_end": global_episode,

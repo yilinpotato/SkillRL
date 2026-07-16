@@ -156,11 +156,30 @@ class LocalBatchWebShopEnv:
             ).tolist()
         return selected or []
 
-    def reset(self, group_id: int = 1):
-        goal_indices = self._goal_indices(group_id)
-        owned = goal_indices[
-            self.base_task_offset:self.base_task_offset + self.base_task_count
-        ]
+    def reset(self, group_id: int = 1, goal_indices: Optional[List[int]] = None):
+        """Reset this worker's environments.
+
+        ``goal_indices`` is an explicit, already-sharded list of session IDs.
+        It is used by the held-out validation path so every data-parallel
+        worker evaluates the same fixed WebShop split without accidentally
+        drawing from the training range (500:).  The normal rollout path keeps
+        the historical deterministic training sampler unchanged.
+        """
+        if goal_indices is None:
+            all_goal_indices = self._goal_indices(group_id)
+            owned = all_goal_indices[
+                self.base_task_offset:self.base_task_offset + self.base_task_count
+            ]
+        else:
+            owned = [int(index) for index in goal_indices]
+            if len(owned) != self.base_task_count:
+                raise ValueError(
+                    f"Expected {self.base_task_count} explicit WebShop goals, "
+                    f"got {len(owned)}")
+            if any(index < 0 or index >= self.num_goals for index in owned):
+                raise ValueError(
+                    f"Explicit WebShop goal index out of range [0, {self.num_goals}): "
+                    f"{owned}")
         observations, infos, tasks = [], [], []
         for goal_idx, replicas in zip(owned, self._env_groups):
             for env in replicas:

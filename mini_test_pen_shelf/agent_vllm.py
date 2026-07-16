@@ -130,6 +130,38 @@ class VLLMAgent:
         self.total_prompt_tokens = 0
         self.total_response_tokens = 0
 
+    def _sampling_pair(self, *, temperature=None, seed=None):
+        """Build request-local two-stage sampling parameters when overridden.
+
+        Held-out validation uses a fixed request seed and lower temperature.
+        Keeping it request-local prevents validation decoding from consuming the
+        rollout RNG stream and changing subsequent training rollouts.
+        """
+        if temperature is None and seed is None:
+            return self.think_sampling, self.action_sampling
+        from vllm import SamplingParams
+        value = self._temperature if temperature is None else float(temperature)
+        request_seed = None if seed is None else int(seed)
+        return (
+            SamplingParams(
+                temperature=value,
+                top_p=0.95,
+                max_tokens=self.think_budget,
+                bad_words=self._bad_words,
+                seed=request_seed,
+                stop=["</think>"],
+                include_stop_str_in_output=True,
+            ),
+            SamplingParams(
+                temperature=value,
+                top_p=0.95,
+                max_tokens=self.action_budget,
+                seed=request_seed,
+                stop=["</action>"],
+                include_stop_str_in_output=True,
+            ),
+        )
+
     def _record_token_usage(self, request_outputs):
         for request_output in request_outputs:
             prompt_ids = getattr(request_output, "prompt_token_ids", None) or []
@@ -342,7 +374,7 @@ class VLLMAgent:
             for p, o in zip(prompts, outs)
         ]
 
-    def act_batch_with_meta(self, obs_texts):
+    def act_batch_with_meta(self, obs_texts, *, temperature=None, sampling_seed=None):
         """Batch version of :meth:`act_with_meta` with the same two-stage
         budget-forcing logic.
 
@@ -352,7 +384,9 @@ class VLLMAgent:
         """
         prompts = [self._build_prompt(t) for t in obs_texts]
 
-        outs1 = self.llm.generate(prompts, self.think_sampling, use_tqdm=False)
+        think_sampling, action_sampling = self._sampling_pair(
+            temperature=temperature, seed=sampling_seed)
+        outs1 = self.llm.generate(prompts, think_sampling, use_tqdm=False)
         self._record_token_usage(outs1)
         think_parts = []
         forced_flags = []
@@ -369,7 +403,7 @@ class VLLMAgent:
         fitted = [self._fit_action_prompt(p, t) for p, t in zip(prompts, think_parts)]
         action_prompts = [item[0] for item in fitted]
         think_parts = [item[1] for item in fitted]
-        outs2 = self.llm.generate(action_prompts, self.action_sampling, use_tqdm=False)
+        outs2 = self.llm.generate(action_prompts, action_sampling, use_tqdm=False)
         self._record_token_usage(outs2)
 
         results = []
