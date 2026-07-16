@@ -868,7 +868,7 @@ def _parse_args():
     parser.add_argument("--checkpoint_every_groups", type=int, default=2)
     parser.add_argument("--cloud_update_every", type=int, default=0)
     parser.add_argument("--history_length", type=int, default=8)
-    parser.add_argument("--prompt_char_limit", type=int, default=13000)
+    parser.add_argument("--prompt_char_limit", type=int, default=24000)
 
     parser.add_argument("--model_path", required=True)
     parser.add_argument("--gpu_mem_util", type=float, default=0.8)

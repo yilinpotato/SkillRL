@@ -189,7 +189,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 TREE_RL_ORDER=root rl=1 \
   bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
 ~~~
 
-该路径在 2 卡和 4 卡都固定 `TRAIN_DATA_SIZE=12`、`GROUP_SIZE=6`，所以每次 GRPO 更新恒为 **72 条 rollout**；4 卡只把这 72 条展开轨迹按每卡 18 条分片，不得改成 96。全局 `ppo_mini_batch_size=36` 固定不变：2 卡默认每卡 micro-batch=2，4 卡自动改为每卡 micro-batch=1。两者均对应每个 36-sample PPO mini-batch 的 9 次、每次 4-sample 的全局微批累积，因此不会改变有效训练 batch 或 rollout 规模；脚本会在启动前检查整除关系，防止 4 卡错误使用 micro=2 而触发 FSDP 初始化断言。默认 `VAL_DATA_SIZE=32`、`TEST_FREQ=5`，并且 `VAL_BEFORE_TRAIN=True`：验证来自 WebShop `[0,500)` held-out split，`val/*` 指标会与 `training/*` 指标写入同一主 metrics 流。`TREE_RL_ORDER=root` 从根层开始、`leaf` 从叶层开始；层达到训练/独立 probe 门槛后才被隐藏，未通过会恢复，验证不参与该控制器。
+该路径在 2 卡和 4 卡都固定 `TRAIN_DATA_SIZE=12`、`GROUP_SIZE=6`，所以每次 GRPO 更新恒为 **72 条 rollout**；4 卡只把这 72 条展开轨迹按每卡 18 条分片，不得改成 96。全局 `ppo_mini_batch_size=36` 固定不变：2 卡默认每卡 micro-batch=2，4 卡自动改为每卡 micro-batch=1。两者均对应每个 36-sample PPO mini-batch 的 9 次、每次 4-sample 的全局微批累积，因此不会改变有效训练 batch 或 rollout 规模；脚本会在启动前检查整除关系，防止 4 卡错误使用 micro=2 而触发 FSDP 初始化断言。默认 `VAL_DATA_SIZE=32`、`TEST_FREQ=5`，并且 `VAL_BEFORE_TRAIN=True`：验证来自 WebShop `[0,500)` held-out split，`val/*` 指标会与 `training/*` 指标写入同一主 metrics 流。`TREE_RL_ORDER=root` 从根层开始、`leaf` 从叶层开始；层达到训练/独立 probe 门槛后才被隐藏，未通过会恢复，验证不参与该控制器。Ray 路径同样处理 Qwen Thinking 的旧聊天模板：若 prompt 已预填 `<think>`，环境校验时会把原始纯 continuation 渲染为完整协议文本；PPO 仍使用未修改的采样 token。
 
 ## 5. CoSkill 功能开关
 
@@ -324,7 +324,7 @@ fixed_games_manifest 可以固定 ON/OFF 两臂的 game 文件。driver 会检�
 | --rollout_worker_gpus | 无 | 逗号分隔 GPU 列表 |
 | --checkpoint_every_groups | 2 | checkpoint 周期 |
 | --history_length | 8 | 端侧历史窗口 |
-| --prompt_char_limit | 13000 | launcher 实际覆盖为 24000 字符 |
+| --prompt_char_limit | 24000 | no-RL 的软字符守卫；Ray Tree-RL 也使用 `WEBSHOP_PROMPT_CHAR_LIMIT=24000`。两者均不替代 8192-token 硬上限。 |
 | --action_budget | 128 | launcher 实际覆盖为 256 |
 
 WebShop 强制 think_budget 加 action_budget 不超过 max_tokens。`validation_metrics.jsonl` 保存每轮 held-out 指标，且同一轮字段同步写入对应的 `group_metrics.jsonl` 行；训练 token 与验证 token 分开记录，并额外给出 `total_including_validation`。
@@ -361,7 +361,9 @@ ALFWorld 的 won 由环境 won 判定。WebShop 仅 terminal task_score 等于 1
 
 ALFWorld 中 episode/valid_action_ratio 为宽松口径，另有 episode/strict_valid_action_ratio。WebShop 为兼容既有日志，episode/valid_action_ratio 保持历史严格口径；另写入 episode/strict_valid_action_ratio 与 episode/relaxed_valid_action_ratio。
 
-WebShop 的第一步同样注入检索到的静态技能：首步常常决定搜索 query，不能因为尚无 history 而退化为无技能模板。CoSkill 的 no-RL driver 与其 GRPO 环境管理器均采用该规则，且已与 SkillRL、Skill0 的 WebShop GRPO 路径对齐。该注入不包含手写 seed playbook，也不读取 oracle；新运行的任务树仍为空，只有云端从训练期 successful rollout 分析得到的树才会被写入并注入。启用 `LOG_TRAJECTORIES=1` 时，每步 JSON/TXT 额外写入 `raw_model_output`，可直接判断 malformed 是模型未产出动作块，还是后续投影/环境执行问题。
+WebShop 的第一步同样注入检索到的静态技能：首步常常决定搜索 query，不能因为尚无 history 而退化为无技能模板。CoSkill 的 no-RL driver 与其 GRPO 环境管理器均采用该规则，且已与 SkillRL、Skill0 的 WebShop GRPO 路径对齐。该注入不包含手写 seed playbook，也不读取 oracle；新运行的任务树仍为空，只有云端从训练期 successful rollout 分析得到的树才会被写入并注入。历史过长时，两条 CoSkill 路径只从最旧处删除完整的 observation/action 对，保留当前任务、当前 observation、admissible actions、检索技能和技能树；不会再退化为丢失检索信息的无历史模板。
+
+Qwen Thinking 的某些旧 chat template 会在 **prompt 末尾**写入 `<think>`。这时模型的原始 sampled completion 合法地是“纯后半段”，即从思考正文开始，随后才产生 `</think><action>...</action>`，自身不重复 `<think>`。WebShop Ray collector 会保留该 `raw_response` 供 PPO 的 token/log-prob 使用；仅在 prompt 确实已打开 `<think>`、completion 没有重复开标签但含闭标签时，构造 `protocol_response = <think> + raw_response` 供环境投影、strict valid-action 和调试使用。该兼容不补 token、不改 reward 样本，也不把普通裸 action 误判为有效。
 
 WebShop 默认开启 Qwen thinking：prompt 要求恰好一个 `<think>...</think>` 后接一个 `<action>...</action>`；driver 先批量生成最多 3,840 token 的 think，再批量生成最多 256 token 的 action。为便于检查真实推理而不写出全部 trajectory，launcher 默认在 group 1 和之后每 10 个 group 各保存 1 局完整 episode（最多 15 步）到 `thinking_samples.txt` 与 `thinking_samples.jsonl`；逐步包含 observation、完整 think、action、投影后执行动作、有效性和环境得分。这些文件只复制已经生成、已经执行的模型输出，不参与 TracesPool、云端更新、奖励或指标。设 `THINK_TRACE_SAMPLES_PER_GROUP=0` 可关闭。
 
@@ -434,6 +436,10 @@ bash examples/playbook_evolve/run_alfworld_playbook_evolve_norl.sh --resume 1
 - success 高但有效率低：安全回退可能维持了执行，不能只报告成功率。
 
 设 LOG_TRAJECTORIES=1 后，可在 trajectories 的 prompt 与 trajectory 文件中逐步检查。长训练默认关闭以节省磁盘。
+
+### WebShop 日志出现 `len(obs)=... is too long`
+
+旧 Ray 环境把 13,000 个**字符**误当成上下文风险阈值；超过后直接换成无历史模板，连同检索技能/技能树一起丢弃。这不是 vLLM 的 token 超限或 OOM。当前版本把软守卫统一为 24,000 字符，并优先删除最旧的完整 history 对；若没有 history 仍超过软守卫，则保留任务、当前状态和检索信息，让 collector 的 `data.max_prompt_length=8192` 做唯一硬 token 限制。若日志报的是真正 token 超限，应检查 `prompt_length/clip_ratio`、树的异常膨胀和当前 WebShop observation，而不是缩小 rollout 或 response 预算。
 
 ### 没有 summary.json
 

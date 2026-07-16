@@ -100,6 +100,40 @@ class TrajectoryCollector:
         # Monotonic counter labelling which rollout (collection call) we are on.
         self._rollout_call_idx = 0
 
+    def _prompts_open_think(self, input_ids, attention_mask):
+        """Return whether each rendered Qwen prompt already opened ``<think>``.
+
+        Qwen Thinking's legacy chat template can append ``<think>`` to the
+        prompt itself.  In that valid wire format the sampled response is only
+        the continuation (reasoning text followed by ``</think>`` and the
+        action), so strict WebShop accounting must validate the rendered
+        prompt+completion transcript rather than the completion in isolation.
+        """
+        flags = []
+        for token_ids, mask in zip(input_ids, attention_mask):
+            prompt_ids = token_ids[mask.to(dtype=torch.bool)][-32:]
+            tail = self.tokenizer.decode(
+                prompt_ids.detach().cpu().tolist(), skip_special_tokens=False
+            )
+            flags.append(tail.rstrip().endswith("<think>"))
+        return flags
+
+    @staticmethod
+    def _render_protocol_response(response: str, prompt_opens_think: bool):
+        """Restore only a prompt-supplied opener for WebShop protocol checks.
+
+        This leaves ``batch.batch['responses']`` untouched: PPO log-probs and
+        gradients continue to use exactly the sampled token sequence.  The
+        returned text is only the complete transcript passed to the environment
+        and used for strict valid-action accounting/debug traces.
+        """
+        response = "" if response is None else str(response)
+        has_open = bool(re.search(r"<think>", response, flags=re.IGNORECASE))
+        has_close = bool(re.search(r"</think>", response, flags=re.IGNORECASE))
+        if prompt_opens_think and not has_open and has_close:
+            return "<think>\n" + response, True
+        return response, False
+
     def preprocess_single_sample(
         self,
         item: int,
@@ -395,6 +429,12 @@ class TrajectoryCollector:
             active_masks = np.logical_not(is_done)
 
             batch = self.preprocess_batch(gen_batch=gen_batch, obs=obs)
+            is_webshop = "webshop" in str(self.config.env.env_name).lower()
+            prompt_opens_think = (
+                self._prompts_open_think(
+                    batch.batch["input_ids"], batch.batch["attention_mask"]
+                ) if is_webshop else [False] * batch_size
+            )
 
             batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
             non_tensor_batch_keys_to_pop = ["raw_prompt_ids"]
@@ -424,14 +464,21 @@ class TrajectoryCollector:
             
             # Preserve Qwen's <think>/<action> protocol tokens until WebShop
             # projection validates and extracts the executable action.
-            text_actions = self.tokenizer.batch_decode(
+            raw_text_actions = self.tokenizer.batch_decode(
                 batch.batch['responses'], skip_special_tokens=False
             )
+            text_actions, restored_prompt_think = zip(*[
+                self._render_protocol_response(response, opens_think)
+                for response, opens_think in zip(raw_text_actions, prompt_opens_think)
+            ])
+            text_actions = list(text_actions)
+            restored_prompt_think = list(restored_prompt_think)
 
             # Snapshot raw model outputs BEFORE envs.step(): the projection step
             # mutates text_actions in place (lowercases / truncates), so we must
             # copy here to preserve the true model output for the raw dump.
-            raw_outputs_snapshot = list(text_actions) if self._dump_raw else None
+            raw_outputs_snapshot = list(raw_text_actions) if self._dump_raw else None
+            protocol_outputs_snapshot = list(text_actions) if self._dump_raw else None
             # Raw env observation shown to the model this step (anchor = env text
             # before skills are concatenated); 'text' is the full built prompt.
             obs_anchor_snapshot = None
@@ -493,7 +540,11 @@ class TrajectoryCollector:
                         if is_done[i]:
                             continue  # episode already finished; skip padding steps
                         raw_resp = raw_outputs_snapshot[i] if raw_outputs_snapshot else ""
-                        think, action = _split_think_action(raw_resp)
+                        protocol_resp = (
+                            protocol_outputs_snapshot[i]
+                            if protocol_outputs_snapshot else raw_resp
+                        )
+                        think, action = _split_think_action(protocol_resp)
                         obs_text = None
                         if obs_anchor_snapshot is not None:
                             try:
@@ -522,6 +573,8 @@ class TrajectoryCollector:
                             "active": True,
                             "observation": obs_text,
                             "raw_response": raw_resp,
+                            "protocol_response": protocol_resp,
+                            "restored_prompt_think": bool(restored_prompt_think[i]),
                             "think": think,
                             "action": action,
                             "action_text": action or None,

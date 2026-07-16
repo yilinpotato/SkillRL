@@ -15,9 +15,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from agent_system.environments.prompts.webshop import (
+    DEFAULT_WEBSHOP_PROMPT_CHAR_LIMIT,
     WEBSHOP_TEMPLATE,
     WEBSHOP_TEMPLATE_NO_HIS,
     WEBSHOP_TEMPLATE_WITH_MEMORY,
+    fit_webshop_history_to_char_limit,
 )
 from agent_system.memory import SimpleMemory
 from agent_system.memory.skills_only_memory import SkillsOnlyMemory
@@ -228,7 +230,7 @@ class WebShopObsBuilder:
     def __init__(self, *, mem_lib=None, skills_json_path: Optional[str] = None,
                  history_length: int = 8, with_skills: bool = True,
                  top_k: int = 6, enable_skill_tree: bool = True,
-                 prompt_char_limit: int = 13000):
+                 prompt_char_limit: int = DEFAULT_WEBSHOP_PROMPT_CHAR_LIMIT):
         self.mem_lib = mem_lib or SkillsOnlyMemory(
             skills_json_path=skills_json_path,
             retrieval_mode="template",
@@ -263,54 +265,64 @@ class WebShopObsBuilder:
         return "\n".join(f"'{action}'," for action in format_webshop_actions(available))
 
     def _initial_prompt(self, observation: str, available: Dict[str, Any]) -> str:
-        prompt = WEBSHOP_TEMPLATE_NO_HIS.format(
+        # The initial decision is often the decisive search query.  Do not leave
+        # it unassisted just because there is no history yet: inject the same
+        # retrieved, non-oracle skill context used from step 2 onward.  Use the
+        # same template as the Ray path: ``format_for_prompt`` already places a
+        # learned tree first, so prepending it separately would duplicate it.
+        if self._retrieval_active():
+            memories = self.mem_lib.format_for_prompt(self.retrieved)
+            return WEBSHOP_TEMPLATE_WITH_MEMORY.format(
+                task_description=self.task,
+                retrieved_memories=memories,
+                step_count=0,
+                history_length=0,
+                action_history="None",
+                current_step=1,
+                current_observation=observation,
+                available_actions=self._actions_text(available),
+            )
+        return WEBSHOP_TEMPLATE_NO_HIS.format(
             task_description=self.task,
             current_observation=observation,
             available_actions=self._actions_text(available),
         )
-        # The initial decision is often the decisive search query.  Do not leave
-        # it unassisted just because there is no history yet: inject the same
-        # retrieved, non-oracle skill context used from step 2 onward.  This is
-        # deliberately separate from a playbook: fresh runs still have no
-        # handwritten seed tree, and a task tree appears only after a successful
-        # rollout has been analysed by the cloud loop.
-        sections = []
-        tree = (self.retrieved or {}).get("playbook")
-        if self.enable_skill_tree and isinstance(tree, str) and tree.strip():
-            sections.append(tree.strip())
-        if self._retrieval_active():
-            memories = self.mem_lib.format_for_prompt(self.retrieved)
-            if memories.strip():
-                sections.append("## Retrieved Relevant Experience\n\n" + memories.strip())
-        sections.append(prompt)
-        return "\n\n".join(sections)
 
     def build(self, observation: str, available: Dict[str, Any], init: bool) -> str:
         if init or self.history_length <= 0:
             return self._initial_prompt(observation, available)
 
-        memory_contexts, valid_lens = self.history.fetch(
-            self.history_length, obs_key="text_obs", action_key="action")
         step_count = len(self.history[0])
-        fields = dict(
-            task_description=self.task,
-            step_count=step_count,
-            history_length=valid_lens[0],
-            action_history=memory_contexts[0],
-            current_step=step_count + 1,
-            current_observation=observation,
-            available_actions=self._actions_text(available),
+        recent_records = self.history[0][-self.history_length:]
+        first_step = step_count - len(recent_records) + 1
+        retrieved_memories = (
+            self.mem_lib.format_for_prompt(self.retrieved)
+            if self._retrieval_active() else None
         )
-        if self._retrieval_active():
-            fields["retrieved_memories"] = self.mem_lib.format_for_prompt(self.retrieved)
-            prompt = WEBSHOP_TEMPLATE_WITH_MEMORY.format(**fields)
-        else:
-            prompt = WEBSHOP_TEMPLATE.format(**fields)
 
-        # Match the production WebShop manager's character guard.  Keep the
-        # current tree on fallback because it is CoSkill's learned policy state.
-        if len(prompt) > self.prompt_char_limit:
-            prompt = self._initial_prompt(observation, available)
+        def _render(history_text: str, kept_history_length: int) -> str:
+            fields = dict(
+                task_description=self.task,
+                step_count=step_count,
+                history_length=kept_history_length,
+                action_history=history_text,
+                current_step=step_count + 1,
+                current_observation=observation,
+                available_actions=self._actions_text(available),
+            )
+            if retrieved_memories is not None:
+                fields["retrieved_memories"] = retrieved_memories
+                return WEBSHOP_TEMPLATE_WITH_MEMORY.format(**fields)
+            return WEBSHOP_TEMPLATE.format(**fields)
+
+        prompt, _kept_steps, _dropped_steps, _static_over_limit = (
+            fit_webshop_history_to_char_limit(
+                recent_records,
+                first_step=first_step,
+                render_prompt=_render,
+                char_limit=self.prompt_char_limit,
+            )
+        )
         return prompt
 
     def record(self, observation: str, action: str):

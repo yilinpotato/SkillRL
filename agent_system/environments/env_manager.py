@@ -681,6 +681,11 @@ class GymCardEnvironmentManager(EnvironmentManagerBase):
 class WebshopEnvironmentManager(EnvironmentManagerBase):
     def __init__(self, envs, projection_f, config):
         self.memory = SimpleMemory()
+        # Rate-limit prompt-compaction diagnostics.  A rollout contains many
+        # parallel environments, so printing once per sample obscures useful
+        # training logs without adding observability.
+        self._webshop_prompt_compaction_logs = 0
+        self._webshop_static_prompt_logs = 0
 
         # CoSkill WebShop uses the same hierarchical/tree-capable memory as
         # ALFWorld when explicitly requested.  The former flat construction
@@ -806,22 +811,56 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
             actions.append(f"click[{txt}]")
 
         return actions
+
+    def _webshop_prompt_char_limit(self) -> int:
+        """Read the soft WebShop character guard without changing token limits."""
+        webshop_cfg = self.config.env.get('webshop', {})
+        try:
+            limit = int(webshop_cfg.get(
+                'prompt_char_limit', DEFAULT_WEBSHOP_PROMPT_CHAR_LIMIT))
+        except (AttributeError, TypeError, ValueError):
+            limit = DEFAULT_WEBSHOP_PROMPT_CHAR_LIMIT
+        return max(1, limit)
+
+    def _log_webshop_prompt_compaction(
+        self,
+        *,
+        original_steps: int,
+        kept_steps: int,
+        static_over_limit: bool,
+        prompt_chars: int,
+        char_limit: int,
+    ) -> None:
+        """Emit a small, non-spammy audit message for prompt compaction."""
+        if static_over_limit:
+            if self._webshop_static_prompt_logs < 3:
+                print(
+                    "[WebShopPrompt] Current task/state plus retrieved skills is "
+                    f"{prompt_chars} chars (> soft guard {char_limit}) even with "
+                    "no history; retaining it intact. The rollout tokenizer still "
+                    "enforces the 8,192-token hard limit."
+                )
+                self._webshop_static_prompt_logs += 1
+            return
+        if kept_steps < original_steps and self._webshop_prompt_compaction_logs < 3:
+            print(
+                "[WebShopPrompt] Compacted oldest interaction history "
+                f"{original_steps}->{kept_steps} steps to fit {char_limit} chars; "
+                "current task/state and retrieved skills/tree were retained."
+            )
+            self._webshop_prompt_compaction_logs += 1
             
     def build_text_obs(self, text_obs: List[str], infos: List[List[str]], init: bool = False) -> List[str]:
         """
         This function builds the text observation for the agent.
         """
         postprocess_text_obs = []
-        if not init and self.config.env.history_length > 0:
-            memory_contexts, valid_lens = self.memory.fetch(
-                    self.config.env.history_length,
-                    obs_key="text_obs",
-                    action_key="action")
-
         use_retrieval = (
             self.retrieval_memory is not None
             and self.retrieved_memories is not None
         )
+        history_limit = max(0, int(self.config.env.history_length))
+        char_limit = self._webshop_prompt_char_limit()
 
         for i in range(len(text_obs)):
 
@@ -832,56 +871,67 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
             # same task-retrieved skills even before a trajectory history
             # exists.  These are static retrieved skills only: no seed tree,
             # reference trajectory, or environment-side privileged data.
-            if init and use_retrieval:
+            if (init or history_limit <= 0) and use_retrieval:
                 memory_context = self.retrieval_memory.format_for_prompt(
                     self.retrieved_memories[i]
                 )
                 obs = WEBSHOP_TEMPLATE_WITH_MEMORY.format(
                     task_description=self.tasks[i],
                     retrieved_memories=memory_context,
-                    step_count=0,
+                    step_count=0 if init else len(self.memory[i]),
                     history_length=0,
                     action_history="None",
-                    current_step=1,
+                    current_step=1 if init else len(self.memory[i]) + 1,
                     current_observation=text_obs[i],
                     available_actions=reformatted_available_actions,
                 )
-            elif init or self.config.env.history_length <= 0:
+            elif init or history_limit <= 0:
                 obs = WEBSHOP_TEMPLATE_NO_HIS.format(
                     task_description=self.tasks[i],
-                    current_observation=text_obs[i],
-                    available_actions=reformatted_available_actions
-                )
-            elif use_retrieval:
-                memory_context = self.retrieval_memory.format_for_prompt(
-                    self.retrieved_memories[i]
-                )
-                obs = WEBSHOP_TEMPLATE_WITH_MEMORY.format(
-                    task_description=self.tasks[i],
-                    retrieved_memories=memory_context,
-                    step_count=len(self.memory[i]),
-                    history_length=valid_lens[i],
-                    action_history=memory_contexts[i],
-                    current_step=len(self.memory[i]) + 1,
                     current_observation=text_obs[i],
                     available_actions=reformatted_available_actions
                 )
             else:
-                obs = WEBSHOP_TEMPLATE.format(
-                    task_description=self.tasks[i],
-                    step_count=len(self.memory[i]),
-                    history_length=valid_lens[i],
-                    action_history=memory_contexts[i],
-                    current_step=len(self.memory[i]) + 1,
-                    current_observation=text_obs[i],
-                    available_actions=reformatted_available_actions
+                # Drop only the oldest *complete* observation/action pairs if
+                # the history is too long.  The previous 13k-character fallback
+                # rebuilt WEBSHOP_TEMPLATE_NO_HIS and accidentally removed the
+                # retrieved skills/tree together with history.
+                recent_records = self.memory[i][-history_limit:]
+                first_step = len(self.memory[i]) - len(recent_records) + 1
+                memory_context = (
+                    self.retrieval_memory.format_for_prompt(self.retrieved_memories[i])
+                    if use_retrieval else None
                 )
-            if len(obs) > 13000:
-                print(f"Warning len(obs)={len(obs)} is too long")
-                obs = WEBSHOP_TEMPLATE_NO_HIS.format(
-                    task_description=self.tasks[i],
-                    current_observation=text_obs[i],
-                    available_actions=reformatted_available_actions
+
+                def _render(history_text, kept_history_length):
+                    fields = dict(
+                        task_description=self.tasks[i],
+                        step_count=len(self.memory[i]),
+                        history_length=kept_history_length,
+                        action_history=history_text,
+                        current_step=len(self.memory[i]) + 1,
+                        current_observation=text_obs[i],
+                        available_actions=reformatted_available_actions,
+                    )
+                    if memory_context is not None:
+                        fields['retrieved_memories'] = memory_context
+                        return WEBSHOP_TEMPLATE_WITH_MEMORY.format(**fields)
+                    return WEBSHOP_TEMPLATE.format(**fields)
+
+                obs, kept_steps, _dropped_steps, static_over_limit = (
+                    fit_webshop_history_to_char_limit(
+                        recent_records,
+                        first_step=first_step,
+                        render_prompt=_render,
+                        char_limit=char_limit,
+                    )
+                )
+                self._log_webshop_prompt_compaction(
+                    original_steps=len(recent_records),
+                    kept_steps=kept_steps,
+                    static_over_limit=static_over_limit,
+                    prompt_chars=len(obs),
+                    char_limit=char_limit,
                 )
 
             postprocess_text_obs.append(obs)
