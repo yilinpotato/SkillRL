@@ -105,6 +105,8 @@ fi
 train_data_size="${TRAIN_DATA_SIZE:-12}"
 val_data_size="${VAL_DATA_SIZE:-32}"
 group_size="${GROUP_SIZE:-6}"
+VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
+echo "Validation: val_data_size=$val_data_size test_freq=${TEST_FREQ:-5} val_before_train=$VAL_BEFORE_TRAIN"
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -179,4 +181,4 @@ python3 -m verl.trainer.main_ppo \
     trainer.test_freq=${TEST_FREQ:-5} \
     trainer.total_epochs=${TOTAL_TRAINING_STEPS:-150} \
     "${ray_init_args[@]}" \
-    trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"
+    trainer.val_before_train=$VAL_BEFORE_TRAIN $@ 2>&1 | tee "$OUTPUT_DIR/training.log"
