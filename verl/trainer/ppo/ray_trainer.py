@@ -484,6 +484,13 @@ class RayPPOTrainer:
         self._validate_config()
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
 
+        # Token-traffic ledger for the common plotting schema.  It is loaded
+        # lazily from the *primary* metrics.jsonl on the first train record, so
+        # resuming does not create a second metrics stream or reset curves.
+        self._token_traffic_loaded = False
+        self._token_traffic_totals = {}
+        self._token_traffic_large_raw = None
+
     def _validate_config(self):
         config = self.config
         # number of GPUs total
@@ -1291,6 +1298,184 @@ class RayPPOTrainer:
                 skill_lib.save_skills(os.path.join(save_dir, "skills_tree_rl_latest.json"))
             except Exception as exc:
                 print(f"[CoSkillTreeRL] state save failed: {exc}")
+
+    # ------------------------------------------------------------------ #
+    # Primary metrics token-traffic ledger                                #
+    # ------------------------------------------------------------------ #
+
+    def _primary_metrics_jsonl_path(self) -> str:
+        """Resolve the same primary JSONL destination as the tracker adapter."""
+        explicit = os.environ.get("JSONL_METRICS_PATH")
+        if explicit:
+            return os.path.expanduser(explicit)
+        base = os.environ.get("JSONL_METRICS_DIR")
+        if not base:
+            base = self.config.trainer.get("default_local_dir", None)
+        if not base:
+            base = os.path.join(
+                "outputs",
+                str(self.config.trainer.get("project_name", "verl")),
+                str(self.config.trainer.get("experiment_name", "experiment")),
+            )
+        return os.path.join(os.path.expanduser(str(base)), "metrics.jsonl")
+
+    @staticmethod
+    def _metric_scalar(value, default=0.0):
+        """Safely convert a logger scalar without depending on its backend."""
+        if isinstance(value, torch.Tensor):
+            return float(value.detach().cpu().item()) if value.numel() == 1 else default
+        if isinstance(value, np.generic):
+            return value.item()
+        return value if isinstance(value, (int, float, bool)) else default
+
+    def _load_token_traffic_totals(self) -> None:
+        """Recover token cumulative values from the existing primary metrics.
+
+        Older CoSkill Ray records have per-step small-model counts but no
+        ``*_cumulative`` fields, while cloud counters were only exposed under
+        ``coskill/cloud/*``.  Summing the old per-step deltas and taking the
+        latest cloud cumulative allows a resumed run to continue one honest
+        curve without rewriting historical output files.
+        """
+        if self._token_traffic_loaded:
+            return
+        totals = {
+            "small_prompt": 0,
+            "small_response": 0,
+            "small_total": 0,
+            "large_prompt": 0,
+            "large_completion": 0,
+            "large_total": 0,
+        }
+        path = self._primary_metrics_jsonl_path()
+        last_cumulative = None
+        legacy_small = {"small_prompt": 0, "small_response": 0, "small_total": 0}
+        legacy_large = None
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    for line in handle:
+                        try:
+                            row = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if not isinstance(row, dict):
+                            continue
+                        # Accept both tracker rows (flat) and any historical
+                        # {step, metrics} rows without assuming one logger.
+                        row = row.get("metrics", row)
+                        if not isinstance(row, dict):
+                            continue
+                        if "tokens/small_model/total_cumulative" in row:
+                            last_cumulative = {
+                                "small_prompt": int(self._metric_scalar(
+                                    row.get("tokens/small_model/prompt_cumulative", 0), 0)),
+                                "small_response": int(self._metric_scalar(
+                                    row.get("tokens/small_model/response_cumulative", 0), 0)),
+                                "small_total": int(self._metric_scalar(
+                                    row.get("tokens/small_model/total_cumulative", 0), 0)),
+                                "large_prompt": int(self._metric_scalar(
+                                    row.get("tokens/large_model/prompt_cumulative", 0), 0)),
+                                "large_completion": int(self._metric_scalar(
+                                    row.get("tokens/large_model/completion_cumulative", 0), 0)),
+                                "large_total": int(self._metric_scalar(
+                                    row.get("tokens/large_model/total_cumulative", 0), 0)),
+                            }
+                        else:
+                            legacy_small["small_prompt"] += max(0, int(self._metric_scalar(
+                                row.get("tokens/small_model/prompt", 0), 0)))
+                            legacy_small["small_response"] += max(0, int(self._metric_scalar(
+                                row.get("tokens/small_model/response", 0), 0)))
+                            legacy_small["small_total"] += max(0, int(self._metric_scalar(
+                                row.get("tokens/small_model/total", 0), 0)))
+                        if "coskill/cloud/large_model_total_tokens" in row:
+                            legacy_large = {
+                                "large_prompt": int(self._metric_scalar(
+                                    row.get("coskill/cloud/large_model_prompt_tokens", 0), 0)),
+                                "large_completion": int(self._metric_scalar(
+                                    row.get("coskill/cloud/large_model_completion_tokens", 0), 0)),
+                                "large_total": int(self._metric_scalar(
+                                    row.get("coskill/cloud/large_model_total_tokens", 0), 0)),
+                            }
+            except OSError as exc:
+                print(f"[token-traffic] cannot read '{path}': {exc}")
+
+        if last_cumulative is not None:
+            totals.update(last_cumulative)
+        else:
+            totals.update(legacy_small)
+            if legacy_large is not None:
+                totals.update(legacy_large)
+        self._token_traffic_totals = totals
+        self._token_traffic_loaded = True
+
+    def _large_token_usage_snapshot(self):
+        """Return current-process cloud usage as (prompt, completion, total)."""
+        summary = None
+        loop = getattr(self, "_coskill_loop", None)
+        analyzer = getattr(loop, "cloud_analyzer", None) if loop is not None else None
+        if analyzer is not None:
+            summary = analyzer.get_update_summary() or {}
+        elif hasattr(self, "skill_updater"):
+            # Legacy failure-only path; retain its provider accounting for
+            # backward compatibility if a CoSkillCloudLoop is not active.
+            summary = self.skill_updater.get_update_summary() or {}
+        if summary is None:
+            return 0, 0, 0
+        return (
+            int(self._metric_scalar(summary.get("large_model_prompt_tokens", 0), 0)),
+            int(self._metric_scalar(summary.get("large_model_completion_tokens", 0), 0)),
+            int(self._metric_scalar(summary.get("large_model_total_tokens", 0), 0)),
+        )
+
+    def _add_token_traffic_metrics(self, metrics: Dict) -> None:
+        """Add old-schema small/large token traffic to the primary metrics row.
+
+        The small-model ``prompt`` and ``response`` fields remain the actual
+        rollout request input and pure generated output for this train step.
+        Cumulative fields are a display/accounting ledger only; no generation,
+        reward, GRPO batch, or optimizer value is read or changed here.
+        """
+        self._load_token_traffic_totals()
+        totals = self._token_traffic_totals
+        small_prompt = max(0, int(self._metric_scalar(
+            metrics.get("tokens/small_model/prompt", 0), 0)))
+        small_response = max(0, int(self._metric_scalar(
+            metrics.get("tokens/small_model/response", 0), 0)))
+        small_total = max(0, int(self._metric_scalar(
+            metrics.get("tokens/small_model/total", 0), 0)))
+        totals["small_prompt"] += small_prompt
+        totals["small_response"] += small_response
+        totals["small_total"] += small_total
+
+        raw_large = self._large_token_usage_snapshot()
+        if self._token_traffic_large_raw is None:
+            # First row in this process: provider counters start at zero after
+            # a resume, so the observed value is this process's initial delta.
+            large_delta = raw_large
+        elif all(now >= old for now, old in zip(raw_large, self._token_traffic_large_raw)):
+            large_delta = tuple(now - old for now, old in zip(raw_large, self._token_traffic_large_raw))
+        else:
+            # Defensive recovery for a provider/client counter reset.
+            large_delta = raw_large
+        self._token_traffic_large_raw = raw_large
+        totals["large_prompt"] += max(0, large_delta[0])
+        totals["large_completion"] += max(0, large_delta[1])
+        totals["large_total"] += max(0, large_delta[2])
+
+        metrics.update({
+            "tokens/small_model/accounting": "actor_rollout_request_tokens",
+            "tokens/small_model/prompt_cumulative": totals["small_prompt"],
+            "tokens/small_model/response_cumulative": totals["small_response"],
+            "tokens/small_model/total_cumulative": totals["small_total"],
+            "tokens/large_model/prompt": max(0, large_delta[0]),
+            "tokens/large_model/completion": max(0, large_delta[1]),
+            "tokens/large_model/total": max(0, large_delta[2]),
+            "tokens/large_model/accounting": "provider_api_usage",
+            "tokens/large_model/prompt_cumulative": totals["large_prompt"],
+            "tokens/large_model/completion_cumulative": totals["large_completion"],
+            "tokens/large_model/total_cumulative": totals["large_total"],
+        })
 
     def _coskill_metrics(self) -> dict:
         """Collect CoSkill observability metrics for metrics.jsonl.
@@ -2160,6 +2345,9 @@ class RayPPOTrainer:
                 # TODO: implement actual tflpo and theoretical tflpo
                 n_gpus = self.resource_pool_manager.get_n_gpus()
                 metrics.update(compute_throughout_metrics(batch=batch, timing_raw=timing_raw, n_gpus=n_gpus))
+                # Keep the legacy plotting/token-traffic schema in this same
+                # primary metrics row.  This is reporting only.
+                self._add_token_traffic_metrics(metrics)
 
                 # Keep comparison metadata in the *primary* Ray metrics.jsonl.
                 # Unlike the old no-RL duplicate comparison file, this creates
@@ -2182,20 +2370,10 @@ class RayPPOTrainer:
                     'comparison/timing_cloud_update_measured': int(bool(
                         _som_for_comparison.get('enable_coskill', False)
                         or _som_for_comparison.get('enable_playbook_evolve', False))),
-                    'tokens/small_model/accounting': 'actor_prompt_plus_response_tokens',
                     'experiment/rl_enabled': 1,
                     'experiment/tree_rl_internalize_enabled': int(bool(
                         _som_for_comparison.get('enable_tree_rl_internalize', False))),
                 })
-
-                # Large model (SkillUpdater) cumulative token counts
-                if hasattr(self, 'skill_updater'):
-                    summary = self.skill_updater.get_update_summary()
-                    metrics.update({
-                        "tokens/large_model/prompt_cumulative": summary.get('large_model_prompt_tokens', 0),
-                        "tokens/large_model/completion_cumulative": summary.get('large_model_completion_tokens', 0),
-                        "tokens/large_model/total_cumulative": summary.get('large_model_total_tokens', 0),
-                    })
 
                 # CoSkill closed-loop observability metrics (pool / skill-lib /
                 # cloud / timing). Surfaced into metrics.jsonl for inspection.
