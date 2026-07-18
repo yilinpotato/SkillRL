@@ -16,13 +16,19 @@ set -euo pipefail
 # ``RL=1``) switches to the Ray/GRPO skill-tree curriculum without changing the
 # familiar entry command.  TREE_RL_ORDER=root|leaf selects the curriculum
 # direction in the delegated launcher.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+PRIVATE_ENV_FILE="${COSKILL_ENV_FILE:-$PROJECT_ROOT/.env}"
+# shellcheck disable=SC1091
+source "$PROJECT_ROOT/scripts/load_private_env.sh"
+unset PRIVATE_ENV_FILE
+
 RL_MODE="${rl:-${RL:-0}}"
 if [[ "$RL_MODE" != "0" && "$RL_MODE" != "1" ]]; then
     echo "rl/RL must be 0 (default no-RL) or 1 (Ray skill-tree RL)." >&2
     exit 1
 fi
 if [[ "$RL_MODE" == "1" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     exec bash "$SCRIPT_DIR/../grpo_trainer/run_coskill_tree_rl.sh" alfworld "$@"
 fi
 
@@ -71,7 +77,6 @@ DEFAULT_TP=1
 TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-$DEFAULT_TP}"
 
 # ── 自动判断运行环境：超算 vs 本地3090（与训练脚本一致）─────────────────────────
-PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
 if [ -d /GLOBALFS/hit_wxia_1 ]; then
     RUN_ENV="超算 (supercomputer)"
     export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"

@@ -53,6 +53,8 @@ export DEEPSEEK_MODEL=deepseek-v4-flash
 export DEEPSEEK_API_KEY='...'
 ~~~
 
+推荐改为项目根目录的私有 `.env`：先复制 `cp .env.example .env`，填入真实 key 后执行 `chmod 600 .env`。三个 CoSkill 主入口会在任何默认值之前加载它；`.env` 中的变量优先于 shell 已有变量，并会继承给 Python、Ray 与 vLLM 子进程。可用 `COSKILL_ENV_FILE=/secure/path/env` 改用其他私有文件。`.env` 已被 Git 忽略，绝不能提交或在日志中回显。
+
 没有 DEEPSEEK_API_KEY 时 rollout、环境、轨迹池与指标仍会运行，但云端蒸馏、失败诊断和 tree 演化会跳过；不能将此结果称为完整 CoSkill。不要把 API key、PAT 或其他密钥写入脚本、Git、README 或日志。
 
 ### 2.3 数据
@@ -129,6 +131,32 @@ WebShop rollout 已按每个环境 step 批量调用 vLLM：整批先生成 thin
 | THINK_TRACE_SAMPLES_PER_GROUP、THINK_TRACE_EVERY_GROUPS | WebShop 保存少量完整 episode（最多 15 步）的实际 `<think>`/`<action>` 审计样本；默认每 10 group 取 1 局，另含 group 1 |
 
 每次新实验必须用新的 OUTPUT_DIR。metrics.jsonl 和 group_metrics.jsonl 是追加写入；同一目录重新以 resume=0 启动会混入旧记录。
+
+### 3.1 Tree-RL：四卡 DP=4、TP=1 与云端预检
+
+`examples/grpo_trainer/run_coskill_tree_rl.sh` 的四卡设置固定为 **DP=4、TP=1、PP=1**；不为 Qwen3-4B 改成 TP/PP 分片。每次更新仍是 12 个任务 × 6 个样本 = 72 rollout，PPO 全局 batch、prompt/response 上限、奖励和采样参数不变。
+
+该入口默认开启 `COMPACT_FINISHED_TRAJECTORIES=True`：某条 episode 已 `done` 后，后续步不再将它的 prompt 送入 vLLM；环境 manager 仍收到完整批以保持既有接口和奖励语义。它改变同一 step 内 vLLM 的请求分组与随机数消费顺序，因此不能把开启前后的 checkpoint 当作严格逐 token 可续跑的同一实现；应在输出目录/实验名中标记实现版本。它不改变每步的 72 条 rollout、有效 trajectory、训练 token 指标或 PPO 更新规模。
+
+主 `metrics.jsonl` 会新增以下计算侧指标，原有 token 指标不改：
+
+- `rollout/vllm_full_batch_rows_legacy`：旧循环会请求的行数；
+- `rollout/vllm_request_rows`：DP padding 后真实请求给 vLLM 的行数；
+- `rollout/vllm_rows_avoided`：本轮避免的请求行数；
+- `rollout/vllm_active_rows`：未 padding 的活跃轨迹决策数。
+
+完整 Tree-RL 不能在缺少云端凭证时静默降级。入口会在申请 Ray/vLLM 前运行本地 bootstrap 检查；快速单独检查：
+
+~~~bash
+conda activate skillRL
+cd /GLOBALFS/hit_wxia_1/myl/CoSkill
+PROJECT_ROOT="$PWD" PRIVATE_ENV_FILE="${COSKILL_ENV_FILE:-$PWD/.env}" \
+  source scripts/load_private_env.sh
+python scripts/check_cloud_bootstrap.py \
+  --environment webshop --skills-json memory_data/webshop/claude_style_skills.json
+~~~
+
+加 `--probe` 会额外发出一次极小的真实 API 请求，用来验证 key、模型名和网络；不加时只检查与 trainer 相同的 Python 客户端和本地 skill JSON。输出 `stored_skill_trees: 0` 对无手写 seed 的新实验是预期行为：skill tree 必须在成功 rollout 到达水位线后由云端生成。只为短 smoke 临时跳过 preflight 可设 `CLOUD_BOOTSTRAP_CHECK=0`，但此模式不可称为完整云端 CoSkill。
 
 ## 4. 快速开始
 
@@ -364,7 +392,7 @@ ALFWorld 的 won 由环境 won 判定。WebShop 仅 terminal task_score 等于 1
 
 WebShop 的第一步同样注入检索到的静态技能：首步常常决定搜索 query，不能因为尚无 history 而退化为无技能模板。CoSkill 的 no-RL driver 与其 GRPO 环境管理器均采用该规则，且已与 SkillRL、Skill0 的 WebShop GRPO 路径对齐。该注入不包含手写 seed playbook，也不读取 oracle；新运行的任务树仍为空，只有云端从训练期 successful rollout 分析得到的树才会被写入并注入。历史过长时，两条 CoSkill 路径只从最旧处删除完整的 observation/action 对，保留当前任务、当前 observation、admissible actions、检索技能和技能树；不会再退化为丢失检索信息的无历史模板。
 
-Qwen Thinking 的某些旧 chat template 会在 **prompt 末尾**写入 `<think>`。这时模型的原始 sampled completion 合法地是“纯后半段”，即从思考正文开始，随后才产生 `</think><action>...</action>`，自身不重复 `<think>`。WebShop Ray collector 会保留该 `raw_response` 供 PPO 的 token/log-prob 使用；仅在 prompt 确实已打开 `<think>`、completion 没有重复开标签但含闭标签时，构造 `protocol_response = <think> + raw_response` 供环境投影、strict valid-action 和调试使用。该兼容不补 token、不改 reward 样本，也不把普通裸 action 误判为有效。
+Qwen Thinking 的某些旧 chat template 会在 **prompt 末尾**写入 `<think>`。这时模型的原始 sampled completion 合法地是“纯后半段”，即从思考正文开始，随后才产生 `</think><action>...</action>`，自身不重复 `<think>`。WebShop Ray collector 会保留该 `raw_response` 供 PPO 的 token/log-prob 使用；仅在 prompt 确实已打开 `<think>`、completion 没有重复开标签但含闭标签时，构造 `protocol_response = <think> + raw_response` 供环境投影、strict valid-action 和调试使用。该兼容不补 token、不改 reward 样本，也不把普通裸 action 误判为有效。它是**动作协议**兼容，与下述 token 流量展示是两件事。
 
 WebShop 默认开启 Qwen thinking：prompt 要求恰好一个 `<think>...</think>` 后接一个 `<action>...</action>`；driver 先批量生成最多 3,840 token 的 think，再批量生成最多 256 token 的 action。为便于检查真实推理而不写出全部 trajectory，launcher 默认在 group 1 和之后每 10 个 group 各保存 1 局完整 episode（最多 15 步）到 `thinking_samples.txt` 与 `thinking_samples.jsonl`；逐步包含 observation、完整 think、action、投影后执行动作、有效性和环境得分。这些文件只复制已经生成、已经执行的模型输出，不参与 TracesPool、云端更新、奖励或指标。设 `THINK_TRACE_SAMPLES_PER_GROUP=0` 可关闭。
 
@@ -378,6 +406,17 @@ WebShop 默认开启 Qwen thinking：prompt 要求恰好一个 `<think>...</thin
 | coskill/skill_tree/* | 诊断、tree 进化、tree 更新和 tree 数量 |
 | coskill/timing/* | 导出、蒸馏、tree 进化耗时 |
 | experiment/cloud_round_used | 当前局使用的云端技能版本轮次 |
+
+### 9.1 Token 流量展示（与 SkillRL / Skill0 旧图表口径对齐）
+
+Ray Tree-RL 以及 no-RL 主 metrics 都保留每个训练 group/step 的 token 增量，并写入可直接画累计曲线的字段；不再只在 `coskill/cloud/*` 中隐含云端 token。`prompt` 是输入给模型的 token，`response`/`completion` 是模型**纯生成输出** token，`total` 是两者之和。
+
+| 模型 | 每步/每组输入 | 每步/每组纯输出 | 累计字段 |
+| --- | --- | --- | --- |
+| 小模型（Qwen rollout） | `tokens/small_model/prompt` | `tokens/small_model/response` | `tokens/small_model/{prompt,response,total}_cumulative` |
+| 大模型（云端 API） | `tokens/large_model/prompt` | `tokens/large_model/completion` | `tokens/large_model/{prompt,completion,total}_cumulative` |
+
+小模型 token 是实际 active environment decision 的 prompt 加 sampled response，不是 FSDP 前向/反向吞吐量；大模型 token 是 API provider 返回的 usage。`perf/total_num_tokens` 仍是本步小模型 total，不应当拿它当累计流量。恢复旧 CoSkill Ray 输出时，新的代码会从同一 `metrics.jsonl` 中累加旧的小模型逐步 token，并读取最近的 `coskill/cloud/large_model_*_tokens`，因此不需要另开 comparison JSONL 或重跑。
 
 状态为 running 时 summary_partial.json 是中途结果，不是最终结论。
 

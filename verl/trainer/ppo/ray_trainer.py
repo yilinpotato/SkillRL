@@ -2143,6 +2143,17 @@ class RayPPOTrainer:
                     # batch = batch.union(gen_batch_output)
                     del batch
                     batch = gen_batch_output
+                    # Compute-side accounting for active-trajectory compaction.
+                    # It is deliberately kept outside token accounting: retained
+                    # policy tokens were already correct in historical runs,
+                    # whereas this records vLLM rows that used to be generated
+                    # and then discarded after an episode had ended.
+                    try:
+                        metrics.update(
+                            self.traj_collector.get_last_rollout_compaction_metrics()
+                        )
+                    except Exception as exc:
+                        print(f"[rollout-compaction] metrics unavailable: {exc}")
 
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.GiGPO:
                         step_rewards_tensor = core_gigpo.compute_step_discounted_returns(

@@ -15,13 +15,19 @@ set -euo pipefail
 # Keep the existing frozen rollout as the default.  ``rl=1`` (or ``RL=1``)
 # delegates to the Ray/GRPO progressive skill-tree curriculum; choose its
 # direction with TREE_RL_ORDER=root (default) or TREE_RL_ORDER=leaf.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+PRIVATE_ENV_FILE="${COSKILL_ENV_FILE:-$PROJECT_ROOT/.env}"
+# shellcheck disable=SC1091
+source "$PROJECT_ROOT/scripts/load_private_env.sh"
+unset PRIVATE_ENV_FILE
+
 RL_MODE="${rl:-${RL:-0}}"
 if [[ "$RL_MODE" != "0" && "$RL_MODE" != "1" ]]; then
     echo "rl/RL must be 0 (default no-RL) or 1 (Ray skill-tree RL)." >&2
     exit 1
 fi
 if [[ "$RL_MODE" == "1" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     exec bash "$SCRIPT_DIR/../grpo_trainer/run_coskill_tree_rl.sh" webshop "$@"
 fi
 
@@ -122,7 +128,6 @@ if [ "$VLLM_ENFORCE_EAGER" != "0" ] && [ "$VLLM_ENFORCE_EAGER" != "1" ]; then
     exit 1
 fi
 
-PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
 if [ -d /GLOBALFS/hit_wxia_1 ]; then
     RUN_ENV="超算 (supercomputer)"
     export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"

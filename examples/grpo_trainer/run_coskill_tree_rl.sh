@@ -25,6 +25,10 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PRIVATE_ENV_FILE="${COSKILL_ENV_FILE:-$PROJECT_ROOT/.env}"
+# shellcheck disable=SC1091
+source "$PROJECT_ROOT/scripts/load_private_env.sh"
+unset PRIVATE_ENV_FILE
 cd "$PROJECT_ROOT"
 
 export HF_DATASETS_OFFLINE=1
@@ -153,6 +157,23 @@ export REF_LOG_PROB_MICRO_BATCH_PER_GPU="${REF_LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
 export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.8}"
 export VLLM_MAX_NUM_BATCHED_TOKENS="${VLLM_MAX_NUM_BATCHED_TOKENS:-16384}"
 export VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-256}"
+# Keep DP=4 and TP=1.  This optimization compacts only already-finished
+# trajectories before vLLM generation; it does not alter model parallelism,
+# rollouts-per-step, prompts, rewards, or PPO geometry.
+export COMPACT_FINISHED_TRAJECTORIES="${COMPACT_FINISHED_TRAJECTORIES:-True}"
+case "$COMPACT_FINISHED_TRAJECTORIES" in
+    True|False) ;;
+    *)
+        echo "COMPACT_FINISHED_TRAJECTORIES must be True or False, got: $COMPACT_FINISHED_TRAJECTORIES" >&2
+        exit 1
+        ;;
+esac
+# A complete Tree-RL run needs a usable cloud client.  Check it before Ray and
+# vLLM reserve the A800s; --probe is opt-in because it makes one tiny API call.
+export CLOUD_BOOTSTRAP_CHECK="${CLOUD_BOOTSTRAP_CHECK:-1}"
+export CLOUD_BOOTSTRAP_PROBE="${CLOUD_BOOTSTRAP_PROBE:-0}"
+case "$CLOUD_BOOTSTRAP_CHECK" in 0|1) ;; *) echo "CLOUD_BOOTSTRAP_CHECK must be 0 or 1" >&2; exit 1;; esac
+case "$CLOUD_BOOTSTRAP_PROBE" in 0|1) ;; *) echo "CLOUD_BOOTSTRAP_PROBE must be 0 or 1" >&2; exit 1;; esac
 # Match the frozen CoSkill WebShop path.  This is a soft character guard used
 # only to compact oldest complete history records; the hard prompt limit stays
 # data.max_prompt_length=8192 tokens.
@@ -194,8 +215,24 @@ if [[ "$BENCHMARK" == "webshop" ]]; then
     fi
 fi
 
+if [[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]]; then
+    cloud_check_args=(
+        --environment "$BENCHMARK"
+        --skills-json "$SKILLS_JSON"
+    )
+    if [[ "$CLOUD_BOOTSTRAP_PROBE" == "1" ]]; then
+        cloud_check_args+=(--probe)
+    fi
+    echo "Checking cloud bootstrap (probe=$CLOUD_BOOTSTRAP_PROBE) before allocating Ray/vLLM..."
+    python3 scripts/check_cloud_bootstrap.py "${cloud_check_args[@]}"
+else
+    echo "WARNING: CLOUD_BOOTSTRAP_CHECK=0; this run can silently skip cloud evolution if its credential is unavailable." >&2
+fi
+
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"
 echo "GPU allocation: CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS"
+echo "vLLM topology: DP=$NUM_GPUS TP=1 PP=1 (unchanged)"
+echo "Active trajectory compaction: $COMPACT_FINISHED_TRAJECTORIES (only completed rows are excluded from future vLLM calls)"
 echo "GRPO rollout: train_data_size=$TRAIN_DATA_SIZE group_size=$GROUP_SIZE total=$ROLLOUTS_PER_STEP (fixed across GPU counts)"
 echo "PPO geometry: global_mini=$PPO_MINI_BATCH_SIZE per_rank_mini=$PPO_MINI_BATCH_PER_GPU micro_per_gpu=$PPO_MICRO_BATCH_SIZE_PER_GPU global_micro=$PPO_GLOBAL_MICRO_BATCH accumulation=$PPO_GRAD_ACCUM_STEPS"
 echo "Validation: val_data_size=$VAL_DATA_SIZE test_freq=$TEST_FREQ val_before_train=$VAL_BEFORE_TRAIN"
@@ -261,6 +298,7 @@ ppo_args=(
     "env.rollout.n=$GROUP_SIZE"
     "env.resources_per_worker.num_cpus=$ENV_WORKER_CPUS"
     +env.use_skills_only_memory=True
+    "+env.compact_finished_trajectories=$COMPACT_FINISHED_TRAJECTORIES"
     "+env.skills_only_memory.skills_json_path=$SKILLS_JSON"
     "+env.skills_only_memory.retrieval_mode=$RETRIEVAL_MODE"
     +env.skills_only_memory.top_k=6
@@ -323,7 +361,7 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV CUDA_VISIBLE_DEVICES NUM_GPUS N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ; do
+    for key in BENCHMARK RUN_ENV CUDA_VISIBLE_DEVICES NUM_GPUS N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE; do
         echo "$key=${!key}"
     done
     echo "ROLLOUTS_PER_STEP=$ROLLOUTS_PER_STEP"
