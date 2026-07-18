@@ -128,6 +128,13 @@ export AZURE_OPENAI_API_KEY="..."
 export AZURE_OPENAI_ENDPOINT=""
 ```
 
+For the DeepSeek skill-updater used by the local ALFWorld/WebShop launchers,
+copy `.env.example` to a private `.env`, fill in `DEEPSEEK_API_KEY`, then run
+`chmod 600 .env`.  The two main launchers load this file before their defaults,
+so its values override inherited variables and are passed to Ray workers.  The
+real `.env` is Git-ignored; use `SKILLRL_ENV_FILE=/secure/path/env` to select a
+different private file.  Never put an API key in a launcher, README, or log.
+
 ---
 
 ## 🏃 Training

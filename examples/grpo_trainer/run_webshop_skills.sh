@@ -14,7 +14,12 @@ export VLLM_LOGGING_LEVEL=DEBUG
 
 # export WANDB_API_KEY=""
 # ── 自动判断运行环境：超算 vs 本地3090（与 ALFWorld 启动脚本一致）──────────────
-PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+PRIVATE_ENV_FILE="${SKILLRL_ENV_FILE:-$PROJECT_ROOT/.env}"
+# shellcheck disable=SC1091
+source "$PROJECT_ROOT/scripts/load_private_env.sh"
+unset PRIVATE_ENV_FILE
 if [ -d /GLOBALFS/hit_wxia_1 ]; then
     RUN_ENV="超算 (supercomputer)"
     export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
@@ -52,7 +57,7 @@ RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
 # Small model (actor, trained locally)
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 # Large model (SkillUpdater skill generation via DeepSeek API)
-export SKILL_UPDATER_BACKEND="deepseek"
+export SKILL_UPDATER_BACKEND="${SKILL_UPDATER_BACKEND:-deepseek}"
 # export DEEPSEEK_API_KEY=""
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 
