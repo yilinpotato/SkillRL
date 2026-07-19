@@ -1,0 +1,104 @@
+# CoSkill Tree-RL Docker
+
+该镜像固化当前 `skillRL` Conda 环境、CoSkill 代码、ALFWorld 文本环境，以及
+WebShop 1000 商品小数据集和对应 Lucene 索引。四个任务共用同一镜像：
+`alfworld-root`、`alfworld-leaf`、`webshop-root`、`webshop-leaf`。每个任务独占
+2、4 或 8 张 GPU；单个实验使用 DP=2/4、TP=PP=1。rollout 始终为 `12×6=72`，
+验证集、采样和全局 PPO 几何不会随卡数变化。
+
+基础镜像默认使用 `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04`。当前构建只安装
+已经打包好的 Python/CUDA wheel，不调用 `nvcc`，因此无需下载体积很大的 CUDA
+开发工具层。若后续加入必须现场编译的 CUDA 扩展，可临时恢复 devel 基础镜像：
+
+```bash
+CUDA_BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04 \
+  bash docker/coskill/build_image.sh
+```
+
+构建阶段默认使用阿里云 Ubuntu apt 镜像，并移除当前构建不需要的 NVIDIA apt
+开发仓库；这只影响 `bash/git/build-essential` 等通用系统包的下载来源，不改变
+CUDA runtime。可通过 `UBUNTU_APT_MIRROR` 切换为其他 Ubuntu 镜像。构建默认使用
+`DOCKER_BUILD_NETWORK=host`，避免 rootless 默认网络无法直连软件源；该选项仅作用
+于镜像构建，不改变训练容器的运行网络或实验结果。
+
+## 构建
+
+```bash
+conda activate skillRL
+cd /path/to/CoSkill
+IMAGE_TAG=coskill:skillrl-cu128-data \
+  bash docker/coskill/build_image.sh
+```
+
+若当前账号没有 `/var/run/docker.sock` 权限，可由管理员加入 `docker` 组；临时使用
+sudo 时设置 `DOCKER_USE_SUDO=1`。构建需要较大磁盘空间，因为会打包约 14GB 的
+真实 Conda 环境和约 2.1GB 的 ALFWorld 文本数据。
+
+默认不把 7.6GB 模型权重写入镜像；启动时会从 ModelScope 下载到挂载的
+`/models`。完全离线镜像可在构建时设置：
+
+```bash
+INCLUDE_MODEL=1 MODEL_SOURCE=/path/to/Qwen3-4B-Thinking-2507 \
+  bash docker/coskill/build_image.sh
+```
+
+生成的 `docker/coskill/assets/` 很大且已被 Git 忽略。镜像不会复制 `.env`、
+API key、训练输出或历史 checkpoint。
+
+## 与固定轨迹消融镜像共用层
+
+固定轨迹 ALFWorld 消融保持自己的入口和评估协议，不能与主训练逻辑合并；但它和
+主实验使用同一份 `skillRL` 环境及 ALFWorld 数据。消融基础镜像已推到 ACR 后，
+可用下面的薄主镜像复用其约 7GB 压缩环境层，避免两个标签重复上传。此做法只改变
+容器分层和上传时间，不改变四个 Tree-RL 任务的代码、采样、rollout=72 或超参数。
+
+```bash
+BASE_IMAGE=crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:alfworld-fixed-ablation-skillrl-cu128 \
+IMAGE_TAG=crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:skillrl-cu128-data \
+  bash docker/coskill/build_from_ablation.sh
+
+docker push crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:skillrl-cu128-data
+```
+
+薄镜像仍包含当前 CoSkill 代码和 WebShop 1000 商品数据；父镜像包含已验证的
+Conda 环境和 ALFWorld 数据。保留独立的 `coskill:skillrl-cu128-data` 完整镜像，
+它适合没有消融基础镜像的离线节点。
+
+## 预检与运行
+
+```bash
+docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
+  --env-file .env \
+  -v /path/to/models:/models \
+  -v /path/to/outputs:/outputs \
+  coskill:skillrl-cu128-data preflight
+
+docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
+  --env-file .env \
+  -v /path/to/models:/models \
+  -v /path/to/outputs:/outputs \
+  coskill:skillrl-cu128-data alfworld-leaf
+```
+
+将最后一个参数替换为其他三个任务即可。四个任务不能在同一组 4 卡上并发；
+应串行运行，或为每个容器申请独立的 4 卡节点。相同输出目录会自动恢复模型、
+优化器、dataloader 和 `skills_tree_rl_latest.json`。新实验请通过
+`RL_OUTPUT_DIR=/outputs/<unique-name>` 使用独立目录。
+
+若希望预检真实调用一次云端 API，可加 `-e CLOUD_BOOTSTRAP_PROBE=1`；密钥始终
+通过 `--env-file` 或容器 secret 注入，不要写入镜像。
+
+如果节点分配了 8 张卡，不要把单个实验改成 8-rank（全局 mini-batch 36 无法
+无损分到 8 rank）。镜像会按 `TREE_RL_GPU_SLOT=0|1` 切成两个互不重叠的 4 卡组，
+可同时跑两个不同任务：
+
+```bash
+# 容器 A 使用前四卡
+docker run ... -e TREE_RL_GPU_SLOT=0 coskill:skillrl-cu128-data alfworld-root
+# 容器 B 使用后四卡
+docker run ... -e TREE_RL_GPU_SLOT=1 coskill:skillrl-cu128-data webshop-root
+```
+
+启动器读取实际显存：80/96GB 的 A800/A100/H20 使用高吞吐 vLLM 配置；40GB
+A100 自动降低 KV-cache 比例，并在两卡时采用更小的等价 micro-batch 以避免 OOM。
+这些调整不改变 rollout 数、样本、响应预算、奖励或全局 mini-batch。

@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1.7
+FROM nvidia/cuda:12.8.1-base-ubuntu22.04
+
+ARG SOURCE_COMMIT=unknown
+ENV CONDA_DIR=/opt/conda \
+    PATH=/opt/conda/envs/skillRL/bin:$PATH \
+    CONDA_PREFIX=/opt/conda/envs/skillRL \
+    CONDA_DEFAULT_ENV=skillRL \
+    PYTHONPATH=/workspace/CoSkill \
+    COSKILL_SOURCE_COMMIT=${SOURCE_COMMIT} \
+    PYTHONUNBUFFERED=1
+
+# This archive is created from the already tested host environment with
+# conda-pack. A BuildKit bind mount keeps the 7 GB archive out of the final
+# layer while preserving the exact extracted environment.
+RUN --mount=type=bind,from=conda_env,source=/skillRL-conda.tar.gz,target=/tmp/skillRL-conda.tar.gz,readonly \
+    mkdir -p /opt/conda/envs/skillRL && \
+    tar -xzf /tmp/skillRL-conda.tar.gz -C /opt/conda/envs/skillRL && \
+    /opt/conda/envs/skillRL/bin/conda-unpack
+
+# The host environment contains a pip faiss-cpu upgrade over an older conda
+# faiss package. conda-pack otherwise restores overlapping tracked files in an
+# undefined order, so overlay the exact, currently importable pip package.
+RUN --mount=type=bind,from=conda_env,source=/faiss-overlay.tar.gz,target=/tmp/faiss-overlay.tar.gz,readonly \
+    site=/opt/conda/envs/skillRL/lib/python3.10/site-packages && \
+    rm -rf "$site/faiss" "$site"/faiss-*.egg-info \
+           "$site"/faiss_cpu-*.dist-info "$site/faiss_cpu.libs" && \
+    tar -xzf /tmp/faiss-overlay.tar.gz -C "$site" && \
+    python -c 'import faiss; assert faiss.__version__ == "1.13.2"'
+
+WORKDIR /workspace/CoSkill
+COPY . /workspace/CoSkill
+RUN chmod +x docker/alfworld-ablation/entrypoint.sh \
+             examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation.sh && \
+    python -m pip freeze | sort > /opt/skillRL-runtime-freeze.txt
+
+COPY --from=alfworld . /opt/data/alfworld
+COPY --from=model . /opt/models/Qwen3-4B-Thinking-2507
+
+VOLUME ["/workspace/outputs", "/workspace/cache"]
+ENTRYPOINT ["/workspace/CoSkill/docker/alfworld-ablation/entrypoint.sh"]
+CMD ["ablation", "--phase", "all"]

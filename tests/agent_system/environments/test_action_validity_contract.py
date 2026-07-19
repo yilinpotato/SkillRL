@@ -30,6 +30,18 @@ def test_alfworld_qwen_prompt_prefilled_think_is_non_strict_but_not_strict():
     assert details[0]["strict_valid_action"] is False
 
 
+def test_alfworld_plain_admissible_action_is_salvaged_without_format_penalty():
+    projected, valids, details = alfworld_projection(
+        ["I will now go to drawer 1"], [["look", "go to drawer 1"]],
+        return_details=True,
+    )
+
+    assert projected == ["go to drawer 1"]
+    assert valids == [1]
+    assert details[0]["execution_source"] == "salvaged"
+    assert details[0]["strict_valid_action"] is False
+
+
 def test_alfworld_strict_diagnostic_requires_full_protocol_and_direct_action():
     raw = "<think>reasoning</think><action>go to drawer 1</action>"
     projected, valids, details = alfworld_projection(
@@ -41,14 +53,27 @@ def test_alfworld_strict_diagnostic_requires_full_protocol_and_direct_action():
     assert details[0]["strict_valid_action"] is True
 
 
-def test_webshop_keeps_strict_penalty_and_non_strict_diagnostic_rate():
+def test_webshop_uses_non_strict_penalty_and_keeps_strict_diagnostic_rate():
     _projected, valids, details = webshop_projection(
         ["<action>search[speaker]</action>"], return_details=True
     )
 
-    assert valids == [0]
+    assert valids == [1]
     assert details[0]["valid_action"] is True
     assert details[0]["strict_valid_action"] is False
+
+
+def test_webshop_salvages_plain_or_unclosed_action_and_uses_safe_fallback():
+    projected, valids, details = webshop_projection([
+        "Action: CLICK[Back to Search]",
+        "reasoning</think><action>search[waterproof speaker]",
+        "unfinished reasoning only",
+    ], return_details=True)
+
+    assert projected == ["click[back to search]", "search[waterproof speaker]", "search[]"]
+    assert valids == [1, 1, 0]
+    assert [row["execution_source"] for row in details] == [
+        "salvaged", "salvaged", "fallback"]
 
 
 def test_validity_metrics_keep_penalty_and_both_diagnostics_distinct():

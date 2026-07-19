@@ -1,4 +1,4 @@
-# Mini Test — ALFWorld 小模型策略测试台
+# Mini Test — ALFWorld / WebShop 小模型策略测试台
 
 一个**自包含**的迷你测试环境，用来回答：**给 Qwen3-4B-Thinking 写一个自然语言策略 template，能不能让它在 ALFWorld 上更稳地完成「搬运类」任务？**
 
@@ -10,6 +10,11 @@
 1. **pen→shelf**（最初的单一任务，pick_and_place 的子集）
 2. **pick_and_place_simple**（通用：任意 object → 任意 receptacle）
 3. **pick_two_obj_and_place**（把两个同类 object 搬到同一容器）
+
+另外提供一套同流程的 **WebShop 固定任务 A/B**：按 WebShop 原生商品内容
+`fashion / garden / beauty / electronics / grocery` 分层，每类固定 2 个任务，
+比较无 template baseline 与 max-score template。WebShop 会同时记录 exact success
+和连续值 `task_score`，避免只看 0/1 成功率漏掉部分匹配质量。
 
 ---
 
@@ -127,6 +132,64 @@ CUDA_VISIBLE_DEVICES=0 python -m mini_test_pen_shelf.run_generic \
 # pen→shelf
 CUDA_VISIBLE_DEVICES=0 MAX_STEPS=40 STRATEGY=1 bash mini_test_pen_shelf/run.sh
 ```
+
+### 4. WebShop：固定 5 类 × 2 任务 A/B
+
+先做零 GPU 的资源与任务校验：
+
+```bash
+source /data2/myl/miniconda3/etc/profile.d/conda.sh && conda activate skillRL
+cd /data2/myl/CoSkill
+python -m mini_test_pen_shelf.run_webshop_mini \
+  --variant baseline \
+  --outdir /tmp/webshop_manifest_check \
+  --validate_only
+```
+
+正式顺序运行 baseline → template → A/B 报告（默认 GPU 0）：
+
+```bash
+GPU=0 bash mini_test_pen_shelf/run_webshop_ab.sh
+```
+
+WebShop 可见交互历史固定为最近 `8` 步；也可显式写成
+`HISTORY_LENGTH=8 GPU=0 bash mini_test_pen_shelf/run_webshop_ab.sh`。
+
+快速单任务 smoke test：
+
+```bash
+TASK_LIMIT=1 MAX_STEPS=8 THINK_BUDGET=640 GPU=0 \
+  bash mini_test_pen_shelf/run_webshop_ab.sh
+```
+
+关键文件：
+
+| 文件 | 内容 |
+|------|------|
+| `webshop_tasks_2_per_category.json` | 固定 goal index manifest；A/B 共用，不随 reset 漂移 |
+| `run_webshop_mini.py` | WebShop 批量逐步决策、评分、轨迹三件套与汇总 |
+| `webshop_template.py` | 非 oracle 的 `MAX_SCORE_WEBSHOP_PLAYBOOK` 原文 |
+| `compare_webshop_ab.py` | 校验两臂 goal index 完全一致，并生成 txt/json/html A/B |
+| `run_webshop_ab.sh` | 单卡顺序驱动；重跑前自动备份旧结果 |
+
+WebShop 输出位于 `mini_test_pen_shelf/output_webshop/`：
+
+- `baseline/report.html`、`template/report.html`：单臂分类卡片和逐任务轨迹链接；
+- `ab_report.html`：成功率、平均 task score、购买率和每类/每任务差值；
+- 每个任务都有 `*_trajectory.txt`、`*_prompts.txt`、`*.json`；
+- `resolved_tasks.json` 保存指令、目标 ASIN、必需属性/选项与价格上限，便于核查数据漂移。
+
+WebShop 默认采用 `15` 步上限、最近 `8` 步原始可见历史、`8,192` context 和 `896`
+response token 预算（`640 think + 256 action`）。同任务复测中，`2048 think + 256
+action` 反而使 template 从 `2/10, 0.280` 降至 `1/10, 0.230`，因此默认保留短预算；
+如需与其他长思考实验对齐，仍可显式覆盖 `THINK_BUDGET` 和 `MAX_MODEL_LEN`。
+
+template 不注入已用查询、已访问商品、已选/剩余 options、剩余步数或循环警告等
+程序计算状态；模型只能从任务、当前原始页面和最近 8 步原始历史自行归纳进度。
+
+mini-test 的两臂共同启用 action-prefix forcing：thinking 阶段结束后，动作阶段的
+prompt 直接预填 `<action>`，避免 Qwen 再开一段 `<tool_call>` 解释。它只约束输出协议，
+不选择动作；当前可执行动作校验和 admissible-only salvage 仍会单独记录在轨迹中。
 
 ---
 

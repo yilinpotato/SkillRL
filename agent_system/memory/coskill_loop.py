@@ -46,6 +46,8 @@ class CoSkillCloudLoop:
         playbook_evolve_min_samples: int = 6,
         coskill_debug: bool = False,
         environment_name: str = "generic",
+        required_tree_depth: Optional[int] = None,
+        tree_depth_repair_attempts: int = 0,
     ):
         self.output_dir = output_dir
         self.enable_coskill = enable_coskill
@@ -55,6 +57,9 @@ class CoSkillCloudLoop:
         self.playbook_evolve_min_samples = playbook_evolve_min_samples
         self.coskill_debug = coskill_debug
         self.environment_name = str(environment_name or "generic")
+        self.required_tree_depth = (int(required_tree_depth)
+                                    if required_tree_depth is not None else None)
+        self.tree_depth_repair_attempts = max(0, int(tree_depth_repair_attempts))
 
         self.cloud_analyzer = None
         self._analyzer_init_failed = False
@@ -237,8 +242,34 @@ class CoSkillCloudLoop:
                 failure_traces=fail,
                 diagnoses=task_diags,
                 history=[],
+                target_depth=self.required_tree_depth,
             )
+            # Fixed-depth ablations must be cloud-authored end-to-end.  A
+            # failed depth check gets one (or configured) same-evidence repair;
+            # never pad/prune headings locally.
+            repairs = 0
+            while (result and self.required_tree_depth is not None
+                   and not result.get("depth_valid", False)
+                   and repairs < self.tree_depth_repair_attempts):
+                candidate = result.get("skill_tree") or ""
+                result = analyzer.evolve_playbook(
+                    task_type=task_type,
+                    current_playbook=current_content,
+                    success_traces=succ,
+                    failure_traces=fail,
+                    diagnoses=task_diags,
+                    history=[],
+                    target_depth=self.required_tree_depth,
+                    repair_candidate=candidate,
+                )
+                repairs += 1
             if not result:
+                continue
+            result["depth_repair_attempts"] = repairs
+            if (self.required_tree_depth is not None
+                    and not result.get("depth_valid", False)):
+                print(f"[CoSkill] skill_tree[{task_type}] rejected: expected depth "
+                      f"{self.required_tree_depth}, got {result.get('actual_depth')}")
                 continue
             tree_text = result.get('skill_tree') or result.get('playbook') or ''
             if result.get('action') == 'keep' or not tree_text:
@@ -259,7 +290,10 @@ class CoSkillCloudLoop:
                       'changelog': result.get('changelog', ''),
                       'round_failures': round_failures,
                       'task_scope': task_type,
-                      'updated_at': f'step_{global_step}'},
+                      'updated_at': f'step_{global_step}',
+                      'target_depth': result.get('target_depth'),
+                      'actual_depth': result.get('actual_depth'),
+                      'depth_repair_attempts': result.get('depth_repair_attempts', 0)},
             )
             # Dump each installed version for inspection.
             if getattr(analyzer, 'playbook_io_dir', None):

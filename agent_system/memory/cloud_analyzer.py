@@ -76,6 +76,9 @@ class CloudAnalyzer:
         self.playbook_history: List[Dict] = []
         self.n_diagnose_calls = 0
         self.n_evolve_calls = 0
+        # Append-only metadata for audit/reporting.  Raw text remains in the
+        # caller's artifact directory rather than being silently discarded.
+        self.call_audit: List[Dict[str, Any]] = []
 
         self.output_dir = None
         self.playbook_io_dir = None
@@ -123,6 +126,10 @@ class CloudAnalyzer:
                 max_completion_tokens=self.max_completion_tokens,
             )
             content = response.choices[0].message.content
+            self._record_call("contrastive_distill", prompt, content, getattr(response, "usage", None))
+            if self.output_dir is not None:
+                self._dump_text(self.output_dir,
+                                f"distill_response_{compressed_batch.get('batch_id', 'x')[:8]}.txt", content)
             raw_skills = self._parse_patches(content)
 
             if hasattr(response, "usage") and response.usage:
@@ -192,6 +199,10 @@ class CloudAnalyzer:
                 max_completion_tokens=self.max_completion_tokens,
             )
             content = response.choices[0].message.content
+            self._record_call("diagnose_failures", prompt, content, getattr(response, "usage", None))
+            if self.playbook_io_dir is not None:
+                self._dump_text(self.playbook_io_dir,
+                                f"diagnose_response_{compressed_batch.get('batch_id', 'x')[:8]}.txt", content)
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
@@ -300,8 +311,10 @@ Return ONLY the JSON array, no other text."""
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded)")
             for s in steps[fold:fold + 12]:
-                label = "obs" if s.get('obs_is_full') else "delta"
-                lines.append(f"  action: {s.get('action', '')}  | {label}: {s.get('obs_delta', '')[:400]}")
+                is_raw = 'observation' in s and 'obs_delta' not in s
+                label = "obs" if is_raw or s.get('obs_is_full') else "delta"
+                obs_text = s.get('observation', '') if is_raw else s.get('obs_delta', '')
+                lines.append(f"  action: {s.get('action', '')}  | {label}: {obs_text[:400]}")
             if tr.get("dropped_loops"):
                 lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
             out.append("\n".join(lines))
@@ -319,6 +332,8 @@ Return ONLY the JSON array, no other text."""
         failure_traces: List[Dict],
         diagnoses: Optional[List[Dict]] = None,
         history: Optional[List[Dict]] = None,
+        target_depth: Optional[int] = None,
+        repair_candidate: Optional[str] = None,
     ) -> Optional[Dict]:
         """生成 / 细化该 agent 唯一的 skill tree（大模型从零撰写，层次化推进）。
 
@@ -338,7 +353,8 @@ Return ONLY the JSON array, no other text."""
 
         prompt = self._build_evolve_prompt(
             task_type, current_playbook, success_traces, failure_traces,
-            diagnoses or [], history or []
+            diagnoses or [], history or [], target_depth=target_depth,
+            repair_candidate=repair_candidate,
         )
         # 落盘发给云端大模型的原始 prompt（call 计数器区分同一 task_type 的多轮进化）。
         if self.playbook_io_dir is not None:
@@ -352,6 +368,10 @@ Return ONLY the JSON array, no other text."""
                 max_completion_tokens=self.max_completion_tokens,
             )
             content = response.choices[0].message.content
+            self._record_call("evolve_playbook", prompt, content, getattr(response, "usage", None))
+            if self.playbook_io_dir is not None:
+                self._dump_text(self.playbook_io_dir,
+                                f"evolve_skill_tree_response_{task_type}_call{self.n_evolve_calls:03d}.txt", content)
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
@@ -378,6 +398,11 @@ Return ONLY the JSON array, no other text."""
                 "n_success": len(success_traces),
                 "n_failure": len(failure_traces),
             }
+            if target_depth is not None:
+                result.update({
+                    "target_depth": int(target_depth),
+                    **self._validate_tree_depth(tree_text, int(target_depth)),
+                })
             self.playbook_history.append({
                 "task_type": task_type,
                 "action": result["action"],
@@ -397,6 +422,8 @@ Return ONLY the JSON array, no other text."""
         failure_traces: List[Dict],
         diagnoses: List[Dict],
         history: Optional[List[Dict]] = None,
+        target_depth: Optional[int] = None,
+        repair_candidate: Optional[str] = None,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
         cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
@@ -406,6 +433,39 @@ Return ONLY the JSON array, no other text."""
         diag_txt = self._format_diagnoses(diagnoses)
         con_txt = (" → ".join(consensus) if consensus else
                    "(none — no shared successful opening yet)")
+
+        depth_constraint = ""
+        depth_execution_override = ""
+        if target_depth is not None:
+            depth_constraint = f"""
+
+EXPERIMENTAL DEPTH CONSTRAINT (mandatory): Return a non-empty skill_tree with
+EXACTLY {int(target_depth)} semantic Markdown heading levels. Do NOT use a Markdown heading for a
+document title: every Markdown heading is a semantic tree node, and the first semantic heading is
+depth 1. Every heading level from 1 through {int(target_depth)} must occur, and no heading may be
+deeper. Do not use empty, dummy, or purely structural headings just to meet the depth. The depth is
+an experimental condition, so action=\"keep\" is not allowed.
+"""
+            depth_execution_override = f"""
+EXPERIMENTAL OVERRIDE: The general \"start shallow\" guidance below does not
+override this condition. This run MUST contain evidence-grounded semantic
+nodes at each level 1 through {int(target_depth)}. If a candidate is too
+shallow, deepen it by adding meaningful child decisions or preconditions; do
+not merely rename or repeat a parent node.
+"""
+        repair_section = ""
+        if repair_candidate:
+            repair_section = f"""
+
+DEPTH-REPAIR CANDIDATE: The following candidate was generated from the SAME evidence but did not
+meet the requested heading depth. FORCE a semantic deepening when it is too shallow: add
+evidence-grounded child decisions/preconditions under the appropriate existing nodes until every
+required level is present. If it is too deep, rewrite it to the exact requested depth. Preserve the
+same-evidence grounding and do not add dummy headings.
+\"\"\"
+{repair_candidate.strip()}
+\"\"\"
+"""
 
         return f"""You are the SKILL TREE author and editor for one small language-model agent.
 The current environment is {self.environment_name}.
@@ -441,6 +501,9 @@ NEW FAILED TRAJECTORIES (what went wrong):
 
 FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
 {diag_txt}
+{depth_constraint}
+{depth_execution_override}
+{repair_section}
 
 Do these steps IN ORDER:
 
@@ -549,6 +612,21 @@ Return ONLY the JSON object, no other text."""
             print(f"[CloudAnalyzer] wrote → {path}")
         except Exception as e:
             print(f"[CloudAnalyzer] json dump failed ({fname}): {e}")
+
+    def _record_call(self, purpose: str, prompt: str, response: str, usage: Any) -> None:
+        """Record hashes/token usage without putting API text in normal metrics."""
+        import hashlib
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        self.call_audit.append({
+            "purpose": purpose,
+            "model": self.model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "response_sha256": hashlib.sha256((response or "").encode("utf-8")).hexdigest(),
+        })
 
     def _dump_text(self, dir_path: str, fname: str, text: str) -> None:
         """落盘发给云端大模型的原始 prompt 原文（人类可读，纯文本）。
@@ -698,14 +776,70 @@ Return ONLY the JSON array, no other text."""
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded, already mastered)")
             for s in steps[fold:fold + 12]:
-                obs_text = s.get('obs_delta', '')
-                # obs_is_full=True 表示这是完整观测原文(短观测不差分), 否则是 +/- 增量。
-                label = "obs" if s.get('obs_is_full') else "delta"
+                # ``observation`` is deliberately used by the all-compression-
+                # off ablation; production traces retain ``obs_delta``.
+                is_raw = 'observation' in s and 'obs_delta' not in s
+                obs_text = s.get('observation', '') if is_raw else s.get('obs_delta', '')
+                # obs_is_full=True means a full observation was retained by
+                # the normal adaptive delta path.  The all-off path is also a
+                # full observation, but has no delta field at all.
+                label = "obs" if is_raw or s.get('obs_is_full') else "delta"
                 lines.append(f"  action: {s.get('action', '')}  | {label}: {obs_text[:400]}")
             if tr.get("dropped_loops"):
                 lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
             out.append("\n".join(lines))
         return "\n".join(out)
+
+    @staticmethod
+    def _tree_depth(markdown: str) -> int:
+        """Return semantic Markdown heading depth; the document title is not special.
+
+        CoSkill trees use headings as their node representation.  A non-heading
+        preface is ignored, and malformed heading jumps do not invent levels.
+        """
+        depths = [len(line) - len(line.lstrip('#'))
+                  for line in (markdown or '').splitlines()
+                  if line.startswith('#') and line.lstrip('#').startswith(' ')]
+        return max(depths, default=0)
+
+    @staticmethod
+    def _validate_tree_depth(markdown: str, target_depth: int) -> Dict[str, Any]:
+        """Validate a fixed-depth tree without locally editing cloud output.
+
+        A maximum heading depth alone is not enough: a lone ``###`` heading
+        must not pass a three-level condition.  Every Markdown heading is
+        treated as a semantic tree node; the cloud prompt asks it to keep any
+        document title as plain text.
+        """
+        target = int(target_depth)
+        heading_levels, empty_levels = [], []
+        for line in (markdown or "").splitlines():
+            if not (line.startswith("#") and line.lstrip("#").startswith(" ")):
+                continue
+            level = len(line) - len(line.lstrip("#"))
+            heading_levels.append(level)
+            if not line[level:].strip():
+                empty_levels.append(level)
+        present = sorted(set(heading_levels))
+        expected = list(range(1, target + 1))
+        missing = [level for level in expected if level not in present]
+        too_deep = [level for level in present if level > target]
+        errors = []
+        if not heading_levels:
+            errors.append("no_semantic_headings")
+        if missing:
+            errors.append("missing_heading_levels:" + ",".join(map(str, missing)))
+        if too_deep:
+            errors.append("heading_deeper_than_target:" + ",".join(map(str, too_deep)))
+        if empty_levels:
+            errors.append("empty_heading_labels:" + ",".join(map(str, empty_levels)))
+        return {
+            "actual_depth": max(heading_levels, default=0),
+            "heading_levels_present": present,
+            "missing_heading_levels": missing,
+            "depth_validation_errors": errors,
+            "depth_valid": not errors,
+        }
 
     def _format_forks(self, prefix_tree: Dict, max_forks: int = 6) -> str:
         """从前缀树中找出分叉节点（children>1），展示各分支的成功/失败计数。"""

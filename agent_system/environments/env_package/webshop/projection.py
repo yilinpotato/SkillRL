@@ -13,8 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
 import re
+from typing import List
+
+_EXECUTABLE_ACTION = re.compile(r"\b(?:search|click)\s*\[[^\]\r\n]*\]", re.IGNORECASE)
+
+
+def _recover_executable_action(raw: str, block_text: str = ""):
+    """Recover the model's final WebShop action without inventing a target."""
+    block_match = _EXECUTABLE_ACTION.fullmatch(block_text.strip()) if block_text else None
+    if block_match:
+        return block_match.group(0).lower(), "direct"
+    matches = list(_EXECUTABLE_ACTION.finditer(raw or ""))
+    if matches:
+        return matches[-1].group(0).lower(), "salvaged"
+    # Always hand the environment a syntactically safe action.  It remains
+    # invalid for reward/metrics because it was not recovered from model text.
+    return "search[]", "fallback"
+
 
 def webshop_projection(actions: List[str], return_details: bool = False):
     """
@@ -34,22 +50,20 @@ def webshop_projection(actions: List[str], return_details: bool = False):
 
     for i in range(len(actions)):
         original_str = actions[i]  # keep the original string
-        actions[i] = actions[i].lower()
+        lowered = actions[i].lower()
 
         # Attempt to extract the substring within <action>...</action>
         start_tag = "<action>"
         end_tag = "</action>"
-        start_idx = actions[i].find(start_tag)
-        end_idx = actions[i].find(end_tag)
+        start_idx = lowered.find(start_tag)
+        end_idx = lowered.find(end_tag, start_idx + len(start_tag))
         has_action_block = start_idx != -1 and end_idx != -1 and start_idx < end_idx
-        extracted_action = ""
+        block_text = ""
         if has_action_block:
-            extracted_action = actions[i][start_idx + len(start_tag):end_idx].strip().lower()
-            actions[i] = extracted_action
-        else:
-            # Keep historical behaviour for malformed output: the environment
-            # receives a short suffix and decides whether it is executable.
-            actions[i] = actions[i][-20:]
+            block_text = lowered[start_idx + len(start_tag):end_idx].strip()
+        actions[i], execution_source = _recover_executable_action(
+            lowered, block_text=block_text)
+        recovered_from_model = execution_source != "fallback"
 
         # Require one completed thinking block before the action.  Do this on
         # the original case-preserving string because the tags form part of
@@ -57,7 +71,7 @@ def webshop_projection(actions: List[str], return_details: bool = False):
         think_start_idx = original_str.find("<think>")
         think_end_idx = original_str.find("</think>")
         action_start_idx = original_str.find("<action>")
-        strict_valid_action = has_action_block and (
+        strict_valid_action = has_action_block and execution_source == "direct" and (
             original_str.count("<think>") == 1
             and original_str.count("</think>") == 1
             and original_str.count("<action>") == 1
@@ -72,14 +86,14 @@ def webshop_projection(actions: List[str], return_details: bool = False):
         if contains_cjk:
             strict_valid_action = False
 
-        # ``valid_action`` is the historical/non-strict metric: an extractable
-        # action block, regardless of whole-response tag uniqueness/order.
-        # ``strict_valid_action`` is the current two-stage protocol metric.
-        valids[i] = int(strict_valid_action)
+        # ``valid_action`` is the reward/non-strict metric: a syntactically
+        # executable action recovered from the model, even when wrappers/tags
+        # differ. ``strict_valid_action`` remains the protocol diagnostic.
+        valids[i] = int(recovered_from_model)
         details.append({
-            "valid_action": bool(has_action_block),
+            "valid_action": bool(recovered_from_model),
             "strict_valid_action": bool(strict_valid_action),
-            "execution_source": "direct" if has_action_block else "malformed",
+            "execution_source": execution_source,
             "has_action_block": bool(has_action_block),
             "has_think_block": think_start_idx != -1 and think_end_idx != -1,
             "contains_cjk": contains_cjk,

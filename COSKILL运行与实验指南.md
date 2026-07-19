@@ -299,7 +299,7 @@ ALFWorld driver 还接受兼容别名 --enable_playbook_evolve；它与
 | 模型 | --gpu_mem_util | 0.8 / 0.8 | vLLM 显存利用率上限 |
 | 模型 | --max_model_len | 10240 / 6768 | launcher 的 WebShop 实际覆盖为 12288 |
 | 模型 | --max_tokens | 4096 / 768 | launcher 的 WebShop 实际覆盖为 4096 |
-| 模型 | --think_budget | 3500 / 640 | launcher 的 WebShop 实际覆盖为 3840 |
+| 模型 | --think_budget | 3500 / 640 | 旧命令兼容元数据；单次生成不再单独切分思考预算 |
 | 模型 | --temperature | 1.0 / 1.0 | rollout 采样温度 |
 | 技能 | --skills_json | 数据集 JSON | 初始技能库 |
 | 技能 | --retrieval_mode、--top_k | 见第 6 节 | 检索配置 |
@@ -353,9 +353,9 @@ fixed_games_manifest 可以固定 ON/OFF 两臂的 game 文件。driver 会检�
 | --checkpoint_every_groups | 2 | checkpoint 周期 |
 | --history_length | 8 | 端侧历史窗口 |
 | --prompt_char_limit | 24000 | no-RL 的软字符守卫；Ray Tree-RL 也使用 `WEBSHOP_PROMPT_CHAR_LIMIT=24000`。两者均不替代 8192-token 硬上限。 |
-| --action_budget | 128 | launcher 实际覆盖为 256 |
+| --action_budget | 128 | 旧命令兼容元数据；单次生成不再发起第二次动作请求 |
 
-WebShop 强制 think_budget 加 action_budget 不超过 max_tokens。`validation_metrics.jsonl` 保存每轮 held-out 指标，且同一轮字段同步写入对应的 `group_metrics.jsonl` 行；训练 token 与验证 token 分开记录，并额外给出 `total_including_validation`。
+WebShop 每个活跃环境步使用一次、最多 `max_tokens` 的完整 think+action 生成。`validation_metrics.jsonl` 保存每轮 held-out 指标，且同一轮字段同步写入对应的 `group_metrics.jsonl` 行；训练 token 与验证 token 分开记录，并额外给出 `total_including_validation`。
 
 ## 9. 输出、成功标准与 valid action
 
@@ -385,16 +385,16 @@ ALFWorld 的 won 由环境 won 判定。WebShop 仅 terminal task_score 等于 1
 | --- | --- |
 | valid_action | **实际奖惩口径**。ALFWorld 与原始 SkillRL 一致：可提取 `<action>`、有 `</think>`、且无中文即可，不要求 action 直接命中 admissible_commands；WebShop 保持严格双段协议口径。 |
 | strict_valid_action | 恰好一个完整 think 块和 action 块，think 在前，并满足环境的直接动作要求。 |
-| non_strict_valid_action | 诊断用宽松口径。ALFWorld 与 `valid_action` 相同；WebShop 只要求可提取的 action 块，不要求完整双段协议。 |
+| non_strict_valid_action | 奖惩用宽松口径。标准 action 块解析失败时，ALFWorld 可从原始文本恢复最后一个 admissible command，WebShop 可恢复最后一个 search[...] 或 click[...]。 |
 | execution_source | ALFWorld：direct、salvaged、fallback；WebShop：direct 或 malformed。 |
 
-因此 `episode/valid_action_ratio` 始终表示实际是否扣 invalid-action penalty；同时每个训练 step 都有 `episode/strict_valid_action_ratio` 和 `episode/non_strict_valid_action_ratio`。为兼容已有 no-RL WebShop 输出，`episode/relaxed_valid_action_ratio` 是后者的等值别名，两个字段都会保留。验证使用对应的 `val/<data_source>/...`（GRPO）或 `validation/episode/...`（no-RL）字段。ALFWorld 的 strict 指标仅用于诊断，WebShop 的 strict 指标与奖惩口径相同。
+因此 `episode/valid_action_ratio` 始终表示实际是否扣 invalid-action penalty；同时每个训练 step 都有 `episode/strict_valid_action_ratio` 和 `episode/non_strict_valid_action_ratio`。为兼容已有 no-RL WebShop 输出，`episode/relaxed_valid_action_ratio` 是后者的等值别名，两个字段都会保留。验证使用对应的 `val/<data_source>/...`（GRPO）或 `validation/episode/...`（no-RL）字段。两个环境都只用宽松口径施加 invalid-action penalty，strict 仅用于诊断协议遵从，避免 CoSkill 因标签要求比 SkillRL/Skill0 多扣分。
 
 WebShop 的第一步同样注入检索到的静态技能：首步常常决定搜索 query，不能因为尚无 history 而退化为无技能模板。CoSkill 的 no-RL driver 与其 GRPO 环境管理器均采用该规则，且已与 SkillRL、Skill0 的 WebShop GRPO 路径对齐。该注入不包含手写 seed playbook，也不读取 oracle；新运行的任务树仍为空，只有云端从训练期 successful rollout 分析得到的树才会被写入并注入。历史过长时，两条 CoSkill 路径只从最旧处删除完整的 observation/action 对，保留当前任务、当前 observation、admissible actions、检索技能和技能树；不会再退化为丢失检索信息的无历史模板。
 
-Qwen Thinking 的某些旧 chat template 会在 **prompt 末尾**写入 `<think>`。这时模型的原始 sampled completion 合法地是“纯后半段”，即从思考正文开始，随后才产生 `</think><action>...</action>`，自身不重复 `<think>`。WebShop Ray collector 会保留该 `raw_response` 供 PPO 的 token/log-prob 使用；仅在 prompt 确实已打开 `<think>`、completion 没有重复开标签但含闭标签时，构造 `protocol_response = <think> + raw_response` 供环境投影、strict valid-action 和调试使用。该兼容不补 token、不改 reward 样本，也不把普通裸 action 误判为有效。它是**动作协议**兼容，与下述 token 流量展示是两件事。
+Qwen Thinking 的某些旧 chat template 会在 **prompt 末尾**写入 `<think>`。这时模型的原始 sampled completion 合法地是“纯后半段”，即从思考正文开始，随后才产生 `</think><action>...</action>`，自身不重复 `<think>`。WebShop Ray collector 会保留该 `raw_response` 供 PPO 的 token/log-prob 使用；仅在 prompt 确实已打开 `<think>`、completion 没有重复开标签但含闭标签时，构造 `protocol_response = <think> + raw_response` 供环境投影、strict valid-action 和调试使用。该兼容不补 token、不改采样响应；普通裸 action 最多通过宽松恢复执行，仍不会被计入 strict 指标。它是**动作协议**兼容，与下述 token 流量展示是两件事。
 
-WebShop 默认开启 Qwen thinking：prompt 要求恰好一个 `<think>...</think>` 后接一个 `<action>...</action>`；driver 先批量生成最多 3,840 token 的 think，再批量生成最多 256 token 的 action。为便于检查真实推理而不写出全部 trajectory，launcher 默认在 group 1 和之后每 10 个 group 各保存 1 局完整 episode（最多 15 步）到 `thinking_samples.txt` 与 `thinking_samples.jsonl`；逐步包含 observation、完整 think、action、投影后执行动作、有效性和环境得分。这些文件只复制已经生成、已经执行的模型输出，不参与 TracesPool、云端更新、奖励或指标。设 `THINK_TRACE_SAMPLES_PER_GROUP=0` 可关闭。
+WebShop 默认开启 Qwen thinking：prompt 要求恰好一个 `<think>...</think>` 后接一个 `<action>...</action>`；每个活跃环境步只批量生成一次，完整响应最多 4,096 token。为便于检查真实推理而不写出全部 trajectory，launcher 默认在 group 1 和之后每 10 个 group 各保存 1 局完整 episode（最多 15 步）到 `thinking_samples.txt` 与 `thinking_samples.jsonl`；逐步包含 observation、完整 think、action、投影后执行动作、宽松/严格有效性和环境得分。这些文件只复制已经生成、已经执行的模型输出，不参与 TracesPool、云端更新、奖励或指标。设 `THINK_TRACE_SAMPLES_PER_GROUP=0` 可关闭。
 
 常见指标前缀：
 
@@ -416,7 +416,7 @@ Ray Tree-RL 以及 no-RL 主 metrics 都保留每个训练 group/step 的 token 
 | 小模型（Qwen rollout） | `tokens/small_model/prompt` | `tokens/small_model/response` | `tokens/small_model/{prompt,response,total}_cumulative` |
 | 大模型（云端 API） | `tokens/large_model/prompt` | `tokens/large_model/completion` | `tokens/large_model/{prompt,completion,total}_cumulative` |
 
-小模型 token 是实际 active environment decision 的 prompt 加 sampled response，不是 FSDP 前向/反向吞吐量；大模型 token 是 API provider 返回的 usage。`perf/total_num_tokens` 仍是本步小模型 total，不应当拿它当累计流量。恢复旧 CoSkill Ray 输出时，新的代码会从同一 `metrics.jsonl` 中累加旧的小模型逐步 token，并读取最近的 `coskill/cloud/large_model_*_tokens`，因此不需要另开 comparison JSONL 或重跑。
+小模型 token 是实际 active environment decision 的 prompt 加 sampled response，不是 FSDP 前向/反向吞吐量；大模型 token 是 API provider 返回的 usage。no-RL 的 `tokens/small_model/accounting=vllm_request_tokens_single_pass` 表示每个决策仅计一次请求；Tree-RL 使用 `actor_rollout_request_tokens`，同样是单次 rollout。`perf/total_num_tokens` 仍是本步小模型 total，不应当拿它当累计流量。旧 two-stage 输出目录继续运行时，每组新增行保留新口径，summary 的累计口径明确标为 `mixed:...`，不会把历史重复流量伪装成单次流量。
 
 状态为 running 时 summary_partial.json 是中途结果，不是最终结论。
 

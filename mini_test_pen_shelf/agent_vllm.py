@@ -7,7 +7,6 @@ agent_vllm.py — 用 vLLM 加载 Qwen3-4B，作为 ALFWorld 决策 agent
 显存：Qwen3-4B bf16 约 8-9GB，配合 gpu_memory_utilization 控制，可在 3090(24G) 快速跑。
 """
 import os
-import re
 
 # 关键：vLLM v1 用多进程拉起 EngineCore。父进程在 fork 前已初始化 CUDA，
 # fork 出的子进程无法再 init CUDA -> "Cannot re-initialize CUDA in forked subprocess"。
@@ -27,15 +26,16 @@ class VLLMAgent:
         seed=0,
         tensor_parallel_size=1,
         no_wait=False,     # NoWait: 抑制 "Wait/Hmm/Alternatively..." 回溯词。默认关闭，
-                           # 需要时显式开启（budget forcing 已能控制思考长度）。
-        think_budget=3500, # 思考预算：第一阶段生成上限。到此还没 </think> 就强制收尾出 action
-        action_budget=256, # 第二阶段动作预算；WebShop 用 128，使 640+128 对齐 response=768
+                           # 需要时显式开启；完整响应仍统一受 max_tokens 限制。
+        think_budget=3500, # 兼容旧命令行；单次生成不再切分 think/action 预算
+        action_budget=256, # 兼容旧命令行；完整响应统一受 max_tokens 限制
         pipeline_parallel_size=1,
         max_num_seqs=None,
         enforce_eager=True,
+        force_action_prefix=False,  # 兼容旧消融参数；单次生成时不再强制续写前缀
     ):
-        from vllm import LLM, SamplingParams
         from transformers import AutoTokenizer
+        from vllm import LLM, SamplingParams
 
         model_path = model_path or os.environ.get("MODEL_PATH")
         assert model_path, "请 export MODEL_PATH=/path/to/Qwen3-4B 或传入 model_path"
@@ -48,21 +48,12 @@ class VLLMAgent:
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         self.max_model_len = int(max_model_len)
-        # A forced close appends ``</think>`` after stage 1.  Reserve its exact
-        # token length (with a small floor for tokenizer variants) so a prompt
-        # at the advertised input budget still leaves room for stage 2.
-        self._forced_close_token_slack = max(
-            4,
-            len(self.tokenizer.encode("\n</think>\n", add_special_tokens=False)),
-        )
-        self._prompt_token_limit = self.max_model_len - max(
-            int(max_tokens),
-            int(think_budget) + int(action_budget) + self._forced_close_token_slack,
-        )
-        self._action_prompt_token_limit = self.max_model_len - int(action_budget)
-        if self._prompt_token_limit <= 0 or self._action_prompt_token_limit <= 0:
-            raise ValueError(
-                "max_model_len must leave room for the configured thinking and action budgets")
+        # One request emits the complete strict protocol.  Reserve exactly the
+        # advertised response budget; no generated thought is fed back as a
+        # second prompt.
+        self._prompt_token_limit = self.max_model_len - int(max_tokens)
+        if self._prompt_token_limit <= 0:
+            raise ValueError("max_model_len must leave room for max_tokens")
         self.context_guard_prompt_trims = 0
         self.context_guard_think_trims = 0
         self.context_guard_trimmed_tokens = 0
@@ -103,63 +94,47 @@ class VLLMAgent:
             top_p=0.95,
             max_tokens=max_tokens,
             bad_words=bad_words,
+            stop=["</action>"],
+            include_stop_str_in_output=True,
         )
-        # Budget forcing 用：思考阶段（上限 think_budget），以及强制收尾后的动作阶段。
+        # ``think_budget`` / ``action_budget`` remain accepted so old launchers
+        # and checkpoints can be resumed, but the standard single-pass decoder
+        # uses only max_tokens for the complete think+action response.
         self.max_tokens = max_tokens
         self.think_budget = think_budget
+        self.action_budget = action_budget
         self._bad_words = bad_words
         self._temperature = temperature
-        # 思考阶段：到 think_budget 截断；遇到 </think> 也自然停（用 stop）。
-        self.think_sampling = SamplingParams(
-            temperature=temperature, top_p=0.95,
-            max_tokens=think_budget, bad_words=bad_words,
-            stop=["</think>"], include_stop_str_in_output=True,
-        )
-        # 动作阶段：思考已被强制关闭，只需很短长度吐出 <action>...</action>。
-        self.action_sampling = SamplingParams(
-            temperature=temperature, top_p=0.95,
-            max_tokens=action_budget, stop=["</action>"], include_stop_str_in_output=True,
-        )
+        self.force_action_prefix = bool(force_action_prefix)
+        if self.force_action_prefix:
+            print("[vLLM] force_action_prefix is ignored by single-pass generation")
         self.enable_thinking = enable_thinking
-        self.action_budget = action_budget
         # Exact inference-token accounting from vLLM RequestOutput objects.
-        # Prompt tokens count every model invocation.  With two-stage budget
-        # forcing this intentionally includes both the thinking request and the
-        # action request (whose prompt contains the generated thinking), because
-        # both consume accelerator compute.
+        # Each active environment decision now contributes exactly one prompt
+        # and one complete sampled response.
         self.total_prompt_tokens = 0
         self.total_response_tokens = 0
 
-    def _sampling_pair(self, *, temperature=None, seed=None):
-        """Build request-local two-stage sampling parameters when overridden.
+    def _single_sampling(self, *, temperature=None, seed=None):
+        """Build request-local single-pass sampling parameters when overridden.
 
         Held-out validation uses a fixed request seed and lower temperature.
         Keeping it request-local prevents validation decoding from consuming the
         rollout RNG stream and changing subsequent training rollouts.
         """
         if temperature is None and seed is None:
-            return self.think_sampling, self.action_sampling
+            return self.sampling
         from vllm import SamplingParams
         value = self._temperature if temperature is None else float(temperature)
         request_seed = None if seed is None else int(seed)
-        return (
-            SamplingParams(
-                temperature=value,
-                top_p=0.95,
-                max_tokens=self.think_budget,
-                bad_words=self._bad_words,
-                seed=request_seed,
-                stop=["</think>"],
-                include_stop_str_in_output=True,
-            ),
-            SamplingParams(
-                temperature=value,
-                top_p=0.95,
-                max_tokens=self.action_budget,
-                seed=request_seed,
-                stop=["</action>"],
-                include_stop_str_in_output=True,
-            ),
+        return SamplingParams(
+            temperature=value,
+            top_p=0.95,
+            max_tokens=self.max_tokens,
+            bad_words=self._bad_words,
+            seed=request_seed,
+            stop=["</action>"],
+            include_stop_str_in_output=True,
         )
 
     def _record_token_usage(self, request_outputs):
@@ -176,6 +151,26 @@ class VLLMAgent:
         prompt = int(self.total_prompt_tokens)
         response = int(self.total_response_tokens)
         return {"prompt": prompt, "response": response, "total": prompt + response}
+
+    def close(self):
+        """Shut down the vLLM EngineCore cleanly when a rollout worker exits."""
+        llm = getattr(self, "llm", None)
+        if llm is None:
+            return
+        self.llm = None
+        engine = getattr(llm, "llm_engine", None)
+        core = getattr(engine, "engine_core", None)
+        shutdown = getattr(core, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
+        try:
+            import torch.distributed as dist
+
+            if dist.is_available() and dist.is_initialized():
+                dist.destroy_process_group()
+        except Exception:
+            # Interpreter shutdown may already have torn down torch modules.
+            pass
 
     # 反思词子串（小写）。命中即视为回溯词——只放【不会误伤】的长词。
     # 注意 "wait"/"hmm" 不在此列：wait 是 Kuwait/await/WaitForSeconds 的子串，放子串组
@@ -266,12 +261,12 @@ class VLLMAgent:
         if not self._context_guard_reported:
             print(
                 f"[vLLM][context-guard] {kind}: trimmed {removed} tokens "
-                f"to preserve max_model_len={self.max_model_len} and the configured action budget"
+                f"to preserve max_model_len={self.max_model_len} and the response budget"
             )
             self._context_guard_reported = True
 
     def _fit_initial_prompt(self, prompt):
-        """Enforce the declared input budget before stage-1 thinking starts."""
+        """Enforce the input budget before single-pass generation starts."""
         token_ids = self._token_ids(prompt)
         kept, removed = self._trim_middle_tokens(token_ids, self._prompt_token_limit)
         if removed:
@@ -279,39 +274,6 @@ class VLLMAgent:
             self._report_context_guard("initial prompt", removed)
             return self._decode_ids(kept)
         return prompt
-
-    def _fit_action_prompt(self, prompt, think_part):
-        """Last-resort token guard for the prompt fed to stage-2 action decoding.
-
-        The normal path is already bounded by :meth:`_fit_initial_prompt`.
-        This second check covers tokenizer/output edge cases without letting
-        vLLM fail an entire rollout batch for one overlong sample.
-        """
-        suffix = think_part + "\n"
-        prefix_ids = self._token_ids(prompt)
-        suffix_ids = self._token_ids(suffix)
-        overflow = len(prefix_ids) + len(suffix_ids) - self._action_prompt_token_limit
-        if overflow <= 0:
-            return prompt + suffix, think_part
-
-        # Preserve the end of the thought, including ``</think>``, because it
-        # contains the most recent conclusion and keeps the strict protocol
-        # well formed after _restore_think adds a missing opening tag.
-        if overflow < len(suffix_ids):
-            suffix_ids = suffix_ids[overflow:]
-            fitted_think = self._decode_ids(suffix_ids).rstrip()
-            self.context_guard_think_trims += 1
-            self._report_context_guard("action-context thought", overflow)
-            return prompt + self._decode_ids(suffix_ids), fitted_think
-
-        # This is only reachable if the input itself was unexpectedly longer
-        # than the bounded stage-1 limit.  Keep a compact head/tail prompt and
-        # the complete protocol suffix rather than crashing the whole batch.
-        allowed_prefix = max(1, self._action_prompt_token_limit - len(suffix_ids))
-        kept_prefix, removed = self._trim_middle_tokens(prefix_ids, allowed_prefix)
-        self.context_guard_prompt_trims += 1
-        self._report_context_guard("action-context prompt", removed)
-        return self._decode_ids(kept_prefix) + suffix, think_part
 
     @staticmethod
     def _restore_think(prompt, text):
@@ -328,42 +290,18 @@ class VLLMAgent:
         return text
 
     def act_with_meta(self, obs_text):
-        """Budget forcing 两阶段生成，返回 (原始文本, forced)。
-        阶段1：生成思考，上限 think_budget，遇 </think> 自停。
-          - 若模型在阶段1就已经自然写出 </think> 并跟上 <action>，直接用，不走阶段2
-            （避免阶段2再生成一个 action 与之拼接成畸形双 action）。
-        阶段2：仅当阶段1撞预算（无 </think>）时，硬接 </think> 再生成 <action>，上限很短。
-        forced=True 表示思考被预算强制截断。"""
+        """Single-pass generation of the complete strict protocol.
+
+        ``forced`` remains as a compatibility diagnostic and is true only when
+        vLLM exhausts ``max_tokens``.  Missing tags are not fabricated here;
+        the environment projection records such output as invalid.
+        """
         prompt = self._build_prompt(obs_text)
-
-        # 阶段 1：思考（stop=</think>，include_stop_str_in_output 使输出含 </think>）
-        out1 = self.llm.generate([prompt], self.think_sampling, use_tqdm=False)
-        self._record_token_usage(out1)
-        comp1 = out1[0].outputs[0]
-        think_text = comp1.text
-        got_close = "</think>" in think_text
-
-        if got_close:
-            # 模型自然收尾。截到第一个 </think> 为止（丢弃其后可能的畸形内容）。
-            think_part = think_text[:think_text.index("</think>") + len("</think>")]
-        else:
-            # 撞 think_budget：硬接 </think> 强制收尾
-            think_part = think_text.rstrip() + "\n</think>"
-        forced = not got_close
-
-        # 阶段 2：续写动作（无论阶段1是否自然收尾都重新干净生成一次 action，
-        # 保证 <action> 紧跟在 </think> 之后、格式规整，不与阶段1残留拼接）
-        action_prompt, think_part = self._fit_action_prompt(prompt, think_part)
-        out2 = self.llm.generate([action_prompt], self.action_sampling, use_tqdm=False)
-        self._record_token_usage(out2)
-        action_text = out2[0].outputs[0].text.strip()
-        # 只保留 action_text 里第一个 <action>...</action>，去掉多余内容
-        ma = re.search(r"<action>.*?</action>", action_text, re.DOTALL | re.IGNORECASE)
-        if ma:
-            action_text = ma.group(0)
-
-        full = think_part + "\n" + action_text
-        return self._restore_think(prompt, full), forced
+        outs = self.llm.generate([prompt], self.sampling, use_tqdm=False)
+        self._record_token_usage(outs)
+        completion = outs[0].outputs[0]
+        forced = getattr(completion, "finish_reason", None) == "length"
+        return self._restore_think(prompt, completion.text), forced
 
     def act_batch(self, obs_texts):
         prompts = [self._build_prompt(t) for t in obs_texts]
@@ -374,44 +312,34 @@ class VLLMAgent:
             for p, o in zip(prompts, outs)
         ]
 
-    def act_batch_with_meta(self, obs_texts, *, temperature=None, sampling_seed=None):
-        """Batch version of :meth:`act_with_meta` with the same two-stage
-        budget-forcing logic.
+    def act_batch_with_meta(self, obs_texts, *, temperature=None, sampling_seed=None,
+                            sampling_seeds=None):
+        """Batch version of :meth:`act_with_meta`, using one vLLM request row
+        per active environment decision.
 
         This preserves the per-step prompt / sampling policy while letting vLLM
         batch many ALFWorld environments together. Returns ``[(text, forced), …]``
         in the same order as ``obs_texts``.
         """
         prompts = [self._build_prompt(t) for t in obs_texts]
-
-        think_sampling, action_sampling = self._sampling_pair(
-            temperature=temperature, seed=sampling_seed)
-        outs1 = self.llm.generate(prompts, think_sampling, use_tqdm=False)
-        self._record_token_usage(outs1)
-        think_parts = []
-        forced_flags = []
-        for out in outs1:
-            think_text = out.outputs[0].text
-            got_close = "</think>" in think_text
-            if got_close:
-                think_part = think_text[:think_text.index("</think>") + len("</think>")]
-            else:
-                think_part = think_text.rstrip() + "\n</think>"
-            think_parts.append(think_part)
-            forced_flags.append(not got_close)
-
-        fitted = [self._fit_action_prompt(p, t) for p, t in zip(prompts, think_parts)]
-        action_prompts = [item[0] for item in fitted]
-        think_parts = [item[1] for item in fitted]
-        outs2 = self.llm.generate(action_prompts, action_sampling, use_tqdm=False)
-        self._record_token_usage(outs2)
-
-        results = []
-        for prompt, think_part, forced, out in zip(prompts, think_parts, forced_flags, outs2):
-            action_text = out.outputs[0].text.strip()
-            ma = re.search(r"<action>.*?</action>", action_text, re.DOTALL | re.IGNORECASE)
-            if ma:
-                action_text = ma.group(0)
-            full = think_part + "\n" + action_text
-            results.append((self._restore_think(prompt, full), forced))
-        return results
+        if sampling_seed is not None and sampling_seeds is not None:
+            raise ValueError("use sampling_seed or sampling_seeds, not both")
+        if sampling_seeds is not None:
+            if len(sampling_seeds) != len(prompts):
+                raise ValueError("sampling_seeds must match the prompt batch length")
+            sampling = [
+                self._single_sampling(temperature=temperature, seed=seed)
+                for seed in sampling_seeds
+            ]
+        else:
+            sampling = self._single_sampling(
+                temperature=temperature, seed=sampling_seed)
+        outs = self.llm.generate(prompts, sampling, use_tqdm=False)
+        self._record_token_usage(outs)
+        return [
+            (
+                self._restore_think(prompt, out.outputs[0].text),
+                getattr(out.outputs[0], "finish_reason", None) == "length",
+            )
+            for prompt, out in zip(prompts, outs)
+        ]

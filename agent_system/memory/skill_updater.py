@@ -53,6 +53,11 @@ class SkillUpdater:
         self.update_history = []
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
+        # Kept for audit-oriented callers (for example fixed-trajectory
+        # ablations).  Existing training callers do not consume these fields.
+        self.last_prompt = None
+        self.last_response = None
+        self.last_usage = {"prompt": 0, "completion": 0, "total": 0}
 
     def analyze_failures(
         self,
@@ -74,6 +79,9 @@ class SkillUpdater:
             List of new skill dicts ready to be passed to
             ``SkillsOnlyMemory.add_skills()``.
         """
+        self.last_prompt = None
+        self.last_response = None
+        self.last_usage = {"prompt": 0, "completion": 0, "total": 0}
         if not failed_trajectories:
             return []
 
@@ -84,6 +92,7 @@ class SkillUpdater:
         prompt = self._build_analysis_prompt(
             failed_trajectories, current_skills, next_dyn_idx
         )
+        self.last_prompt = prompt
 
         try:
             response = self.client.chat.completions.create(
@@ -91,12 +100,19 @@ class SkillUpdater:
                 messages=[{"role": "user", "content": prompt}],
                 max_completion_tokens=self.max_completion_tokens,
             )
-            raw_skills = self._parse_skills_response(response.choices[0].message.content)
+            self.last_response = response.choices[0].message.content
+            raw_skills = self._parse_skills_response(self.last_response)
 
             # Track token usage
             if hasattr(response, 'usage') and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
+                self.last_usage = {
+                    "prompt": int(response.usage.prompt_tokens or 0),
+                    "completion": int(response.usage.completion_tokens or 0),
+                    "total": int((response.usage.prompt_tokens or 0)
+                                 + (response.usage.completion_tokens or 0)),
+                }
 
             # Reassign dyn_ IDs on our side to guarantee no collisions,
             # regardless of what the LLM returned.
@@ -215,7 +231,7 @@ Example format:
                 skills = json.loads(response[json_start:json_end])
                 return [
                     s for s in skills
-                    if all(k in s for k in ['skill_id', 'title', 'principle'])
+                    if all(k in s for k in ['skill_id', 'title', 'principle', 'when_to_apply'])
                 ]
         except json.JSONDecodeError as e:
             print(f"[SkillUpdater] JSON parse error: {e}")

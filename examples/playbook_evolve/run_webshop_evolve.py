@@ -35,6 +35,9 @@ from mini_test_pen_shelf.webshop_utils import (
 )
 
 
+SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
+
+
 def _append_jsonl(path, obj):
     with open(path, "a") as handle:
         handle.write(json.dumps(obj, ensure_ascii=False) + "\n")
@@ -121,6 +124,7 @@ def _load_resume_state(args):
         "category_stats": {},
         "cloud_update_steps": [],
         "small_cumulative": {"prompt": 0, "response": 0, "total": 0},
+        "small_token_accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
         "validation_history": [],
         "validation_small_cumulative": {"prompt": 0, "response": 0, "total": 0},
         "large_cumulative": {"prompt": 0, "completion": 0, "total": 0},
@@ -198,6 +202,12 @@ def _load_resume_state(args):
             for key in ("prompt", "completion", "total")
         },
     })
+    previous_accounting = small_usage.get("accounting")
+    if not previous_accounting and state["small_cumulative"]["total"]:
+        previous_accounting = "vllm_request_tokens_two_stage"
+    if previous_accounting and previous_accounting != SMALL_MODEL_TOKEN_ACCOUNTING:
+        state["small_token_accounting"] = (
+            f"mixed:{previous_accounting}+{SMALL_MODEL_TOKEN_ACCOUNTING}")
 
     # Make the primary append-only logs match the checkpoint before adding new
     # rows. The archived files retain diagnostics from a partially completed
@@ -376,6 +386,7 @@ def _validation_metrics(results, *, group_id, global_episode, token_delta,
         "validation/tokens/small_model/prompt": int(token_delta["prompt"]),
         "validation/tokens/small_model/response": int(token_delta["response"]),
         "validation/tokens/small_model/total": int(token_delta["total"]),
+        "validation/tokens/small_model/accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
         "validation/tokens/small_model/prompt_cumulative": int(token_cumulative["prompt"]),
         "validation/tokens/small_model/response_cumulative": int(token_cumulative["response"]),
         "validation/tokens/small_model/total_cumulative": int(token_cumulative["total"]),
@@ -587,6 +598,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
     used = [0] * batch_size
     valid_count = [0] * batch_size
     relaxed_valid_count = [0] * batch_size
+    strict_valid_count = [0] * batch_size
     task_scores = [0.0] * batch_size
     last_action = [None] * batch_size
     repeat = [0] * batch_size
@@ -629,6 +641,8 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
                 valid_count[i] += 1
             if action_detail["valid_action"]:
                 relaxed_valid_count[i] += 1
+            if action_detail["strict_valid_action"]:
+                strict_valid_count[i] += 1
             raw_score = float(next_infos[i].get("task_score", 0.0) or 0.0)
             slot_won = bool(next_infos[i].get("won", False))
             slot_done = bool(dones[i])
@@ -643,7 +657,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
                 "task_score": raw_score,
                 "valid_action": action_detail["valid_action"],
                 "non_strict_valid_action": action_detail["valid_action"],
-                "strict_valid_action": valid,
+                "strict_valid_action": action_detail["strict_valid_action"],
                 "execution_source": action_detail["execution_source"],
             })
             if bool(args.log_trajectories):
@@ -655,7 +669,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
                     "valid": valid,
                     "valid_action": action_detail["valid_action"],
                     "non_strict_valid_action": action_detail["valid_action"],
-                    "strict_valid_action": valid,
+                    "strict_valid_action": action_detail["strict_valid_action"],
                     "execution_source": action_detail["execution_source"],
                     "forced": forced_by_index[i],
                     "obs": next_observations[i],
@@ -700,8 +714,8 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
                 "valid_action_ratio": relaxed_valid_count[i] / max(used[i], 1),
                 "n_non_strict_valid_actions": relaxed_valid_count[i],
                 "non_strict_valid_action_ratio": relaxed_valid_count[i] / max(used[i], 1),
-                "n_strict_valid_actions": valid_count[i],
-                "strict_valid_action_ratio": valid_count[i] / max(used[i], 1),
+                "n_strict_valid_actions": strict_valid_count[i],
+                "strict_valid_action_ratio": strict_valid_count[i] / max(used[i], 1),
             },
         }
         results.append({
@@ -713,6 +727,7 @@ def rollout_webshop_group(env, agent, skill_lib, args, group_id, worker_tag="",
             "task_type": categories[i],
             "injected": injected_ids[i],
             "n_valid": valid_count[i],
+            "n_strict_valid": strict_valid_count[i],
             "n_relaxed_valid": relaxed_valid_count[i],
             "n_non_strict_valid": relaxed_valid_count[i],
             "logrows": logrows[i],
@@ -795,6 +810,7 @@ def _rollout_worker(worker_id, gpu_group, args_dict, base_task_count,
             if command is None:
                 env.close()
                 val_env.close()
+                agent.close()
                 return
             group_id = int(command["group_id"])
             phase = str(command.get("phase", "train"))
@@ -944,8 +960,8 @@ def main():
         raise ValueError("val_data_size must be >= data_parallel_workers")
     if args.validation_every_groups < 0:
         raise ValueError("validation_every_groups must be >= 0")
-    if args.think_budget + args.action_budget > args.max_tokens:
-        raise ValueError("think_budget + action_budget must be <= max_tokens for WebShop alignment")
+    if args.think_budget <= 0 or args.action_budget <= 0:
+        raise ValueError("legacy think_budget/action_budget metadata must remain positive")
     if args.think_trace_samples_per_group < 0:
         raise ValueError("think_trace_samples_per_group must be >= 0")
     if args.think_trace_every_groups < 1:
@@ -1091,6 +1107,8 @@ def main():
     cloud_update_steps = list(resume_state["cloud_update_steps"])
     cloud_updates = len(cloud_update_steps)
     small_cumulative = dict(resume_state["small_cumulative"])
+    small_token_accounting = resume_state.get(
+        "small_token_accounting", SMALL_MODEL_TOKEN_ACCOUNTING)
     validation_history = list(resume_state["validation_history"])
     validation_small_cumulative = dict(resume_state["validation_small_cumulative"])
 
@@ -1224,6 +1242,7 @@ def main():
             "token_usage": {
                 "small_model": {
                     **dict(small_cumulative),
+                    "accounting": small_token_accounting,
                     "validation": dict(validation_small_cumulative),
                     "including_validation": {
                         key: int(small_cumulative[key]) + int(validation_small_cumulative[key])
@@ -1315,7 +1334,7 @@ def main():
                     "task_score": float(result["task_score"]),
                     "used_steps": int(result["used"]),
                     "valid_actions": int(result["n_valid"]),
-                    "strict_valid_actions": int(result["n_valid"]),
+                    "strict_valid_actions": int(result["n_strict_valid"]),
                     "relaxed_valid_actions": int(result["n_relaxed_valid"]),
                     "non_strict_valid_actions": int(result["n_non_strict_valid"]),
                     "goal_index": result.get("goal_index"),
@@ -1464,7 +1483,7 @@ def main():
                 "tokens/small_model/prompt": small_tokens["prompt"],
                 "tokens/small_model/response": small_tokens["response"],
                 "tokens/small_model/total": small_tokens["total"],
-                "tokens/small_model/accounting": "vllm_request_tokens_two_stage",
+                "tokens/small_model/accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
                 "tokens/small_model/prompt_cumulative": small_cumulative["prompt"],
                 "tokens/small_model/response_cumulative": small_cumulative["response"],
                 "tokens/small_model/total_cumulative": small_cumulative["total"],

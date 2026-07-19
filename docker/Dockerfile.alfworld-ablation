@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1.7
+FROM nvidia/cuda:12.8.1-base-ubuntu22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG SOURCE_COMMIT=unknown
+ENV TZ=Etc/UTC \
+    CONDA_DIR=/opt/conda \
+    PATH=/opt/conda/envs/skillRL/bin:/opt/conda/bin:$PATH \
+    CONDA_DEFAULT_ENV=skillRL \
+    COSKILL_SOURCE_COMMIT=${SOURCE_COMMIT} \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      bash build-essential ca-certificates cmake curl git git-lfs libffi-dev libgl1 \
+      libglib2.0-0 libsm6 libxext6 libxrender1 ninja-build pkg-config zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL -o /tmp/miniconda.sh \
+      https://repo.anaconda.com/miniconda/Miniconda3-py310_25.1.1-2-Linux-x86_64.sh && \
+    bash /tmp/miniconda.sh -b -p "$CONDA_DIR" && rm /tmp/miniconda.sh
+
+COPY docker/alfworld-ablation/environment.yml /tmp/environment.yml
+RUN conda env create -f /tmp/environment.yml && conda clean -afy
+
+# Match the tested skillRL stack. vLLM 0.11.0 is built around Torch 2.8;
+# installing Torch first prevents pip from silently selecting another CUDA ABI.
+RUN pip install --index-url https://download.pytorch.org/whl/cu128 \
+      torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0
+COPY docker/alfworld-ablation/requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt && \
+    pip freeze | sort > /opt/skillRL-runtime-freeze.txt
+
+WORKDIR /workspace/CoSkill
+COPY . /workspace/CoSkill
+RUN pip install -e . --no-deps && \
+    chmod +x docker/alfworld-ablation/entrypoint.sh \
+             examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation.sh
+
+# BuildKit named contexts. The build helper points these at real assets or at
+# an empty temporary directory, so the same Dockerfile supports slim and
+# self-contained images without copying private host paths into source code.
+COPY --from=alfworld . /opt/data/alfworld
+COPY --from=model . /opt/models/Qwen3-4B-Thinking-2507
+
+VOLUME ["/workspace/outputs", "/workspace/cache"]
+ENTRYPOINT ["/workspace/CoSkill/docker/alfworld-ablation/entrypoint.sh"]
+CMD ["ablation", "--phase", "all"]

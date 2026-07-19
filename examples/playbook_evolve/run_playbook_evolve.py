@@ -8,12 +8,13 @@
 （模型 / embedding 检索 / 环境 / 记忆分层 / 云端 / 水位线 / group_size 采样），
 仅去掉 RL 权重训练（无 Ray、无 FSDP、无第二份模型、无反向传播 / checkpoint）。
 
-复用件：mini_test 的 env_utils（进程内单环境）、agent_vllm（budget forcing）、
+复用件：mini_test 的 env_utils（进程内单环境）、agent_vllm（单次完整响应生成）、
 prod_prompt.ProdObsBuilder（与 env_manager.build_text_obs 逐字节对齐，注入共享 skill_lib）、
 run_generic 的解析/兜底工具；闭环三件套 + HierarchicalSkillLib + CoSkillCloudLoop。
 """
 import os
 import atexit
+import hashlib
 import json
 import uuid
 import argparse
@@ -30,6 +31,9 @@ from mini_test_pen_shelf.env_utils import (
 )
 from mini_test_pen_shelf.prod_prompt import ProdObsBuilder
 from mini_test_pen_shelf.run_generic import extract_task, parse_model_output
+
+
+SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
 
 
 def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
@@ -114,6 +118,7 @@ def _load_resume_state(args):
         "wins": 0,
         "per_game": [],
         "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
+        "small_model_token_accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
         "large_model_tokens": {"prompt": 0, "completion": 0, "total": 0},
         "cloud_updates": 0,
         "cloud_update_steps": [],
@@ -151,6 +156,12 @@ def _load_resume_state(args):
         key: int(saved_small_tokens.get(key, 0) or 0)
         for key in ("prompt", "response", "total")
     }
+    previous_accounting = saved_small_tokens.get("accounting")
+    if not previous_accounting and state["small_model_tokens"]["total"]:
+        previous_accounting = "vllm_request_tokens_two_stage"
+    if previous_accounting and previous_accounting != SMALL_MODEL_TOKEN_ACCOUNTING:
+        state["small_model_token_accounting"] = (
+            f"mixed:{previous_accounting}+{SMALL_MODEL_TOKEN_ACCOUNTING}")
     saved_large_tokens = (prev_summary.get("token_usage", {}) or {}).get("large_model", {}) or {}
     state["large_model_tokens"] = {
         key: int(saved_large_tokens.get(key, 0) or 0)
@@ -175,8 +186,8 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
     成功判定以环境 ``won`` 为权威（对所有 task_type 有效）。轨迹步保存模型实际看到的
     raw obs + 动作 + reward，供组 RawTrace 喂 TracesPool。
 
-    ``tag`` 仅用于逐步进度打印：每步含 2 次 vLLM budget-forcing 生成，冻结模型下
-    单步约 20-30s（enforce_eager + 长思考），max_steps=40 时一整局可达十几分钟。
+    ``tag`` 仅用于逐步进度打印：每个活跃环境步只发一次 vLLM 请求，直接生成完整
+    ``<think>...<action>...`` 响应。长思考下单步仍可能较慢，因此保留逐步打点。
     不打点会让终端长时间零输出、看起来像卡死——所以每步打一行，而不是等整局完再打。
     """
     import time as _time
@@ -277,7 +288,19 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
     return won, step, raw_trace, task_type, injected_ids, n_valid, logrows
 
 
-def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
+def _stable_game_id(game_file):
+    normalized = str(game_file).replace("\\", "/")
+    marker = "/json_2.1.1/"
+    return normalized.split(marker, 1)[1] if marker in normalized else normalized
+
+
+def _fixed_request_seed(base_seed, game_id, replica_index, step):
+    payload = f"{int(base_seed)}|{game_id}|{int(replica_index)}|{int(step)}".encode()
+    return int.from_bytes(hashlib.sha256(payload).digest()[:4], "big") & 0x7FFFFFFF
+
+
+def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
+                        fixed_replica_offsets=None):
     """Run one synchronous batch of ALFWorld episodes.
 
     A group is the unit that mimics one GRPO rollout batch: all active slots are
@@ -290,6 +313,19 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
     # TextWorld returns info as a dict of lists for batch envs.
     adms = infos["admissible_commands"]
     tasks = [extract_task(o) for o in obs_list]
+    fixed_seed_rows = None
+    if args.fixed_games_manifest:
+        game_files = infos.get("extra.gamefile")
+        if not game_files or len(game_files) != batch_size:
+            raise RuntimeError("fixed manifest rollout requires extra.gamefile for every slot")
+        offsets = fixed_replica_offsets or {}
+        seen = {}
+        fixed_seed_rows = []
+        for game_file in game_files:
+            game_id = _stable_game_id(game_file)
+            replica_index = int(offsets.get(game_id, 0)) + seen.get(game_id, 0)
+            seen[game_id] = seen.get(game_id, 0) + 1
+            fixed_seed_rows.append((game_id, replica_index))
     builders = [
         ProdObsBuilder(mem_lib=skill_lib, with_skills=bool(args.enable_coskill),
                        top_k=args.top_k, history_length=args.history_length)
@@ -332,7 +368,14 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
             builders[i].build(obs_list[i], adms[i], init=(step == 1))
             for i in active
         ]
-        raw_forced = agent.act_batch_with_meta(prompts)
+        request_seeds = ([
+            _fixed_request_seed(
+                args.seed, fixed_seed_rows[i][0], fixed_seed_rows[i][1], step)
+            for i in active
+        ] if fixed_seed_rows is not None else None)
+        seed_by_idx = ({i: request_seeds[j] for j, i in enumerate(active)}
+                       if request_seeds is not None else {})
+        raw_forced = agent.act_batch_with_meta(prompts, sampling_seeds=request_seeds)
         raws = [x[0] for x in raw_forced]
         forceds = [x[1] for x in raw_forced]
         active_adms = [adms[i] for i in active]
@@ -387,6 +430,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                 "strict_valid_action": action_detail["strict_valid_action"],
                 "execution_source": action_detail["execution_source"],
                 "direct_admissible_action": action_detail["direct_admissible_action"],
+                "sampling_seed": seed_by_idx.get(i),
             })
             if keep_logrows:
                 logrows[i].append({
@@ -397,6 +441,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
                     "strict_valid_action": action_detail["strict_valid_action"],
                     "execution_source": action_detail["execution_source"],
                     "direct_admissible_action": action_detail["direct_admissible_action"],
+                    "sampling_seed": seed_by_idx.get(i),
                     "forced": forced_by_idx[i], "obs": nobs_list[i],
                     "reward": reward, "won": slot_won,
                 })
@@ -428,6 +473,8 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag=""):
             "steps": steps[i],
             "meta": {
                 "skill_ids_used": injected_ids[i], "model_version": "frozen",
+                "fixed_game_id": (fixed_seed_rows[i][0] if fixed_seed_rows else None),
+                "fixed_replica_index": (fixed_seed_rows[i][1] if fixed_seed_rows else None),
                 "n_valid_actions": n_valid[i],
                 "valid_action_ratio": n_valid[i] / max(used[i], 1),
                 "n_non_strict_valid_actions": n_valid[i],
@@ -455,6 +502,34 @@ def _split_int(total: int, parts: int):
     return [base + (1 if i < rem else 0) for i in range(parts)]
 
 
+def _fixed_manifest_dp_plan(game_files, replicas_per_game: int, workers: int):
+    """Build a hardware-independent fixed-manifest rollout assignment.
+
+    Each manifest game must be evaluated exactly ``replicas_per_game`` times.
+    For <= number-of-games workers, a worker receives whole games and a batch
+    that is an exact multiple of its game count.  With more workers, games are
+    split across single-game workers.  This lets 2/4/8-GPU runs execute the
+    same trajectory multiset instead of changing task frequencies with DP.
+    """
+    games = list(game_files)
+    if not games or replicas_per_game < 1 or workers < 1:
+        raise ValueError("fixed manifest DP planning requires games, replicas and workers")
+    workers = min(int(workers), len(games) * int(replicas_per_game))
+    plan = []
+    if workers <= len(games):
+        assignments = [games[i::workers] for i in range(workers)]
+        plan = [(assigned, len(assigned) * replicas_per_game)
+                for assigned in assignments]
+    else:
+        worker_counts = _split_int(workers, len(games))
+        for game, game_workers in zip(games, worker_counts):
+            for chunk in _split_int(replicas_per_game, game_workers):
+                plan.append(([game], chunk))
+    assert len(plan) == workers
+    assert sum(batch for _, batch in plan) == len(games) * replicas_per_game
+    return plan
+
+
 def _token_delta(after, before):
     """Subtract two ``{prompt,response,total}`` cumulative token snapshots."""
     prompt = max(0, int(after.get("prompt", 0)) - int(before.get("prompt", 0)))
@@ -463,7 +538,8 @@ def _token_delta(after, before):
 
 
 def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
-                       fixed_batch_size, in_q, out_q, resume_skip_groups=0):
+                       fixed_batch_size, fixed_replica_offsets, in_q, out_q,
+                       resume_skip_groups=0):
     """Persistent rollout worker for single-GPU data parallel inference.
 
     The worker owns one ALFWorld batch env and one vLLM engine pinned to one GPU.
@@ -524,6 +600,7 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             cmd = in_q.get()
             if cmd is None:
                 print(f"[dp-worker{worker_id}] shutdown")
+                agent.close()
                 return
             group_id = cmd.get("group_id")
             skill_path = cmd["skill_path"]
@@ -543,7 +620,8 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
                 )
                 tag = f" group{group_id} worker{worker_id} gpu={gpu_id}"
                 results = rollout_batch_group(
-                    env, agent, skill_lib, args, fixed_batch_size, tag=tag
+                    env, agent, skill_lib, args, fixed_batch_size, tag=tag,
+                    fixed_replica_offsets=fixed_replica_offsets,
                 )
                 token_usage = _token_delta(agent.get_token_usage(), tokens_before)
                 out_q.put({
@@ -651,6 +729,9 @@ def main():
     ap.add_argument("--enable_playbook_evolve",
                     dest="enable_playbook_evolve", type=int, help=argparse.SUPPRESS)
     ap.add_argument("--enable_failure_analysis", type=int, default=1)
+    ap.add_argument("--enable_cloud_updates", type=int, default=1,
+                    help="0 keeps collecting raw traces/metrics but freezes the skill library. "
+                         "Used by fixed-artifact evaluation; default preserves the closed loop.")
     ap.add_argument("--max_new_skills", type=int, default=3)
     ap.add_argument("--skill_tree_evolve_min_samples",
                     dest="playbook_evolve_min_samples", type=int, default=6,
@@ -658,11 +739,19 @@ def main():
     ap.add_argument("--playbook_evolve_min_samples",
                     dest="playbook_evolve_min_samples", type=int, help=argparse.SUPPRESS)
     ap.add_argument("--coskill_debug", type=int, default=0)
+    ap.add_argument("--required_tree_depth", type=int, default=0,
+                    help="Require a cloud-authored tree with exactly this many heading levels; 0 disables.")
+    ap.add_argument("--tree_depth_repair_attempts", type=int, default=0,
+                    help="Same-evidence cloud repair attempts after a fixed-depth tree fails validation.")
     # --- 轨迹池水位线（对齐训练脚本）---
     ap.add_argument("--capacity_watermark", type=int, default=50000)
     ap.add_argument("--perf_watermark", type=float, default=0.6)
     ap.add_argument("--min_samples", type=int, default=16)
     ap.add_argument("--loop_threshold", type=int, default=3)
+    ap.add_argument("--trace_enable_loop_filter", type=int, default=1)
+    ap.add_argument("--trace_enable_obs_delta", type=int, default=1)
+    ap.add_argument("--trace_enable_prefix_tree", type=int, default=1)
+    ap.add_argument("--trace_enable_consensus_prefix", type=int, default=1)
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--log_trajectories", type=int, default=1)
     ap.add_argument("--resume", type=int, default=0,
@@ -703,6 +792,10 @@ def main():
         min_samples=args.min_samples,
         loop_threshold=args.loop_threshold,
         output_dir=args.outdir,
+        enable_loop_filter=bool(args.trace_enable_loop_filter),
+        enable_obs_delta=bool(args.trace_enable_obs_delta),
+        enable_prefix_tree=bool(args.trace_enable_prefix_tree),
+        enable_consensus_prefix=bool(args.trace_enable_consensus_prefix),
     )
 
     # 3) 共享云端编排（trainer 也用同一个类）。
@@ -715,6 +808,8 @@ def main():
         playbook_evolve_min_samples=args.playbook_evolve_min_samples,
         coskill_debug=bool(args.coskill_debug),
         environment_name="ALFWorld",
+        required_tree_depth=(args.required_tree_depth or None),
+        tree_depth_repair_attempts=args.tree_depth_repair_attempts,
     )
 
     # 4) 建所有 task_type 的环境（在加载 vLLM/CUDA 之前！）。
@@ -803,23 +898,54 @@ def main():
                 worker_gpus = [g.strip() for g in raw.splitlines() if g.strip()]
             except Exception:
                 worker_gpus = [str(i) for i in range(data_parallel_workers)]
+        fixed_balanced = bool(
+            args.fixed_games_manifest
+            and batch_rollout_size == len(all_game_files) * int(args.group_size)
+        )
+        if fixed_balanced:
+            worker_plan = _fixed_manifest_dp_plan(
+                all_game_files, int(args.group_size), data_parallel_workers)
+            data_parallel_workers = len(worker_plan)
+        else:
+            dp_worker_batch_sizes = _split_int(batch_rollout_size, data_parallel_workers)
+            worker_plan = [
+                (all_game_files[wid::data_parallel_workers] or list(all_game_files), worker_bs)
+                for wid, worker_bs in enumerate(dp_worker_batch_sizes)
+            ]
         if len(worker_gpus) < data_parallel_workers:
             raise ValueError(f"data_parallel_workers={data_parallel_workers} but only "
                              f"{len(worker_gpus)} GPU ids available: {worker_gpus}")
         worker_gpus = worker_gpus[:data_parallel_workers]
-        dp_worker_batch_sizes = _split_int(batch_rollout_size, data_parallel_workers)
+        dp_worker_batch_sizes = [batch for _, batch in worker_plan]
+        replica_counts = {}
+        worker_replica_offsets = []
+        for worker_games, worker_bs in worker_plan:
+            if fixed_balanced:
+                per_game = worker_bs // len(worker_games)
+                offsets = {}
+                for game_file in worker_games:
+                    game_id = _stable_game_id(game_file)
+                    offsets[game_id] = replica_counts.get(game_id, 0)
+                    replica_counts[game_id] = offsets[game_id] + per_game
+                worker_replica_offsets.append(offsets)
+            else:
+                worker_replica_offsets.append({})
+        if fixed_balanced and set(replica_counts.values()) != {int(args.group_size)}:
+            raise RuntimeError(
+                f"fixed manifest replica allocation is not balanced: {replica_counts}")
 
         ctx = mp.get_context("spawn")
         dp_out_q = ctx.Queue()
         args_dict = vars(args).copy()
         args_dict["tensor_parallel_size"] = 1
-        for wid, (gpu_id, worker_bs) in enumerate(zip(worker_gpus, dp_worker_batch_sizes)):
-            worker_games = all_game_files[wid::data_parallel_workers] or list(all_game_files)
+        for wid, (gpu_id, (worker_games, worker_bs), replica_offsets) in enumerate(
+                zip(worker_gpus, worker_plan, worker_replica_offsets)):
             in_q = ctx.Queue(maxsize=2)
             proc = ctx.Process(
                 target=_dp_rollout_worker,
                 args=(wid, gpu_id, args_dict, worker_games, all_tids,
-                      worker_bs, in_q, dp_out_q, resume_state["completed_groups"]),
+                      worker_bs, replica_offsets, in_q, dp_out_q,
+                      resume_state["completed_groups"]),
                 daemon=False,
             )
             # ``spawn`` captures environment variables before the target body
@@ -839,7 +965,8 @@ def main():
             dp_in_queues.append(in_q)
             dp_processes.append(proc)
         print(f"[driver] data_parallel_workers={data_parallel_workers} "
-              f"gpus={worker_gpus} worker_batch_sizes={dp_worker_batch_sizes}; "
+              f"gpus={worker_gpus} worker_batch_sizes={dp_worker_batch_sizes} "
+              f"fixed_manifest_balanced={fixed_balanced}; "
               "main process will aggregate trajectories and run cloud updates")
     else:
         if batch_rollout_size == 1:
@@ -896,6 +1023,8 @@ def main():
     cloud_updates = int(resume_state.get("cloud_updates", 0) or 0)
     cloud_update_steps = list(resume_state.get("cloud_update_steps", []) or [])
     small_model_token_totals = dict(resume_state.get("small_model_tokens", {}))
+    small_model_token_accounting = resume_state.get(
+        "small_model_token_accounting", SMALL_MODEL_TOKEN_ACCOUNTING)
     large_model_token_offset = dict(resume_state.get("large_model_tokens", {}))
 
     # env.seed() 只在 make_single_env() 建环境时调用过一次（见上方注释）：接下来的
@@ -1070,7 +1199,7 @@ def main():
             "tokens/small_model/prompt": int(small_tokens.get("prompt", 0) or 0),
             "tokens/small_model/response": int(small_tokens.get("response", 0) or 0),
             "tokens/small_model/total": int(small_tokens.get("total", 0) or 0),
-            "tokens/small_model/accounting": "vllm_request_tokens_two_stage",
+            "tokens/small_model/accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
             "tokens/small_model/prompt_cumulative": small_model_token_totals["prompt"],
             "tokens/small_model/response_cumulative": small_model_token_totals["response"],
             "tokens/small_model/total_cumulative": small_model_token_totals["total"],
@@ -1157,6 +1286,16 @@ def main():
             "skill_tree_enabled": enable_skill_tree,
             "skill_tree_evolve_enabled": enable_skill_tree_evolve,
             "skill_bullets_enabled": enable_coskill,
+            "cloud_updates_enabled": bool(args.enable_cloud_updates),
+            "required_tree_depth": int(args.required_tree_depth or 0),
+            "tree_depth_repair_attempts": int(args.tree_depth_repair_attempts),
+            "trace_compression": {
+                "enable_loop_filter": bool(args.trace_enable_loop_filter),
+                "enable_obs_delta": bool(args.trace_enable_obs_delta),
+                "enable_prefix_tree": bool(args.trace_enable_prefix_tree),
+                "enable_consensus_prefix": bool(args.trace_enable_consensus_prefix),
+                "accounting": "chars_div_4",
+            },
             "cloud_update_every": args.cloud_update_every,
             "cloud_update_steps": cloud_update_steps,
             "total_games_combined_pool": total_games,
@@ -1167,7 +1306,10 @@ def main():
             # Backward-compatible scalar: max version among task trees.
             "skill_tree_version": max([rec["version"] for rec in trees.values()] or [0]),
             "token_usage": {
-                "small_model": dict(small_model_token_totals),
+                "small_model": {
+                    **dict(small_model_token_totals),
+                    "accounting": small_model_token_accounting,
+                },
                 "large_model": _large_model_token_usage(),
             },
             "final_coskill_metrics": cloud_loop.metrics(traces_pool, skill_lib),
@@ -1290,9 +1432,9 @@ def main():
                     force_reason = f"episode_interval_{args.cloud_update_every}"
                 large_before = _large_model_token_usage()
                 cloud_started = time.time()
-                fired = cloud_loop.maybe_update(
+                fired = (cloud_loop.maybe_update(
                     traces_pool, skill_lib, global_step, force_reason=force_reason
-                )
+                ) if args.enable_cloud_updates else False)
                 cloud_seconds = time.time() - cloud_started
                 large_after = _large_model_token_usage()
                 if fired:
@@ -1344,9 +1486,9 @@ def main():
                     force_reason = f"episode_interval_{args.cloud_update_every}"
                 large_before = _large_model_token_usage()
                 cloud_started = time.time()
-                fired = cloud_loop.maybe_update(
+                fired = (cloud_loop.maybe_update(
                     traces_pool, skill_lib, global_step, force_reason=force_reason
-                )
+                ) if args.enable_cloud_updates else False)
                 cloud_seconds = time.time() - cloud_started
                 large_after = _large_model_token_usage()
                 ep_record["cloud_update_fired_after_episode"] = bool(fired)
@@ -1396,9 +1538,9 @@ def main():
                 force_reason = f"episode_interval_{args.cloud_update_every}"
             large_before = _large_model_token_usage()
             cloud_started = time.time()
-            fired = cloud_loop.maybe_update(
+            fired = (cloud_loop.maybe_update(
                 traces_pool, skill_lib, global_step, force_reason=force_reason
-            )
+            ) if args.enable_cloud_updates else False)
             cloud_seconds = time.time() - cloud_started
             large_after = _large_model_token_usage()
             if fired:

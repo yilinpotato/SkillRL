@@ -230,7 +230,8 @@ class WebShopObsBuilder:
     def __init__(self, *, mem_lib=None, skills_json_path: Optional[str] = None,
                  history_length: int = 8, with_skills: bool = True,
                  top_k: int = 6, enable_skill_tree: bool = True,
-                 prompt_char_limit: int = DEFAULT_WEBSHOP_PROMPT_CHAR_LIMIT):
+                 prompt_char_limit: int = DEFAULT_WEBSHOP_PROMPT_CHAR_LIMIT,
+                 fixed_playbook: Optional[str] = None):
         self.mem_lib = mem_lib or SkillsOnlyMemory(
             skills_json_path=skills_json_path,
             retrieval_mode="template",
@@ -242,12 +243,22 @@ class WebShopObsBuilder:
         self.enable_skill_tree = bool(getattr(
             self.mem_lib, "enable_playbook", enable_skill_tree))
         self.prompt_char_limit = int(prompt_char_limit)
+        self.fixed_playbook = str(fixed_playbook or "").strip()
         self.history = SimpleMemory()
         self.retrieved = None
         self.task = ""
 
     def _retrieval_active(self):
-        return self.enable_skill_tree or self.with_skills
+        return bool(self.fixed_playbook) or self.enable_skill_tree or self.with_skills
+
+    def _memory_text(self):
+        """Render optional fixed mini-test playbook plus normal retrieved memory."""
+        sections = []
+        if self.fixed_playbook:
+            sections.append(self.fixed_playbook)
+        if self.enable_skill_tree or self.with_skills:
+            sections.append(self.mem_lib.format_for_prompt(self.retrieved))
+        return "\n\n".join(section for section in sections if section)
 
     def reset(self, task: str):
         self.task = task
@@ -271,7 +282,7 @@ class WebShopObsBuilder:
         # same template as the Ray path: ``format_for_prompt`` already places a
         # learned tree first, so prepending it separately would duplicate it.
         if self._retrieval_active():
-            memories = self.mem_lib.format_for_prompt(self.retrieved)
+            memories = self._memory_text()
             return WEBSHOP_TEMPLATE_WITH_MEMORY.format(
                 task_description=self.task,
                 retrieved_memories=memories,
@@ -296,7 +307,7 @@ class WebShopObsBuilder:
         recent_records = self.history[0][-self.history_length:]
         first_step = step_count - len(recent_records) + 1
         retrieved_memories = (
-            self.mem_lib.format_for_prompt(self.retrieved)
+            self._memory_text()
             if self._retrieval_active() else None
         )
 

@@ -137,6 +137,34 @@ export AZURE_OPENAI_ENDPOINT=""
 
 ## 🏃 Training
 
+### CoSkill Tree-RL（2/4/8 GPU 与 Docker）
+
+CoSkill 的渐进式技能树内化由统一入口启动；始终保持每步 `12×6=72` 条
+rollout，并按可见算力自动采用 DP=2/4、TP=PP=1；8 卡节点切为两个独立 4 卡
+slot，从而并发两个实验且不改变 PPO 几何。通过
+`TREE_RL_ORDER=root|leaf` 选择从根或叶开始，模型 checkpoint 与
+`skills_tree_rl_latest.json` 会一起自动恢复。
+
+```bash
+# ALFWorld，叶到根
+rl=1 TREE_RL_ORDER=leaf \
+  bash examples/playbook_evolve/run_alfworld_playbook_evolve_norl.sh
+
+# WebShop，根到叶
+rl=1 TREE_RL_ORDER=root \
+  bash examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh
+```
+
+冻结 no-RL 路径和 Ray Tree-RL 路径现在都在每个活跃环境步只执行一次完整
+`<think>...</think><action>...</action>` 生成。实际 prompt/response token 增量和
+累计值写入主 `metrics.jsonl`/`group_metrics.jsonl`，不会再重复计入第二次动作请求。
+
+自包含 Docker 镜像会固化当前 `skillRL` Conda 环境，并内嵌 ALFWorld 文本数据、
+WebShop 1000 商品数据与索引。它提供 `alfworld-root`、`alfworld-leaf`、
+`webshop-root`、`webshop-leaf` 四个入口；模型可挂载，也可在首次启动时由
+ModelScope 自动下载。构建与运行命令见
+[docker/coskill/README.md](docker/coskill/README.md)。
+
 ### Memory Data Generation
 The first step of our training pipeline uses the base model to generate memory data. This data serves as the foundation for the agent's initial experiences. The specific prompt used to guide this generation can be found at: `memory_data/prompt/prompt.txt`.
 

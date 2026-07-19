@@ -150,8 +150,7 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 if [ -z "${WEBSHOP_DATA_DIR:-}" ]; then
     for candidate in \
         "$PROJECT_ROOT/agent_system/environments/env_package/webshop/webshop/data" \
-        "$(dirname "$PROJECT_ROOT")/Skill0/agent_system/environments/env_package/webshop/webshop/data" \
-        "/data2/myl/Skill0/agent_system/environments/env_package/webshop/webshop/data"
+        "$(dirname "$PROJECT_ROOT")/Skill0/agent_system/environments/env_package/webshop/webshop/data"
     do
         if [ -f "$candidate/items_shuffle_1000.json" ] \
             && [ -f "$candidate/items_ins_v2_1000.json" ] \
@@ -194,16 +193,17 @@ LOG_TRAJECTORIES="${LOG_TRAJECTORIES:-0}"
 # standard 100-group run; these files do not feed learning or evaluation.
 THINK_TRACE_SAMPLES_PER_GROUP="${THINK_TRACE_SAMPLES_PER_GROUP:-1}"
 THINK_TRACE_EVERY_GROUPS="${THINK_TRACE_EVERY_GROUPS:-10}"
-# Match both GRPO WebShop paths: an 8,192-token prompt budget plus a 4,096-token
-# response budget.  CoSkill's two-stage generator reserves the latter as
-# 3,840 thinking tokens + 256 action tokens.
+# Match both GRPO WebShop paths: an 8,192-token prompt budget plus one 4,096-token
+# response request containing the complete think+action protocol. THINK_BUDGET
+# and ACTION_BUDGET remain CLI-compatible metadata; they no longer split vLLM
+# into two requests.
 PROMPT_CHAR_LIMIT="${PROMPT_CHAR_LIMIT:-24000}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-12288}"
 MAX_TOKENS="${MAX_TOKENS:-4096}"
 THINK_BUDGET="${THINK_BUDGET:-3840}"
 ACTION_BUDGET="${ACTION_BUDGET:-256}"
-if [ $((THINK_BUDGET + ACTION_BUDGET)) -gt "$MAX_TOKENS" ]; then
-    echo "THINK_BUDGET + ACTION_BUDGET must not exceed MAX_TOKENS" >&2
+if [ "$THINK_BUDGET" -le 0 ] || [ "$ACTION_BUDGET" -le 0 ]; then
+    echo "Legacy THINK_BUDGET and ACTION_BUDGET metadata must remain positive" >&2
     exit 1
 fi
 
@@ -218,7 +218,7 @@ echo "WebShop data: $WEBSHOP_DATA_DIR"
 echo "Rollout standard: train=$TRAIN_DATA_SIZE val=$VAL_DATA_SIZE group_size=$GROUP_SIZE groups=$TOTAL_GROUPS max_episodes=$MAX_EPISODES"
 echo "Held-out validation: split=[0,500) goals=$VAL_DATA_SIZE every=$VALIDATION_EVERY_GROUPS groups before_train=$VALIDATION_BEFORE_TRAIN temp=$VALIDATION_TEMPERATURE"
 echo "Resume: $RESUME (requires checkpoint-consistent summary_partial.json in OUTPUT_DIR)"
-echo "Token standard: prompt<=8192, response=$MAX_TOKENS (think=$THINK_BUDGET action=$ACTION_BUDGET)"
+echo "Token standard: prompt<=8192, one response<=$MAX_TOKENS (legacy think=$THINK_BUDGET action=$ACTION_BUDGET)"
 echo "Thought audit: $THINK_TRACE_SAMPLES_PER_GROUP samples at group 1 and every $THINK_TRACE_EVERY_GROUPS groups"
 echo "Outputs: $OUTPUT_DIR"
 

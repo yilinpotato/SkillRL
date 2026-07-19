@@ -1,0 +1,141 @@
+# CoSkill ALFWorld Ablation Container
+
+This image runs both fixed-trajectory experiments from one immutable code and
+environment snapshot:
+
+- representation: `none / flat_claude / tree_depth_1..5`;
+- compression: `compression_all_on / compression_all_off`.
+
+Bootstrap keeps CoSkill's flat-skill and tree prompt switches enabled, but
+uses an explicitly persisted **empty** skill library. It therefore preserves
+the normal prompt/retrieval framework without injecting a historical seed
+skill. A frozen corpus without this recorded protocol is rejected rather than
+silently reused. For each fixed tree-depth arm, cloud generation may make up
+to 20 same-evidence attempts to produce every required semantic heading level;
+an arm that still fails is saved as `N.A.` and skipped while all other arms
+continue. No local heading padding or tree pruning is used.
+
+The Conda environment inside the image is named `skillRL`. Its tested core is
+Python 3.10, Torch 2.8 + CUDA 12.8, vLLM 0.11, Ray 2.50 and Transformers 4.57.3.
+The default image is made with `conda-pack` from the already tested host
+`skillRL` environment, so Torch/vLLM/Ray and compiled dependencies are not
+resolved again. The fully resolved package list is stored inside each image at
+`/opt/skillRL-runtime-freeze.txt`. Set `USE_PACKED_ENV=0` only when a clean
+rebuild from `environment.yml` and `requirements.txt` is specifically needed.
+
+## Build
+
+By default ALFWorld data is included and the model is downloaded from
+ModelScope on first run. The downloaded model is retained in the mounted cache.
+
+```bash
+cd /path/to/CoSkill
+export ALFWORLD_SOURCE=/path/to/alfworld
+mkdir -p .docker-assets
+conda run -n skillRL conda-pack -n skillRL --ignore-editable-packages \
+  -o "$PWD/.docker-assets/skillRL-conda.tar.gz"
+site="$(conda run -n skillRL python -c 'import site; print(site.getsitepackages()[0])' | tail -1)"
+tar -C "$site" -czf "$PWD/.docker-assets/faiss-overlay.tar.gz" \
+  faiss faiss_cpu-1.13.2.dist-info faiss_cpu.libs
+bash docker/build_alfworld_ablation_image.sh
+```
+
+The small FAISS overlay is required because this development environment has a
+pip `faiss-cpu` upgrade over an older conda package; without the overlay,
+`conda-pack` can restore overlapping tracked files in a mixed state.
+
+No `sudo` is required for the build when rootless Docker is installed. A
+one-time setup on a machine that already provides `dockerd-rootless-setuptool.sh`,
+`newuidmap/newgidmap`, and entries for the user in `/etc/subuid` and
+`/etc/subgid` is:
+
+```bash
+dockerd-rootless-setuptool.sh install --skip-iptables
+export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
+docker info | grep -E 'Context|Docker Root Dir|rootless'
+```
+
+Keep Docker storage on a large filesystem by setting `data-root` in
+`~/.config/docker/daemon.json` before building. Rootless Docker only removes
+the privilege requirement; GPU execution on the target still needs an
+administrator-provided NVIDIA Container Toolkit/CDI configuration.
+
+To build once and copy the image to a server without registry access:
+
+```bash
+EXPORT_TAR=/path/to/coskill-alfworld-ablation.tar.gz \
+ALFWORLD_SOURCE=/path/to/alfworld \
+PACKED_ENV_ARCHIVE=/path/to/skillRL-conda.tar.gz \
+bash docker/build_alfworld_ablation_image.sh
+# On the target server: docker load -i coskill-alfworld-ablation.tar.gz
+```
+
+To make a fully self-contained private image, also include the existing model:
+
+```bash
+export ALFWORLD_SOURCE=/path/to/alfworld
+export INCLUDE_MODEL=1
+export MODEL_SOURCE=/path/to/Qwen3-4B-Thinking-2507
+bash docker/build_alfworld_ablation_image.sh
+```
+
+For a slim image, set `INCLUDE_ALFWORLD=0` and mount data at runtime. Do not
+publish data/model-inclusive images without checking their licenses.
+
+## Run
+
+API keys stay outside the image. Put `DEEPSEEK_API_KEY` and optional backend
+settings in the repository shell-format `.env`; the run helper loads it and
+forwards only the supported variable names, never copying it into the image.
+Before occupying a GPU, validate client configuration and optionally make one
+minimal real request:
+
+```bash
+bash docker/run_alfworld_ablation_container.sh cloud-check
+bash docker/run_alfworld_ablation_container.sh cloud-check --probe
+```
+
+```bash
+# Shared local machine: helper checks physical GPU 0 is idle.
+bash docker/run_alfworld_ablation_container.sh --phase all
+
+# Two A800s.
+CUDA_VISIBLE_DEVICES=0,1 \
+HOST_OUTPUT_ROOT=/path/to/output \
+bash docker/run_alfworld_ablation_container.sh --phase all
+
+# Four A800s.
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+HOST_OUTPUT_ROOT=/path/to/output \
+bash docker/run_alfworld_ablation_container.sh --phase all
+
+# Eight A100/A800/H20 GPUs (the helper also accepts any visible subset).
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+HOST_OUTPUT_ROOT=/path/to/output \
+bash docker/run_alfworld_ablation_container.sh --phase all
+```
+
+Visible GPUs use data parallelism with one vLLM replica per GPU. TP and PP stay
+at 1, and the global rollout count remains 36. Fixed-manifest work is balanced
+so every one of the six games is still rolled out exactly six times on 1, 2,
+4, or 8 visible GPUs; hardware changes throughput without changing the task
+multiset. Each request seed is derived from the fixed game ID, replica index,
+and environment step rather than the worker number, so changing DP does not
+change the sampling seed table. Reuse the same
+`HOST_OUTPUT_ROOT` to resume completed phases/artifacts.
+
+If data was not included, invoke `docker run` directly and mount it read-only at
+`/opt/data/alfworld`. Persistent paths are `/workspace/outputs` and
+`/workspace/cache`.
+
+## Quick checks
+
+```bash
+docker run --rm --gpus '"device=0"' \
+  coskill-alfworld-fixed-ablation:skillrl-cu128 \
+  python -c 'import torch,vllm,ray; print(torch.__version__,vllm.__version__,ray.__version__)'
+
+docker run --rm --gpus '"device=0"' \
+  coskill-alfworld-fixed-ablation:skillrl-cu128 \
+  python -m pytest -q tests/agent_system/memory/test_fixed_trajectory_ablation.py
+```

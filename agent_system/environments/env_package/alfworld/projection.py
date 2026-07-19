@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple
 import re
+from typing import List, Tuple
 
 
 def salvage_action_from_back(raw: str, adm: List[str]) -> Tuple[str, bool]:
@@ -81,33 +81,36 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]],
         execution_source = "direct"
         if matched_directly:
             actions[i] = lowered_pool[extracted_action]
+            recovered_from_model = True
         else:
             salvaged, ok = salvage_action_from_back(original_str, pool)
             if ok:
                 actions[i] = salvaged
                 execution_source = "salvaged"
+                recovered_from_model = True
             else:
                 actions[i] = "look" if "look" in pool else (pool[0] if pool else "look")
                 execution_source = "fallback"
+                recovered_from_model = False
 
-        # The original SkillRL ALFWorld reward contract deliberately does not
-        # require a direct admissible-command match.  Qwen Thinking can put the
-        # opening <think> in the prompt, so a response-side closing tag is the
-        # stable evidence that reasoning completed.  Keep this relaxed predicate
-        # for the invalid-action penalty; direct admissibility remains available
-        # below as a strict diagnostic only.
+        # The non-strict reward contract accepts any action recovered from the
+        # model text that exactly matches the current admissible set.  Protocol
+        # formatting remains visible as a strict diagnostic, but a missing tag
+        # does not add an extra penalty when the intended action is executable.
         think_start_idx = original_str.find("<think>")
         think_end_idx = original_str.find("</think>")
         has_think_block = think_start_idx != -1 and think_end_idx != -1
 
         contains_cjk = bool(re.search(r'[\u4e00-\u9fff]', original_str))
-        has_closed_think = think_end_idx != -1
-        valids[i] = int(format_valid and has_closed_think and not contains_cjk)
+        relaxed_protocol_valid = bool(
+            format_valid and think_end_idx != -1 and not contains_cjk)
+        non_strict_valid = bool(recovered_from_model or relaxed_protocol_valid)
+        valids[i] = int(non_strict_valid)
 
         # Strict validity is only diagnostic: it preserves the stronger CoSkill
         # protocol check without using it to add an extra reward penalty.
-        strict_valid_action = bool(valids[i]) and (
-            matched_directly
+        strict_valid_action = bool(format_valid and matched_directly) and (
+            not contains_cjk
             and original_str.count("<think>") == 1
             and original_str.count("</think>") == 1
             and original_str.count("<action>") == 1
@@ -115,7 +118,7 @@ def alfworld_projection(actions: List[str], action_pools: List[List[str]],
             and think_start_idx < think_end_idx < start_idx < end_idx
         )
         details.append({
-            "valid_action": bool(valids[i]),
+            "valid_action": non_strict_valid,
             "strict_valid_action": strict_valid_action,
             "execution_source": execution_source,
             "has_action_block": bool(format_valid),

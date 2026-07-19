@@ -27,7 +27,8 @@ def test_bare_completion_is_not_granted_prompt_prefill_compatibility():
 
     _actions, valids, details = webshop_projection([rendered], return_details=True)
     assert restored is False
-    assert valids == [0]
+    assert valids == [1]
+    assert details[0]["valid_action"] is True
     assert details[0]["strict_valid_action"] is False
 
 

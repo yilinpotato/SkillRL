@@ -79,6 +79,10 @@ class TracesPool:
         stagnation_delta: float = 0.05,
         decline_delta: float = 0.05,
         stagnation_success_ceiling: float = 0.95,
+        enable_loop_filter: bool = True,
+        enable_obs_delta: bool = True,
+        enable_prefix_tree: bool = True,
+        enable_consensus_prefix: bool = True,
     ):
         """
         Args:
@@ -103,6 +107,13 @@ class TracesPool:
         self.stagnation_delta = stagnation_delta
         self.decline_delta = decline_delta
         self.stagnation_success_ceiling = stagnation_success_ceiling
+        # These switches are intentionally independent.  They are primarily
+        # used by fixed-trajectory ablations; their defaults preserve the
+        # production compression behaviour.
+        self.enable_loop_filter = bool(enable_loop_filter)
+        self.enable_obs_delta = bool(enable_obs_delta)
+        self.enable_prefix_tree = bool(enable_prefix_tree)
+        self.enable_consensus_prefix = bool(enable_consensus_prefix)
 
         # 压缩后轨迹按 task_type + outcome 分桶
         self._success: Dict[str, deque] = defaultdict(lambda: deque(maxlen=max_keep_per_type))
@@ -142,8 +153,27 @@ class TracesPool:
             outcome = "success" if raw_trace.get("episode_reward", 0) > 0 else "failure"
 
         steps = raw_trace.get("steps", []) or []
-        cleaned, dropped = self._filter_loops(steps)
-        diff_steps = self._diff_compress(cleaned)
+        raw_steps = list(steps)
+        if self.enable_loop_filter:
+            cleaned, dropped = self._filter_loops(raw_steps)
+        else:
+            cleaned, dropped = raw_steps, 0
+        if self.enable_obs_delta:
+            encoded_steps = self._diff_compress(cleaned)
+        else:
+            # Do not emit an ``obs_delta`` field in the all-off payload: this
+            # makes it mechanically auditable that the cloud saw raw
+            # observations rather than a delta representation.
+            encoded_steps = self._full_observation_steps(cleaned)
+
+        stage_tokens = {
+            "raw": self._steps_tokens(raw_steps, observation_key="observation"),
+            "loop_filtered": self._steps_tokens(cleaned, observation_key="observation"),
+            "encoded": self._steps_tokens(
+                encoded_steps,
+                observation_key="obs_delta" if self.enable_obs_delta else "observation",
+            ),
+        }
 
         diff_trace = {
             "traj_uid": raw_trace.get("traj_uid", str(uuid.uuid4())),
@@ -157,9 +187,23 @@ class TracesPool:
             # strict score==1.0 for success.  Preserve it so the cloud can tell
             # a near match from a completely wrong purchase.
             "task_score": (raw_trace.get("meta") or {}).get("task_score"),
-            "steps": diff_steps,
+            "steps": encoded_steps,
             "dropped_loops": dropped,
             "skill_ids_used": (raw_trace.get("meta") or {}).get("skill_ids_used", []),
+            "compression_trace_stats": {
+                "raw_steps": len(raw_steps),
+                "loop_filtered_steps": len(cleaned),
+                "encoded_steps": len(encoded_steps),
+                "tokens": stage_tokens,
+                "chars": {
+                    "raw": self._steps_chars(raw_steps, observation_key="observation"),
+                    "loop_filtered": self._steps_chars(cleaned, observation_key="observation"),
+                    "encoded": self._steps_chars(
+                        encoded_steps,
+                        observation_key="obs_delta" if self.enable_obs_delta else "observation",
+                    ),
+                },
+            },
         }
 
         bucket = self._success if outcome == "success" else self._failure
@@ -167,8 +211,7 @@ class TracesPool:
         self._recent_outcomes[task_type].append(outcome)
 
         # 水位线计数：用压缩后的 token 估计
-        tok = sum(_approx_tokens(s.get("obs_delta", "")) + _approx_tokens(s.get("action", ""))
-                  for s in diff_steps)
+        tok = stage_tokens["encoded"]
         self._token_count += tok
         self._n_added += 1
         self._total_added += 1
@@ -251,6 +294,25 @@ class TracesPool:
             })
             prev_lines = cur_lines
         return diff_steps
+
+    @staticmethod
+    def _full_observation_steps(steps: List[dict]) -> List[dict]:
+        """Return an uncompressed cloud representation with raw observations."""
+        return [{
+            "action": (s.get("action") or "").strip(),
+            "observation": (s.get("observation") or "").strip(),
+            "reward": s.get("reward", 0) or 0,
+        } for s in steps]
+
+    @staticmethod
+    def _steps_chars(steps: List[dict], observation_key: str) -> int:
+        return sum(len(str(s.get(observation_key, "") or "")) +
+                   len(str(s.get("action", "") or "")) for s in steps)
+
+    @classmethod
+    def _steps_tokens(cls, steps: List[dict], observation_key: str) -> int:
+        return sum(_approx_tokens(s.get(observation_key, "")) +
+                   _approx_tokens(s.get("action", "")) for s in steps)
 
     @staticmethod
     def _line_delta(prev_lines: List[str], cur_lines: List[str]) -> str:
@@ -381,14 +443,15 @@ class TracesPool:
         n_succ, n_fail = len(success_samples), len(failure_samples)
         total = n_succ + n_fail
         # 共识前缀：成功轨迹一致的最长起始动作段（端侧已掌握，不需重教）。
-        consensus = longest_common_action_prefix(success_samples)
+        consensus = (longest_common_action_prefix(success_samples)
+                     if self.enable_consensus_prefix else [])
+        prefix_tree = self._merge_prefix_tree(all_samples) if self.enable_prefix_tree else None
         batch = {
             "batch_id": str(uuid.uuid4()),
             "trigger_reason": trigger_reason,
             "task_type": task_type or "ALL",
             "success_samples": success_samples,
             "failure_samples": failure_samples,
-            "consensus_prefix": consensus,
             "stats": {
                 "n_success": n_succ,
                 "n_failure": n_fail,
@@ -396,8 +459,27 @@ class TracesPool:
                 "dropped_loops_total": self._total_dropped_loops,
                 "consensus_len": len(consensus),
             },
-            "prefix_tree": self._merge_prefix_tree(all_samples),
+            "compression": {
+                "enable_loop_filter": self.enable_loop_filter,
+                "enable_obs_delta": self.enable_obs_delta,
+                "enable_prefix_tree": self.enable_prefix_tree,
+                "enable_consensus_prefix": self.enable_consensus_prefix,
+                "accounting": "chars_div_4",
+                "trace_stage_totals": self._batch_trace_stage_totals(all_samples),
+                "consensus_prefix": {
+                    "steps": len(consensus),
+                    "chars": sum(len(action) for action in consensus),
+                    "tokens": sum(_approx_tokens(action) for action in consensus),
+                },
+            },
         }
+        if self.enable_consensus_prefix:
+            batch["consensus_prefix"] = consensus
+        if self.enable_prefix_tree:
+            batch["prefix_tree"] = prefix_tree
+            batch["compression"]["prefix_tree"] = self._prefix_tree_stats(
+                prefix_tree, self._batch_trace_stage_totals(all_samples)["encoded"]["steps"]
+            )
 
         # 清空已导出桶
         for t in types:
@@ -409,6 +491,48 @@ class TracesPool:
         if self.output_dir is not None:
             self._dump_batch(batch)
         return batch
+
+    @staticmethod
+    def _batch_trace_stage_totals(traces: List[dict]) -> dict:
+        totals = {
+            "raw": {"steps": 0, "chars": 0, "tokens": 0},
+            "loop_filtered": {"steps": 0, "chars": 0, "tokens": 0},
+            "encoded": {"steps": 0, "chars": 0, "tokens": 0},
+        }
+        for trace in traces:
+            stat = trace.get("compression_trace_stats") or {}
+            steps = {
+                "raw": stat.get("raw_steps", 0),
+                "loop_filtered": stat.get("loop_filtered_steps", 0),
+                "encoded": stat.get("encoded_steps", 0),
+            }
+            for stage in totals:
+                totals[stage]["steps"] += int(steps[stage] or 0)
+                totals[stage]["chars"] += int((stat.get("chars") or {}).get(stage, 0) or 0)
+                totals[stage]["tokens"] += int((stat.get("tokens") or {}).get(stage, 0) or 0)
+        return totals
+
+    @staticmethod
+    def _prefix_tree_stats(root: Optional[dict], total_steps: int) -> dict:
+        """Compact structural accounting for the prefix-tree compression arm."""
+        if not root:
+            return {"node_count": 0, "edge_count": 0, "merged_step_ratio": 0.0,
+                    "chars": 0, "tokens": 0}
+        nodes = []
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            nodes.append(node)
+            stack.extend((node.get("children") or {}).values())
+        # Exclude synthetic root from semantic nodes/edges.
+        semantic_nodes = max(0, len(nodes) - 1)
+        text = json.dumps(root, ensure_ascii=False, sort_keys=True)
+        return {
+            "node_count": semantic_nodes,
+            "edge_count": semantic_nodes,
+            "merged_step_ratio": round(1.0 - semantic_nodes / max(total_steps, 1), 6),
+            "chars": len(text), "tokens": _approx_tokens(text),
+        }
 
     def _dump_batch(self, batch: dict) -> None:
         try:

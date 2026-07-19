@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1.7
+#
+# Thin main-training image.  It deliberately reuses the successfully pushed
+# fixed-trajectory ALFWorld image, whose largest layer is the exact packed
+# skillRL environment.  This reduces registry I/O only; all four Tree-RL
+# launchers, data contracts, and training hyperparameters remain unchanged.
+ARG BASE_IMAGE=coskill-alfworld-fixed-ablation:skillrl-cu128
+FROM ${BASE_IMAGE}
+
+ENV PATH=/opt/conda/envs/skillRL/bin:$PATH \
+    CONDA_DEFAULT_ENV=skillRL \
+    PYTHONUNBUFFERED=1 \
+    CUDA_DEVICE_ORDER=PCI_BUS_ID \
+    FAISS_OPT_LEVEL=AVX2 \
+    VLLM_WORKER_MULTIPROC_METHOD=spawn \
+    COSKILL_CONTAINER=1 \
+    PROJECT_ROOT=/workspace/CoSkill \
+    PYTHONPATH=/workspace/CoSkill \
+    ALFWORLD_DATA=/opt/data/alfworld \
+    OUTPUT_ROOT=/outputs \
+    MODEL_PATH=/models/Qwen3-4B-Thinking-2507 \
+    WEBSHOP_DATA_DIR=/workspace/CoSkill/agent_system/environments/env_package/webshop/webshop/data
+
+WORKDIR /workspace/CoSkill
+
+# The ablation protocol stays in its own parent image and entrypoint.  Overlay
+# only the current source checkout so this image uses the main Tree-RL code.
+COPY --from=coskill_source . /workspace/CoSkill
+
+# Import from the source copied above rather than editable pointers retained
+# by the packed environment.  Remove the unused SkyRL package so the runtime
+# package set matches the standalone main image.  Avoid an editable install:
+# the legacy tqdm/datasets metadata conflict is unrelated to runtime imports
+# but blocks pip's dependency metadata resolver.
+RUN python -m pip uninstall -y skyrl-gym >/dev/null 2>&1 || true \
+    && python -c 'import verl; assert "/workspace/CoSkill" in verl.__file__, verl.__file__'
+
+# The parent already has ALFWorld.  Main Tree-RL additionally needs only the
+# fixed 1,000-product WebShop split and the matching Lucene index.
+COPY --from=webshop_assets webshop-small-data.tar.gz /tmp/webshop-small-data.tar.gz
+RUN tar -xzf /tmp/webshop-small-data.tar.gz \
+        -C /workspace/CoSkill/agent_system/environments/env_package/webshop/webshop \
+    && rm /tmp/webshop-small-data.tar.gz \
+    && mkdir -p /outputs /models \
+    && chmod +x docker/coskill/entrypoint.sh
+
+ENTRYPOINT ["/workspace/CoSkill/docker/coskill/entrypoint.sh"]
+CMD ["preflight"]

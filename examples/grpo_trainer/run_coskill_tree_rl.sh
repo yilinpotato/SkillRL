@@ -5,7 +5,8 @@
 #   bash examples/grpo_trainer/run_coskill_tree_rl.sh alfworld
 #   TREE_RL_ORDER=leaf bash examples/grpo_trainer/run_coskill_tree_rl.sh webshop
 #
-# This script intentionally accepts only a 2- or 4-A800 allocation.  It does
+# This script accepts 2/4 GPUs per experiment or partitions an 8-GPU allocation
+# into two independent four-GPU slots.  It does
 # not run `ray stop` or `ray start`: main_ppo owns its Ray lifecycle, so a job
 # never destroys a different user's Ray session on a shared cluster.
 
@@ -40,22 +41,70 @@ export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASH_ATTN}"
 export PYTHONUNBUFFERED=1
 unset PYTORCH_CUDA_ALLOC_CONF
 
-if [[ -d /GLOBALFS/hit_wxia_1 ]]; then
+IS_CONTAINER=0
+if [[ "${COSKILL_CONTAINER:-0}" == "1" || -f /.dockerenv || -f /run/.containerenv ]]; then
+    IS_CONTAINER=1
+fi
+
+if [[ "$IS_CONTAINER" == "1" ]]; then
+    RUN_ENV="Docker container"
+    export CACHE_ROOT="${CACHE_ROOT:-/models/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-$PROJECT_ROOT/skillrl_data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-/outputs}"
+    export ALFWORLD_DATA="${ALFWORLD_DATA:-/datasets/alfworld}"
+    export WEBSHOP_DATA_DIR="${WEBSHOP_DATA_DIR:-$PROJECT_ROOT/agent_system/environments/env_package/webshop/webshop/data}"
+    DEFAULT_RAY_NUM_CPUS="$(nproc)"
+elif [[ -d /GLOBALFS/hit_wxia_1 ]]; then
     RUN_ENV="超算 (supercomputer)"
     export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
     export DATA_ROOT="${DATA_ROOT:-$HOME/data/verl-agent}"
     export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/outputs}"
-    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
-    DEFAULT_RAY_NUM_CPUS=56
+    export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
+    DEFAULT_RAY_NUM_CPUS="$(nproc)"
 else
-    echo "CoSkill tree RL is configured for a scheduled 2/4-A800 allocation, not the shared local 3090." >&2
-    echo "Request 2 or 4 A800 GPUs and set CUDA_VISIBLE_DEVICES to that allocation." >&2
-    exit 1
+    if [[ "${COSKILL_ALLOW_LOCAL_MULTI_GPU:-0}" != "1" ]]; then
+        echo "CoSkill tree RL needs an isolated 2/4-GPU allocation." >&2
+        echo "The shared local machine remains protected; use Docker/scheduler or explicitly set COSKILL_ALLOW_LOCAL_MULTI_GPU=1." >&2
+        exit 1
+    fi
+    RUN_ENV="isolated local multi-GPU"
+    export CACHE_ROOT="${CACHE_ROOT:-$HOME/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-$PROJECT_ROOT/skillrl_data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/outputs}"
+    export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
+    DEFAULT_RAY_NUM_CPUS="$(nproc)"
 fi
 
+if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+    DETECTED_GPU_COUNT="$(python3 -c 'import torch; print(torch.cuda.device_count())')"
+    if [[ "$DETECTED_GPU_COUNT" -le 0 ]]; then
+        echo "No CUDA GPUs are visible inside this runtime." >&2
+        exit 1
+    fi
+    DETECTED_GPUS="$(awk -v n="$DETECTED_GPU_COUNT" 'BEGIN {for (i=0;i<n;i++) printf "%s%d", (i?",":""), i}')"
+    export CUDA_VISIBLE_DEVICES="$DETECTED_GPUS"
+fi
+ALLOCATED_CUDA_VISIBLE_DEVICES="$CUDA_VISIBLE_DEVICES"
+ALLOCATED_NUM_GPUS="$(tr ',' '\n' <<<"$ALLOCATED_CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
+TREE_RL_GPU_SLOT="${TREE_RL_GPU_SLOT:-0}"
+if [[ "$ALLOCATED_NUM_GPUS" == "8" ]]; then
+    if [[ "$TREE_RL_GPU_SLOT" != "0" && "$TREE_RL_GPU_SLOT" != "1" ]]; then
+        echo "With 8 visible GPUs, TREE_RL_GPU_SLOT must be 0 or 1." >&2
+        exit 1
+    fi
+    IFS=',' read -r -a GPU_ARRAY <<<"$ALLOCATED_CUDA_VISIBLE_DEVICES"
+    GPU_OFFSET=$((TREE_RL_GPU_SLOT * 4))
+    SELECTED_GPU_ARRAY=("${GPU_ARRAY[@]:GPU_OFFSET:4}")
+    export CUDA_VISIBLE_DEVICES="$(IFS=,; echo "${SELECTED_GPU_ARRAY[*]}")"
+    echo "8-GPU allocation detected: this experiment uses slot $TREE_RL_GPU_SLOT ($CUDA_VISIBLE_DEVICES)."
+    echo "Run a second independent task with TREE_RL_GPU_SLOT=$((1 - TREE_RL_GPU_SLOT)) to use the other four GPUs without changing PPO geometry."
+elif [[ "$ALLOCATED_NUM_GPUS" != "2" && "$ALLOCATED_NUM_GPUS" != "4" ]]; then
+    echo "Need 2, 4, or 8 visible GPUs; CUDA_VISIBLE_DEVICES=$ALLOCATED_CUDA_VISIBLE_DEVICES ($ALLOCATED_NUM_GPUS GPUs)." >&2
+    exit 1
+fi
 NUM_GPUS="$(tr ',' '\n' <<<"$CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
 if [[ "$NUM_GPUS" != "2" && "$NUM_GPUS" != "4" ]]; then
-    echo "Need exactly 2 or 4 visible A800 GPUs; CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ($NUM_GPUS GPUs)." >&2
+    echo "Need exactly 2 or 4 visible GPUs; CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ($NUM_GPUS GPUs)." >&2
     exit 1
 fi
 N_GPUS_PER_NODE="${N_GPUS_PER_NODE:-$NUM_GPUS}"
@@ -96,7 +145,34 @@ fi
 # 18 samples/rank and micro=2; with four ranks it is 9 samples/rank and must
 # be micro=1.  Keeping micro=2 on four ranks causes FSDP's creation-time
 # assertion: normalized mini-batch 9 is not divisible by micro-batch 2.
-if (( NUM_GPUS == 4 )); then
+GPU_PROFILE="$(python3 - <<'PY'
+import torch
+print("; ".join(
+    f"cuda:{i}={torch.cuda.get_device_properties(i).name}/"
+    f"{torch.cuda.get_device_properties(i).total_memory / 2**30:.1f}GiB"
+    for i in range(torch.cuda.device_count())
+))
+PY
+)"
+MIN_GPU_MEMORY_GIB="$(python3 - <<'PY'
+import torch
+print(int(min(torch.cuda.get_device_properties(i).total_memory for i in range(torch.cuda.device_count())) / 2**30))
+PY
+)"
+GPU_FAMILY="$(python3 - <<'PY'
+import re
+import torch
+
+name = torch.cuda.get_device_properties(0).name.lower()
+for candidate in ("a800", "a100", "h20", "h100", "h200"):
+    if candidate in name:
+        print(candidate)
+        break
+else:
+    print(re.sub(r"[^a-z0-9]+", "-", name).strip("-") or "gpu")
+PY
+)"
+if (( NUM_GPUS == 4 || MIN_GPU_MEMORY_GIB < 60 )); then
     DEFAULT_PPO_MICRO_BATCH_PER_GPU=1
 else
     DEFAULT_PPO_MICRO_BATCH_PER_GPU=2
@@ -140,7 +216,11 @@ else
     PROJECT_NAME="verl_agent_webshop"
 fi
 
-export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
+if [[ "$IS_CONTAINER" == "1" ]]; then
+    export MODEL_PATH="${MODEL_PATH:-/models/Qwen3-4B-Thinking-2507}"
+else
+    export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
+fi
 export SKILL_UPDATER_BACKEND="${SKILL_UPDATER_BACKEND:-deepseek}"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 export RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
@@ -154,7 +234,14 @@ export LORA_RANK="${LORA_RANK:-32}"
 export LORA_ALPHA="${LORA_ALPHA:-64}"
 export LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
 export REF_LOG_PROB_MICRO_BATCH_PER_GPU="${REF_LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
-export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-0.8}"
+if (( MIN_GPU_MEMORY_GIB < 48 )); then
+    DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.65
+elif (( MIN_GPU_MEMORY_GIB < 72 )); then
+    DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.72
+else
+    DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.8
+fi
+export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-$DEFAULT_VLLM_GPU_MEMORY_UTILIZATION}"
 export VLLM_MAX_NUM_BATCHED_TOKENS="${VLLM_MAX_NUM_BATCHED_TOKENS:-16384}"
 export VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-256}"
 # Keep DP=4 and TP=1.  This optimization compacts only already-finished
@@ -189,17 +276,34 @@ export TREE_RL_MIN_PROBE_EPISODES="${TREE_RL_MIN_PROBE_EPISODES:-24}"
 export TREE_RL_PROBE_SUCCESS_THRESHOLD="${TREE_RL_PROBE_SUCCESS_THRESHOLD:-0.7}"
 export TREE_RL_STATE_SAVE_FREQ="${TREE_RL_STATE_SAVE_FREQ:-1}"
 
-EXPERIMENT_NAME="${EXPERIMENT_NAME:-qwen3-4b_coskill_tree_rl_${TREE_RL_ORDER}_${NUM_GPUS}xa800}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-qwen3-4b_coskill_tree_rl_${TREE_RL_ORDER}_${NUM_GPUS}x${GPU_FAMILY}}"
 OUTPUT_DIR="${RL_OUTPUT_DIR:-${OUTPUT_DIR:-$OUTPUT_ROOT/$PROJECT_NAME/$EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR" "$DATA_ROOT/text"
 export JSONL_METRICS_DIR="$OUTPUT_DIR"
+
+# The model/FSDP checkpoint and the progressive tree controller must resume
+# together.  The controller is saved every step, independently of SAVE_FREQ.
+RESUME_SKILL_TREE_STATE="${RESUME_SKILL_TREE_STATE:-auto}"
+TREE_STATE_PATH="$OUTPUT_DIR/skill_lib/skills_tree_rl_latest.json"
+case "$RESUME_SKILL_TREE_STATE" in
+    auto)
+        if [[ -f "$TREE_STATE_PATH" ]]; then
+            SKILLS_JSON="$TREE_STATE_PATH"
+            echo "Resuming progressive skill tree from: $SKILLS_JSON"
+        fi
+        ;;
+    disable) ;;
+    *)
+        echo "RESUME_SKILL_TREE_STATE must be auto or disable." >&2
+        exit 1
+        ;;
+esac
 
 if [[ "$BENCHMARK" == "webshop" ]]; then
     if [[ -z "${WEBSHOP_DATA_DIR:-}" ]]; then
         for candidate in \
             "$PROJECT_ROOT/agent_system/environments/env_package/webshop/webshop/data" \
-            "$(dirname "$PROJECT_ROOT")/Skill0/agent_system/environments/env_package/webshop/webshop/data" \
-            "/data2/myl/Skill0/agent_system/environments/env_package/webshop/webshop/data"
+            "$(dirname "$PROJECT_ROOT")/Skill0/agent_system/environments/env_package/webshop/webshop/data"
         do
             if [[ -f "$candidate/items_shuffle_1000.json" && -f "$candidate/items_ins_v2_1000.json" \
                   && -f "$candidate/items_human_ins.json" \
@@ -230,7 +334,8 @@ else
 fi
 
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"
-echo "GPU allocation: CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS"
+echo "GPU allocation: allocated=$ALLOCATED_CUDA_VISIBLE_DEVICES selected=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS slot=$TREE_RL_GPU_SLOT"
+echo "GPU profile: $GPU_PROFILE (minimum ${MIN_GPU_MEMORY_GIB}GiB; vLLM utilization=$VLLM_GPU_MEMORY_UTILIZATION)"
 echo "vLLM topology: DP=$NUM_GPUS TP=1 PP=1 (unchanged)"
 echo "Active trajectory compaction: $COMPACT_FINISHED_TRAJECTORIES (only completed rows are excluded from future vLLM calls)"
 echo "GRPO rollout: train_data_size=$TRAIN_DATA_SIZE group_size=$GROUP_SIZE total=$ROLLOUTS_PER_STEP (fixed across GPU counts)"
@@ -239,11 +344,36 @@ echo "Validation: val_data_size=$VAL_DATA_SIZE test_freq=$TEST_FREQ val_before_t
 echo "Tree curriculum: order=$TREE_RL_ORDER train>=${TREE_RL_MIN_TRAIN_EPISODES}@${TREE_RL_TRAIN_SUCCESS_THRESHOLD} probe>=${TREE_RL_MIN_PROBE_EPISODES}@${TREE_RL_PROBE_SUCCESS_THRESHOLD}"
 echo "Output: $OUTPUT_DIR"
 
-python3 -m examples.data_preprocess.prepare \
-    --mode text \
-    --local_dir "$DATA_ROOT" \
-    --train_data_size "$TRAIN_DATA_SIZE" \
-    --val_data_size "$VAL_DATA_SIZE"
+PREPARE_DATA="${PREPARE_DATA:-auto}"
+case "$PREPARE_DATA" in auto|always) ;; *) echo "PREPARE_DATA must be auto or always" >&2; exit 1;; esac
+REUSE_PREPARED_DATA=0
+if [[ "$PREPARE_DATA" == "auto" && -f "$DATA_ROOT/text/train.parquet" && -f "$DATA_ROOT/text/test.parquet" ]]; then
+    if python3 - "$DATA_ROOT/text/train.parquet" "$TRAIN_DATA_SIZE" \
+            "$DATA_ROOT/text/test.parquet" "$VAL_DATA_SIZE" <<'PY'
+import sys
+import pyarrow.parquet as pq
+
+for path, expected in ((sys.argv[1], int(sys.argv[2])), (sys.argv[3], int(sys.argv[4]))):
+    if pq.ParquetFile(path).metadata.num_rows != expected:
+        raise SystemExit(1)
+PY
+    then
+        REUSE_PREPARED_DATA=1
+        echo "Reusing prepared text parquet with exact train/val rows: $TRAIN_DATA_SIZE/$VAL_DATA_SIZE"
+    fi
+fi
+if [[ "$REUSE_PREPARED_DATA" == "0" ]]; then
+    if [[ "$IS_CONTAINER" == "1" && "${ALLOW_CONTAINER_DATA_DOWNLOAD:-0}" != "1" ]]; then
+        echo "Container parquet is missing/mismatched; refusing an implicit dataset download." >&2
+        echo "Rebuild the image or set ALLOW_CONTAINER_DATA_DOWNLOAD=1 with network access." >&2
+        exit 1
+    fi
+    python3 -m examples.data_preprocess.prepare \
+        --mode text \
+        --local_dir "$DATA_ROOT" \
+        --train_data_size "$TRAIN_DATA_SIZE" \
+        --val_data_size "$VAL_DATA_SIZE"
+fi
 
 ppo_args=(
     algorithm.adv_estimator=grpo
@@ -361,7 +491,7 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV CUDA_VISIBLE_DEVICES NUM_GPUS N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE; do
+    for key in BENCHMARK RUN_ENV ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
         echo "$key=${!key}"
     done
     echo "ROLLOUTS_PER_STEP=$ROLLOUTS_PER_STEP"
