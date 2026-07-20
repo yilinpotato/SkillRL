@@ -7,6 +7,26 @@
 ARG BASE_IMAGE=coskill-alfworld-fixed-ablation:skillrl-cu128
 FROM ${BASE_IMAGE}
 
+# vLLM profiles the model at startup.  On CUDA GPUs this can invoke
+# torch.compile/Triton, which JIT-compiles a small extension and therefore
+# requires a host C/C++ toolchain.  The ablation parent intentionally omitted
+# compilers, so install only the standard build tools here.  This affects
+# startup capability/cache construction, not training data or hyperparameters.
+ARG UBUNTU_APT_MIRROR=https://mirrors.aliyun.com/ubuntu
+RUN rm -f /etc/apt/sources.list.d/cuda*.list /etc/apt/sources.list.d/nvidia*.list \
+    && sed -i \
+        -e "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_APT_MIRROR}|g" \
+        -e "s|https://archive.ubuntu.com/ubuntu|${UBUNTU_APT_MIRROR}|g" \
+        -e "s|http://security.ubuntu.com/ubuntu|${UBUNTU_APT_MIRROR}|g" \
+        -e "s|https://security.ubuntu.com/ubuntu|${UBUNTU_APT_MIRROR}|g" \
+        /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && gcc --version >/dev/null \
+    && g++ --version >/dev/null \
+    && make --version >/dev/null \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PATH=/opt/conda/envs/skillRL/bin:$PATH \
     CONDA_DEFAULT_ENV=skillRL \
     PYTHONUNBUFFERED=1 \
@@ -23,8 +43,8 @@ ENV PATH=/opt/conda/envs/skillRL/bin:$PATH \
 
 WORKDIR /workspace/CoSkill
 
-# The ablation protocol stays in its own parent image and entrypoint.  Overlay
-# only the current source checkout so this image uses the main Tree-RL code.
+# The fixed-trajectory protocol keeps its own runner while this unified image
+# overlays the current source checkout for both ablation and main Tree-RL.
 COPY --from=coskill_source . /workspace/CoSkill
 
 # Import from the source copied above rather than editable pointers retained
@@ -34,6 +54,18 @@ COPY --from=coskill_source . /workspace/CoSkill
 # but blocks pip's dependency metadata resolver.
 RUN python -m pip uninstall -y skyrl-gym >/dev/null 2>&1 || true \
     && python -c 'import verl; assert "/workspace/CoSkill" in verl.__file__, verl.__file__'
+
+# The ablation image was built from an older archive whose faiss package has
+# the same version but different Python wrapper files.  Overlay the exact
+# current skillRL runtime copy so full and shared main images agree, including
+# if an embedding retrieval mode is used.
+COPY --from=runtime_assets faiss-runtime-overlay.tar.gz /tmp/faiss-runtime-overlay.tar.gz
+RUN site=/opt/conda/envs/skillRL/lib/python3.10/site-packages \
+    && rm -rf "$site/faiss" "$site"/faiss-*.egg-info \
+              "$site"/faiss_cpu-*.dist-info "$site/faiss_cpu.libs" \
+    && tar -xzf /tmp/faiss-runtime-overlay.tar.gz -C "$site" \
+    && rm /tmp/faiss-runtime-overlay.tar.gz \
+    && python -c 'import faiss; assert faiss.__version__ == "1.13.2"'
 
 # The parent already has ALFWorld.  Main Tree-RL additionally needs only the
 # fixed 1,000-product WebShop split and the matching Lucene index.

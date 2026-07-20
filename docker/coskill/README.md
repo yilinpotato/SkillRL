@@ -1,10 +1,13 @@
-# CoSkill Tree-RL Docker
+# CoSkill Tree-RL and Ablation Docker
 
 该镜像固化当前 `skillRL` Conda 环境、CoSkill 代码、ALFWorld 文本环境，以及
 WebShop 1000 商品小数据集和对应 Lucene 索引。四个任务共用同一镜像：
 `alfworld-root`、`alfworld-leaf`、`webshop-root`、`webshop-leaf`。每个任务独占
 2、4 或 8 张 GPU；单个实验使用 DP=2/4、TP=PP=1。rollout 始终为 `12×6=72`，
 验证集、采样和全局 PPO 几何不会随卡数变化。
+
+同一镜像也提供 `alfworld-ablation`。它运行固定任务、固定轨迹的 ALFWorld
+表示/压缩消融，仍使用独立的评估协议，**不会**混入或改变四个 Tree-RL 任务。
 
 基础镜像默认使用 `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04`。当前构建只安装
 已经打包好的 Python/CUDA wheel，不调用 `nvcc`，因此无需下载体积很大的 CUDA
@@ -44,6 +47,10 @@ INCLUDE_MODEL=1 MODEL_SOURCE=/path/to/Qwen3-4B-Thinking-2507 \
 
 生成的 `docker/coskill/assets/` 很大且已被 Git 忽略。镜像不会复制 `.env`、
 API key、训练输出或历史 checkpoint。
+
+构建时会额外保存当前 `skillRL` 的 Faiss 运行时覆盖包。它修复 `conda-pack` 在
+同时存在旧 conda Faiss 与新版 `faiss-cpu` 时可能恢复错误 Python wrapper 的问题；
+不改变默认的 template 检索策略，也不改变训练样本或超参数。
 
 ## 与固定轨迹消融镜像共用层
 
@@ -87,6 +94,30 @@ docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
 
 若希望预检真实调用一次云端 API，可加 `-e CLOUD_BOOTSTRAP_PROBE=1`；密钥始终
 通过 `--env-file` 或容器 secret 注入，不要写入镜像。
+
+单卡（例如本地 5070）只能做镜像、模型、数据和 CUDA 预检，不能运行 Tree-RL：
+
+```bash
+docker run --rm --gpus all --ipc=host \
+  -e PREFLIGHT_ALLOW_SINGLE_GPU=1 \
+  -e MODEL_AUTO_DOWNLOAD=0 \
+  -v /path/to/models:/models \
+  -v /path/to/outputs:/outputs \
+  coskill:skillrl-cu128-data preflight
+```
+
+固定轨迹消融使用同一镜像，但明确使用自己的入口和输出根目录：
+
+```bash
+docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
+  --env-file .env -v /path/to/models:/models -v /path/to/outputs:/outputs \
+  -e MODEL_AUTO_DOWNLOAD=0 \
+  -e AB_ROOT=/outputs/alfworld_fixed_trajectory_ablation/run_001 \
+  coskill:skillrl-cu128-data alfworld-ablation --phase all
+```
+
+`alfworld-ablation` 不使用 GRPO 的 72 rollout/step 配置；它的 bootstrap 与每个
+评估臂固定为各 36 条轨迹，详见 `ablation_summary.json`。
 
 如果节点分配了 8 张卡，不要把单个实验改成 8-rank（全局 mini-batch 36 无法
 无损分到 8 rank）。镜像会按 `TREE_RL_GPU_SLOT=0|1` 切成两个互不重叠的 4 卡组，

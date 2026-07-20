@@ -39,6 +39,20 @@ echo "[1/4] Packing the exact Conda environment: $CONDA_ENV_NAME"
 conda pack -n "$CONDA_ENV_NAME" --ignore-editable-packages \
     --force -o "$ASSET_DIR/skillRL.tar.gz"
 
+# The environment has a pip faiss-cpu upgrade over an older conda Faiss
+# package.  Store the runtime files separately so Docker can restore the
+# currently importable package after conda-unpack.
+SITE_PACKAGES="$(conda run -n "$CONDA_ENV_NAME" python -c 'import site; print(site.getsitepackages()[0])')"
+FAISS_ENTRIES=(faiss faiss-1.9.0-py3.10.egg-info faiss_cpu-1.13.2.dist-info faiss_cpu.libs)
+for entry in "${FAISS_ENTRIES[@]}"; do
+    if [[ ! -e "$SITE_PACKAGES/$entry" ]]; then
+        echo "Required Faiss runtime entry is missing: $SITE_PACKAGES/$entry" >&2
+        exit 1
+    fi
+done
+tar -czf "$ASSET_DIR/faiss-runtime-overlay.tar.gz" \
+    -C "$SITE_PACKAGES" "${FAISS_ENTRIES[@]}"
+
 echo "[2/4] Packing ALFWorld text-game data (json_2.1.1 + logic)"
 tar -czf "$ASSET_DIR/alfworld-data.tar.gz" \
     -C "$(dirname "$ALFWORLD_SOURCE")" \

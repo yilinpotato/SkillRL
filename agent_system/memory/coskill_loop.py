@@ -454,6 +454,33 @@ class CoSkillCloudLoop:
             m['coskill/skill_tree/evolve_calls'] = summary.get('evolve_calls', 0)
             m['coskill/skill_tree/updates'] = summary.get(
                 'skill_tree_updates', summary.get('playbook_updates', 0))
+
+            # Per-subtask (ALFWorld task_type) breakdown, same "口径" as the
+            # trainer-level token ledger: evolve_playbook is one call per
+            # task_type (cleanly attributable); contrastive_distill /
+            # diagnose_failures mix every task_type into one call each and
+            # stay in an honest "mixed" bucket instead of a fabricated split.
+            # Shared by both the RL (ray_trainer) and no-RL
+            # (run_playbook_evolve) callers of this loop.
+            by_tt_prompt = summary.get('large_model_prompt_tokens_by_task_type', {}) or {}
+            by_tt_completion = summary.get('large_model_completion_tokens_by_task_type', {}) or {}
+            evolve_calls_by_tt = summary.get('evolve_calls_by_task_type', {}) or {}
+            updates_by_tt = summary.get('skill_tree_updates_by_task_type', {}) or {}
+            all_tt = sorted(set(by_tt_prompt) | set(by_tt_completion)
+                             | set(evolve_calls_by_tt) | set(updates_by_tt))
+            for tt in all_tt:
+                p = by_tt_prompt.get(tt, 0)
+                c = by_tt_completion.get(tt, 0)
+                m[f'coskill/cloud/by_task_type/{tt}/large_model_prompt_tokens'] = p
+                m[f'coskill/cloud/by_task_type/{tt}/large_model_completion_tokens'] = c
+                m[f'coskill/cloud/by_task_type/{tt}/large_model_total_tokens'] = p + c
+                m[f'coskill/skill_tree/by_task_type/{tt}/evolve_calls'] = evolve_calls_by_tt.get(tt, 0)
+                m[f'coskill/skill_tree/by_task_type/{tt}/updates'] = updates_by_tt.get(tt, 0)
+            mixed_p = summary.get('large_model_prompt_tokens_mixed', 0)
+            mixed_c = summary.get('large_model_completion_tokens_mixed', 0)
+            m['coskill/cloud/mixed/large_model_prompt_tokens'] = mixed_p
+            m['coskill/cloud/mixed/large_model_completion_tokens'] = mixed_c
+            m['coskill/cloud/mixed/large_model_total_tokens'] = mixed_p + mixed_c
         if skill_lib is not None and hasattr(skill_lib, 'task_playbooks'):
             m['coskill/skill_tree/n_trees'] = len(getattr(skill_lib, 'task_playbooks', {}) or {})
         if self.last_timing:

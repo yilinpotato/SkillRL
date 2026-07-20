@@ -25,6 +25,21 @@ import torch
 from verl import DataProto
 from verl.utils.import_utils import deprecated
 
+# Canonical ALFWorld task_type vocabulary shared by the RL token-traffic
+# breakdown (this module) and the no-RL playbook_evolve driver. Sourced from
+# RayPPOTrainer._detect_task_type_from_input, which is also what the shared
+# memory/skill subsystem keys skill attribution on.
+KNOWN_TASK_TYPES = (
+    "pick_two_obj_and_place",
+    "clean",
+    "heat",
+    "cool",
+    "look_at_obj_in_light",
+    "examine",
+    "pick_and_place",
+)
+
+
 @deprecated("verl.utils.metric.reduce_metrics")
 def reduce_metrics(metrics: Dict[str, List[Any]]) -> Dict[str, Any]:
     """
@@ -109,7 +124,11 @@ def compute_action_validity_metrics(
     }
 
 
-def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str, Any]:
+def compute_data_metrics(
+    batch: DataProto,
+    use_critic: bool = True,
+    task_types: Optional[np.ndarray] = None,
+) -> Dict[str, Any]:
     """
     Computes various metrics from a batch of data for PPO training.
 
@@ -120,6 +139,12 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
     Args:
         batch: A DataProto object containing batch data with token-level scores, rewards, advantages, etc.
         use_critic: Whether to include critic-specific metrics. Defaults to True.
+        task_types: Optional per-row array of ALFWorld task_type strings (same length as the
+            batch), one entry per row, aligned with ``batch.batch["responses"]``. When given,
+            adds a per-task_type small-model token breakdown alongside the existing raw totals
+            (see ``tokens/small_model/by_task_type/*`` below). Rows whose task_type is not in
+            ``KNOWN_TASK_TYPES`` are ignored by the breakdown (but still counted in the raw
+            totals above), and absent task_types are zero-filled for schema stability.
 
     Returns:
         A dictionary of metrics including:
@@ -233,6 +258,17 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
         "tokens/small_model/total": (torch.sum(prompt_length) + torch.sum(response_length)).detach().item(),
         **validity_metrics,
     }
+
+    if task_types is not None:
+        task_types = np.asarray(task_types)
+        for tt in KNOWN_TASK_TYPES:
+            row_mask = torch.from_numpy(task_types == tt).to(prompt_length.device)
+            tt_prompt = torch.sum(prompt_length[row_mask]).detach().item() if row_mask.any() else 0
+            tt_response = torch.sum(response_length[row_mask]).detach().item() if row_mask.any() else 0
+            metrics[f"tokens/small_model/by_task_type/{tt}/prompt"] = tt_prompt
+            metrics[f"tokens/small_model/by_task_type/{tt}/response"] = tt_response
+            metrics[f"tokens/small_model/by_task_type/{tt}/total"] = tt_prompt + tt_response
+
     return metrics
 
 

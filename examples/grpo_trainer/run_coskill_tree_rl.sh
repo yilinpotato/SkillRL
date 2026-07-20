@@ -51,7 +51,10 @@ if [[ "$IS_CONTAINER" == "1" ]]; then
     export CACHE_ROOT="${CACHE_ROOT:-/models/.cache}"
     export DATA_ROOT="${DATA_ROOT:-$PROJECT_ROOT/skillrl_data/verl-agent}"
     export OUTPUT_ROOT="${OUTPUT_ROOT:-/outputs}"
-    export ALFWORLD_DATA="${ALFWORLD_DATA:-/datasets/alfworld}"
+    # Both full and thin Docker images copy the packaged ALFWorld corpus here.
+    # Keep this default consistent with Dockerfile and preflight.py; callers
+    # may still mount a different corpus through ALFWORLD_DATA.
+    export ALFWORLD_DATA="${ALFWORLD_DATA:-/opt/data/alfworld}"
     export WEBSHOP_DATA_DIR="${WEBSHOP_DATA_DIR:-$PROJECT_ROOT/agent_system/environments/env_package/webshop/webshop/data}"
     DEFAULT_RAY_NUM_CPUS="$(nproc)"
 elif [[ -d /GLOBALFS/hit_wxia_1 ]]; then

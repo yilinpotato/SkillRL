@@ -35,6 +35,17 @@ from mini_test_pen_shelf.run_generic import extract_task, parse_model_output
 
 SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
 
+# Canonical no-RL task_type vocabulary for the per-subtask token breakdown.
+# Sourced from ALFWorld's own ground-truth traj_data.json field (the same
+# vocabulary find_games_by_type/_TASK_TYPE_TO_ID key on) rather than
+# ray_trainer.py's KNOWN_TASK_TYPES: the RL side only has decoded prompt text
+# to work with and detects task_type via regex heuristic, but the no-RL
+# driver already retrieves the exact ground-truth task_type per episode
+# (ProdObsBuilder.retrieved["task_type"]), so it uses its own real vocabulary
+# instead of forcing the RL side's heuristic taxonomy onto it. "unknown" is
+# included since retrieval falls back to it when unset.
+NORL_TASK_TYPES = tuple(_TASK_TYPE_TO_ID.keys()) + ("unknown",)
+
 
 def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
     """读取固定 game manifest，返回 ``(games, task_types, task_type_ids)``。
@@ -120,6 +131,11 @@ def _load_resume_state(args):
         "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
         "small_model_token_accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
         "large_model_tokens": {"prompt": 0, "completion": 0, "total": 0},
+        "small_model_tokens_by_tt": {
+            tt: {"prompt": 0, "response": 0, "total": 0} for tt in NORL_TASK_TYPES},
+        "large_model_tokens_by_tt": {
+            tt: {"prompt": 0, "completion": 0, "total": 0} for tt in NORL_TASK_TYPES},
+        "large_model_tokens_mixed": {"prompt": 0, "completion": 0, "total": 0},
         "cloud_updates": 0,
         "cloud_update_steps": [],
     }
@@ -165,6 +181,25 @@ def _load_resume_state(args):
     saved_large_tokens = (prev_summary.get("token_usage", {}) or {}).get("large_model", {}) or {}
     state["large_model_tokens"] = {
         key: int(saved_large_tokens.get(key, 0) or 0)
+        for key in ("prompt", "completion", "total")
+    }
+    saved_small_by_tt = (saved_small_tokens.get("by_task_type", {}) or {})
+    state["small_model_tokens_by_tt"] = {
+        tt: {
+            key: int((saved_small_by_tt.get(tt, {}) or {}).get(key, 0) or 0)
+            for key in ("prompt", "response", "total")
+        } for tt in NORL_TASK_TYPES
+    }
+    saved_large_by_tt = (saved_large_tokens.get("by_task_type", {}) or {})
+    state["large_model_tokens_by_tt"] = {
+        tt: {
+            key: int((saved_large_by_tt.get(tt, {}) or {}).get(key, 0) or 0)
+            for key in ("prompt", "completion", "total")
+        } for tt in NORL_TASK_TYPES
+    }
+    saved_large_mixed = (saved_large_tokens.get("mixed", {}) or {})
+    state["large_model_tokens_mixed"] = {
+        key: int(saved_large_mixed.get(key, 0) or 0)
         for key in ("prompt", "completion", "total")
     }
     state["cloud_update_steps"] = list(prev_summary.get("cloud_update_steps", []) or [])
@@ -357,6 +392,13 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
     repeat = [0 for _ in range(batch_size)]
 
     keep_logrows = bool(args.log_trajectories)
+    # Per-slot running token totals. act_batch_with_meta batches every active
+    # slot's prompt into one vLLM generate() call per step, so a simple
+    # before/after get_token_usage() bracket around the whole group can only
+    # give a group total, not a per-episode one. agent.last_batch_request_tokens
+    # is index-aligned with the `prompts`/`active` list passed to that call, so
+    # it lets us attribute each step's exact tokens back to the owning slot.
+    episode_tokens = [{"prompt": 0, "response": 0, "total": 0} for _ in range(batch_size)]
 
     for step in range(1, args.max_steps + 1):
         active = [i for i in range(batch_size) if not done[i]]
@@ -378,6 +420,14 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
         raw_forced = agent.act_batch_with_meta(prompts, sampling_seeds=request_seeds)
         raws = [x[0] for x in raw_forced]
         forceds = [x[1] for x in raw_forced]
+        per_request_tokens = getattr(agent, "last_batch_request_tokens", None) or []
+        for local_i, i in enumerate(active):
+            if local_i >= len(per_request_tokens):
+                continue
+            rt = per_request_tokens[local_i]
+            episode_tokens[i]["prompt"] += rt.get("prompt", 0)
+            episode_tokens[i]["response"] += rt.get("response", 0)
+            episode_tokens[i]["total"] += rt.get("total", 0)
         active_adms = [adms[i] for i in active]
         # alfworld_projection 已经内置 admissible_commands 精确匹配 + salvage + 安全默认
         # 动作兜底，返回的 action 一定合法，不需要在这里再手工补救一次。
@@ -492,6 +542,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
             "raw_trace": raw_trace, "task_type": task_types[i],
             "injected": injected_ids[i], "n_valid": n_valid[i],
             "logrows": logrows[i], "playbook_record": playbook_records[i],
+            "small_model_tokens": episode_tokens[i],
         })
     return episodes
 
@@ -1026,6 +1077,18 @@ def main():
     small_model_token_accounting = resume_state.get(
         "small_model_token_accounting", SMALL_MODEL_TOKEN_ACCOUNTING)
     large_model_token_offset = dict(resume_state.get("large_model_tokens", {}))
+    small_model_token_totals_by_tt = {
+        tt: dict(resume_state.get("small_model_tokens_by_tt", {}).get(
+            tt, {"prompt": 0, "response": 0, "total": 0}))
+        for tt in NORL_TASK_TYPES
+    }
+    large_model_token_offset_by_tt = {
+        tt: dict(resume_state.get("large_model_tokens_by_tt", {}).get(
+            tt, {"prompt": 0, "completion": 0, "total": 0}))
+        for tt in NORL_TASK_TYPES
+    }
+    large_model_token_offset_mixed = dict(
+        resume_state.get("large_model_tokens_mixed", {"prompt": 0, "completion": 0, "total": 0}))
 
     # env.seed() 只在 make_single_env() 建环境时调用过一次（见上方注释）：接下来的
     # reset() 全部靠 textworld 自带的 shuffled_cycle 自然推进 + 整轮重洗，不再逐局
@@ -1042,6 +1105,7 @@ def main():
         injected = ep_result["injected"]
         nval = ep_result["n_valid"]
         logrows = ep_result["logrows"]
+        ep_tokens = ep_result.get("small_model_tokens") or {"prompt": 0, "response": 0, "total": 0}
         action_meta = raw_trace.get("meta") or {}
         n_strict_valid = int(action_meta.get("n_strict_valid_actions", 0) or 0)
         n_non_strict_valid = int(action_meta.get("n_non_strict_valid_actions", nval) or 0)
@@ -1078,7 +1142,10 @@ def main():
                      "running_total_episodes": len(per_game) + 1,
                      "running_total_wins": wins,
                      "task_type_episodes": ts["episodes"],
-                     "task_type_wins": ts["wins"]}
+                     "task_type_wins": ts["wins"],
+                     "tokens_prompt": int(ep_tokens.get("prompt", 0) or 0),
+                     "tokens_response": int(ep_tokens.get("response", 0) or 0),
+                     "tokens_total": int(ep_tokens.get("total", 0) or 0)}
         per_game.append(ep_record)
         print(f"[driver] step={global_step} {tt_detected} won={won} steps={used}")
 
@@ -1118,6 +1185,13 @@ def main():
                 f"episode/{tt_detected}/episodes": tt_eps,
                 f"episode/{tt_detected}/wins": tt_wins,
                 f"episode/{tt_detected}/success_rate": round(tt_wins / max(tt_eps, 1), 4),
+                "tokens/small_model/prompt": ep_record["tokens_prompt"],
+                "tokens/small_model/response": ep_record["tokens_response"],
+                "tokens/small_model/total": ep_record["tokens_total"],
+                "tokens/small_model/accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
+                f"tokens/small_model/by_task_type/{tt_detected}/prompt": ep_record["tokens_prompt"],
+                f"tokens/small_model/by_task_type/{tt_detected}/response": ep_record["tokens_response"],
+                f"tokens/small_model/by_task_type/{tt_detected}/total": ep_record["tokens_total"],
                 "skill_tree/version": pb_rec.get("version") if pb_rec else 0,
                 "skill_tree/level": pb_rec.get("level") if pb_rec else None,
                 "skill_tree/n_nodes": len(pb_rec.get("nodes") or {}) if pb_rec else 0,
@@ -1127,14 +1201,37 @@ def main():
 
     def _large_model_token_usage():
         analyzer = getattr(cloud_loop, "cloud_analyzer", None)
+        zero_by_tt = {tt: {"prompt": 0, "completion": 0, "total": 0} for tt in NORL_TASK_TYPES}
         if analyzer is None:
-            return {"prompt": 0, "completion": 0, "total": 0}
+            return {
+                "prompt": 0, "completion": 0, "total": 0,
+                "by_task_type": zero_by_tt,
+                "mixed": {"prompt": 0, "completion": 0, "total": 0},
+            }
         prompt = int(getattr(analyzer, "total_prompt_tokens", 0) or 0)
         completion = int(getattr(analyzer, "total_completion_tokens", 0) or 0)
+        by_tt_prompt = getattr(analyzer, "total_prompt_tokens_by_task_type", {}) or {}
+        by_tt_completion = getattr(analyzer, "total_completion_tokens_by_task_type", {}) or {}
+        by_task_type = {}
+        for tt in NORL_TASK_TYPES:
+            p = int(large_model_token_offset_by_tt.get(tt, {}).get("prompt", 0) or 0) \
+                + int(by_tt_prompt.get(tt, 0) or 0)
+            c = int(large_model_token_offset_by_tt.get(tt, {}).get("completion", 0) or 0) \
+                + int(by_tt_completion.get(tt, 0) or 0)
+            by_task_type[tt] = {"prompt": p, "completion": c, "total": p + c}
+        mixed_prompt = int(large_model_token_offset_mixed.get("prompt", 0) or 0) \
+            + int(getattr(analyzer, "total_prompt_tokens_mixed", 0) or 0)
+        mixed_completion = int(large_model_token_offset_mixed.get("completion", 0) or 0) \
+            + int(getattr(analyzer, "total_completion_tokens_mixed", 0) or 0)
         return {
             "prompt": int(large_model_token_offset.get("prompt", 0) or 0) + prompt,
             "completion": int(large_model_token_offset.get("completion", 0) or 0) + completion,
             "total": int(large_model_token_offset.get("total", 0) or 0) + prompt + completion,
+            "by_task_type": by_task_type,
+            "mixed": {
+                "prompt": mixed_prompt, "completion": mixed_completion,
+                "total": mixed_prompt + mixed_completion,
+            },
         }
 
     def _write_group_metric(group_id, epoch, ingested, generated_count, fired,
@@ -1155,11 +1252,37 @@ def main():
         for key in ("prompt", "response", "total"):
             small_model_token_totals[key] += int(small_tokens.get(key, 0) or 0)
 
+        small_by_tt = {tt: {"prompt": 0, "response": 0, "total": 0} for tt in NORL_TASK_TYPES}
+        for record in records:
+            tt = record["detected_type"]
+            bucket = small_by_tt.setdefault(tt, {"prompt": 0, "response": 0, "total": 0})
+            bucket["prompt"] += int(record.get("tokens_prompt", 0) or 0)
+            bucket["response"] += int(record.get("tokens_response", 0) or 0)
+            bucket["total"] += int(record.get("tokens_total", 0) or 0)
+        for tt in small_by_tt:
+            totals = small_model_token_totals_by_tt.setdefault(
+                tt, {"prompt": 0, "response": 0, "total": 0})
+            for key in ("prompt", "response", "total"):
+                totals[key] += small_by_tt[tt][key]
+
         large_delta = {
             "prompt": max(0, large_after["prompt"] - large_before["prompt"]),
             "completion": max(0, large_after["completion"] - large_before["completion"]),
         }
         large_delta["total"] = large_delta["prompt"] + large_delta["completion"]
+
+        large_delta_by_tt = {}
+        for tt in NORL_TASK_TYPES:
+            p = max(0, large_after["by_task_type"][tt]["prompt"]
+                    - large_before["by_task_type"][tt]["prompt"])
+            c = max(0, large_after["by_task_type"][tt]["completion"]
+                    - large_before["by_task_type"][tt]["completion"])
+            large_delta_by_tt[tt] = {"prompt": p, "completion": c, "total": p + c}
+        large_delta_mixed = {
+            "prompt": max(0, large_after["mixed"]["prompt"] - large_before["mixed"]["prompt"]),
+            "completion": max(0, large_after["mixed"]["completion"] - large_before["mixed"]["completion"]),
+        }
+        large_delta_mixed["total"] = large_delta_mixed["prompt"] + large_delta_mixed["completion"]
 
         metrics = {
             # group_id is the no-RL equivalent of one GRPO training step.
@@ -1236,6 +1359,26 @@ def main():
             metrics[f"episode/{tt}/success_rate"] = round(
                 stat["wins"] / max(stat["episodes"], 1), 6)
 
+        for tt in NORL_TASK_TYPES:
+            metrics[f"tokens/small_model/by_task_type/{tt}/prompt"] = small_by_tt[tt]["prompt"]
+            metrics[f"tokens/small_model/by_task_type/{tt}/response"] = small_by_tt[tt]["response"]
+            metrics[f"tokens/small_model/by_task_type/{tt}/total"] = small_by_tt[tt]["total"]
+            metrics[f"tokens/small_model/by_task_type/{tt}/total_cumulative"] = \
+                small_model_token_totals_by_tt[tt]["total"]
+            metrics[f"tokens/large_model/by_task_type/{tt}/prompt"] = large_delta_by_tt[tt]["prompt"]
+            metrics[f"tokens/large_model/by_task_type/{tt}/completion"] = large_delta_by_tt[tt]["completion"]
+            metrics[f"tokens/large_model/by_task_type/{tt}/total"] = large_delta_by_tt[tt]["total"]
+            metrics[f"tokens/large_model/by_task_type/{tt}/total_cumulative"] = \
+                large_after["by_task_type"][tt]["total"]
+        # contrastive_distill/diagnose_failures each mix every task_type into
+        # one cloud call, so those tokens aren't attributable to a single
+        # subtask - tracked honestly here instead of a fabricated split.
+        metrics["tokens/large_model/mixed/prompt"] = large_delta_mixed["prompt"]
+        metrics["tokens/large_model/mixed/completion"] = large_delta_mixed["completion"]
+        metrics["tokens/large_model/mixed/total"] = large_delta_mixed["total"]
+        metrics["tokens/large_model/mixed/total_cumulative"] = large_after["mixed"]["total"]
+        metrics["tokens/large_model/mixed/accounting"] = "provider_api_usage_mixed_task_types"
+
         canonical_record = {
             "step": group_id,
             "global_episode_end": global_step,
@@ -1309,6 +1452,9 @@ def main():
                 "small_model": {
                     **dict(small_model_token_totals),
                     "accounting": small_model_token_accounting,
+                    "by_task_type": {
+                        tt: dict(small_model_token_totals_by_tt[tt]) for tt in NORL_TASK_TYPES
+                    },
                 },
                 "large_model": _large_model_token_usage(),
             },
@@ -1477,7 +1623,8 @@ def main():
                 ep_result = {"won": won, "used": used, "raw_trace": raw_trace,
                              "task_type": tt_detected, "injected": injected,
                              "n_valid": nval, "logrows": logrows,
-                             "playbook_record": pb_rec}
+                             "playbook_record": pb_rec,
+                             "small_model_tokens": small_tokens}
                 ep_record, pb_used = _ingest_episode_result(epoch, ep_result)
                 ep_i += 1
 

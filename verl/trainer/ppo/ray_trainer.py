@@ -27,7 +27,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 from pprint import pprint
-from typing import Dict, Optional, Type
+from typing import Any, Dict, Optional, Type
 
 import numpy as np
 import ray
@@ -46,6 +46,7 @@ from verl.single_controller.ray.base import create_colocated_worker_cls
 from verl.trainer.ppo import core_algos
 from verl.trainer.ppo.core_algos import agg_loss
 from verl.trainer.ppo.metric_utils import (
+    KNOWN_TASK_TYPES,
     compute_action_validity_metrics,
     compute_data_metrics,
     compute_throughout_metrics,
@@ -492,6 +493,8 @@ class RayPPOTrainer:
         self._token_traffic_loaded = False
         self._token_traffic_totals = {}
         self._token_traffic_large_raw = None
+        self._token_traffic_large_by_tt_raw = None
+        self._token_traffic_large_mixed_raw = None
 
     def _validate_config(self):
         config = self.config
@@ -1373,6 +1376,9 @@ class RayPPOTrainer:
             "large_prompt": 0,
             "large_completion": 0,
             "large_total": 0,
+            "small_by_tt": {tt: 0 for tt in KNOWN_TASK_TYPES},
+            "large_by_tt": {tt: 0 for tt in KNOWN_TASK_TYPES},
+            "large_mixed": 0,
         }
         path = self._primary_metrics_jsonl_path()
         last_cumulative = None
@@ -1407,6 +1413,18 @@ class RayPPOTrainer:
                                     row.get("tokens/large_model/completion_cumulative", 0), 0)),
                                 "large_total": int(self._metric_scalar(
                                     row.get("tokens/large_model/total_cumulative", 0), 0)),
+                                "small_by_tt": {
+                                    tt: int(self._metric_scalar(
+                                        row.get(f"tokens/small_model/by_task_type/{tt}/total_cumulative", 0), 0))
+                                    for tt in KNOWN_TASK_TYPES
+                                },
+                                "large_by_tt": {
+                                    tt: int(self._metric_scalar(
+                                        row.get(f"tokens/large_model/by_task_type/{tt}/total_cumulative", 0), 0))
+                                    for tt in KNOWN_TASK_TYPES
+                                },
+                                "large_mixed": int(self._metric_scalar(
+                                    row.get("tokens/large_model/mixed/total_cumulative", 0), 0)),
                             }
                         else:
                             legacy_small["small_prompt"] += max(0, int(self._metric_scalar(
@@ -1437,7 +1455,16 @@ class RayPPOTrainer:
         self._token_traffic_loaded = True
 
     def _large_token_usage_snapshot(self):
-        """Return current-process cloud usage as (prompt, completion, total)."""
+        """Return current-process cumulative cloud usage.
+
+        Returns a tuple ``(prompt, completion, total, by_tt_total, mixed_total)``
+        where ``by_tt_total`` is a ``{task_type: total_tokens}`` dict (only
+        populated for ``evolve_playbook``, which is cleanly attributable per
+        task_type) and ``mixed_total`` is the cumulative token count for calls
+        that mix multiple task_types in one request (``contrastive_distill``,
+        ``diagnose_failures``) and therefore cannot be honestly attributed to
+        a single task_type.
+        """
         summary = None
         loop = getattr(self, "_coskill_loop", None)
         analyzer = getattr(loop, "cloud_analyzer", None) if loop is not None else None
@@ -1448,11 +1475,22 @@ class RayPPOTrainer:
             # backward compatibility if a CoSkillCloudLoop is not active.
             summary = self.skill_updater.get_update_summary() or {}
         if summary is None:
-            return 0, 0, 0
+            summary = {}
+        by_tt_prompt = summary.get("large_model_prompt_tokens_by_task_type", {}) or {}
+        by_tt_completion = summary.get("large_model_completion_tokens_by_task_type", {}) or {}
+        by_tt_total = {
+            tt: int(self._metric_scalar(by_tt_prompt.get(tt, 0), 0))
+            + int(self._metric_scalar(by_tt_completion.get(tt, 0), 0))
+            for tt in KNOWN_TASK_TYPES
+        }
+        mixed_total = int(self._metric_scalar(summary.get("large_model_prompt_tokens_mixed", 0), 0)) + \
+            int(self._metric_scalar(summary.get("large_model_completion_tokens_mixed", 0), 0))
         return (
             int(self._metric_scalar(summary.get("large_model_prompt_tokens", 0), 0)),
             int(self._metric_scalar(summary.get("large_model_completion_tokens", 0), 0)),
             int(self._metric_scalar(summary.get("large_model_total_tokens", 0), 0)),
+            by_tt_total,
+            mixed_total,
         )
 
     def _add_token_traffic_metrics(self, metrics: Dict) -> None:
@@ -1475,20 +1513,57 @@ class RayPPOTrainer:
         totals["small_response"] += small_response
         totals["small_total"] += small_total
 
-        raw_large = self._large_token_usage_snapshot()
+        # Per-task_type small-model tokens: already a per-step raw delta (each
+        # training batch is disjoint), so just accumulate directly - no
+        # raw-vs-delta reconciliation needed here (unlike the cloud counters
+        # below, which read a cumulative provider-side total).
+        small_by_tt = totals.setdefault("small_by_tt", {tt: 0 for tt in KNOWN_TASK_TYPES})
+        for tt in KNOWN_TASK_TYPES:
+            step_val = max(0, int(self._metric_scalar(
+                metrics.get(f"tokens/small_model/by_task_type/{tt}/total", 0), 0)))
+            small_by_tt[tt] = small_by_tt.get(tt, 0) + step_val
+
+        raw_prompt, raw_completion, raw_total, raw_by_tt, raw_mixed = self._large_token_usage_snapshot()
+        raw_scalar = (raw_prompt, raw_completion, raw_total)
         if self._token_traffic_large_raw is None:
             # First row in this process: provider counters start at zero after
             # a resume, so the observed value is this process's initial delta.
-            large_delta = raw_large
-        elif all(now >= old for now, old in zip(raw_large, self._token_traffic_large_raw)):
-            large_delta = tuple(now - old for now, old in zip(raw_large, self._token_traffic_large_raw))
+            large_delta = raw_scalar
+        elif all(now >= old for now, old in zip(raw_scalar, self._token_traffic_large_raw)):
+            large_delta = tuple(now - old for now, old in zip(raw_scalar, self._token_traffic_large_raw))
         else:
             # Defensive recovery for a provider/client counter reset.
-            large_delta = raw_large
-        self._token_traffic_large_raw = raw_large
+            large_delta = raw_scalar
+        self._token_traffic_large_raw = raw_scalar
         totals["large_prompt"] += max(0, large_delta[0])
         totals["large_completion"] += max(0, large_delta[1])
         totals["large_total"] += max(0, large_delta[2])
+
+        # evolve_playbook cloud tokens, cleanly attributable per task_type.
+        old_by_tt = self._token_traffic_large_by_tt_raw
+        large_by_tt = totals.setdefault("large_by_tt", {tt: 0 for tt in KNOWN_TASK_TYPES})
+        by_tt_delta = {}
+        for tt in KNOWN_TASK_TYPES:
+            now = raw_by_tt.get(tt, 0)
+            old = 0 if old_by_tt is None else old_by_tt.get(tt, 0)
+            delta = now - old if now >= old else now
+            by_tt_delta[tt] = max(0, delta)
+            large_by_tt[tt] = large_by_tt.get(tt, 0) + by_tt_delta[tt]
+        self._token_traffic_large_by_tt_raw = dict(raw_by_tt)
+
+        # contrastive_distill / diagnose_failures cloud tokens: each call mixes
+        # every task_type in one request, so this is an honest "cannot
+        # attribute to a single subtask" bucket rather than a fabricated split.
+        old_mixed = self._token_traffic_large_mixed_raw
+        if old_mixed is None:
+            mixed_delta = raw_mixed
+        elif raw_mixed >= old_mixed:
+            mixed_delta = raw_mixed - old_mixed
+        else:
+            mixed_delta = raw_mixed
+        mixed_delta = max(0, mixed_delta)
+        self._token_traffic_large_mixed_raw = raw_mixed
+        totals["large_mixed"] = totals.get("large_mixed", 0) + mixed_delta
 
         metrics.update({
             "tokens/small_model/accounting": "actor_rollout_request_tokens",
@@ -1502,6 +1577,21 @@ class RayPPOTrainer:
             "tokens/large_model/prompt_cumulative": totals["large_prompt"],
             "tokens/large_model/completion_cumulative": totals["large_completion"],
             "tokens/large_model/total_cumulative": totals["large_total"],
+            **{
+                f"tokens/small_model/by_task_type/{tt}/total_cumulative": small_by_tt[tt]
+                for tt in KNOWN_TASK_TYPES
+            },
+            **{
+                f"tokens/large_model/by_task_type/{tt}/total": by_tt_delta[tt]
+                for tt in KNOWN_TASK_TYPES
+            },
+            **{
+                f"tokens/large_model/by_task_type/{tt}/total_cumulative": large_by_tt[tt]
+                for tt in KNOWN_TASK_TYPES
+            },
+            "tokens/large_model/mixed/total": mixed_delta,
+            "tokens/large_model/mixed/total_cumulative": totals["large_mixed"],
+            "tokens/large_model/mixed/accounting": "provider_api_usage_unattributed_mixed_task_type",
         })
 
     def _coskill_metrics(self) -> dict:
@@ -1853,6 +1943,27 @@ class RayPPOTrainer:
             return 'examine'
         else:
             return 'pick_and_place'
+
+    def _compute_row_task_types(self, batch) -> np.ndarray:
+        """Per-row task_type array for the token-traffic by-task_type breakdown.
+
+        One row = one env step; all steps of an episode share ``traj_uid``.
+        task_type is detected once per episode from its first row (same
+        heuristic and same "first row only" choice as
+        ``_coskill_ingest_batch_to_pool``, which avoids false keyword matches
+        from later-step observation text) and broadcast to every row of that
+        episode.
+        """
+        inputs = self.tokenizer.batch_decode(batch.batch["prompts"], skip_special_tokens=True)
+        traj_uids = batch.non_tensor_batch.get('traj_uid', [None] * len(inputs))
+        first_seen: Dict[Any, str] = {}
+        task_types = []
+        for inp, uid in zip(inputs, traj_uids):
+            key = uid if uid is not None else inp
+            if key not in first_seen:
+                first_seen[key] = self._detect_task_type_from_input(inp)
+            task_types.append(first_seen[key])
+        return np.asarray(task_types)
 
     def init_workers(self):
         """Initialize distributed training workers using Ray backend.
@@ -2378,7 +2489,11 @@ class RayPPOTrainer:
                     }
                 )
                 # collect metrics
-                metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
+                metrics.update(compute_data_metrics(
+                    batch=batch,
+                    use_critic=self.use_critic,
+                    task_types=self._compute_row_task_types(batch),
+                ))
                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
                 # TODO: implement actual tflpo and theoretical tflpo
                 n_gpus = self.resource_pool_manager.get_n_gpus()

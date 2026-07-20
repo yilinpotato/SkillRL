@@ -72,6 +72,15 @@ class CloudAnalyzer:
         self.update_history: List[Dict] = []
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
+        # Per-task_type cloud token breakdown. Only evolve_playbook is cleanly
+        # attributable to a single task_type (it's already called once per
+        # task_type); contrastive_distill/diagnose_failures each mix every
+        # task_type in one call and are tracked separately under *_mixed
+        # instead of being force-split across task_types.
+        self.total_prompt_tokens_by_task_type: Dict[str, int] = {}
+        self.total_completion_tokens_by_task_type: Dict[str, int] = {}
+        self.total_prompt_tokens_mixed = 0
+        self.total_completion_tokens_mixed = 0
         # Skill-tree 进化 / 失败诊断的可观测计数（并入 get_update_summary）。
         self.playbook_history: List[Dict] = []
         self.n_diagnose_calls = 0
@@ -135,6 +144,10 @@ class CloudAnalyzer:
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
+                # Mixes every task_type in one call - not attributable to a
+                # single subtask, so it's tracked as an honest "mixed" bucket.
+                self.total_prompt_tokens_mixed += response.usage.prompt_tokens
+                self.total_completion_tokens_mixed += response.usage.completion_tokens
 
             patches = self._normalize_patches(
                 raw_skills, next_dyn_idx, compressed_batch
@@ -206,6 +219,9 @@ class CloudAnalyzer:
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
+                # Mixes every task_type in one call - see contrastive_distill.
+                self.total_prompt_tokens_mixed += response.usage.prompt_tokens
+                self.total_completion_tokens_mixed += response.usage.completion_tokens
             self.n_diagnose_calls += 1
 
             diags = self._parse_json_array(content)
@@ -368,13 +384,19 @@ Return ONLY the JSON array, no other text."""
                 max_completion_tokens=self.max_completion_tokens,
             )
             content = response.choices[0].message.content
-            self._record_call("evolve_playbook", prompt, content, getattr(response, "usage", None))
+            self._record_call("evolve_playbook", prompt, content, getattr(response, "usage", None),
+                               task_type=task_type)
             if self.playbook_io_dir is not None:
                 self._dump_text(self.playbook_io_dir,
                                 f"evolve_skill_tree_response_{task_type}_call{self.n_evolve_calls:03d}.txt", content)
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
+                # Cleanly attributable: this call is already scoped to task_type.
+                self.total_prompt_tokens_by_task_type[task_type] = (
+                    self.total_prompt_tokens_by_task_type.get(task_type, 0) + response.usage.prompt_tokens)
+                self.total_completion_tokens_by_task_type[task_type] = (
+                    self.total_completion_tokens_by_task_type.get(task_type, 0) + response.usage.completion_tokens)
             self.n_evolve_calls += 1
 
             obj = self._parse_json_object(content)
@@ -613,13 +635,15 @@ Return ONLY the JSON object, no other text."""
         except Exception as e:
             print(f"[CloudAnalyzer] json dump failed ({fname}): {e}")
 
-    def _record_call(self, purpose: str, prompt: str, response: str, usage: Any) -> None:
+    def _record_call(self, purpose: str, prompt: str, response: str, usage: Any,
+                      task_type: Optional[str] = None) -> None:
         """Record hashes/token usage without putting API text in normal metrics."""
         import hashlib
         prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
         completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
         self.call_audit.append({
             "purpose": purpose,
+            "task_type": task_type,
             "model": self.model,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
@@ -982,6 +1006,16 @@ Return ONLY the JSON array, no other text."""
         if not self.update_history and not self.playbook_history:
             return {"total_updates": 0, "total_patches": 0}
         n_kept = sum(1 for h in self.playbook_history if h.get("action") == "keep")
+        # Per-task_type call/update counts, same attributability split as the
+        # token counters above: evolve_playbook is already one call per
+        # task_type, so this is a plain group-by rather than a heuristic.
+        evolve_calls_by_task_type: Dict[str, int] = {}
+        skill_tree_updates_by_task_type: Dict[str, int] = {}
+        for h in self.playbook_history:
+            tt = h.get("task_type") or "unknown"
+            evolve_calls_by_task_type[tt] = evolve_calls_by_task_type.get(tt, 0) + 1
+            if h.get("action") != "keep":
+                skill_tree_updates_by_task_type[tt] = skill_tree_updates_by_task_type.get(tt, 0) + 1
         return {
             "total_updates": len(self.update_history),
             "total_patches": sum(h["num_patches"] for h in self.update_history),
@@ -989,9 +1023,20 @@ Return ONLY the JSON array, no other text."""
             "large_model_prompt_tokens": self.total_prompt_tokens,
             "large_model_completion_tokens": self.total_completion_tokens,
             "large_model_total_tokens": self.total_prompt_tokens + self.total_completion_tokens,
+            # Per-task_type breakdown (evolve_playbook only - cleanly
+            # attributable) plus an honest "mixed" bucket for calls that
+            # cannot be split by task_type (contrastive_distill,
+            # diagnose_failures). See CloudAnalyzer.__init__ for rationale.
+            "large_model_prompt_tokens_by_task_type": dict(self.total_prompt_tokens_by_task_type),
+            "large_model_completion_tokens_by_task_type": dict(self.total_completion_tokens_by_task_type),
+            "large_model_prompt_tokens_mixed": self.total_prompt_tokens_mixed,
+            "large_model_completion_tokens_mixed": self.total_completion_tokens_mixed,
+            "large_model_total_tokens_mixed": self.total_prompt_tokens_mixed + self.total_completion_tokens_mixed,
             # skill-tree 进化 / 失败诊断可观测
             "diagnose_calls": self.n_diagnose_calls,
             "evolve_calls": self.n_evolve_calls,
             "skill_tree_updates": self.n_evolve_calls - n_kept,
             "playbook_updates": self.n_evolve_calls - n_kept,
+            "evolve_calls_by_task_type": evolve_calls_by_task_type,
+            "skill_tree_updates_by_task_type": skill_tree_updates_by_task_type,
         }

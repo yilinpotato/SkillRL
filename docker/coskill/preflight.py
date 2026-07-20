@@ -9,7 +9,7 @@ from pyserini.search.lucene import LuceneSearcher
 
 PROJECT_ROOT = Path(os.environ.get(
     "PROJECT_ROOT", Path(__file__).resolve().parents[2]))
-ALFWORLD_DATA = Path(os.environ.get("ALFWORLD_DATA", "/datasets/alfworld"))
+ALFWORLD_DATA = Path(os.environ.get("ALFWORLD_DATA", "/opt/data/alfworld"))
 WEBSHOP_DATA = Path(os.environ.get(
     "WEBSHOP_DATA_DIR",
     PROJECT_ROOT / "agent_system/environments/env_package/webshop/webshop/data",

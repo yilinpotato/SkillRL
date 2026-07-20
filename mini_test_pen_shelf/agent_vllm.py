@@ -114,6 +114,13 @@ class VLLMAgent:
         # and one complete sampled response.
         self.total_prompt_tokens = 0
         self.total_response_tokens = 0
+        # Per-request breakdown from the most recent generate() call, aligned
+        # index-for-index with that call's prompts/request_outputs. Callers
+        # that batch many episode slots into one generate() (e.g.
+        # act_batch_with_meta) use this to attribute exact tokens back to the
+        # individual slot that owned each request, since the cumulative
+        # counters above can't be un-summed after the fact.
+        self.last_batch_request_tokens = []
 
     def _single_sampling(self, *, temperature=None, seed=None):
         """Build request-local single-pass sampling parameters when overridden.
@@ -138,13 +145,19 @@ class VLLMAgent:
         )
 
     def _record_token_usage(self, request_outputs):
+        per_request = []
         for request_output in request_outputs:
             prompt_ids = getattr(request_output, "prompt_token_ids", None) or []
-            self.total_prompt_tokens += len(prompt_ids)
+            p = len(prompt_ids)
+            self.total_prompt_tokens += p
             outputs = getattr(request_output, "outputs", None) or []
+            r = 0
             if outputs:
                 token_ids = getattr(outputs[0], "token_ids", None) or []
-                self.total_response_tokens += len(token_ids)
+                r = len(token_ids)
+            self.total_response_tokens += r
+            per_request.append({"prompt": p, "response": r, "total": p + r})
+        self.last_batch_request_tokens = per_request
 
     def get_token_usage(self):
         """Return exact cumulative vLLM inference tokens for this agent."""

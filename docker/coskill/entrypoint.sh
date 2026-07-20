@@ -33,12 +33,18 @@ ensure_model() {
 
 gpu_preflight() {
     python - <<'PY'
+import os
+
 import torch
 
 n = torch.cuda.device_count()
-if n not in (2, 4, 8):
+allow_single = os.environ.get("PREFLIGHT_ALLOW_SINGLE_GPU", "0") == "1"
+if n == 1 and allow_single:
+    print("Visible CUDA GPUs: 1 (preflight-only mode; Tree-RL training still needs 2, 4, or 8 GPUs)")
+elif n not in (2, 4, 8):
     raise SystemExit(f"CoSkill Tree-RL requires 2, 4, or 8 visible GPUs, got {n}")
-print(f"Visible CUDA GPUs: {n}")
+else:
+    print(f"Visible CUDA GPUs: {n}")
 for i in range(n):
     props = torch.cuda.get_device_properties(i)
     print(f"  cuda:{i} {props.name} {props.total_memory / 2**30:.1f} GiB")
@@ -65,7 +71,7 @@ case "$TASK" in
                 --skills-json "memory_data/${PREFLIGHT_BENCHMARK:-alfworld}/claude_style_skills.json" \
                 --probe
         fi
-        echo "Preflight passed. Choose alfworld-root, alfworld-leaf, webshop-root, or webshop-leaf."
+        echo "Preflight passed. Choose alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, or alfworld-ablation."
         ;;
     alfworld-root|alfworld-leaf|webshop-root|webshop-leaf)
         ensure_model
@@ -76,8 +82,17 @@ case "$TASK" in
         export COSKILL_CONTAINER=1 TREE_RL_ORDER
         exec bash examples/grpo_trainer/run_coskill_tree_rl.sh "$BENCHMARK" "$@"
         ;;
+    alfworld-ablation)
+        ensure_model
+        data_preflight
+        # The fixed-trajectory protocol has its own runner and its own
+        # rollout-count contract.  It is deliberately not folded into GRPO.
+        export COSKILL_CONTAINER=1
+        export AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_fixed_trajectory_ablation}"
+        exec bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation.sh "$@"
+        ;;
     *)
-        echo "Unknown task '$TASK'. Use preflight, shell, alfworld-root, alfworld-leaf, webshop-root, or webshop-leaf." >&2
+        echo "Unknown task '$TASK'. Use preflight, shell, alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, or alfworld-ablation." >&2
         exit 2
         ;;
 esac

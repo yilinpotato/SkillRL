@@ -23,6 +23,16 @@ RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly
     && PATH=/opt/conda/envs/skillRL/bin:$PATH \
         /opt/conda/envs/skillRL/bin/conda-unpack
 
+# conda-pack can restore an obsolete conda Faiss package after the newer pip
+# faiss-cpu files.  Overlay the host's tested runtime copy, just as the fixed
+# trajectory ablation image does, so full and shared main images agree.
+RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly \
+    site=/opt/conda/envs/skillRL/lib/python3.10/site-packages \
+    && rm -rf "$site/faiss" "$site"/faiss-*.egg-info \
+              "$site"/faiss_cpu-*.dist-info "$site/faiss_cpu.libs" \
+    && tar -xzf /build-assets/faiss-runtime-overlay.tar.gz -C "$site" \
+    && /opt/conda/envs/skillRL/bin/python -c 'import faiss; assert faiss.__version__ == "1.13.2"'
+
 ENV PATH=/opt/conda/envs/skillRL/bin:$PATH \
     CONDA_DEFAULT_ENV=skillRL \
     PYTHONUNBUFFERED=1 \
@@ -31,7 +41,7 @@ ENV PATH=/opt/conda/envs/skillRL/bin:$PATH \
     VLLM_WORKER_MULTIPROC_METHOD=spawn \
     COSKILL_CONTAINER=1 \
     PROJECT_ROOT=/workspace/CoSkill \
-    ALFWORLD_DATA=/datasets/alfworld \
+    ALFWORLD_DATA=/opt/data/alfworld \
     OUTPUT_ROOT=/outputs \
     MODEL_PATH=/models/Qwen3-4B-Thinking-2507 \
     WEBSHOP_DATA_DIR=/workspace/CoSkill/agent_system/environments/env_package/webshop/webshop/data
@@ -45,8 +55,8 @@ RUN python -m pip uninstall -y verl skyrl-gym >/dev/null 2>&1 || true \
     && python -m pip install --no-deps -e /workspace/CoSkill
 
 RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly \
-    mkdir -p /datasets \
-    && tar -xzf /build-assets/alfworld-data.tar.gz -C /datasets
+    mkdir -p /opt/data \
+    && tar -xzf /build-assets/alfworld-data.tar.gz -C /opt/data
 
 RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly \
     tar -xzf /build-assets/webshop-small-data.tar.gz \

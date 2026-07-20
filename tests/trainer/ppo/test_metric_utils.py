@@ -22,6 +22,7 @@ import numpy as np
 import torch
 
 from verl.trainer.ppo.metric_utils import (
+    KNOWN_TASK_TYPES,
     bootstrap_metric,
     calc_maj_val,
     compute_data_metrics,
@@ -118,6 +119,36 @@ class TestComputeDataMetrics(unittest.TestCase):
         self.assertIn("critic/score/mean", metrics)
         self.assertIn("critic/rewards/mean", metrics)
         self.assertIn("response_length/mean", metrics)
+
+    def test_compute_data_metrics_by_task_type(self):
+        """Per-subtask token breakdown: row 0 -> tt_a, row 1 -> tt_b."""
+        tt_a, tt_b = KNOWN_TASK_TYPES[0], KNOWN_TASK_TYPES[1]
+        task_types = np.array([tt_a, tt_b])
+        metrics = compute_data_metrics(self.batch, use_critic=True, task_types=task_types)
+
+        # Both rows have prompt_length=2, response_length=2 (4 attention_mask
+        # ones, 2 response columns) - each task_type has exactly one row.
+        self.assertEqual(metrics[f"tokens/small_model/by_task_type/{tt_a}/prompt"], 2)
+        self.assertEqual(metrics[f"tokens/small_model/by_task_type/{tt_a}/response"], 2)
+        self.assertEqual(metrics[f"tokens/small_model/by_task_type/{tt_b}/prompt"], 2)
+        self.assertEqual(metrics[f"tokens/small_model/by_task_type/{tt_b}/response"], 2)
+
+        # A task_type with no rows this step is zero-filled, not omitted.
+        untouched = [tt for tt in KNOWN_TASK_TYPES if tt not in (tt_a, tt_b)][0]
+        self.assertEqual(metrics[f"tokens/small_model/by_task_type/{untouched}/total"], 0)
+
+        # Hard invariant: the breakdown must never lose or double-count
+        # tokens versus the existing raw total.
+        by_tt_total = sum(
+            metrics[f"tokens/small_model/by_task_type/{tt}/total"] for tt in KNOWN_TASK_TYPES
+        )
+        self.assertEqual(by_tt_total, metrics["tokens/small_model/total"])
+
+    def test_compute_data_metrics_without_task_types_omits_breakdown(self):
+        """task_types=None (the default) must not add any by_task_type keys."""
+        metrics = compute_data_metrics(self.batch, use_critic=True)
+        for tt in KNOWN_TASK_TYPES:
+            self.assertNotIn(f"tokens/small_model/by_task_type/{tt}/total", metrics)
 
 
 class TestComputeTimingMetrics(unittest.TestCase):
