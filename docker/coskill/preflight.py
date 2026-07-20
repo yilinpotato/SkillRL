@@ -16,7 +16,8 @@ WEBSHOP_DATA = Path(os.environ.get(
 ))
 WEBSHOP_ROOT = WEBSHOP_DATA.parent
 DATA_ROOT = Path(os.environ.get(
-    "DATA_ROOT", PROJECT_ROOT / "skillrl_data/verl-agent"))
+    "DATA_ROOT", "/opt/data/verl-agent" if os.environ.get("COSKILL_CONTAINER") == "1"
+    else PROJECT_ROOT / "skillrl_data/verl-agent"))
 
 
 def require(path: Path) -> None:
@@ -55,6 +56,18 @@ for benchmark in ("alfworld", "webshop"):
     with path.open(encoding="utf-8") as handle:
         json.load(handle)
 
+# Check every advertised task command before users wait for a GPU allocation.
+# This catches a partial source overlay or an accidental host bind mount early.
+for relative in (
+    "examples/grpo_trainer/run_coskill_tree_rl.sh",
+    "examples/playbook_evolve/run_alfworld_playbook_evolve_norl.sh",
+    "examples/playbook_evolve/run_webshop_playbook_evolve_norl.sh",
+    "examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation.sh",
+    "examples/playbook_evolve/run_playbook_evolve.py",
+    "examples/playbook_evolve/run_webshop_evolve.py",
+):
+    require(PROJECT_ROOT / relative)
+
 output_root = Path(os.environ.get("OUTPUT_ROOT", "/outputs"))
 output_root.mkdir(parents=True, exist_ok=True)
 probe = output_root / ".coskill_write_probe"
@@ -65,4 +78,5 @@ print(f"ALFWorld data ready: {ALFWORLD_DATA}")
 print(f"WebShop small data ready: {WEBSHOP_DATA}")
 print("WebShop Lucene index ready: 1000 documents")
 print(f"Prepared train/val parquet ready: {DATA_ROOT / 'text'}")
+print("All advertised CoSkill entrypoint sources are present")
 print(f"Output directory writable: {output_root}")

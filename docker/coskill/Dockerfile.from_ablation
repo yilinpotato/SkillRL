@@ -37,6 +37,7 @@ ENV PATH=/opt/conda/envs/skillRL/bin:$PATH \
     PROJECT_ROOT=/workspace/CoSkill \
     PYTHONPATH=/workspace/CoSkill \
     ALFWORLD_DATA=/opt/data/alfworld \
+    DATA_ROOT=/opt/data/verl-agent \
     OUTPUT_ROOT=/outputs \
     MODEL_PATH=/models/Qwen3-4B-Thinking-2507 \
     WEBSHOP_DATA_DIR=/workspace/CoSkill/agent_system/environments/env_package/webshop/webshop/data
@@ -67,8 +68,18 @@ RUN site=/opt/conda/envs/skillRL/lib/python3.10/site-packages \
     && rm /tmp/faiss-runtime-overlay.tar.gz \
     && python -c 'import faiss; assert faiss.__version__ == "1.13.2"'
 
-# The parent already has ALFWorld.  Main Tree-RL additionally needs only the
-# fixed 1,000-product WebShop split and the matching Lucene index.
+# Do not assume the ablation parent carries the GRPO parquet cache: it is
+# intentionally self-contained here so all main Tree-RL entrypoints work on a
+# fresh server.  The archive contains exactly train=12 and test=32 rows.
+COPY --from=runtime_assets prepared-verl-data.tar.gz /tmp/prepared-verl-data.tar.gz
+RUN mkdir -p /opt/data \
+    && tar -xzf /tmp/prepared-verl-data.tar.gz -C /opt/data \
+    && rm /tmp/prepared-verl-data.tar.gz \
+    && test -f /opt/data/verl-agent/text/train.parquet \
+    && test -f /opt/data/verl-agent/text/test.parquet
+
+# The parent already has ALFWorld.  Main Tree-RL additionally needs the fixed
+# 1,000-product WebShop split and the matching Lucene index.
 COPY --from=webshop_assets webshop-small-data.tar.gz /tmp/webshop-small-data.tar.gz
 RUN tar -xzf /tmp/webshop-small-data.tar.gz \
         -C /workspace/CoSkill/agent_system/environments/env_package/webshop/webshop \

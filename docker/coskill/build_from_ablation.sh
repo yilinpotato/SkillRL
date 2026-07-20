@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build a thin main Tree-RL image on top of the pushed ALFWorld ablation base.
-# It stages only the WebShop archive: the large skillRL and ALFWorld layers are
-# inherited from BASE_IMAGE and therefore deduplicated by the registry.
+# It stages the WebShop archive and prepared GRPO parquet contract; the large
+# skillRL and ALFWorld layers are inherited from BASE_IMAGE and deduplicated.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,6 +12,7 @@ BASE_IMAGE="${BASE_IMAGE:-coskill-alfworld-fixed-ablation:skillrl-cu128}"
 DOCKER_BUILD_NETWORK="${DOCKER_BUILD_NETWORK:-host}"
 CONDA_ENV_NAME="${CONDA_ENV_NAME:-skillRL}"
 UBUNTU_APT_MIRROR="${UBUNTU_APT_MIRROR:-https://mirrors.aliyun.com/ubuntu}"
+PREPARED_DATA_SOURCE="${PREPARED_DATA_SOURCE:-$PROJECT_ROOT/skillrl_data/verl-agent}"
 DOCKER_COMMAND=(docker)
 if [[ "${DOCKER_USE_SUDO:-0}" == "1" ]]; then
     DOCKER_COMMAND=(sudo docker)
@@ -23,10 +24,34 @@ if [[ ! -s "$WEB_ASSET" ]]; then
     echo "Run docker/coskill/build_image.sh once, or create this archive first." >&2
     exit 1
 fi
+for path in "$PREPARED_DATA_SOURCE/text/train.parquet" "$PREPARED_DATA_SOURCE/text/test.parquet"; do
+    if [[ ! -s "$path" ]]; then
+        echo "Required prepared GRPO parquet is missing: $path" >&2
+        exit 1
+    fi
+done
 
 STAGE_DIR="$(mktemp -d)"
 trap 'rm -rf "$STAGE_DIR"' EXIT
 cp "$WEB_ASSET" "$STAGE_DIR/webshop-small-data.tar.gz"
+
+conda run -n "$CONDA_ENV_NAME" python - "$PREPARED_DATA_SOURCE" <<'PY'
+from pathlib import Path
+import sys
+
+import pyarrow.parquet as pq
+
+root = Path(sys.argv[1])
+for name, expected in (("train.parquet", 12), ("test.parquet", 32)):
+    path = root / "text" / name
+    actual = pq.ParquetFile(path).metadata.num_rows
+    if actual != expected:
+        raise SystemExit(f"{path} has {actual} rows; expected {expected}")
+PY
+tar -czf "$STAGE_DIR/prepared-verl-data.tar.gz" \
+    -C "$(dirname "$PREPARED_DATA_SOURCE")" \
+    "$(basename "$PREPARED_DATA_SOURCE")/text/train.parquet" \
+    "$(basename "$PREPARED_DATA_SOURCE")/text/test.parquet"
 
 # Match the current standalone main image's Faiss files exactly.  conda-pack
 # can restore the old conda Faiss package after its pip upgrade in a different

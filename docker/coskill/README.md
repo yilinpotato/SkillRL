@@ -1,13 +1,18 @@
 # CoSkill Tree-RL and Ablation Docker
 
-该镜像固化当前 `skillRL` Conda 环境、CoSkill 代码、ALFWorld 文本环境，以及
-WebShop 1000 商品小数据集和对应 Lucene 索引。四个任务共用同一镜像：
-`alfworld-root`、`alfworld-leaf`、`webshop-root`、`webshop-leaf`。每个任务独占
+该镜像固化当前 `skillRL` Conda 环境、CoSkill 代码、ALFWorld 文本环境、固定
+`train=12/test=32` GRPO parquet，以及 WebShop 1000 商品数据和对应 Lucene 索引。
+Tree-RL 的四个任务共用同一镜像：`alfworld-root`、`alfworld-leaf`、
+`webshop-root`、`webshop-leaf`。每个任务独占
 2、4 或 8 张 GPU；单个实验使用 DP=2/4、TP=PP=1。rollout 始终为 `12×6=72`，
 验证集、采样和全局 PPO 几何不会随卡数变化。
 
 同一镜像也提供 `alfworld-ablation`。它运行固定任务、固定轨迹的 ALFWorld
 表示/压缩消融，仍使用独立的评估协议，**不会**混入或改变四个 Tree-RL 任务。
+
+冻结模型的端云协同基线也可以直接运行：`alfworld-norl`、`webshop-norl`。它们
+可以使用 1、2、4 或 8 张容器可见 GPU；全局 rollout 仍为 72，GPU 数只改变数据并行
+分片。Tree-RL 的 8 卡规则不同：每个实验仍只使用一个 4 卡 slot。
 
 基础镜像默认使用 `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04`。当前构建只安装
 已经打包好的 Python/CUDA wheel，不调用 `nvcc`，因此无需下载体积很大的 CUDA
@@ -67,9 +72,9 @@ IMAGE_TAG=crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotat
 docker push crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:skillrl-cu128-data
 ```
 
-薄镜像仍包含当前 CoSkill 代码和 WebShop 1000 商品数据；父镜像包含已验证的
-Conda 环境和 ALFWorld 数据。保留独立的 `coskill:skillrl-cu128-data` 完整镜像，
-它适合没有消融基础镜像的离线节点。
+薄镜像仍包含当前 CoSkill 代码、WebShop 1000 商品数据和固定 GRPO parquet；父镜像
+包含已验证的 Conda 环境和 ALFWorld 数据。保留独立的 `coskill:skillrl-cu128-data`
+完整镜像，它适合没有消融基础镜像的离线节点。
 
 ## 预检与运行
 
@@ -91,6 +96,16 @@ docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
 应串行运行，或为每个容器申请独立的 4 卡节点。相同输出目录会自动恢复模型、
 优化器、dataloader 和 `skills_tree_rl_latest.json`。新实验请通过
 `RL_OUTPUT_DIR=/outputs/<unique-name>` 使用独立目录。
+
+例如运行 ALFWorld noRL（8 卡时会启动 8 个 TP=1 的 vLLM 数据并行 worker）：
+
+```bash
+docker run --rm --gpus all --ipc=host \
+  --env-file .env -e MODEL_AUTO_DOWNLOAD=0 \
+  -e MAX_EPISODES=7200 -e BATCH_ROLLOUT_SIZE=72 \
+  -v /path/to/models:/models -v /path/to/outputs:/outputs \
+  coskill:skillrl-cu128-data alfworld-norl
+```
 
 若希望预检真实调用一次云端 API，可加 `-e CLOUD_BOOTSTRAP_PROBE=1`；密钥始终
 通过 `--env-file` 或容器 secret 注入，不要写入镜像。

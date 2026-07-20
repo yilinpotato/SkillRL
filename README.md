@@ -160,9 +160,10 @@ rl=1 TREE_RL_ORDER=root \
 累计值写入主 `metrics.jsonl`/`group_metrics.jsonl`，不会再重复计入第二次动作请求。
 
 自包含 Docker 镜像会固化当前 `skillRL` Conda 环境，并内嵌 ALFWorld 文本数据、
-WebShop 1000 商品数据与索引。它提供 `alfworld-root`、`alfworld-leaf`、
-`webshop-root`、`webshop-leaf` 四个入口；模型可挂载，也可在首次启动时由
-ModelScope 自动下载。构建与运行命令见
+固定 `train=12/test=32` parquet、WebShop 1000 商品数据与索引。它提供
+`alfworld-root`、`alfworld-leaf`、`webshop-root`、`webshop-leaf` 四个 Tree-RL
+入口，以及可使用容器全部可见 GPU 的 `alfworld-norl`、`webshop-norl` 冻结基线入口；
+模型可挂载，也可在首次启动时由 ModelScope 自动下载。构建与运行命令见
 [docker/coskill/README.md](docker/coskill/README.md)。
 
 ### ALFWorld 固定轨迹消融（4×A800，非 Docker）

@@ -18,7 +18,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04 nvidia-s
 ```bash
 export REGISTRY=crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com
 # 固定使用已验证的版本；不要填无 tag 的仓库地址（它会请求不存在的 latest）。
-export IMAGE=$REGISTRY/yilinpotato/coskill:skillrl-cu128-data-20260720-fix2
+export IMAGE=$REGISTRY/yilinpotato/coskill:skillrl-cu128-data-20260721-fix5
 export RUN_ROOT=$HOME/coskill-run
 mkdir -p "$RUN_ROOT/models" "$RUN_ROOT/outputs"
 
@@ -62,13 +62,19 @@ docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
 ### `Failed to find C compiler` / `torch._inductor.exc.InductorError`
 
 这是 vLLM 初始化时，Triton 要即时编译 GPU 内核，但旧镜像没有 `gcc/g++/make`。
-请确认平台导入的镜像是本教程的 **`skillrl-cu128-data-20260720-fix2`**，而不是旧的
-`fix1` 或缓存中的默认标签。`fix2` 已在镜像中安装并自检了编译工具链；不要在训练容器
+请确认平台导入的镜像是本教程的 **`skillrl-cu128-data-20260721-fix5`**，而不是旧的
+`fix1`/`fix2`/`fix3`/`fix4` 或缓存中的默认标签。`fix5` 已在镜像中安装并自检了编译工具链；不要在训练容器
 中临时 `apt install`，这样会破坏可复现性。
 
 若平台只能通过图形界面导入镜像，镜像 URL 填完整的
-`crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:skillrl-cu128-data-20260720-fix2`，
-内部镜像名可填 `coskill:rlfix2`。导入后先运行上一节 `preflight`；通过后才启动训练。
+`crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:skillrl-cu128-data-20260721-fix5`，
+内部镜像名可填 `coskill:rlfix5`。导入后先运行上一节 `preflight`；通过后才启动训练。
+
+### `missing required asset: .../skillrl_data/verl-agent/text/train.parquet`
+
+这是旧薄镜像遗漏固定的 GRPO parquet 所致。`fix5` 将 `train=12`、`test=32` 的
+parquet 打包在 `/opt/data/verl-agent`，并在预检中验证行数。不要通过挂载旧宿主机
+仓库来绕过；重新导入 `fix5` 后运行 `preflight` 即可。
 
 ### 容器内缺少源码或云端 key
 
@@ -134,3 +140,17 @@ docker run -d --name coskill-ablation --gpus '"device=0,1,2,3"' --ipc=host \
 结果在 `$RUN_ROOT/outputs/alfworld_ablation_001/ablation_summary.json` 和 CSV。
 消融可按 `--phase manifests|bootstrap|artifacts|evaluate|all` 续跑；固定 manifest 和
 冻结轨迹会被保留，不能拿 RL 训练目录复用。
+
+## 7. 运行 ALFWorld noRL
+
+noRL 使用同一镜像，但入口是 `alfworld-norl`。它可使用容器分配的全部 GPU，保持
+全局 `72 rollout/group` 与 `7200 episode = 100 group`；4 卡为每卡 18 条、8 卡为每卡
+9 条，均使用 DP、TP=1：
+
+```bash
+docker run -d --name coskill-alfworld-norl --gpus all --ipc=host \
+  --env-file "$RUN_ROOT/.env" -e MODEL_AUTO_DOWNLOAD=0 \
+  -e MAX_EPISODES=7200 -e BATCH_ROLLOUT_SIZE=72 \
+  -v "$RUN_ROOT/models:/models:ro" -v "$RUN_ROOT/outputs:/outputs" \
+  "$IMAGE" alfworld-norl
+```

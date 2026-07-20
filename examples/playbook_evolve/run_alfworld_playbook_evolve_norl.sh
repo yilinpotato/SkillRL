@@ -18,6 +18,10 @@ set -euo pipefail
 # direction in the delegated launcher.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+# `python3 -m examples...` below resolves the `examples` package off the
+# current working directory, not off this script's location — must cd here
+# (matching run_coskill_tree_rl.sh) or it 404s when launched from elsewhere.
+cd "$PROJECT_ROOT"
 PRIVATE_ENV_FILE="${COSKILL_ENV_FILE:-$PROJECT_ROOT/.env}"
 # shellcheck disable=SC1091
 source "$PROJECT_ROOT/scripts/load_private_env.sh"
@@ -50,12 +54,25 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID
 # PYTHONUNBUFFERED=1（等价 python3 -u）强制无缓冲，进度 print 立刻可见。
 export PYTHONUNBUFFERED=1
 
-# GPU selection.  By default this no-RL batch rollout uses two data-parallel
-# workers on the two-A800 server: each worker gets one GPU and one full vLLM
-# replica.  If the user already set CUDA_VISIBLE_DEVICES, respect it; otherwise
-# GPU=... can select a single device, and GPUS=0,1 can select multiple devices.
-# 超算默认双卡；本地共享 3090 只允许空闲的 GPU 0。
-if [ -d /GLOBALFS/hit_wxia_1 ]; then
+# GPU selection.  The self-contained Docker image is an isolated allocation,
+# not the shared local-3090 policy.  Discover every GPU exposed by Docker if
+# CUDA_VISIBLE_DEVICES was not explicitly set; one vLLM replica is then bound
+# to each selected device by the Python driver.
+IS_CONTAINER=0
+if [[ "${COSKILL_CONTAINER:-0}" == "1" || -f /.dockerenv || -f /run/.containerenv ]]; then
+    IS_CONTAINER=1
+fi
+if [[ "$IS_CONTAINER" == "1" ]]; then
+    if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+        DETECTED_GPU_COUNT="$(python3 -c 'import torch; print(torch.cuda.device_count())')"
+        if [[ "$DETECTED_GPU_COUNT" -le 0 ]]; then
+            echo "No CUDA GPUs are visible inside this container." >&2
+            exit 1
+        fi
+        export CUDA_VISIBLE_DEVICES="$(awk -v n="$DETECTED_GPU_COUNT" 'BEGIN {for (i=0;i<n;i++) printf "%s%d", (i?",":""), i}')"
+    fi
+    NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
+elif [ -d /GLOBALFS/hit_wxia_1 ]; then
     export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
     NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
 else
@@ -77,7 +94,12 @@ DEFAULT_TP=1
 TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-$DEFAULT_TP}"
 
 # ── 自动判断运行环境：超算 vs 本地3090（与训练脚本一致）─────────────────────────
-if [ -d /GLOBALFS/hit_wxia_1 ]; then
+if [[ "$IS_CONTAINER" == "1" ]]; then
+    RUN_ENV="Docker container"
+    export CACHE_ROOT="${CACHE_ROOT:-/models/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-/opt/data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-/outputs}"
+elif [ -d /GLOBALFS/hit_wxia_1 ]; then
     RUN_ENV="超算 (supercomputer)"
     export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
     export DATA_ROOT="${DATA_ROOT:-$HOME/data/verl-agent}"
@@ -103,7 +125,7 @@ export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 # export DEEPSEEK_API_KEY=...   # 需在环境里提供
 
 PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_v7"
+EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_v8"
 OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"
@@ -121,6 +143,14 @@ CHECKPOINT_EVERY_GROUPS="${CHECKPOINT_EVERY_GROUPS:-2}"
 # useful for debugging but creates huge IO. Metrics/raw traces/cloud_io are still
 # written, so this does not affect rollout decisions or CoSkill updates.
 LOG_TRAJECTORIES="${LOG_TRAJECTORIES:-0}"
+
+# CI/container smoke check: validate the resolved launch contract without
+# importing vLLM, allocating CUDA memory, modifying an output, or contacting
+# the cloud backend.  It is deliberately opt-in and cannot affect a real run.
+if [[ "${COSKILL_LAUNCHER_DRY_RUN:-0}" == "1" ]]; then
+    echo "CoSkill no-RL launcher dry run passed: benchmark=alfworld env=$RUN_ENV GPUs=$NUM_VISIBLE_GPUS DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE DATA_ROOT=$DATA_ROOT"
+    exit 0
+fi
 
 python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --outdir "$OUTPUT_DIR" \

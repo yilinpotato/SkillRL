@@ -17,6 +17,7 @@ set -euo pipefail
 # direction with TREE_RL_ORDER=root (default) or TREE_RL_ORDER=leaf.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+cd "$PROJECT_ROOT"
 PRIVATE_ENV_FILE="${COSKILL_ENV_FILE:-$PROJECT_ROOT/.env}"
 # shellcheck disable=SC1091
 source "$PROJECT_ROOT/scripts/load_private_env.sh"
@@ -40,8 +41,25 @@ export PYTHONUNBUFFERED=1
 # group per spawned vLLM worker to prevent KV-cache allocation collisions.
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
-# 超算默认双卡；本地共享 3090 只允许空闲的 GPU 0。
-if [ -d /GLOBALFS/hit_wxia_1 ]; then
+# Docker is an isolated allocation.  It must not fall through to the shared
+# local-3090 guard, which would silently discard all but GPU 0 on a 4/8-GPU
+# server.  When Docker did not set CUDA_VISIBLE_DEVICES, enumerate its visible
+# logical devices and let the data-parallel driver bind one replica per GPU.
+IS_CONTAINER=0
+if [[ "${COSKILL_CONTAINER:-0}" == "1" || -f /.dockerenv || -f /run/.containerenv ]]; then
+    IS_CONTAINER=1
+fi
+if [[ "$IS_CONTAINER" == "1" ]]; then
+    if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+        DETECTED_GPU_COUNT="$(python3 -c 'import torch; print(torch.cuda.device_count())')"
+        if [[ "$DETECTED_GPU_COUNT" -le 0 ]]; then
+            echo "No CUDA GPUs are visible inside this container." >&2
+            exit 1
+        fi
+        export CUDA_VISIBLE_DEVICES="$(awk -v n="$DETECTED_GPU_COUNT" 'BEGIN {for (i=0;i<n;i++) printf "%s%d", (i?",":""), i}')"
+    fi
+    NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
+elif [ -d /GLOBALFS/hit_wxia_1 ]; then
     export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
     NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
 else
@@ -57,24 +75,18 @@ else
     fi
     NUM_VISIBLE_GPUS=1
 fi
-# Four-GPU policy:
-#   auto (default): DP=2 x TP=2.  It keeps the prior two-worker task split
-#   (6+6 base tasks, 72 rollouts/group) while using four GPUs for vLLM.
-#   dp4: DP=4 x TP=1, the throughput-oriented option.  It keeps the same total
-#   rollout count but changes sampling scheduling, so use it only for a new
-#   seed-controlled run rather than bitwise continuation of an existing DP=2 run.
+# Multi-GPU policy:
+#   auto (default): DP=N x TP=1.  It uses every allocated GPU while keeping
+#   the global 12x6=72 rollout group unchanged.  Qwen3-4B is small enough that
+#   tensor/pipeline parallelism only adds cross-device synchronization here.
+#   dp4: explicit four-worker variant for reproducibility with older commands.
 #   manual: honor explicit DATA_PARALLEL_WORKERS / TENSOR_PARALLEL_SIZE /
 #   PIPELINE_PARALLEL_SIZE values.
 VLLM_PARALLEL_TOPOLOGY="${VLLM_PARALLEL_TOPOLOGY:-auto}"
 case "$VLLM_PARALLEL_TOPOLOGY" in
     auto)
-        if [ "$NUM_VISIBLE_GPUS" -ge 4 ]; then
-            DEFAULT_DP=2
-            DEFAULT_TP=2
-        else
-            DEFAULT_DP="$NUM_VISIBLE_GPUS"
-            DEFAULT_TP=1
-        fi
+        DEFAULT_DP="$NUM_VISIBLE_GPUS"
+        DEFAULT_TP=1
         DEFAULT_PP=1
         ;;
     dp2_tp2)
@@ -117,7 +129,7 @@ fi
 ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
 # CUDA Graph capture pays back over long A800 training runs; retain eager mode
 # by default for the shared 3090 smoke-test path where startup memory is tighter.
-if [ -d /GLOBALFS/hit_wxia_1 ]; then
+if [[ "$IS_CONTAINER" == "1" || -d /GLOBALFS/hit_wxia_1 ]]; then
     DEFAULT_VLLM_ENFORCE_EAGER=0
 else
     DEFAULT_VLLM_ENFORCE_EAGER=1
@@ -128,7 +140,12 @@ if [ "$VLLM_ENFORCE_EAGER" != "0" ] && [ "$VLLM_ENFORCE_EAGER" != "1" ]; then
     exit 1
 fi
 
-if [ -d /GLOBALFS/hit_wxia_1 ]; then
+if [[ "$IS_CONTAINER" == "1" ]]; then
+    RUN_ENV="Docker container"
+    export CACHE_ROOT="${CACHE_ROOT:-/models/.cache}"
+    export DATA_ROOT="${DATA_ROOT:-/opt/data/verl-agent}"
+    export OUTPUT_ROOT="${OUTPUT_ROOT:-/outputs}"
+elif [ -d /GLOBALFS/hit_wxia_1 ]; then
     RUN_ENV="超算 (supercomputer)"
     export CACHE_ROOT="${CACHE_ROOT:-/GLOBALFS/hit_wxia_1/.cache}"
     export DATA_ROOT="${DATA_ROOT:-$HOME/data/verl-agent}"
@@ -221,6 +238,14 @@ echo "Resume: $RESUME (requires checkpoint-consistent summary_partial.json in OU
 echo "Token standard: prompt<=8192, one response<=$MAX_TOKENS (legacy think=$THINK_BUDGET action=$ACTION_BUDGET)"
 echo "Thought audit: $THINK_TRACE_SAMPLES_PER_GROUP samples at group 1 and every $THINK_TRACE_EVERY_GROUPS groups"
 echo "Outputs: $OUTPUT_DIR"
+
+# CI/container smoke check: validate the resolved launch contract without
+# importing vLLM, allocating CUDA memory, modifying an output, or contacting
+# the cloud backend.  It is deliberately opt-in and cannot affect a real run.
+if [[ "${COSKILL_LAUNCHER_DRY_RUN:-0}" == "1" ]]; then
+    echo "CoSkill no-RL launcher dry run passed: benchmark=webshop env=$RUN_ENV GPUs=$NUM_VISIBLE_GPUS DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE PP=$PIPELINE_PARALLEL_SIZE DATA_ROOT=$DATA_ROOT"
+    exit 0
+fi
 
 TEE_ARGS=()
 if [ "$RESUME" = "1" ]; then

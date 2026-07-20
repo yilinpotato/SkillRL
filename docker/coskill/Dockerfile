@@ -42,6 +42,7 @@ ENV PATH=/opt/conda/envs/skillRL/bin:$PATH \
     COSKILL_CONTAINER=1 \
     PROJECT_ROOT=/workspace/CoSkill \
     ALFWORLD_DATA=/opt/data/alfworld \
+    DATA_ROOT=/opt/data/verl-agent \
     OUTPUT_ROOT=/outputs \
     MODEL_PATH=/models/Qwen3-4B-Thinking-2507 \
     WEBSHOP_DATA_DIR=/workspace/CoSkill/agent_system/environments/env_package/webshop/webshop/data
@@ -57,6 +58,14 @@ RUN python -m pip uninstall -y verl skyrl-gym >/dev/null 2>&1 || true \
 RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly \
     mkdir -p /opt/data \
     && tar -xzf /build-assets/alfworld-data.tar.gz -C /opt/data
+
+# The 12/32 prepared GRPO parquet files are a runtime contract for every
+# Tree-RL entrypoint.  Keep them in the image, not in an ignored source-tree
+# cache, so a fresh server can run preflight without a hidden host mount.
+RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly \
+    tar -xzf /build-assets/prepared-verl-data.tar.gz -C /opt/data \
+    && test -f /opt/data/verl-agent/text/train.parquet \
+    && test -f /opt/data/verl-agent/text/test.parquet
 
 RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly \
     tar -xzf /build-assets/webshop-small-data.tar.gz \
