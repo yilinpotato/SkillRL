@@ -165,6 +165,30 @@ WebShop 1000 商品数据与索引。它提供 `alfworld-root`、`alfworld-leaf`
 ModelScope 自动下载。构建与运行命令见
 [docker/coskill/README.md](docker/coskill/README.md)。
 
+### ALFWorld 固定轨迹消融（4×A800，非 Docker）
+
+固定轨迹消融使用独立入口，不改变上述主训练过程。它固定六类任务各一条
+bootstrap game 与一条非重叠 eval game；所有臂共用冻结 raw traces。bootstrap
+保留 CoSkill 检索/树提示词框架但显式使用空技能库，深度树最多经 20 次同证据云端
+深化，仍不合格的臂记录为 `N.A.` 而不会中止其他臂。
+
+```bash
+conda activate skillRL
+cd /path/to/CoSkill
+
+# 仅检查 4 张 A800、模型、数据与云端 API；不启动 rollout。
+CUDA_VISIBLE_DEVICES=0,1,2,3 ABLATION_PREFLIGHT_ONLY=1 \
+  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_4xa800.sh
+
+# 正式运行；AB_ROOT 必须保留，后续同一路径可按 phase 继续。
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+  AB_ROOT=/path/to/outputs/alfworld_ablation_4xa800 \
+  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_4xa800.sh
+```
+
+预检默认会发起一次最小云端请求；若只检查本地依赖，加入 `CLOUD_PROBE=0`。完整
+产物、恢复和指标说明见 [docker/alfworld-ablation/README.md](docker/alfworld-ablation/README.md)。
+
 ### Memory Data Generation
 The first step of our training pipeline uses the base model to generate memory data. This data serves as the foundation for the agent's initial experiences. The specific prompt used to guide this generation can be found at: `memory_data/prompt/prompt.txt`.
 
