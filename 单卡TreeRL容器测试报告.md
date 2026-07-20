@@ -7,8 +7,11 @@ CoSkill Tree-RL 的部署链路。此报告中的 smoke 结果不能作为模型
 
 - Docker：rootful Docker，数据根目录位于 `/data2/docker`；未改动公共 daemon 配置。
 - GPU：宿主机 NVIDIA RTX 3090 24 GiB 的 **1 号卡**，容器中映射为 `cuda:0`。宿主机 0 号卡全程未使用。
-- 运行镜像：`skillrl-cu128-data-20260721-fix7`，digest
+- 端到端 smoke 镜像：`skillrl-cu128-data-20260721-fix7`，digest
   `sha256:ac53b719ad6ce1398f2412e70e2d90467822b4f7530f12dae084c8a7f53f277e`。
+- 最终发布镜像：`skillrl-cu128-data-20260721-fix8`，digest
+  `sha256:bae51111f9d99c26ccdeeb5995e02a12a67f55e12d09150cf4600556ed2edd3a`；默认
+  `skillrl-cu128-data` 标签也指向此 digest。
 - smoke 模型：ModelScope 的 `Qwen/Qwen3-0.6B`，挂载到 `/models/Qwen3-0.6B`。
 - 云端：本次设置 `CLOUD_BOOTSTRAP_CHECK=0`、`CLOUD_BOOTSTRAP_PROBE=0`，因此没有请求
   DeepSeek，也没有验证真实云端凭证；镜像本身不会携带 API key。
@@ -24,6 +27,8 @@ CoSkill Tree-RL 的部署链路。此报告中的 smoke 结果不能作为模型
 | vLLM | 通过 | safetensors 加载、CUDA graph capture、动作生成均完成。 |
 | CoSkill 轨迹/技能状态 | 通过 | 4 条 raw trace、`skills_tree_rl_latest.json` 和 15 条 debug artifact 已写出。 |
 | 一次 GRPO 更新与 checkpoint | 通过 | 容器以 exit code 0 退出，`global_step_1` 中含 actor、optimizer、extra state 与 LoRA adapter。 |
+| 最终 fix8 预检 | 通过 | rootful Docker 重拉 fix8 后，0.6B 单卡 `preflight` 完整通过。 |
+| 最终 fix8 4B 保护 | 通过 | 24 GiB 3090 上 `alfworld-smoke` 明确以 exit 2 阻止 4B，而非启动后 vLLM OOM。 |
 | 可比较训练指标 | 不适用 | 该 smoke 使用 0.6B、`2×2=4` rollout、4 环境步、512 response token。 |
 
 输出根目录：`/home/myl/coskill-smoke/outputs/smoke/coskill_tree_rl_smoke_alfworld_06b_20260721/`。
@@ -49,7 +54,7 @@ CoSkill Tree-RL 的部署链路。此报告中的 smoke 结果不能作为模型
 3. 初次容器 smoke 错把运行 batch 的 `2/2` 当成镜像 prepared parquet 的行数，已改为显式复用
    固定 `12/32` prepared corpus；该问题已在 fix7 中修复。
 4. 文档中此前“单卡 smoke 可用”与“单卡只能预检”相互矛盾，现已统一为：24 GiB 单卡可用 0.6B
-   做完整链路诊断，不能用 4B 做完整 Tree-RL。
+   做完整链路诊断，不能用 4B 做完整 Tree-RL。该保护和教程随 fix8 发布。
 
 ## 复现命令
 
