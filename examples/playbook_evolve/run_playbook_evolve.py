@@ -630,6 +630,12 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
                   f"calls to align with prior run ({time.time()-_t0:.1f}s)")
 
         from mini_test_pen_shelf.agent_vllm import VLLMAgent
+        required_max_num_seqs = fixed_batch_size
+        vllm_max_num_seqs = int(args.vllm_max_num_seqs or required_max_num_seqs)
+        if vllm_max_num_seqs < required_max_num_seqs:
+            raise ValueError(
+                f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than "
+                f"worker {worker_id}'s rollout batch={required_max_num_seqs}")
         agent = VLLMAgent(
             model_path=args.model_path,
             gpu_memory_utilization=args.gpu_mem_util,
@@ -641,10 +647,14 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             seed=int(args.seed) + worker_id,
             no_wait=args.nowait,
             think_budget=args.think_budget,
+            max_num_seqs=vllm_max_num_seqs,
+            enforce_eager=bool(args.vllm_enforce_eager),
         )
         print(f"[dp-worker{worker_id}] ready gpu={gpu_id} "
               f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} "
               f"batch={fixed_batch_size} "
+              f"max_num_seqs={vllm_max_num_seqs} "
+              f"enforce_eager={bool(args.vllm_enforce_eager)} "
               f"games={len(game_files)}")
 
         while True:
@@ -749,6 +759,11 @@ def main():
     ap.add_argument("--tensor_parallel_size", type=int, default=1,
                     help="vLLM tensor parallel GPU 数。双 A800 单机可设 2；"
                          "需不超过 CUDA_VISIBLE_DEVICES 中可见 GPU 数。")
+    ap.add_argument("--vllm_max_num_seqs", type=int, default=0,
+                    help="0 自动使用每个 vLLM replica 的实际 rollout batch；"
+                         "正数覆盖值不得小于该 replica 的 batch。")
+    ap.add_argument("--vllm_enforce_eager", type=int, choices=[0, 1], default=1,
+                    help="1 保持 ALFWorld 既有 eager 执行；0 允许 vLLM CUDA Graph。")
     ap.add_argument("--max_model_len", type=int, default=10240)
     ap.add_argument("--max_tokens", type=int, default=4096)
     ap.add_argument("--think_budget", type=int, default=3500)
@@ -924,6 +939,8 @@ def main():
     config = load_tw_config_types(all_tids, num_games=total_games)
     batch_rollout_size = max(1, int(args.batch_rollout_size or 1))
     data_parallel_workers = max(1, int(args.data_parallel_workers or 1))
+    if int(args.vllm_max_num_seqs) < 0:
+        raise ValueError("vllm_max_num_seqs must be >= 0")
     use_data_parallel = data_parallel_workers > 1
     env = None
     agent = None
@@ -932,6 +949,7 @@ def main():
     dp_out_q = None
     dp_processes = []
     dp_worker_batch_sizes = []
+    vllm_max_num_seqs_by_worker = []
 
     if use_data_parallel:
         if batch_rollout_size < data_parallel_workers:
@@ -968,6 +986,16 @@ def main():
                              f"{len(worker_gpus)} GPU ids available: {worker_gpus}")
         worker_gpus = worker_gpus[:data_parallel_workers]
         dp_worker_batch_sizes = [batch for _, batch in worker_plan]
+        vllm_max_num_seqs_by_worker = [
+            int(args.vllm_max_num_seqs or worker_batch)
+            for worker_batch in dp_worker_batch_sizes
+        ]
+        for worker_id, (limit, worker_batch) in enumerate(zip(
+                vllm_max_num_seqs_by_worker, dp_worker_batch_sizes)):
+            if limit < worker_batch:
+                raise ValueError(
+                    f"vllm_max_num_seqs={limit} is smaller than worker "
+                    f"{worker_id}'s rollout batch={worker_batch}")
         replica_counts = {}
         worker_replica_offsets = []
         for worker_games, worker_bs in worker_plan:
@@ -1020,6 +1048,16 @@ def main():
               f"fixed_manifest_balanced={fixed_balanced}; "
               "main process will aggregate trajectories and run cloud updates")
     else:
+        # Keep topology metadata meaningful for the direct one-replica path;
+        # older summaries exposed an empty worker-batch list even though this
+        # process handled the complete rollout batch.
+        dp_worker_batch_sizes = [batch_rollout_size]
+        vllm_max_num_seqs = int(args.vllm_max_num_seqs or batch_rollout_size)
+        if vllm_max_num_seqs < batch_rollout_size:
+            raise ValueError(
+                f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than "
+                f"the single replica rollout batch={batch_rollout_size}")
+        vllm_max_num_seqs_by_worker = [vllm_max_num_seqs]
         if batch_rollout_size == 1:
             env = make_single_env(all_game_files, config, seed=args.seed)
         else:
@@ -1050,7 +1088,12 @@ def main():
             seed=args.seed,
             no_wait=args.nowait,
             think_budget=args.think_budget,
+            max_num_seqs=vllm_max_num_seqs,
+            enforce_eager=bool(args.vllm_enforce_eager),
         )
+        print(f"[driver] single vLLM replica batch={batch_rollout_size} "
+              f"TP={args.tensor_parallel_size} max_num_seqs={vllm_max_num_seqs} "
+              f"enforce_eager={bool(args.vllm_enforce_eager)}")
 
         # 6) 与主管线逐字节对齐的 prompt 构造器，注入共享 skill_lib。
         #    with_skills 跟随 enable_coskill（训练脚本注入 general/task/mistakes bullets）。
@@ -1422,6 +1465,10 @@ def main():
             "batch_rollout_size": batch_rollout_size,
             "data_parallel_workers": data_parallel_workers,
             "data_parallel_worker_batch_sizes": dp_worker_batch_sizes,
+            "vllm_max_num_seqs": int(args.vllm_max_num_seqs or max(
+                vllm_max_num_seqs_by_worker)),
+            "vllm_max_num_seqs_by_worker": vllm_max_num_seqs_by_worker,
+            "vllm_enforce_eager": bool(args.vllm_enforce_eager),
             "checkpoint_every_groups": args.checkpoint_every_groups,
             "completed_rollout_groups": completed_groups,
             "fixed_games_manifest": args.fixed_games_manifest,

@@ -47,7 +47,10 @@ if mode == "rollout":
         raise SystemExit("No CUDA GPUs are visible for no-RL rollout.")
     print(f"Visible CUDA GPUs for no-RL rollout: {n}")
 elif n == 1 and (allow_single or mode == "smoke"):
-    print("Visible CUDA GPUs: 1 (preflight-only mode; Tree-RL training still needs 2, 4, or 8 GPUs)")
+    if mode == "smoke":
+        print("Visible CUDA GPUs: 1 (diagnostic smoke only; formal Tree-RL still needs 2, 4, or 8 GPUs)")
+    else:
+        print("Visible CUDA GPUs: 1 (preflight-only mode; formal Tree-RL still needs 2, 4, or 8 GPUs)")
 elif n not in (2, 4, 8):
     raise SystemExit(f"CoSkill Tree-RL requires 2, 4, or 8 visible GPUs, got {n}")
 else:

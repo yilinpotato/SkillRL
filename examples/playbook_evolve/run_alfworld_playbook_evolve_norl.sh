@@ -48,6 +48,16 @@ export VLLM_WORKER_MULTIPROC_METHOD=spawn
 # entry by the Python driver before it is spawned.
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
+# Opt-in single-GPU mode for an ALFWorld no-RL job.  It keeps the global
+# rollout group at 72 and changes only where the frozen vLLM replica runs.
+# If the scheduler exposes several devices, use the first entry in its existing
+# CUDA_VISIBLE_DEVICES mask rather than assuming that physical GPU 0 is ours.
+COSKILL_ONE_GPU="${COSKILL_ONE_GPU:-0}"
+if [[ "$COSKILL_ONE_GPU" != "0" && "$COSKILL_ONE_GPU" != "1" ]]; then
+    echo "COSKILL_ONE_GPU must be 0 or 1." >&2
+    exit 1
+fi
+
 # 关键：stdout 被下面的 `| tee` 管道重定向后，Python 默认切到【全缓冲】（不是行缓冲），
 # 我们自己的 print() 会攒够几 KB 才真正写出——vLLM 走 logging 模块会立刻刷出来，两者
 # 混在一起看，就像是"跑完 vLLM 日志后卡住"，其实是自己的进度 print 被缓冲憋住了。
@@ -88,10 +98,62 @@ else
     fi
     NUM_VISIBLE_GPUS=1
 fi
-DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$NUM_VISIBLE_GPUS}"
-ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
-DEFAULT_TP=1
-TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-$DEFAULT_TP}"
+if [[ "$COSKILL_ONE_GPU" == "1" ]]; then
+    SELECTED_GPU="${CUDA_VISIBLE_DEVICES%%,*}"
+    if [[ -z "$SELECTED_GPU" ]]; then
+        echo "COSKILL_ONE_GPU=1 but CUDA_VISIBLE_DEVICES is empty." >&2
+        exit 1
+    fi
+    export CUDA_VISIBLE_DEVICES="$SELECTED_GPU"
+    NUM_VISIBLE_GPUS=1
+    # An explicit mode must not inherit stale multi-GPU variables from a prior
+    # shell.  The mode owns these three topology values by design.
+    DATA_PARALLEL_WORKERS=1
+    ROLLOUT_WORKER_GPUS="$SELECTED_GPU"
+    TENSOR_PARALLEL_SIZE=1
+else
+    DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$NUM_VISIBLE_GPUS}"
+    ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
+    TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-1}"
+fi
+
+if ! [[ "$DATA_PARALLEL_WORKERS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "DATA_PARALLEL_WORKERS must be a positive integer." >&2
+    exit 1
+fi
+if ! [[ "$TENSOR_PARALLEL_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+    echo "TENSOR_PARALLEL_SIZE must be a positive integer." >&2
+    exit 1
+fi
+if [[ "$DATA_PARALLEL_WORKERS" -gt 1 && "$TENSOR_PARALLEL_SIZE" -ne 1 ]]; then
+    echo "ALFWorld data-parallel workers each own one vLLM replica; use TENSOR_PARALLEL_SIZE=1 when DATA_PARALLEL_WORKERS>1." >&2
+    exit 1
+fi
+if [[ "$DATA_PARALLEL_WORKERS" -gt 1 ]]; then
+    REQUIRED_GPUS="$DATA_PARALLEL_WORKERS"
+else
+    REQUIRED_GPUS="$TENSOR_PARALLEL_SIZE"
+fi
+if [[ "$NUM_VISIBLE_GPUS" -lt "$REQUIRED_GPUS" ]]; then
+    echo "Need $REQUIRED_GPUS visible GPU(s) for DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE; only $NUM_VISIBLE_GPUS visible." >&2
+    exit 1
+fi
+
+# 0 lets the Python driver use the actual largest batch handled by each vLLM
+# replica (single GPU: 72).  This bounds scheduler warm-up without reducing or
+# repartitioning the real rollout batch.
+VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-0}"
+if ! [[ "$VLLM_MAX_NUM_SEQS" =~ ^[0-9]+$ ]]; then
+    echo "VLLM_MAX_NUM_SEQS must be a non-negative integer." >&2
+    exit 1
+fi
+# Preserve ALFWorld's existing eager execution default for maximum one-GPU
+# compatibility.  A800 users may opt into CUDA Graphs with 0 after validation.
+VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-1}"
+if [[ "$VLLM_ENFORCE_EAGER" != "0" && "$VLLM_ENFORCE_EAGER" != "1" ]]; then
+    echo "VLLM_ENFORCE_EAGER must be 0 or 1." >&2
+    exit 1
+fi
 
 # ── 自动判断运行环境：超算 vs 本地3090（与训练脚本一致）─────────────────────────
 if [[ "$IS_CONTAINER" == "1" ]]; then
@@ -115,6 +177,8 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
 echo "data_parallel_workers: $DATA_PARALLEL_WORKERS"
 echo "rollout_worker_gpus: ${ROLLOUT_WORKER_GPUS:-<auto>}"
 echo "vLLM tensor_parallel_size: $TENSOR_PARALLEL_SIZE"
+echo "single-GPU mode: $COSKILL_ONE_GPU"
+echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER"
 
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
@@ -136,6 +200,20 @@ echo "All run outputs will be saved to: $OUTPUT_DIR"
 MAX_EPISODES="${MAX_EPISODES:-7200}"
 # Match one GRPO rollout batch by default: train_data_size(12) × group_size(6).
 BATCH_ROLLOUT_SIZE="${BATCH_ROLLOUT_SIZE:-72}"
+if ! [[ "$BATCH_ROLLOUT_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+    echo "BATCH_ROLLOUT_SIZE must be a positive integer." >&2
+    exit 1
+fi
+MAX_WORKER_BATCH=$(((BATCH_ROLLOUT_SIZE + DATA_PARALLEL_WORKERS - 1) / DATA_PARALLEL_WORKERS))
+if [[ "$VLLM_MAX_NUM_SEQS" -gt 0 && "$VLLM_MAX_NUM_SEQS" -lt "$MAX_WORKER_BATCH" ]]; then
+    echo "VLLM_MAX_NUM_SEQS=$VLLM_MAX_NUM_SEQS is smaller than the largest per-replica rollout batch=$MAX_WORKER_BATCH." >&2
+    exit 1
+fi
+EFFECTIVE_VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-0}"
+if [[ "$EFFECTIVE_VLLM_MAX_NUM_SEQS" == "0" ]]; then
+    EFFECTIVE_VLLM_MAX_NUM_SEQS="$MAX_WORKER_BATCH"
+fi
+echo "vLLM max_num_seqs: $VLLM_MAX_NUM_SEQS (effective largest replica limit: $EFFECTIVE_VLLM_MAX_NUM_SEQS)"
 # Save lightweight experiment checkpoints every N rollout groups.  This does not
 # force a cloud update; CoSkill still follows the paper trigger/watermark logic.
 CHECKPOINT_EVERY_GROUPS="${CHECKPOINT_EVERY_GROUPS:-2}"
@@ -148,7 +226,7 @@ LOG_TRAJECTORIES="${LOG_TRAJECTORIES:-0}"
 # importing vLLM, allocating CUDA memory, modifying an output, or contacting
 # the cloud backend.  It is deliberately opt-in and cannot affect a real run.
 if [[ "${COSKILL_LAUNCHER_DRY_RUN:-0}" == "1" ]]; then
-    echo "CoSkill no-RL launcher dry run passed: benchmark=alfworld env=$RUN_ENV GPUs=$NUM_VISIBLE_GPUS DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE DATA_ROOT=$DATA_ROOT"
+    echo "CoSkill no-RL launcher dry run passed: benchmark=alfworld env=$RUN_ENV GPUs=$NUM_VISIBLE_GPUS DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE batch=$BATCH_ROLLOUT_SIZE max_num_seqs=$EFFECTIVE_VLLM_MAX_NUM_SEQS DATA_ROOT=$DATA_ROOT"
     exit 0
 fi
 
@@ -181,6 +259,8 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --temperature 1.0 \
     --gpu_mem_util 0.8 \
     --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
+    --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
+    --vllm_enforce_eager "$VLLM_ENFORCE_EAGER" \
     `# 记忆 / 技能：与训练脚本 skills_only_memory.* 对齐` \
     --skills_json memory_data/alfworld/claude_style_skills.json \
     `# 初始 SkillRL 匹配机制：template/关键词 task_type 检测；top_k=6 只限制 general skills，` \

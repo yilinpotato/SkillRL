@@ -116,17 +116,21 @@ docker run --rm --gpus all --ipc=host \
 ```bash
 docker run --rm --gpus '"device=1"' --ipc=host \
   --env-file .env -e MODEL_AUTO_DOWNLOAD=0 -e CLOUD_BOOTSTRAP_PROBE=1 \
+  -e MODEL_PATH=/models/Qwen3-0.6B \
   -v /path/to/models:/models:ro -v /path/to/outputs:/outputs \
   coskill:skillrl-cu128-data alfworld-smoke
 ```
 
 它使用 `2 goals × 2 samples = 4` rollout、最多 4 环境步、512 response token 和一个
-GRPO 更新；正式入口的 `12×6=72` rollout 与超参数完全不受此命令影响。
+GRPO 更新；正式入口的 `12×6=72` rollout 与超参数完全不受此命令影响。24 GiB 显卡必须
+使用 Qwen3-0.6B（先下载到挂载目录）；4B FSDP actor 与独立 vLLM 引擎不能在这类单卡上
+共存。40 GiB 及以上显存可尝试 4B smoke，正式 4B 训练仍要求 2/4/8 卡。
 
 若希望预检真实调用一次云端 API，可加 `-e CLOUD_BOOTSTRAP_PROBE=1`；密钥始终
 通过 `--env-file` 或容器 secret 注入，不要写入镜像。
 
-单卡（例如本地 5070）只能做镜像、模型、数据和 CUDA 预检，不能运行 Tree-RL：
+单卡（例如本地 5070）可做镜像、模型、数据和 CUDA 预检；若挂载 Qwen3-0.6B，也可运行
+上述不可报告的端到端 smoke。4B 则不能在 24 GiB 单卡上运行 Tree-RL：
 
 ```bash
 docker run --rm --gpus all --ipc=host \
