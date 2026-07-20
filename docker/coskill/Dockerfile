@@ -78,7 +78,7 @@ RUN --mount=type=bind,from=coskill_assets,source=.,target=/build-assets,readonly
     && tar -xzf /build-assets/model-optional.tar.gz -C /models
 
 RUN mkdir -p /outputs /models \
-    && chmod +x docker/coskill/entrypoint.sh
+    && chmod +x docker/coskill/entrypoint.sh examples/grpo_trainer/run_coskill_tree_rl_smoke.sh
 
 ENTRYPOINT ["/workspace/CoSkill/docker/coskill/entrypoint.sh"]
 CMD ["preflight"]

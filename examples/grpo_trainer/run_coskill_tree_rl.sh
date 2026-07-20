@@ -6,7 +6,8 @@
 #   TREE_RL_ORDER=leaf bash examples/grpo_trainer/run_coskill_tree_rl.sh webshop
 #
 # This script accepts 2/4 GPUs per experiment or partitions an 8-GPU allocation
-# into two independent four-GPU slots.  It does
+# into two independent four-GPU slots. TREE_RL_SMOKE_TEST=1 is the sole
+# exception: it permits one GPU with deliberately tiny diagnostic settings. It does
 # not run `ray stop` or `ray start`: main_ppo owns its Ray lifecycle, so a job
 # never destroys a different user's Ray session on a shared cluster.
 
@@ -78,6 +79,14 @@ else
     DEFAULT_RAY_NUM_CPUS="$(nproc)"
 fi
 
+# This is only for deployment diagnosis: one tiny update checks the real
+# Ray+vLLM+FSDP+skill-tree path and is never comparable with formal experiments.
+TREE_RL_SMOKE_TEST="${TREE_RL_SMOKE_TEST:-0}"
+if [[ "$TREE_RL_SMOKE_TEST" != "0" && "$TREE_RL_SMOKE_TEST" != "1" ]]; then
+    echo "TREE_RL_SMOKE_TEST must be 0 (formal run) or 1 (single-GPU diagnostic)." >&2
+    exit 1
+fi
+
 if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
     DETECTED_GPU_COUNT="$(python3 -c 'import torch; print(torch.cuda.device_count())')"
     if [[ "$DETECTED_GPU_COUNT" -le 0 ]]; then
@@ -101,12 +110,16 @@ if [[ "$ALLOCATED_NUM_GPUS" == "8" ]]; then
     export CUDA_VISIBLE_DEVICES="$(IFS=,; echo "${SELECTED_GPU_ARRAY[*]}")"
     echo "8-GPU allocation detected: this experiment uses slot $TREE_RL_GPU_SLOT ($CUDA_VISIBLE_DEVICES)."
     echo "Run a second independent task with TREE_RL_GPU_SLOT=$((1 - TREE_RL_GPU_SLOT)) to use the other four GPUs without changing PPO geometry."
+elif [[ "$TREE_RL_SMOKE_TEST" == "1" && "$ALLOCATED_NUM_GPUS" == "1" ]]; then
+    echo "Single-GPU Tree-RL smoke mode enabled; this is not a formal experiment."
 elif [[ "$ALLOCATED_NUM_GPUS" != "2" && "$ALLOCATED_NUM_GPUS" != "4" ]]; then
     echo "Need 2, 4, or 8 visible GPUs; CUDA_VISIBLE_DEVICES=$ALLOCATED_CUDA_VISIBLE_DEVICES ($ALLOCATED_NUM_GPUS GPUs)." >&2
     exit 1
 fi
 NUM_GPUS="$(tr ',' '\n' <<<"$CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
-if [[ "$NUM_GPUS" != "2" && "$NUM_GPUS" != "4" ]]; then
+if [[ "$TREE_RL_SMOKE_TEST" == "1" && "$NUM_GPUS" == "1" ]]; then
+    :
+elif [[ "$NUM_GPUS" != "2" && "$NUM_GPUS" != "4" ]]; then
     echo "Need exactly 2 or 4 visible GPUs; CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ($NUM_GPUS GPUs)." >&2
     exit 1
 fi
@@ -127,11 +140,20 @@ fi
 # regardless of whether FSDP uses two or four A800s.  Only the dispatch is
 # sharded more finely on four GPUs.  Ray/verl requires the *expanded* rollout
 # batch (not the number of base goals) to divide across ranks.
-DEFAULT_TRAIN_DATA_SIZE=12
-DEFAULT_PPO_MINI_BATCH=36
+if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
+    DEFAULT_TRAIN_DATA_SIZE=2
+    DEFAULT_GROUP_SIZE=2
+    DEFAULT_VAL_DATA_SIZE=2
+    DEFAULT_PPO_MINI_BATCH=4
+else
+    DEFAULT_TRAIN_DATA_SIZE=12
+    DEFAULT_GROUP_SIZE=6
+    DEFAULT_VAL_DATA_SIZE=32
+    DEFAULT_PPO_MINI_BATCH=36
+fi
 TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-$DEFAULT_TRAIN_DATA_SIZE}"
-GROUP_SIZE="${GROUP_SIZE:-6}"
-VAL_DATA_SIZE="${VAL_DATA_SIZE:-32}"
+GROUP_SIZE="${GROUP_SIZE:-$DEFAULT_GROUP_SIZE}"
+VAL_DATA_SIZE="${VAL_DATA_SIZE:-$DEFAULT_VAL_DATA_SIZE}"
 ROLLOUTS_PER_STEP=$((TRAIN_DATA_SIZE * GROUP_SIZE))
 if (( ROLLOUTS_PER_STEP % NUM_GPUS != 0 )); then
     echo "Expanded rollout batch TRAIN_DATA_SIZE×GROUP_SIZE=${ROLLOUTS_PER_STEP} must be divisible by $NUM_GPUS Ray/FSDP ranks." >&2
@@ -202,17 +224,30 @@ fi
 PPO_GRAD_ACCUM_STEPS=$((PPO_MINI_BATCH_PER_GPU / PPO_MICRO_BATCH_SIZE_PER_GPU))
 PPO_GLOBAL_MICRO_BATCH=$((NUM_GPUS * PPO_MICRO_BATCH_SIZE_PER_GPU))
 
-MAX_RESPONSE_LENGTH="${MAX_RESPONSE_LENGTH:-4096}"
+if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
+    DEFAULT_MAX_RESPONSE_LENGTH=512
+    DEFAULT_ALFWORLD_PROMPT_LENGTH=2048
+    DEFAULT_WEBSHOP_PROMPT_LENGTH=2048
+    DEFAULT_ALFWORLD_STEPS=4
+    DEFAULT_WEBSHOP_STEPS=4
+else
+    DEFAULT_MAX_RESPONSE_LENGTH=4096
+    DEFAULT_ALFWORLD_PROMPT_LENGTH=6144
+    DEFAULT_WEBSHOP_PROMPT_LENGTH=8192
+    DEFAULT_ALFWORLD_STEPS=40
+    DEFAULT_WEBSHOP_STEPS=15
+fi
+MAX_RESPONSE_LENGTH="${MAX_RESPONSE_LENGTH:-$DEFAULT_MAX_RESPONSE_LENGTH}"
 if [[ "$BENCHMARK" == "alfworld" ]]; then
-    MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH:-6144}"
-    MAX_STEPS="${MAX_STEPS:-40}"
+    MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH:-$DEFAULT_ALFWORLD_PROMPT_LENGTH}"
+    MAX_STEPS="${MAX_STEPS:-$DEFAULT_ALFWORLD_STEPS}"
     SKILLS_JSON="${SKILLS_JSON:-memory_data/alfworld/claude_style_skills.json}"
     ENV_NAME="alfworld/AlfredTWEnv"
     RETRIEVAL_MODE="${RETRIEVAL_MODE:-template}"
     PROJECT_NAME="verl_agent_alfworld"
 else
-    MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH:-8192}"
-    MAX_STEPS="${MAX_STEPS:-15}"
+    MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH:-$DEFAULT_WEBSHOP_PROMPT_LENGTH}"
+    MAX_STEPS="${MAX_STEPS:-$DEFAULT_WEBSHOP_STEPS}"
     SKILLS_JSON="${SKILLS_JSON:-memory_data/webshop/claude_style_skills.json}"
     ENV_NAME="Webshop"
     RETRIEVAL_MODE="${RETRIEVAL_MODE:-template}"
@@ -228,25 +263,53 @@ export SKILL_UPDATER_BACKEND="${SKILL_UPDATER_BACKEND:-deepseek}"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 export RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
 export ENV_WORKER_CPUS="${ENV_WORKER_CPUS:-0.1}"
-export TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-100}"
-export SAVE_FREQ="${SAVE_FREQ:-10}"
-export TEST_FREQ="${TEST_FREQ:-5}"
-export VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-True}"
-export ACTOR_LR="${ACTOR_LR:-1e-6}"
-export LORA_RANK="${LORA_RANK:-32}"
-export LORA_ALPHA="${LORA_ALPHA:-64}"
-export LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
-export REF_LOG_PROB_MICRO_BATCH_PER_GPU="${REF_LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
-if (( MIN_GPU_MEMORY_GIB < 48 )); then
-    DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.65
-elif (( MIN_GPU_MEMORY_GIB < 72 )); then
-    DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.72
+if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
+    DEFAULT_TOTAL_TRAINING_STEPS=1
+    DEFAULT_SAVE_FREQ=1
+    DEFAULT_TEST_FREQ=999
+    DEFAULT_VAL_BEFORE_TRAIN=False
+    DEFAULT_LORA_RANK=8
+    DEFAULT_LORA_ALPHA=16
+    DEFAULT_LOG_PROB_MICRO_BATCH=1
+    DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.45
+    DEFAULT_VLLM_MAX_NUM_BATCHED_TOKENS=3072
+    DEFAULT_VLLM_MAX_NUM_SEQS=4
+    DEFAULT_ACTOR_PARAM_OFFLOAD=True
+    DEFAULT_ACTOR_OPTIMIZER_OFFLOAD=True
 else
-    DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.8
+    DEFAULT_TOTAL_TRAINING_STEPS=100
+    DEFAULT_SAVE_FREQ=10
+    DEFAULT_TEST_FREQ=5
+    DEFAULT_VAL_BEFORE_TRAIN=True
+    DEFAULT_LORA_RANK=32
+    DEFAULT_LORA_ALPHA=64
+    DEFAULT_LOG_PROB_MICRO_BATCH=4
+    DEFAULT_ACTOR_PARAM_OFFLOAD=False
+    DEFAULT_ACTOR_OPTIMIZER_OFFLOAD=False
+    if (( MIN_GPU_MEMORY_GIB < 48 )); then
+        DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.65
+    elif (( MIN_GPU_MEMORY_GIB < 72 )); then
+        DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.72
+    else
+        DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.8
+    fi
+    DEFAULT_VLLM_MAX_NUM_BATCHED_TOKENS=16384
+    DEFAULT_VLLM_MAX_NUM_SEQS=256
 fi
+export TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-$DEFAULT_TOTAL_TRAINING_STEPS}"
+export SAVE_FREQ="${SAVE_FREQ:-$DEFAULT_SAVE_FREQ}"
+export TEST_FREQ="${TEST_FREQ:-$DEFAULT_TEST_FREQ}"
+export VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-$DEFAULT_VAL_BEFORE_TRAIN}"
+export ACTOR_LR="${ACTOR_LR:-1e-6}"
+export LORA_RANK="${LORA_RANK:-$DEFAULT_LORA_RANK}"
+export LORA_ALPHA="${LORA_ALPHA:-$DEFAULT_LORA_ALPHA}"
+export LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-$DEFAULT_LOG_PROB_MICRO_BATCH}"
+export REF_LOG_PROB_MICRO_BATCH_PER_GPU="${REF_LOG_PROB_MICRO_BATCH_PER_GPU:-$DEFAULT_LOG_PROB_MICRO_BATCH}"
 export VLLM_GPU_MEMORY_UTILIZATION="${VLLM_GPU_MEMORY_UTILIZATION:-$DEFAULT_VLLM_GPU_MEMORY_UTILIZATION}"
-export VLLM_MAX_NUM_BATCHED_TOKENS="${VLLM_MAX_NUM_BATCHED_TOKENS:-16384}"
-export VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-256}"
+export VLLM_MAX_NUM_BATCHED_TOKENS="${VLLM_MAX_NUM_BATCHED_TOKENS:-$DEFAULT_VLLM_MAX_NUM_BATCHED_TOKENS}"
+export VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-$DEFAULT_VLLM_MAX_NUM_SEQS}"
+export ACTOR_PARAM_OFFLOAD="${ACTOR_PARAM_OFFLOAD:-$DEFAULT_ACTOR_PARAM_OFFLOAD}"
+export ACTOR_OPTIMIZER_OFFLOAD="${ACTOR_OPTIMIZER_OFFLOAD:-$DEFAULT_ACTOR_OPTIMIZER_OFFLOAD}"
 # Keep DP=4 and TP=1.  This optimization compacts only already-finished
 # trajectories before vLLM generation; it does not alter model parallelism,
 # rollouts-per-step, prompts, rewards, or PPO geometry.
@@ -342,6 +405,9 @@ echo "GPU profile: $GPU_PROFILE (minimum ${MIN_GPU_MEMORY_GIB}GiB; vLLM utilizat
 echo "vLLM topology: DP=$NUM_GPUS TP=1 PP=1 (unchanged)"
 echo "Active trajectory compaction: $COMPACT_FINISHED_TRAJECTORIES (only completed rows are excluded from future vLLM calls)"
 echo "GRPO rollout: train_data_size=$TRAIN_DATA_SIZE group_size=$GROUP_SIZE total=$ROLLOUTS_PER_STEP (fixed across GPU counts)"
+if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
+    echo "WARNING: smoke mode uses tiny non-comparable rollout/length/offload settings in an isolated output directory."
+fi
 echo "PPO geometry: global_mini=$PPO_MINI_BATCH_SIZE per_rank_mini=$PPO_MINI_BATCH_PER_GPU micro_per_gpu=$PPO_MICRO_BATCH_SIZE_PER_GPU global_micro=$PPO_GLOBAL_MICRO_BATCH accumulation=$PPO_GRAD_ACCUM_STEPS"
 echo "Validation: val_data_size=$VAL_DATA_SIZE test_freq=$TEST_FREQ val_before_train=$VAL_BEFORE_TRAIN"
 echo "Tree curriculum: order=$TREE_RL_ORDER train>=${TREE_RL_MIN_TRAIN_EPISODES}@${TREE_RL_TRAIN_SUCCESS_THRESHOLD} probe>=${TREE_RL_MIN_PROBE_EPISODES}@${TREE_RL_PROBE_SUCCESS_THRESHOLD}"
@@ -402,8 +468,8 @@ ppo_args=(
     actor_rollout_ref.actor.use_kl_loss=True
     actor_rollout_ref.actor.kl_loss_coef=0.01
     actor_rollout_ref.actor.kl_loss_type=low_var_kl
-    actor_rollout_ref.actor.fsdp_config.param_offload=False
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False
+    "actor_rollout_ref.actor.fsdp_config.param_offload=$ACTOR_PARAM_OFFLOAD"
+    "actor_rollout_ref.actor.fsdp_config.optimizer_offload=$ACTOR_OPTIMIZER_OFFLOAD"
     "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=$LOG_PROB_MICRO_BATCH_PER_GPU"
     actor_rollout_ref.rollout.tensor_model_parallel_size=1
     actor_rollout_ref.rollout.name=vllm
@@ -494,7 +560,7 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
+    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
         echo "$key=${!key}"
     done
     echo "ROLLOUTS_PER_STEP=$ROLLOUTS_PER_STEP"

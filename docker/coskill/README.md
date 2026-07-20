@@ -14,6 +14,10 @@ Tree-RL 的四个任务共用同一镜像：`alfworld-root`、`alfworld-leaf`、
 可以使用 1、2、4 或 8 张容器可见 GPU；全局 rollout 仍为 72，GPU 数只改变数据并行
 分片。Tree-RL 的 8 卡规则不同：每个实验仍只使用一个 4 卡 slot。
 
+若只需确认新服务器的 GPU、Ray、vLLM、FSDP、数据和技能树链路能完整贯通，可用
+`alfworld-smoke` 或 `webshop-smoke`。它**只允许一张 GPU**，只跑一个极小更新，并启用
+CPU offload；输出固定在 `/outputs/smoke/`，绝不能作为实验结果或恢复正式训练。
+
 基础镜像默认使用 `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04`。当前构建只安装
 已经打包好的 Python/CUDA wheel，不调用 `nvcc`，因此无需下载体积很大的 CUDA
 开发工具层。若后续加入必须现场编译的 CUDA 扩展，可临时恢复 devel 基础镜像：
@@ -106,6 +110,18 @@ docker run --rm --gpus all --ipc=host \
   -v /path/to/models:/models -v /path/to/outputs:/outputs \
   coskill:skillrl-cu128-data alfworld-norl
 ```
+
+单卡 Tree-RL 链路测试（建议先用 ALFWorld；容器内逻辑 GPU 0 对应宿主机指定的 GPU）：
+
+```bash
+docker run --rm --gpus '"device=1"' --ipc=host \
+  --env-file .env -e MODEL_AUTO_DOWNLOAD=0 -e CLOUD_BOOTSTRAP_PROBE=1 \
+  -v /path/to/models:/models:ro -v /path/to/outputs:/outputs \
+  coskill:skillrl-cu128-data alfworld-smoke
+```
+
+它使用 `2 goals × 2 samples = 4` rollout、最多 4 环境步、512 response token 和一个
+GRPO 更新；正式入口的 `12×6=72` rollout 与超参数完全不受此命令影响。
 
 若希望预检真实调用一次云端 API，可加 `-e CLOUD_BOOTSTRAP_PROBE=1`；密钥始终
 通过 `--env-file` 或容器 secret 注入，不要写入镜像。
