@@ -20,7 +20,7 @@ export HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn CUDA_DEVICE_ORDER=PCI_BUS_ID PYTHONUNBUFFERED=1
 
 GPU0_NAME="$(nvidia-smi --id=0 --query-gpu=name --format=csv,noheader 2>/dev/null || true)"
-if [[ "${COSKILL_FORCE_LOCAL_3090:-0}" == "1" || "$GPU0_NAME" == *"RTX 3090"* ]]; then
+if [[ "${COSKILL_FORCE_LOCAL_3090:-0}" == "1" || ( "${COSKILL_FORCE_ACCELERATOR:-0}" != "1" && "$GPU0_NAME" == *"RTX 3090"* ) ]]; then
   # The shared local 3090 rule remains in force.
   [[ -z "${CUDA_VISIBLE_DEVICES:-}" || "$CUDA_VISIBLE_DEVICES" == "0" ]] || {
     echo "Local ablations may only use physical GPU 0." >&2; exit 1;

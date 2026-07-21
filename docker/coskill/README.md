@@ -154,6 +154,10 @@ docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
 `alfworld-ablation` 不使用 GRPO 的 72 rollout/step 配置；它的 bootstrap 与每个
 评估臂固定为各 36 条轨迹，详见 `ablation_summary.json`。
 
+容器只分配一张 A800 时同样可运行该入口：把 `--gpus '"device=0"'`（或调度器分配的
+单卡）替代四卡列表即可。它会使用 DP=1、TP=1，仍保持 bootstrap=36 与每臂评估=36；
+只降低速度，不改变固定任务、采样 seed 或统计口径。
+
 如果节点分配了 8 张卡，不要把单个实验改成 8-rank（全局 mini-batch 36 无法
 无损分到 8 rank）。镜像会按 `TREE_RL_GPU_SLOT=0|1` 切成两个互不重叠的 4 卡组，
 可同时跑两个不同任务：

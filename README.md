@@ -166,7 +166,7 @@ rl=1 TREE_RL_ORDER=root \
 模型可挂载，也可在首次启动时由 ModelScope 自动下载。构建与运行命令见
 [docker/coskill/README.md](docker/coskill/README.md)。
 
-### ALFWorld 固定轨迹消融（4×A800，非 Docker）
+### ALFWorld 固定轨迹消融（1×/4×A800，非 Docker）
 
 固定轨迹消融使用独立入口，不改变上述主训练过程。它固定六类任务各一条
 bootstrap game 与一条非重叠 eval game；所有臂共用冻结 raw traces。bootstrap
@@ -176,6 +176,15 @@ bootstrap game 与一条非重叠 eval game；所有臂共用冻结 raw traces�
 ```bash
 conda activate skillRL
 cd /path/to/CoSkill
+
+# 单张 A800：DP=1、TP=1，仍固定 bootstrap=36、每个评估臂=36 条轨迹；
+# 只改变吞吐，不能把它与四卡的 wall-clock 时间直接比较。
+CUDA_VISIBLE_DEVICES=0 ABLATION_PREFLIGHT_ONLY=1 \
+  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_1xa800.sh
+
+CUDA_VISIBLE_DEVICES=0 \
+  AB_ROOT=/path/to/outputs/alfworld_ablation_1xa800 \
+  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_1xa800.sh
 
 # 仅检查 4 张 A800、模型、数据与云端 API；不启动 rollout。
 CUDA_VISIBLE_DEVICES=0,1,2,3 ABLATION_PREFLIGHT_ONLY=1 \
