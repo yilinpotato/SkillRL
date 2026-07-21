@@ -141,6 +141,9 @@ if [ "$VLLM_ENFORCE_EAGER" != "0" ] && [ "$VLLM_ENFORCE_EAGER" != "1" ]; then
     exit 1
 fi
 
+# shellcheck disable=SC1091
+source "$PROJECT_ROOT/scripts/configure_vllm_acceleration.sh"
+
 if [[ "$IS_CONTAINER" == "1" ]]; then
     RUN_ENV="Docker container"
     export CACHE_ROOT="${CACHE_ROOT:-/models/.cache}"
@@ -232,6 +235,7 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
 echo "vLLM topology: $VLLM_PARALLEL_TOPOLOGY (DP=$DATA_PARALLEL_WORKERS TP=$TENSOR_PARALLEL_SIZE PP=$PIPELINE_PARALLEL_SIZE; GPUs=$REQUIRED_GPUS)"
 echo "vLLM max_num_seqs: ${VLLM_MAX_NUM_SEQS:-0} (0 means each worker's actual rollout batch size)"
 echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER (0 enables CUDA Graphs after warm-up)"
+echo "vLLM FlashInfer sampler: $VLLM_USE_FLASHINFER_SAMPLER"
 echo "WebShop data: $WEBSHOP_DATA_DIR"
 echo "Rollout standard: train=$TRAIN_DATA_SIZE val=$VAL_DATA_SIZE group_size=$GROUP_SIZE groups=$TOTAL_GROUPS max_episodes=$MAX_EPISODES"
 echo "Held-out validation: split=[0,500) goals=$VAL_DATA_SIZE every=$VALIDATION_EVERY_GROUPS groups before_train=$VALIDATION_BEFORE_TRAIN temp=$VALIDATION_TEMPERATURE"

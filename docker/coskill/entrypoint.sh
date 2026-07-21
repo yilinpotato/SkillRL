@@ -81,7 +81,7 @@ case "$TASK" in
                 --skills-json "memory_data/${PREFLIGHT_BENCHMARK:-alfworld}/claude_style_skills.json" \
                 --probe
         fi
-        echo "Preflight passed. Choose alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, alfworld-smoke, webshop-smoke, alfworld-norl, webshop-norl, or alfworld-ablation."
+        echo "Preflight passed. Choose install-flashinfer, alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, alfworld-smoke, webshop-smoke, alfworld-norl, webshop-norl, or alfworld-ablation."
         ;;
     alfworld-root|alfworld-leaf|webshop-root|webshop-leaf)
         ensure_model
@@ -120,8 +120,14 @@ case "$TASK" in
         export AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_fixed_trajectory_ablation}"
         exec bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation.sh "$@"
         ;;
+    install-flashinfer)
+        # /outputs is the default writable bind mount, so this does not modify
+        # the image or the packed Conda environment.
+        export COSKILL_FLASHINFER_OVERLAY="${COSKILL_FLASHINFER_OVERLAY:-/outputs/flashinfer-cu128}"
+        exec bash scripts/install_flashinfer_sampler_overlay.sh
+        ;;
     *)
-        echo "Unknown task '$TASK'. Use preflight, shell, alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, alfworld-smoke, webshop-smoke, alfworld-norl, webshop-norl, or alfworld-ablation." >&2
+        echo "Unknown task '$TASK'. Use preflight, shell, install-flashinfer, alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, alfworld-smoke, webshop-smoke, alfworld-norl, webshop-norl, or alfworld-ablation." >&2
         exit 2
         ;;
 esac

@@ -147,13 +147,24 @@ if ! [[ "$VLLM_MAX_NUM_SEQS" =~ ^[0-9]+$ ]]; then
     echo "VLLM_MAX_NUM_SEQS must be a non-negative integer." >&2
     exit 1
 fi
-# Preserve ALFWorld's existing eager execution default for maximum one-GPU
-# compatibility.  A800 users may opt into CUDA Graphs with 0 after validation.
-VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-1}"
+# CUDA Graph capture improves long-running A800/container decode throughput.
+# Keep eager as the default only for the shared local single-GPU path, where
+# its startup-memory overhead is more likely to matter.
+if [[ "$IS_CONTAINER" == "1" || -d /GLOBALFS/hit_wxia_1 ]]; then
+    DEFAULT_VLLM_ENFORCE_EAGER=0
+else
+    DEFAULT_VLLM_ENFORCE_EAGER=1
+fi
+VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-$DEFAULT_VLLM_ENFORCE_EAGER}"
 if [[ "$VLLM_ENFORCE_EAGER" != "0" && "$VLLM_ENFORCE_EAGER" != "1" ]]; then
     echo "VLLM_ENFORCE_EAGER must be 0 or 1." >&2
     exit 1
 fi
+
+# FlashInfer is opt-in and validated before any worker is spawned.  It is not
+# an attention-backend override: dense Qwen continues to use vLLM FlashAttn.
+# shellcheck disable=SC1091
+source "$PROJECT_ROOT/scripts/configure_vllm_acceleration.sh"
 
 # ── 自动判断运行环境：超算 vs 本地3090（与训练脚本一致）─────────────────────────
 if [[ "$IS_CONTAINER" == "1" ]]; then
@@ -179,6 +190,7 @@ echo "rollout_worker_gpus: ${ROLLOUT_WORKER_GPUS:-<auto>}"
 echo "vLLM tensor_parallel_size: $TENSOR_PARALLEL_SIZE"
 echo "single-GPU mode: $COSKILL_ONE_GPU"
 echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER"
+echo "vLLM FlashInfer sampler: $VLLM_USE_FLASHINFER_SAMPLER"
 
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"

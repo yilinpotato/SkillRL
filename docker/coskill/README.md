@@ -129,6 +129,36 @@ GRPO 更新；正式入口的 `12×6=72` rollout 与超参数完全不受此命�
 若希望预检真实调用一次云端 API，可加 `-e CLOUD_BOOTSTRAP_PROBE=1`；密钥始终
 通过 `--env-file` 或容器 secret 注入，不要写入镜像。
 
+## vLLM CUDA Graph 与 FlashInfer sampler
+
+Tree-RL 以及超算/容器中的 noRL rollout 默认允许 CUDA Graph；这是 vLLM 的
+`enforce_eager=False` 路径，不改变 prompt、奖励、rollout=72 或 token 预算。首次
+启动日志应出现 `Capturing CUDA graphs` 和 `Graph capturing finished`。若短 smoke 因
+显存或驱动组合失败，可显式传 `-e VLLM_ENFORCE_EAGER=1`（仅 noRL）回退 eager。
+
+镜像保留原生 vLLM sampler 作为默认，以免已在跑的随机训练曲线被不同 CUDA sampler
+悄悄改变。若需要单独测试 FlashInfer 的 decode 吞吐，先把它安装到输出挂载中的
+隔离 overlay（不会修改镜像或 `/opt/conda/envs/skillRL`）：
+
+```bash
+docker run --rm --ipc=host \
+  -v /path/to/outputs:/outputs \
+  coskill:skillrl-cu128-data install-flashinfer
+```
+
+随后为正式容器同时增加如下环境变量：
+
+```bash
+-e COSKILL_ENABLE_FLASHINFER_SAMPLER=1 \
+-e COSKILL_FLASHINFER_OVERLAY=/outputs/flashinfer-cu128
+```
+
+只有日志出现 `Using FlashInfer for top-p & top-k sampling.` 才算真正启用。每一种
+GPU 架构第一次使用会编译并缓存 kernel，首次启动较慢正常；应在缓存后比较稳态速度。
+不要把启用与未启用 sampler 的随机训练曲线作为严格可重复的同一条曲线比较，也不要
+设置 `VLLM_ATTENTION_BACKEND=FLASHINFER`：这里优化的是 sampler，稠密 Qwen 注意力
+仍使用 vLLM 默认 Flash Attention。
+
 单卡（例如本地 5070）可做镜像、模型、数据和 CUDA 预检；若挂载 Qwen3-0.6B，也可运行
 上述不可报告的端到端 smoke。4B 则不能在 24 GiB 单卡上运行 Tree-RL：
 
