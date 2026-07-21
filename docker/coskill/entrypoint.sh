@@ -42,15 +42,19 @@ import torch
 n = torch.cuda.device_count()
 mode = sys.argv[1]
 allow_single = os.environ.get("PREFLIGHT_ALLOW_SINGLE_GPU", "0") == "1"
+allow_formal_single = os.environ.get("TREE_RL_ALLOW_SINGLE_GPU", "0") == "1"
 if mode == "rollout":
     if n < 1:
         raise SystemExit("No CUDA GPUs are visible for no-RL rollout.")
     print(f"Visible CUDA GPUs for no-RL rollout: {n}")
-elif n == 1 and (allow_single or mode == "smoke"):
+elif n == 1 and (allow_single or allow_formal_single or mode == "smoke"):
     if mode == "smoke":
         print("Visible CUDA GPUs: 1 (diagnostic smoke only; formal Tree-RL still needs 2, 4, or 8 GPUs)")
     else:
-        print("Visible CUDA GPUs: 1 (preflight-only mode; formal Tree-RL still needs 2, 4, or 8 GPUs)")
+        if allow_formal_single:
+            print("Visible CUDA GPUs: 1 (formal Tree-RL requested; launcher will require >=80 GiB and keep rollout=72)")
+        else:
+            print("Visible CUDA GPUs: 1 (preflight-only mode; formal Tree-RL needs 2/4 GPUs unless TREE_RL_ALLOW_SINGLE_GPU=1)")
 elif n not in (2, 4, 8):
     raise SystemExit(f"CoSkill Tree-RL requires 2, 4, or 8 visible GPUs, got {n}")
 else:

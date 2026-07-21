@@ -5,12 +5,14 @@
 #   bash examples/grpo_trainer/run_coskill_tree_rl.sh alfworld
 #   TREE_RL_ORDER=leaf bash examples/grpo_trainer/run_coskill_tree_rl.sh webshop
 #
-# This script accepts 2/4 GPUs per formal experiment. An 8-GPU allocation
-# defaults to two independent four-GPU slots; TREE_RL_USE_ALL_8=1 instead makes
-# one opt-in eight-rank experiment with a 72-sample PPO mini-batch. That mode
-# preserves rollouts/rewards but changes PPO minibatch geometry, so it must not
-# be mixed with the 2/4-GPU learning curve. TREE_RL_SMOKE_TEST=1 is the sole
-# exception: it permits one GPU with deliberately tiny diagnostic settings. It
+# This script accepts 2/4 GPUs per formal experiment. A clean >=80 GiB single
+# GPU (for example A800-80G) is also supported only with the explicit
+# TREE_RL_ALLOW_SINGLE_GPU=1 acknowledgement and still uses all 72 rollouts.
+# An 8-GPU allocation defaults to two independent four-GPU slots;
+# TREE_RL_USE_ALL_8=1 instead makes one opt-in eight-rank experiment with a
+# 72-sample PPO mini-batch. That mode preserves rollouts/rewards but changes
+# PPO minibatch geometry, so it must not be mixed with the 2/4-GPU learning
+# curve. TREE_RL_SMOKE_TEST=1 remains the separate tiny diagnostic path. It
 # does not run `ray stop` or `ray start`: main_ppo owns its Ray lifecycle, so a
 # job never destroys a different user's Ray session on a shared cluster.
 
@@ -109,8 +111,13 @@ ALLOCATED_CUDA_VISIBLE_DEVICES="$CUDA_VISIBLE_DEVICES"
 ALLOCATED_NUM_GPUS="$(tr ',' '\n' <<<"$ALLOCATED_CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
 TREE_RL_GPU_SLOT="${TREE_RL_GPU_SLOT:-0}"
 TREE_RL_USE_ALL_8="${TREE_RL_USE_ALL_8:-0}"
+TREE_RL_ALLOW_SINGLE_GPU="${TREE_RL_ALLOW_SINGLE_GPU:-0}"
 if [[ "$TREE_RL_USE_ALL_8" != "0" && "$TREE_RL_USE_ALL_8" != "1" ]]; then
     echo "TREE_RL_USE_ALL_8 must be 0 (two four-GPU slots) or 1 (one eight-GPU experiment)." >&2
+    exit 1
+fi
+if [[ "$TREE_RL_ALLOW_SINGLE_GPU" != "0" && "$TREE_RL_ALLOW_SINGLE_GPU" != "1" ]]; then
+    echo "TREE_RL_ALLOW_SINGLE_GPU must be 0 or 1." >&2
     exit 1
 fi
 if [[ "$ALLOCATED_NUM_GPUS" == "8" ]]; then
@@ -131,17 +138,21 @@ if [[ "$ALLOCATED_NUM_GPUS" == "8" ]]; then
     fi
 elif [[ "$TREE_RL_SMOKE_TEST" == "1" && "$ALLOCATED_NUM_GPUS" == "1" ]]; then
     echo "Single-GPU Tree-RL smoke mode enabled; this is not a formal experiment."
+elif [[ "$TREE_RL_ALLOW_SINGLE_GPU" == "1" && "$ALLOCATED_NUM_GPUS" == "1" ]]; then
+    echo "Single-GPU formal Tree-RL enabled: rollout and validation remain the standard 72/32 contract."
 elif [[ "$ALLOCATED_NUM_GPUS" != "2" && "$ALLOCATED_NUM_GPUS" != "4" ]]; then
-    echo "Need 2, 4, or 8 visible GPUs; CUDA_VISIBLE_DEVICES=$ALLOCATED_CUDA_VISIBLE_DEVICES ($ALLOCATED_NUM_GPUS GPUs)." >&2
+    echo "Need 2, 4, or 8 visible GPUs (or one GPU with TREE_RL_ALLOW_SINGLE_GPU=1); CUDA_VISIBLE_DEVICES=$ALLOCATED_CUDA_VISIBLE_DEVICES ($ALLOCATED_NUM_GPUS GPUs)." >&2
     exit 1
 fi
 NUM_GPUS="$(tr ',' '\n' <<<"$CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
 if [[ "$TREE_RL_SMOKE_TEST" == "1" && "$NUM_GPUS" == "1" ]]; then
     :
+elif [[ "$TREE_RL_ALLOW_SINGLE_GPU" == "1" && "$NUM_GPUS" == "1" ]]; then
+    :
 elif [[ "$TREE_RL_USE_ALL_8" == "1" && "$NUM_GPUS" == "8" ]]; then
     :
 elif [[ "$NUM_GPUS" != "2" && "$NUM_GPUS" != "4" ]]; then
-    echo "Need exactly 2 or 4 visible GPUs (or exactly 8 with TREE_RL_USE_ALL_8=1); CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ($NUM_GPUS GPUs)." >&2
+    echo "Need exactly 2 or 4 visible GPUs (or one with TREE_RL_ALLOW_SINGLE_GPU=1, or eight with TREE_RL_USE_ALL_8=1); CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ($NUM_GPUS GPUs)." >&2
     exit 1
 fi
 N_GPUS_PER_NODE="${N_GPUS_PER_NODE:-$NUM_GPUS}"
@@ -158,9 +169,9 @@ fi
 
 # Experiment contract: every CoSkill Tree-RL update contains exactly
 # 12 distinct WebShop/ALFWorld goals × 6 GRPO samples = 72 rollouts,
-# regardless of whether FSDP uses two or four A800s.  Only the dispatch is
-# sharded more finely on four GPUs.  Ray/verl requires the *expanded* rollout
-# batch (not the number of base goals) to divide across ranks.
+# regardless of whether FSDP uses one, two, or four A800s.  Only the dispatch
+# is sharded more finely on more GPUs.  Ray/verl requires the *expanded*
+# rollout batch (not the number of base goals) to divide across ranks.
 if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
     DEFAULT_TRAIN_DATA_SIZE=2
     DEFAULT_GROUP_SIZE=2
@@ -214,6 +225,11 @@ import torch
 print(int(min(torch.cuda.get_device_properties(i).total_memory for i in range(torch.cuda.device_count())) / 2**30))
 PY
 )"
+if [[ "$TREE_RL_SMOKE_TEST" != "1" && "$NUM_GPUS" == "1" && "$MIN_GPU_MEMORY_GIB" -lt 80 ]]; then
+    echo "Formal single-GPU Tree-RL requires at least 80 GiB VRAM; detected ${MIN_GPU_MEMORY_GIB} GiB." >&2
+    echo "Use 2/4 GPUs, or run the explicitly non-comparable TREE_RL_SMOKE_TEST=1 diagnostic." >&2
+    exit 1
+fi
 GPU_FAMILY="$(python3 - <<'PY'
 import re
 import torch
@@ -430,7 +446,7 @@ else
 fi
 
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"
-echo "GPU allocation: allocated=$ALLOCATED_CUDA_VISIBLE_DEVICES selected=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS slot=$TREE_RL_GPU_SLOT all_8=$TREE_RL_USE_ALL_8"
+echo "GPU allocation: allocated=$ALLOCATED_CUDA_VISIBLE_DEVICES selected=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS slot=$TREE_RL_GPU_SLOT all_8=$TREE_RL_USE_ALL_8 formal_single=$TREE_RL_ALLOW_SINGLE_GPU"
 echo "GPU profile: $GPU_PROFILE (minimum ${MIN_GPU_MEMORY_GIB}GiB; vLLM utilization=$VLLM_GPU_MEMORY_UTILIZATION)"
 echo "vLLM topology: DP=$NUM_GPUS TP=1 PP=1 (unchanged)"
 echo "Active trajectory compaction: $COMPACT_FINISHED_TRAJECTORIES (only completed rows are excluded from future vLLM calls)"
@@ -606,7 +622,7 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT TREE_RL_USE_ALL_8 GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION VLLM_ATTENTION_BACKEND VLLM_USE_FLASHINFER_SAMPLER COSKILL_ENABLE_FLASHINFER_SAMPLER COSKILL_FLASHINFER_OVERLAY N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
+    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST TREE_RL_ALLOW_SINGLE_GPU ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT TREE_RL_USE_ALL_8 GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION VLLM_ATTENTION_BACKEND VLLM_USE_FLASHINFER_SAMPLER COSKILL_ENABLE_FLASHINFER_SAMPLER COSKILL_FLASHINFER_OVERLAY N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
         echo "$key=${!key}"
     done
     echo "ROLLOUTS_PER_STEP=$ROLLOUTS_PER_STEP"

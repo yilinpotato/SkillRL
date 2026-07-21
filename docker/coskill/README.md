@@ -4,7 +4,8 @@
 `train=12/test=32` GRPO parquet，以及 WebShop 1000 商品数据和对应 Lucene 索引。
 Tree-RL 的四个任务共用同一镜像：`alfworld-root`、`alfworld-leaf`、
 `webshop-root`、`webshop-leaf`。每个任务独占
-2、4 或 8 张 GPU；单个实验使用 DP=2/4、TP=PP=1。rollout 始终为 `12×6=72`，
+2、4 或 8 张 GPU；单个实验使用 DP=2/4、TP=PP=1。干净的单张 80 GiB A800/A100
+也可通过 `TREE_RL_ALLOW_SINGLE_GPU=1` 正式运行。rollout 始终为 `12×6=72`，
 验证集、采样和全局 PPO 几何不会随卡数变化。
 
 同一镜像也提供 `alfworld-ablation`。它运行固定任务、固定轨迹的 ALFWorld
@@ -100,6 +101,22 @@ docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
 应串行运行，或为每个容器申请独立的 4 卡节点。相同输出目录会自动恢复模型、
 优化器、dataloader 和 `skills_tree_rl_latest.json`。新实验请通过
 `RL_OUTPUT_DIR=/outputs/<unique-name>` 使用独立目录。
+
+单张 80 GiB A800/A100 的正式 Tree-RL 也保持 `12×6=72` rollout、`val=32`、
+response=4096 和原奖励/采样配置；它不是 smoke。必须显式确认，避免把共享或小显存
+卡误当正式资源：
+
+```bash
+docker run --rm --gpus '"device=0"' --ipc=host \
+  --env-file .env -e TREE_RL_ALLOW_SINGLE_GPU=1 \
+  -e RL_OUTPUT_DIR=/outputs/alfworld_leaf_1xa800 \
+  -v /path/to/models:/models -v /path/to/outputs:/outputs \
+  coskill:skillrl-cu128-data alfworld-leaf
+```
+
+单卡的 FSDP micro-batch/gradient accumulation 会随 rank 数自动调整，但全局 PPO
+mini-batch、72 条 rollout 和训练语义不变；它只会比多卡慢。24/40 GiB 卡只能使用
+`alfworld-smoke` / `webshop-smoke`，不可将 smoke 的 `2×2=4` rollout 用于正式比较。
 
 例如运行 ALFWorld noRL（8 卡时会启动 8 个 TP=1 的 vLLM 数据并行 worker）：
 
