@@ -209,19 +209,19 @@ def test_manifest_pair_rejects_overlap(tmp_path):
         raise AssertionError("overlapping manifests must be rejected")
 
 
-def test_fixed_manifest_dp_plan_preserves_six_rollouts_per_game():
+def test_fixed_manifest_dp_plan_preserves_formal_twelve_rollouts_per_game():
     games = [f"game-{i}" for i in range(6)]
     for workers in (1, 2, 4, 6, 8):
-        plan = _fixed_manifest_dp_plan(games, replicas_per_game=6, workers=workers)
+        plan = _fixed_manifest_dp_plan(games, replicas_per_game=12, workers=workers)
         assert len(plan) == workers
-        assert sum(batch for _, batch in plan) == 36
+        assert sum(batch for _, batch in plan) == 72
         counts = {game: 0 for game in games}
         for assigned, batch in plan:
             assert batch % len(assigned) == 0
             per_game = batch // len(assigned)
             for game in assigned:
                 counts[game] += per_game
-        assert set(counts.values()) == {6}
+        assert set(counts.values()) == {12}
 
 
 def test_fixed_request_seed_is_path_and_worker_independent():

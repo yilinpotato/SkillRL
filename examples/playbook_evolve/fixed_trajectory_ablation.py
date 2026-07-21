@@ -141,9 +141,14 @@ def _driver_cmd(args, outdir: Path, manifest: Path, episodes: int, batch: int,
                 enable_cloud_updates: int, extra: Iterable[str] = ()) -> List[str]:
     cmd = [sys.executable, "-u", "-m", "examples.playbook_evolve.run_playbook_evolve",
            "--outdir", str(outdir), "--fixed_games_manifest", str(manifest),
-           "--epochs", "6", "--group_size", "6", "--max_episodes", str(episodes),
+           # One complete fixed-manifest epoch has exactly six games times the
+           # requested replica count.  Keeping this explicit is what makes
+           # 1/2/4/8-GPU DP plans use the identical seeded trajectory multiset.
+           "--epochs", "1", "--group_size", str(args.rollouts_per_type),
+           "--max_episodes", str(episodes),
            "--batch_rollout_size", str(batch), "--max_steps", str(args.max_steps),
            "--seed", str(args.seed), "--retrieval_mode", args.retrieval_mode,
+           "--vllm_enforce_eager", str(args.vllm_enforce_eager),
            "--enable_coskill", str(enable_coskill), "--enable_skill_tree", str(enable_tree),
            "--enable_skill_tree_evolve", str(enable_tree_evolve),
            "--enable_cloud_updates", str(enable_cloud_updates),
@@ -184,6 +189,12 @@ def bootstrap(args, root: Path, bootstrap_manifest: Path) -> Path:
                 "existing frozen raw traces have no bootstrap protocol record; "
                 "they may contain historical seed skills. Use a new --root.")
         coverage = _read_json(coverage_path)
+        if coverage.get("rollouts_per_type") != args.rollouts_per_type:
+            raise RuntimeError(
+                "existing frozen corpus uses a different rollout count per task type "
+                f"({coverage.get('rollouts_per_type')!r} versus requested "
+                f"{args.rollouts_per_type}); use a new --root rather than mixing "
+                "the 36- and 72-rollout protocols.")
         bank = coverage.get("bootstrap_skill_library", {})
         if not (bank.get("is_empty") is True and
                 bank.get("sha256") == _sha256_path(empty_skills) and
@@ -194,7 +205,8 @@ def bootstrap(args, root: Path, bootstrap_manifest: Path) -> Path:
                 "bootstrap skill library. Use a new --root for this protocol.")
         return frozen
     run_dir = root / "bootstrap" / "initial"
-    _run(_driver_cmd(args, run_dir, bootstrap_manifest, 36, 36, 1, 1, 0, 0,
+    total_rollouts = len(TASK_TYPES) * args.rollouts_per_type
+    _run(_driver_cmd(args, run_dir, bootstrap_manifest, total_rollouts, total_rollouts, 1, 1, 0, 0,
                      extra=("--skills_json", str(empty_skills))), args.project_root)
     traces = _read_jsonl(run_dir / "traces_pool" / "raw_traces.jsonl")
     by_type: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -212,7 +224,8 @@ def bootstrap(args, root: Path, bootstrap_manifest: Path) -> Path:
         supplement_manifest = root / "manifests" / "bootstrap_supplement_games.json"
         _write_json(supplement_manifest, {"split": boot["split"], "role": "bootstrap_supplement", "games": selected})
         supplement = root / "bootstrap" / "supplement"
-        _run(_driver_cmd(args, supplement, supplement_manifest, 6 * len(selected), 6 * len(selected),
+        supplement_rollouts = args.rollouts_per_type * len(selected)
+        _run(_driver_cmd(args, supplement, supplement_manifest, supplement_rollouts, supplement_rollouts,
                          1, 1, 0, 0,
                          extra=("--seed", str(args.seed + 1),
                                 "--skills_json", str(empty_skills))), args.project_root)
@@ -231,6 +244,8 @@ def bootstrap(args, root: Path, bootstrap_manifest: Path) -> Path:
     } for tt in TASK_TYPES}
     _write_json(coverage_path, {
         "raw_traces": str(frozen), "raw_traces_sha256": _sha256_path(frozen),
+        "rollouts_per_type": args.rollouts_per_type,
+        "initial_total_rollouts": total_rollouts,
         "bootstrap_skill_library": {
             "path": str(empty_skills), "sha256": _sha256_path(empty_skills),
             "is_empty": True, "enable_coskill": True, "enable_skill_tree": True,
@@ -434,7 +449,8 @@ def build_tree_artifact(raw_path: Path, directory: Path, depth: int) -> Path:
                                     **_payload_accounting(batch)})
 
 
-def build_compression_artifact(raw_path: Path, directory: Path, all_on: bool) -> Path:
+def build_compression_artifact(raw_path: Path, directory: Path, all_on: bool,
+                               global_step: int) -> Path:
     raw = _read_jsonl(raw_path)
     flags = ({"enable_loop_filter": True, "enable_obs_delta": True,
               "enable_prefix_tree": True, "enable_consensus_prefix": True}
@@ -450,7 +466,8 @@ def build_compression_artifact(raw_path: Path, directory: Path, all_on: bool) ->
     loop = CoSkillCloudLoop(str(directory), enable_coskill=True, enable_playbook_evolve=True,
                             enable_failure_analysis=True, max_new_skills=3,
                             playbook_evolve_min_samples=6, environment_name="ALFWorld")
-    if not loop.maybe_update(pool, lib, global_step=36, force_reason="fixed_trajectory_ablation"):
+    if not loop.maybe_update(pool, lib, global_step=global_step,
+                             force_reason="fixed_trajectory_ablation"):
         raise RuntimeError(f"cloud generation failed for {'all_on' if all_on else 'all_off'}")
     batch_files = sorted((directory / "traces_pool").glob("batch_*.json"))
     batch = _read_json(batch_files[-1]) if batch_files else {}
@@ -461,7 +478,7 @@ def build_compression_artifact(raw_path: Path, directory: Path, all_on: bool) ->
                                     **_payload_accounting(batch)})
 
 
-def build_artifacts(root: Path, raw_path: Path) -> Dict[str, Path]:
+def build_artifacts(args, root: Path, raw_path: Path) -> Dict[str, Path]:
     artifacts = root / "artifacts"
     result = {}
     none_dir = artifacts / "none"
@@ -479,9 +496,13 @@ def build_artifacts(root: Path, raw_path: Path) -> Dict[str, Path]:
     on = artifacts / "compression_all_on" / "artifact_manifest.json"
     off = artifacts / "compression_all_off" / "artifact_manifest.json"
     result["compression_all_on"] = (on if on.exists() else
-                                    build_compression_artifact(raw_path, artifacts / "compression_all_on", True))
+                                    build_compression_artifact(
+                                        raw_path, artifacts / "compression_all_on", True,
+                                        len(TASK_TYPES) * args.rollouts_per_type))
     result["compression_all_off"] = (off if off.exists() else
-                                     build_compression_artifact(raw_path, artifacts / "compression_all_off", False))
+                                     build_compression_artifact(
+                                         raw_path, artifacts / "compression_all_off", False,
+                                         len(TASK_TYPES) * args.rollouts_per_type))
     return result
 
 
@@ -507,7 +528,8 @@ def evaluate_arm(args, root: Path, eval_manifest: Path, arm: str) -> Path:
         raise FileNotFoundError(f"missing artifact for {arm}: {artifact}")
     tree = int(arm.startswith("tree_depth_") or arm.startswith("compression_"))
     bullets = int(arm == "flat_claude" or arm.startswith("compression_"))
-    _run(_driver_cmd(args, output, eval_manifest, 36, 36, bullets, tree, 0, 0,
+    total_rollouts = len(TASK_TYPES) * args.rollouts_per_type
+    _run(_driver_cmd(args, output, eval_manifest, total_rollouts, total_rollouts, bullets, tree, 0, 0,
                      ["--skills_json", str(artifact)]), args.project_root)
     return summary
 
@@ -616,25 +638,45 @@ def main() -> None:
     ap.add_argument("--sample_seed", type=int, default=0)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max_steps", type=int, default=40)
+    ap.add_argument("--rollouts_per_type", type=int, default=12,
+                    help="each of the six fixed games is sampled this many times; "
+                         "the formal default is 12 x 6 = 72 rollouts per bootstrap/evaluation arm")
     ap.add_argument("--model_path", default=os.environ.get("MODEL_PATH"))
     ap.add_argument("--retrieval_mode", default="template", choices=("template", "embedding"))
     ap.add_argument("--data_parallel_workers", type=int, default=0)
     ap.add_argument("--rollout_worker_gpus", default=None)
+    ap.add_argument("--vllm_enforce_eager", type=int, choices=(0, 1),
+                    default=int(os.environ.get("VLLM_ENFORCE_EAGER", "0")),
+                    help="0 enables vLLM CUDA Graph after warm-up; 1 is an explicit debug fallback")
     ap.add_argument("--log_trajectories", type=int, default=0)
     ap.add_argument("--driver_arg", action="append", default=[], help="extra one-token argument forwarded to the main driver")
     args = ap.parse_args()
+    if args.rollouts_per_type < 1:
+        ap.error("--rollouts_per_type must be at least 1")
     if not args.alfworld_data:
         ap.error("--alfworld_data or ALFWORLD_DATA is required")
     args.project_root = Path(__file__).resolve().parents[2]
     root, data_root = Path(args.root).resolve(), Path(args.alfworld_data).resolve()
     root.mkdir(parents=True, exist_ok=True)
+    config_path = root / "run_config.json"
+    if config_path.exists():
+        existing = _read_json(config_path)
+        existing_rollouts = existing.get("bootstrap_rollouts_per_type")
+        if existing_rollouts is not None and existing_rollouts != args.rollouts_per_type:
+            raise RuntimeError(
+                "existing ablation root uses bootstrap_rollouts_per_type="
+                f"{existing_rollouts}; requested {args.rollouts_per_type}. "
+                "Use a new --root so 36- and 72-rollout arms never mix.")
     bootstrap_empty_skills = _ensure_empty_bootstrap_skills(root)
     boot_manifest, eval_manifest = create_manifests(root, data_root, args.split, args.sample_seed)
     manifest_hashes = validate_manifest_pair(boot_manifest, eval_manifest, data_root)
-    _write_json(root / "run_config.json", {"task_types": TASK_TYPES,
+    _write_json(config_path, {"task_types": TASK_TYPES,
                                              "runtime_task_type_map": TASK_TYPE_TO_RUNTIME,
-                                             "bootstrap_rollouts_per_type": 6,
-                                             "eval_rollouts_per_type": 6, "seed": args.seed,
+                                             "bootstrap_rollouts_per_type": args.rollouts_per_type,
+                                             "eval_rollouts_per_type": args.rollouts_per_type,
+                                             "rollouts_per_group": len(TASK_TYPES) * args.rollouts_per_type,
+                                             "vllm_enforce_eager": bool(args.vllm_enforce_eager),
+                                             "seed": args.seed,
                                              "sample_seed": args.sample_seed, "git_commit": _git_commit(args.project_root),
                                              "sampling_seed_accounting": "sha256(base_seed|game_id|replica_index|env_step)",
                                              "bootstrap_supplement_seed_offset": 1,
@@ -652,7 +694,7 @@ def main() -> None:
     raw = bootstrap(args, root, boot_manifest)
     if args.phase == "bootstrap":
         return
-    build_artifacts(root, raw)
+    build_artifacts(args, root, raw)
     if args.phase == "artifacts":
         return
     for arm in (*REPRESENTATION_ARMS, *COMPRESSION_ARMS):

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Direct (non-Docker) launcher for the fixed-trajectory ALFWorld ablations on
 # one isolated four-A800 allocation. It dispatches four independent TP=1
-# vLLM rollout workers; fixed manifests and request seeds keep the 36 rollout
+# vLLM rollout workers; fixed manifests and request seeds keep the 72 rollout
 # trajectories per arm identical to 1/2/8-GPU executions.
 set -euo pipefail
 
@@ -86,7 +86,7 @@ echo "[4xa800-ablation] CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 echo "[4xa800-ablation] MODEL_PATH=$MODEL_PATH"
 echo "[4xa800-ablation] ALFWORLD_DATA=$ALFWORLD_DATA"
 echo "[4xa800-ablation] AB_ROOT=$AB_ROOT"
-echo "[4xa800-ablation] DP=4 TP=1 total_eval_rollouts_per_arm=36"
+echo "[4xa800-ablation] DP=4 TP=1 total_eval_rollouts_per_arm=${ABLATION_ROLLOUTS_PER_TYPE:-12}x6=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 ))"
 
 if [[ "${ABLATION_PREFLIGHT_ONLY:-0}" == "1" ]]; then
   echo "[4xa800-ablation] preflight passed; no rollout started."

@@ -51,7 +51,17 @@ export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B
 
 AB_ROOT="${AB_ROOT:-$PROJECT_ROOT/skillrl_outputs/alfworld_fixed_trajectory_ablation/$(date +%Y%m%d_%H%M%S)}"
 DP_WORKERS="${DATA_PARALLEL_WORKERS:-$(tr ',' '\n' <<<"$CUDA_VISIBLE_DEVICES" | grep -c .)}"
+# CUDA Graph changes only vLLM execution scheduling, not prompts, sampling
+# seeds, rewards, or the fixed trajectory protocol.  Eager remains a supported
+# explicit fallback for small/local debugging GPUs.
+if [[ "$RUN_ENV" == "accelerator" ]]; then
+  VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-0}"
+else
+  VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-1}"
+fi
+ABLATION_ROLLOUTS_PER_TYPE="${ABLATION_ROLLOUTS_PER_TYPE:-12}"
 echo "[ablation] env=$RUN_ENV GPUs=$CUDA_VISIBLE_DEVICES DP=$DP_WORKERS root=$AB_ROOT"
+echo "[ablation] rollouts_per_type=$ABLATION_ROLLOUTS_PER_TYPE total_per_group=$((6 * ABLATION_ROLLOUTS_PER_TYPE)) vllm_enforce_eager=$VLLM_ENFORCE_EAGER"
 
 python -u -m examples.playbook_evolve.fixed_trajectory_ablation \
   --root "$AB_ROOT" \
@@ -59,4 +69,6 @@ python -u -m examples.playbook_evolve.fixed_trajectory_ablation \
   --model_path "$MODEL_PATH" \
   --data_parallel_workers "$DP_WORKERS" \
   --rollout_worker_gpus "$CUDA_VISIBLE_DEVICES" \
+  --rollouts_per_type "$ABLATION_ROLLOUTS_PER_TYPE" \
+  --vllm_enforce_eager "$VLLM_ENFORCE_EAGER" \
   "$@"

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Direct (non-Docker) launcher for a fixed-trajectory ALFWorld ablation on one
-# allocated A800.  It deliberately keeps the protocol unchanged: one TP=1
-# vLLM replica executes the same fixed 36 bootstrap/evaluation rollouts per
-# arm, only with lower throughput than the 4xA800 launcher.
+# allocated A800.  One TP=1 vLLM replica executes the formal fixed 72
+# bootstrap/evaluation rollouts per arm (six games x 12 replicas).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -91,7 +90,7 @@ echo "[1xa800-ablation] CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 echo "[1xa800-ablation] MODEL_PATH=$MODEL_PATH"
 echo "[1xa800-ablation] ALFWORLD_DATA=$ALFWORLD_DATA"
 echo "[1xa800-ablation] AB_ROOT=$AB_ROOT"
-echo "[1xa800-ablation] DP=1 TP=1 total_bootstrap_rollouts=36 total_eval_rollouts_per_arm=36"
+echo "[1xa800-ablation] DP=1 TP=1 total_bootstrap_rollouts=${ABLATION_ROLLOUTS_PER_TYPE:-12}x6=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 )) total_eval_rollouts_per_arm=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 ))"
 
 if [[ "${ABLATION_PREFLIGHT_ONLY:-0}" == "1" ]]; then
   echo "[1xa800-ablation] preflight passed; no rollout started."
