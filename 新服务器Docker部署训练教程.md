@@ -18,7 +18,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04 nvidia-s
 ```bash
 export REGISTRY=crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com
 # 固定使用已验证的版本；不要填无 tag 的仓库地址（它会请求不存在的 latest）。
-export IMAGE=$REGISTRY/yilinpotato/coskill:skillrl-cu128-data-20260721-fix8
+export IMAGE=$REGISTRY/yilinpotato/coskill:skillrl-cu128-data-20260721-fix9
 export RUN_ROOT=$HOME/coskill-run
 mkdir -p "$RUN_ROOT/models" "$RUN_ROOT/outputs"
 
@@ -62,19 +62,19 @@ docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
 ### `Failed to find C compiler` / `torch._inductor.exc.InductorError`
 
 这是 vLLM 初始化时，Triton 要即时编译 GPU 内核，但旧镜像没有 `gcc/g++/make`。
-请确认平台导入的镜像是本教程的 **`skillrl-cu128-data-20260721-fix8`**，而不是旧的
-`fix1`/`fix2`/`fix3`/`fix4`/`fix5`/`fix6`/`fix7` 或缓存中的默认标签。`fix8` 已在镜像中安装并自检了编译工具链，固定了容器内的 prepared parquet 复用规则，并提供可读的单卡 4B 显存保护；不要在训练容器
+请确认平台导入的镜像是本教程的 **`skillrl-cu128-data-20260721-fix9`**，而不是旧的
+`fix1`/`fix2`/`fix3`/`fix4`/`fix5`/`fix6`/`fix7`/`fix8` 或缓存中的默认标签。`fix9` 已在镜像中安装并自检了编译工具链，固定了容器内的 prepared parquet 复用规则、单卡 4B 显存保护，以及可选的单组合 8 卡 Tree-RL 启动方式；不要在训练容器
 中临时 `apt install`，这样会破坏可复现性。
 
 若平台只能通过图形界面导入镜像，镜像 URL 填完整的
-`crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:skillrl-cu128-data-20260721-fix8`，
-内部镜像名可填 `coskill:rlfix8`。导入后先运行上一节 `preflight`；通过后才启动训练。
+`crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpotato/coskill:skillrl-cu128-data-20260721-fix9`，
+内部镜像名可填 `coskill:rlfix9`。导入后先运行上一节 `preflight`；通过后才启动训练。
 
 ### `missing required asset: .../skillrl_data/verl-agent/text/train.parquet`
 
 这是旧薄镜像遗漏固定的 GRPO parquet 所致。`fix5` 及后续版本将 `train=12`、`test=32` 的
 parquet 打包在 `/opt/data/verl-agent`，并在预检中验证行数。不要通过挂载旧宿主机
-仓库来绕过；重新导入 `fix8` 后运行 `preflight` 即可。
+仓库来绕过；重新导入 `fix9` 后运行 `preflight` 即可。
 
 ### 容器内缺少源码或云端 key
 
@@ -124,6 +124,29 @@ API 429/限流日志。
 中断后在**同一台服务器**用相同的 `TASK`、`RUN_ID` 和输出挂载重启，会恢复 checkpoint、
 数据加载器和 `skills_tree_rl_latest.json`。查看状态用 `docker logs -f "$CONTAINER"`；
 停止用 `docker stop "$CONTAINER"`，不要删除输出目录。
+
+### 单个组合使用全部 8 卡（显式非可比变体）
+
+默认 8 卡会切成两个 4 卡实验，以保持原 `PPO mini-batch=36` 的优化几何。若只追求一个
+组合的 wall-clock 吞吐，可显式设置 `TREE_RL_USE_ALL_8=1`。它仍是固定的 72 rollout/step、
+TP=1 和相同 reward/prompt，但 `PPO mini-batch` 会变为 72（每卡 9、micro=1），因此**不可与
+2/4 卡曲线作为同一严格可比实验合并**。
+
+```bash
+export TASK=alfworld-leaf
+export RUN_ID=alfworld_leaf_8xa100_fast
+export CONTAINER=coskill-$RUN_ID
+
+docker run -d --name "$CONTAINER" --gpus '"device=0,1,2,3,4,5,6,7"' --ipc=host \
+  --env-file "$RUN_ROOT/.env" -e MODEL_AUTO_DOWNLOAD=0 \
+  -e TREE_RL_USE_ALL_8=1 -e RL_OUTPUT_DIR=/outputs/$RUN_ID \
+  -v "$RUN_ROOT/models:/models:ro" -v "$RUN_ROOT/outputs:/outputs" \
+  "$IMAGE" "$TASK"
+```
+
+日志应显示 `8-GPU all-in-one mode enabled`、`DP=8 TP=1 PP=1`、`total=72` 和
+`global_mini=72`。A100 有 NVLink 时 rollout 通常接近两倍吞吐；实际提升也受 FSDP all-reduce、
+环境步和云端调用影响。
 
 ## 6. 运行固定轨迹消融
 

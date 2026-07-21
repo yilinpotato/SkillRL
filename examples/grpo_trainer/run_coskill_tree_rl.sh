@@ -5,11 +5,14 @@
 #   bash examples/grpo_trainer/run_coskill_tree_rl.sh alfworld
 #   TREE_RL_ORDER=leaf bash examples/grpo_trainer/run_coskill_tree_rl.sh webshop
 #
-# This script accepts 2/4 GPUs per experiment or partitions an 8-GPU allocation
-# into two independent four-GPU slots. TREE_RL_SMOKE_TEST=1 is the sole
-# exception: it permits one GPU with deliberately tiny diagnostic settings. It does
-# not run `ray stop` or `ray start`: main_ppo owns its Ray lifecycle, so a job
-# never destroys a different user's Ray session on a shared cluster.
+# This script accepts 2/4 GPUs per formal experiment. An 8-GPU allocation
+# defaults to two independent four-GPU slots; TREE_RL_USE_ALL_8=1 instead makes
+# one opt-in eight-rank experiment with a 72-sample PPO mini-batch. That mode
+# preserves rollouts/rewards but changes PPO minibatch geometry, so it must not
+# be mixed with the 2/4-GPU learning curve. TREE_RL_SMOKE_TEST=1 is the sole
+# exception: it permits one GPU with deliberately tiny diagnostic settings. It
+# does not run `ray stop` or `ray start`: main_ppo owns its Ray lifecycle, so a
+# job never destroys a different user's Ray session on a shared cluster.
 
 set -euo pipefail
 
@@ -99,17 +102,27 @@ fi
 ALLOCATED_CUDA_VISIBLE_DEVICES="$CUDA_VISIBLE_DEVICES"
 ALLOCATED_NUM_GPUS="$(tr ',' '\n' <<<"$ALLOCATED_CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
 TREE_RL_GPU_SLOT="${TREE_RL_GPU_SLOT:-0}"
+TREE_RL_USE_ALL_8="${TREE_RL_USE_ALL_8:-0}"
+if [[ "$TREE_RL_USE_ALL_8" != "0" && "$TREE_RL_USE_ALL_8" != "1" ]]; then
+    echo "TREE_RL_USE_ALL_8 must be 0 (two four-GPU slots) or 1 (one eight-GPU experiment)." >&2
+    exit 1
+fi
 if [[ "$ALLOCATED_NUM_GPUS" == "8" ]]; then
-    if [[ "$TREE_RL_GPU_SLOT" != "0" && "$TREE_RL_GPU_SLOT" != "1" ]]; then
-        echo "With 8 visible GPUs, TREE_RL_GPU_SLOT must be 0 or 1." >&2
-        exit 1
+    if [[ "$TREE_RL_USE_ALL_8" == "1" ]]; then
+        echo "8-GPU all-in-one mode enabled: ranks=$CUDA_VISIBLE_DEVICES; PPO global mini-batch will be 72."
+        echo "This is an explicit non-comparable optimizer-geometry variant; do not merge its learning curve with 2/4-GPU results."
+    else
+        if [[ "$TREE_RL_GPU_SLOT" != "0" && "$TREE_RL_GPU_SLOT" != "1" ]]; then
+            echo "With 8 visible GPUs, TREE_RL_GPU_SLOT must be 0 or 1." >&2
+            exit 1
+        fi
+        IFS=',' read -r -a GPU_ARRAY <<<"$ALLOCATED_CUDA_VISIBLE_DEVICES"
+        GPU_OFFSET=$((TREE_RL_GPU_SLOT * 4))
+        SELECTED_GPU_ARRAY=("${GPU_ARRAY[@]:GPU_OFFSET:4}")
+        export CUDA_VISIBLE_DEVICES="$(IFS=,; echo "${SELECTED_GPU_ARRAY[*]}")"
+        echo "8-GPU allocation detected: this experiment uses slot $TREE_RL_GPU_SLOT ($CUDA_VISIBLE_DEVICES)."
+        echo "Run a second independent task with TREE_RL_GPU_SLOT=$((1 - TREE_RL_GPU_SLOT)) to use the other four GPUs without changing PPO geometry."
     fi
-    IFS=',' read -r -a GPU_ARRAY <<<"$ALLOCATED_CUDA_VISIBLE_DEVICES"
-    GPU_OFFSET=$((TREE_RL_GPU_SLOT * 4))
-    SELECTED_GPU_ARRAY=("${GPU_ARRAY[@]:GPU_OFFSET:4}")
-    export CUDA_VISIBLE_DEVICES="$(IFS=,; echo "${SELECTED_GPU_ARRAY[*]}")"
-    echo "8-GPU allocation detected: this experiment uses slot $TREE_RL_GPU_SLOT ($CUDA_VISIBLE_DEVICES)."
-    echo "Run a second independent task with TREE_RL_GPU_SLOT=$((1 - TREE_RL_GPU_SLOT)) to use the other four GPUs without changing PPO geometry."
 elif [[ "$TREE_RL_SMOKE_TEST" == "1" && "$ALLOCATED_NUM_GPUS" == "1" ]]; then
     echo "Single-GPU Tree-RL smoke mode enabled; this is not a formal experiment."
 elif [[ "$ALLOCATED_NUM_GPUS" != "2" && "$ALLOCATED_NUM_GPUS" != "4" ]]; then
@@ -119,8 +132,10 @@ fi
 NUM_GPUS="$(tr ',' '\n' <<<"$CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
 if [[ "$TREE_RL_SMOKE_TEST" == "1" && "$NUM_GPUS" == "1" ]]; then
     :
+elif [[ "$TREE_RL_USE_ALL_8" == "1" && "$NUM_GPUS" == "8" ]]; then
+    :
 elif [[ "$NUM_GPUS" != "2" && "$NUM_GPUS" != "4" ]]; then
-    echo "Need exactly 2 or 4 visible GPUs; CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ($NUM_GPUS GPUs)." >&2
+    echo "Need exactly 2 or 4 visible GPUs (or exactly 8 with TREE_RL_USE_ALL_8=1); CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES ($NUM_GPUS GPUs)." >&2
     exit 1
 fi
 N_GPUS_PER_NODE="${N_GPUS_PER_NODE:-$NUM_GPUS}"
@@ -149,7 +164,14 @@ else
     DEFAULT_TRAIN_DATA_SIZE=12
     DEFAULT_GROUP_SIZE=6
     DEFAULT_VAL_DATA_SIZE=32
-    DEFAULT_PPO_MINI_BATCH=36
+    # 36 cannot be evenly partitioned over eight FSDP ranks. The explicit
+    # all-8 mode therefore uses one 72-sample PPO mini-batch (9 samples/rank),
+    # while 2/4-GPU formal runs retain their two 36-sample mini-batches.
+    if [[ "$TREE_RL_USE_ALL_8" == "1" && "$NUM_GPUS" == "8" ]]; then
+        DEFAULT_PPO_MINI_BATCH=72
+    else
+        DEFAULT_PPO_MINI_BATCH=36
+    fi
 fi
 TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-$DEFAULT_TRAIN_DATA_SIZE}"
 GROUP_SIZE="${GROUP_SIZE:-$DEFAULT_GROUP_SIZE}"
@@ -169,7 +191,9 @@ fi
 # micro-batches of four samples per mini-batch.  With two ranks this is
 # 18 samples/rank and micro=2; with four ranks it is 9 samples/rank and must
 # be micro=1.  Keeping micro=2 on four ranks causes FSDP's creation-time
-# assertion: normalized mini-batch 9 is not divisible by micro-batch 2.
+# assertion: normalized mini-batch 9 is not divisible by micro-batch 2. The
+# opt-in all-8 mode instead has one global mini-batch of 72, still 9 samples
+# per rank, so it also requires micro=1.
 GPU_PROFILE="$(python3 - <<'PY'
 import torch
 print("; ".join(
@@ -197,7 +221,7 @@ else:
     print(re.sub(r"[^a-z0-9]+", "-", name).strip("-") or "gpu")
 PY
 )"
-if (( NUM_GPUS == 4 || MIN_GPU_MEMORY_GIB < 60 )); then
+if (( NUM_GPUS >= 4 || MIN_GPU_MEMORY_GIB < 60 )); then
     DEFAULT_PPO_MICRO_BATCH_PER_GPU=1
 else
     DEFAULT_PPO_MICRO_BATCH_PER_GPU=2
@@ -400,7 +424,7 @@ else
 fi
 
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"
-echo "GPU allocation: allocated=$ALLOCATED_CUDA_VISIBLE_DEVICES selected=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS slot=$TREE_RL_GPU_SLOT"
+echo "GPU allocation: allocated=$ALLOCATED_CUDA_VISIBLE_DEVICES selected=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS slot=$TREE_RL_GPU_SLOT all_8=$TREE_RL_USE_ALL_8"
 echo "GPU profile: $GPU_PROFILE (minimum ${MIN_GPU_MEMORY_GIB}GiB; vLLM utilization=$VLLM_GPU_MEMORY_UTILIZATION)"
 echo "vLLM topology: DP=$NUM_GPUS TP=1 PP=1 (unchanged)"
 echo "Active trajectory compaction: $COMPACT_FINISHED_TRAJECTORIES (only completed rows are excluded from future vLLM calls)"
@@ -576,7 +600,7 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
+    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT TREE_RL_USE_ALL_8 GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
         echo "$key=${!key}"
     done
     echo "ROLLOUTS_PER_STEP=$ROLLOUTS_PER_STEP"

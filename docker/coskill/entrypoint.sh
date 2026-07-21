@@ -59,7 +59,7 @@ for i in range(n):
     props = torch.cuda.get_device_properties(i)
     print(f"  cuda:{i} {props.name} {props.total_memory / 2**30:.1f} GiB")
 if n == 8:
-    print("An individual experiment will use one four-GPU slot; set TREE_RL_GPU_SLOT=0 or 1.")
+    print("Default: one four-GPU slot (TREE_RL_GPU_SLOT=0 or 1). Opt-in: TREE_RL_USE_ALL_8=1 uses all 8 GPUs but changes PPO mini-batch geometry.")
 PY
 }
 
