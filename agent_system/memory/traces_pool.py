@@ -29,10 +29,45 @@ Traces Pool (轨迹记录池) —— CoSkill 闭环的"心脏起搏器"。
 
 import json
 import os
+import re
 import time
 import uuid
 from collections import defaultdict, deque
 from typing import Dict, List, Optional, Tuple
+
+# ALFWorld/interactive-env actions embed a specific object-instance index
+# ("go to cabinet 3", "go to cabinet 7", ...). Merging the prefix tree on the
+# literal action string means two episodes that make the SAME semantic
+# decision (check a cabinet next) almost never share a tree edge, because
+# they happened to sample different instance numbers. Collapsing instance
+# indices to "#" lets the tree merge on the decision itself.
+_INSTANCE_INDEX_RE = re.compile(r"\b\d+\b")
+
+
+def _normalize_action_for_merge(action: str) -> str:
+    return _INSTANCE_INDEX_RE.sub("#", action or "").strip()
+
+
+# ALFWorld/TextWorld's very first observation of every episode wraps the one
+# piece of real information (the receptacle list) in a fixed banner, and ends
+# with a restatement of the task that is already stored verbatim as the
+# trace's own ``task`` field. In a real ablation batch this framing text made
+# up ~21% of ALL observation characters despite carrying zero decision
+# content. Both phrases are exact literal TextWorld/ALFRED strings, so
+# stripping them is a no-op (and therefore harmless) for any other
+# environment's text.
+_ALFWORLD_BOILERPLATE_PREFIXES = (
+    "-= Welcome to TextWorld, ALFRED! =-\n\n",
+    "You are in the middle of a room. Looking quickly around you, you see ",
+)
+_ALFWORLD_TASK_SUFFIX_RE = re.compile(r"\n\nYour task is to:.*$", re.DOTALL)
+
+
+def _strip_known_boilerplate(obs: str) -> str:
+    out = obs
+    for phrase in _ALFWORLD_BOILERPLATE_PREFIXES:
+        out = out.replace(phrase, "")
+    return _ALFWORLD_TASK_SUFFIX_RE.sub("", out)
 
 
 def _approx_tokens(text: str) -> int:
@@ -262,37 +297,75 @@ class TracesPool:
         return cleaned, dropped
 
     def _diff_compress(self, steps: List[dict]) -> List[dict]:
-        """状态压缩：把相邻 observation 的增量写入 obs_delta。
+        """状态压缩：把 observation 的重复/增量部分替换成更短的引用。
 
-        但差分只在"划算"时才做——观测够长且差分能省下足够多内容时才用 +/-
-        增量，否则直接保留完整观测原文。短观测做差分反而让云端大模型读起来更
-        费劲（只看到零散的 +/- 行而非完整场景），得不偿失。
+        按序尝试两级降本：
+
+          1) **精确复现**：这条轨迹里这个 observation 之前逐字出现过——重新
+             造访同一个 receptacle/物体，或原地重复一个无效动作，都会产生一
+             模一样的 observation 原文。真实消融数据里约 37% 的 step 属于这一
+             类（含"和上一步完全相同"这种最简单的子情形）。命中时直接回指
+             "和执行 X 之后看到的一样"，信息零损失，且比逐行差分适用范围更广
+             （不要求任何行级重叠）。
+          2) **逐行差分**：仅当观测够长、且差分结果比原文短得多时才用。这条
+             路径对 ALFWorld 这种每步几乎都是单行文本的环境基本不会触发（单
+             行一旦变化，"整行替换"式差分不会比原文短），但保留它是因为它对
+             多行 observation 的环境（如 WebShop 商品页，行与行之间常有大段
+             不变的样板文字）依然有效，不应该被 ALFWorld 的特例移除。
+
+          都不划算时才回退到完整观测原文（并做 ALFWorld 固定套话剥离，见
+          ``_strip_known_boilerplate``，对其它环境的文本是无害的 no-op）。
         """
-        # 仅当完整观测超过该长度才考虑差分（短观测直接存原文）。
+        # 仅当完整观测超过该长度才考虑逐行差分（短观测直接存原文/精确复现引用）。
         min_len_to_diff = getattr(self, "diff_min_obs_chars", 400)
         # 且差分结果需至少比原文短这个比例，才认为划算（否则存原文）。
         min_savings_ratio = getattr(self, "diff_min_savings", 0.5)
         diff_steps: List[dict] = []
         prev_lines: List[str] = []
+        prev_action = "(episode start)"
+        seen_obs: Dict[str, str] = {}  # 逐字 observation -> 首次出现前那一步的 action
         for s in steps:
-            obs = s.get("observation") or ""
-            cur_lines = [ln.strip() for ln in obs.splitlines() if ln.strip()]
-            delta = self._line_delta(prev_lines, cur_lines)
+            obs = _strip_known_boilerplate(s.get("observation") or "")
             obs_clean = obs.strip()
-            # 是否值得差分：观测够长 + 差分确实省了 >= min_savings_ratio。
-            worth_diff = (
-                len(obs_clean) >= min_len_to_diff
-                and delta != "(no change)"
-                and len(delta) <= len(obs_clean) * (1.0 - min_savings_ratio)
-            )
+            cur_lines = [ln.strip() for ln in obs.splitlines() if ln.strip()]
+            cur_action = (s.get("action") or "").strip()
+
+            # 收集所有候选压缩表示，取其中最短者；只有当它确实比原文短时才
+            # 采用（对很短的 observation，"(same as after 'X')" 或
+            # "(no change)" 这类占位文本本身可能比原文还长，必须显式兜底，
+            # 不能假设"命中了某种压缩路径"就一定划算）。
+            candidates: List[str] = []
+            anchor_action = seen_obs.get(obs_clean) if obs_clean else None
+            if anchor_action is not None:
+                candidates.append(f"(same as after '{anchor_action}')")
+            line_delta = self._line_delta(prev_lines, cur_lines)
+            if line_delta == "(no change)":
+                candidates.append(line_delta)
+            elif (len(obs_clean) >= min_len_to_diff
+                    and len(line_delta) <= len(obs_clean) * (1.0 - min_savings_ratio)):
+                candidates.append(line_delta)
+
+            best = min(candidates, key=len) if candidates else None
+            if best is not None and len(best) < len(obs_clean):
+                delta, worth_diff = best, True
+            else:
+                delta, worth_diff = obs_clean, False
+
             diff_steps.append({
-                "action": (s.get("action") or "").strip(),
-                # 划算则存增量，否则存完整观测（云端直接读原文）。
+                "action": cur_action,
+                # 划算则存引用/增量，否则存完整观测（云端直接读原文）。
                 "obs_delta": delta if worth_diff else obs_clean,
                 "obs_is_full": not worth_diff,
                 "reward": s.get("reward", 0) or 0,
             })
+            # 只有真正存了完整原文的那一步才能被后面的精确复现引用——如果
+            # 允许指向一个自己也是引用/差分的节点，读者要顺着链条一路找到
+            # 底才能还原真实文本，等于埋了个悬空指针。只记录首次出现即可，
+            # 无需在每次复现时更新成"最近一次"，语义更简单也不会累积误差。
+            if obs_clean and not worth_diff and obs_clean not in seen_obs:
+                seen_obs[obs_clean] = prev_action
             prev_lines = cur_lines
+            prev_action = cur_action
         return diff_steps
 
     @staticmethod
@@ -328,30 +401,53 @@ class TracesPool:
     def _merge_prefix_tree(self, traces: List[dict]) -> dict:
         """前缀树合并：把多条轨迹的 action 序列合并成树，记录每节点 outcome 计数。
 
+        合并 key 是 **归一化后** 的 action（instance 编号折叠为 "#"），因为
+        字面 action（如 "go to cabinet 3" / "go to cabinet 7"）本来就带着具体
+        实例编号——按字面合并会让"检查一个 cabinet"这个语义决策在不同 episode
+        里几乎从不合并（除非两条轨迹恰好抽到同一个编号），分叉点也就退化成
+        "哪个具体编号"而不是"去 cabinet 还是 drawer"这种真正的决策分歧。归一
+        化后同一决策下的不同实例才会汇入同一节点，分叉点才是有意义的决策点。
+
         节点 schema:
-          {"action": str, "count": int, "n_success": int, "n_failure": int,
-           "children": {action: node}}
+          {"action": str（归一化后，用于合并与展示）, "count": int,
+           "n_success": int, "n_failure": int, "n_variants": int（合并了多少
+           个不同的具体实例 action）, "example_actions": [具体实例样例，至多3个],
+           "children": {normalized_action: node}}
         分叉点（children > 1）即决策分歧点，供云端对比归因。
         """
         root = {"action": "<root>", "count": 0, "n_success": 0,
-                "n_failure": 0, "children": {}}
+                "n_failure": 0, "children": {}, "_variants": set()}
         for tr in traces:
             node = root
             outcome = tr.get("outcome", "failure")
             for step in tr.get("steps", []):
-                action = step.get("action", "")
-                child = node["children"].get(action)
+                raw_action = step.get("action", "") or ""
+                key = _normalize_action_for_merge(raw_action)
+                child = node["children"].get(key)
                 if child is None:
-                    child = {"action": action, "count": 0, "n_success": 0,
-                             "n_failure": 0, "children": {}}
-                    node["children"][action] = child
+                    child = {"action": key, "count": 0, "n_success": 0,
+                             "n_failure": 0, "children": {}, "_variants": set()}
+                    node["children"][key] = child
                 child["count"] += 1
+                child["_variants"].add(raw_action)
                 if outcome == "success":
                     child["n_success"] += 1
                 else:
                     child["n_failure"] += 1
                 node = child
+        self._finalize_variants(root)
         return root
+
+    @staticmethod
+    def _finalize_variants(node: dict) -> None:
+        """Replace the transient ``_variants`` merge-time set with a JSON-safe
+        summary (count + a few concrete examples) so callers can still ground
+        a normalized branch label without re-serializing an unbounded set."""
+        variants = sorted(node.pop("_variants", set()))
+        node["n_variants"] = len(variants)
+        node["example_actions"] = variants[:3]
+        for child in node.get("children", {}).values():
+            TracesPool._finalize_variants(child)
 
     # ------------------------------------------------------------------ #
     # 触发                                                                 #

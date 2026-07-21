@@ -54,6 +54,147 @@ def test_default_compression_remains_delta_compatible():
     assert "obs_delta" in batch["failure_samples"][0]["steps"][0]
 
 
+def _trace_with_actions(traj_uid, actions, outcome="failure"):
+    return {
+        "traj_uid": traj_uid, "task_type": "clean", "outcome": outcome,
+        "steps": [{"observation": "room", "action": a, "reward": 0} for a in actions],
+    }
+
+
+def test_prefix_tree_merges_on_normalized_action_not_instance_number():
+    # Two episodes make the SAME semantic decision (check a cabinet next) but
+    # sample different receptacle instance numbers.  Merging on the literal
+    # action string would fork them immediately at step 0 ("go to cabinet 1"
+    # vs "go to cabinet 7"), hiding the fact that both did the same thing.
+    pool = TracesPool()
+    pool.add_trace(_trace_with_actions("a", ["go to cabinet 1", "open cabinet 1"]))
+    pool.add_trace(_trace_with_actions("b", ["go to cabinet 7", "open cabinet 7"], outcome="success"))
+    batch = pool.export_batch()
+    root = batch["prefix_tree"]
+    assert list(root["children"].keys()) == ["go to cabinet #"]
+    merged = root["children"]["go to cabinet #"]
+    assert merged["count"] == 2
+    assert merged["n_success"] == 1 and merged["n_failure"] == 1
+    assert merged["n_variants"] == 2
+    assert set(merged["example_actions"]) == {"go to cabinet 1", "go to cabinet 7"}
+
+
+def test_prefix_tree_still_forks_on_genuinely_different_actions():
+    pool = TracesPool()
+    pool.add_trace(_trace_with_actions("a", ["go to cabinet 1"]))
+    pool.add_trace(_trace_with_actions("b", ["go to drawer 2"]))
+    batch = pool.export_batch()
+    root = batch["prefix_tree"]
+    assert set(root["children"].keys()) == {"go to cabinet #", "go to drawer #"}
+
+
+def test_format_forks_shows_normalized_branch_with_variant_hint():
+    pool = TracesPool()
+    pool.add_trace(_trace_with_actions("a", ["go to cabinet 1"]))
+    pool.add_trace(_trace_with_actions("b", ["go to cabinet 9"]))
+    pool.add_trace(_trace_with_actions("c", ["go to drawer 2"]))
+    batch = pool.export_batch()
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    fork_txt = analyzer._format_forks(batch["prefix_tree"])
+    assert "'go to cabinet #' [2 instance variants" in fork_txt
+    assert "go to cabinet 1" in fork_txt and "go to cabinet 9" in fork_txt
+    assert "'go to drawer #'" in fork_txt
+
+
+def _trace_with_observations(traj_uid, obs_action_pairs, outcome="failure"):
+    return {
+        "traj_uid": traj_uid, "task_type": "clean", "outcome": outcome,
+        "steps": [{"observation": o, "action": a, "reward": 0} for o, a in obs_action_pairs],
+    }
+
+
+def test_diff_compress_references_earlier_identical_observation():
+    # Revisiting the same receptacle a second time (without having changed
+    # its state) produces the exact same observation text again. This should
+    # collapse to a short back-reference, not a repeat of the full text --
+    # real ablation data shows ~37% of steps are exact repeats of an earlier
+    # observation in the same trace, and the pre-fix code stored every one
+    # of them in full (0% real compression).
+    pool = TracesPool()
+    pool.add_trace(_trace_with_observations("a", [
+        ("You arrive at cabinet 1. The cabinet 1 is closed.", "go to cabinet 1"),
+        ("You open the cabinet 1. In it, you see nothing.", "open cabinet 1"),
+        ("You arrive at cabinet 2. The cabinet 2 is closed.", "go to cabinet 2"),
+        ("You arrive at cabinet 1. The cabinet 1 is closed.", "go to cabinet 1"),
+    ]))
+    batch = pool.export_batch()
+    steps = batch["failure_samples"][0]["steps"]
+    assert steps[3]["obs_is_full"] is False
+    # References the FIRST time this exact text appeared (step 0, right at
+    # episode start), not the most recent occurrence -- only a step that
+    # itself stored the full raw text can be a valid anchor, and only the
+    # first occurrence is guaranteed to have done so.
+    assert steps[3]["obs_delta"] == "(same as after '(episode start)')"
+
+
+def test_diff_compress_consecutive_repeat_is_not_stored_in_full():
+    # A repeated ineffective action (e.g. bumping into a closed receptacle
+    # again) yields the identical observation as the immediately prior step.
+    # The pre-fix code explicitly excluded "no change" deltas from the
+    # worth-it check, so this was stored as full raw text every time.
+    pool = TracesPool()
+    pool.add_trace(_trace_with_observations("a", [
+        ("You arrive at cabinet 1. The cabinet 1 is closed.", "go to cabinet 1"),
+        ("Nothing happens.", "open cabinet 1"),
+        ("Nothing happens.", "open cabinet 1"),
+    ]))
+    batch = pool.export_batch()
+    steps = batch["failure_samples"][0]["steps"]
+    # "Nothing happens." is short enough that a "(no change)" marker beats a
+    # "(same as after '<action>')" back-reference on length -- either is a
+    # correct compressed representation, so just check it got compressed at
+    # all and never grew past the raw text.
+    assert steps[2]["obs_is_full"] is False
+    assert len(steps[2]["obs_delta"]) < len("Nothing happens.")
+
+
+def test_diff_compress_strips_alfworld_welcome_boilerplate_and_task_suffix():
+    pool = TracesPool()
+    pool.add_trace(_trace_with_observations("a", [
+        ("-= Welcome to TextWorld, ALFRED! =-\n\nYou are in the middle of a room. "
+         "Looking quickly around you, you see a cabinet 1.\n\nYour task is to: "
+         "find a mug and put it in the microwave.", "go to cabinet 1"),
+    ]))
+    batch = pool.export_batch()
+    step = batch["failure_samples"][0]["steps"][0]
+    assert "Welcome to TextWorld" not in step["obs_delta"]
+    assert "Your task is to" not in step["obs_delta"]
+    assert step["obs_delta"] == "a cabinet 1."
+
+
+def test_diff_compress_never_makes_a_short_observation_longer():
+    # A short exact repeat whose anchor action is itself long enough that
+    # the back-reference text would be *longer* than the raw observation
+    # must fall back to the raw text, not a needlessly bigger reference.
+    pool = TracesPool()
+    pool.add_trace(_trace_with_observations("a", [
+        ("You arrive at cabinet 1.", "go to a very specific and unusually long named cabinet receptacle 1"),
+        ("ok", "go to cabinet 2"),
+        ("ok", "go to cabinet 3"),
+    ]))
+    batch = pool.export_batch()
+    steps = batch["failure_samples"][0]["steps"]
+    assert steps[2]["obs_delta"] == "ok"
+    assert steps[2]["obs_is_full"] is True
+
+
+def test_diff_compress_genuinely_new_observation_keeps_raw_text():
+    pool = TracesPool()
+    pool.add_trace(_trace_with_observations("a", [
+        ("You arrive at cabinet 1. The cabinet 1 is closed.", "go to cabinet 1"),
+        ("You open the cabinet 1. In it, you see a bowl 1.", "open cabinet 1"),
+    ]))
+    batch = pool.export_batch()
+    steps = batch["failure_samples"][0]["steps"]
+    assert steps[1]["obs_delta"] == "You open the cabinet 1. In it, you see a bowl 1."
+    assert steps[1]["obs_is_full"] is True
+
+
 def test_tree_depth_and_structure_accounting():
     stats = _tree_stats("# Root\n## Branch\n### Leaf\n## Second")
     assert stats["max_depth"] == 3
@@ -91,6 +232,11 @@ def test_artifacts_use_runtime_retrieval_categories_not_manifest_categories():
     assert "heat" in bank["task_specific_skills"]
     assert "pick_heat_then_place_in_recep" not in bank["task_specific_skills"]
     assert len(RUNTIME_TASK_TYPES) == 6
+    # SkillsOnlyMemory._detect_task_type folds both phrasing templates into
+    # one label, "look_at_obj_in_light" (never "examine") -- raw traces are
+    # tagged with that name, so this mapping must be the identity or every
+    # by-runtime-type lookup for this task silently sees zero samples.
+    assert TASK_TYPE_TO_RUNTIME["look_at_obj_in_light"] == "look_at_obj_in_light"
 
 
 def test_fixed_depth_cloud_prompt_is_explicit_without_dummy_local_rewrite():

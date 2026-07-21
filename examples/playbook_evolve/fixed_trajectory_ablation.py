@@ -38,7 +38,14 @@ TASK_TYPES = (
 # or a perfectly generated skill would never enter the prompt.
 TASK_TYPE_TO_RUNTIME = {
     "pick_and_place_simple": "pick_and_place",
-    "look_at_obj_in_light": "examine",
+    # SkillsOnlyMemory._detect_task_type deliberately folds both the
+    # "look at X under the Y" and "examine the X with the Y" templates into
+    # one label, "look_at_obj_in_light" (see skills_only_memory.py), so raw
+    # traces are tagged with that name, never "examine". Mapping to "examine"
+    # here made every by-runtime-type lookup for this task miss (an always-
+    # empty bucket), starving evolve_playbook of samples and failing depth
+    # validation for every tree_depth_N arm.
+    "look_at_obj_in_light": "look_at_obj_in_light",
     "pick_clean_then_place_in_recep": "clean",
     "pick_heat_then_place_in_recep": "heat",
     "pick_cool_then_place_in_recep": "cool",
@@ -469,7 +476,11 @@ def build_compression_artifact(raw_path: Path, directory: Path, all_on: bool,
     if not loop.maybe_update(pool, lib, global_step=global_step,
                              force_reason="fixed_trajectory_ablation"):
         raise RuntimeError(f"cloud generation failed for {'all_on' if all_on else 'all_off'}")
-    batch_files = sorted((directory / "traces_pool").glob("batch_*.json"))
+    # TracesPool(output_dir=X) always writes under X/traces_pool/, so the
+    # real batches land one level below `directory / "traces_pool"`. Globbing
+    # that path directly always missed, silently leaving "compression" and
+    # the cloud_payload_* accounting empty in the artifact manifest.
+    batch_files = sorted((directory / "traces_pool" / "traces_pool").glob("batch_*.json"))
     batch = _read_json(batch_files[-1]) if batch_files else {}
     return _save_artifact_manifest(directory,
                                    "compression_all_on" if all_on else "compression_all_off",

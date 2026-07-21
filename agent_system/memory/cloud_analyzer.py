@@ -866,18 +866,28 @@ Return ONLY the JSON array, no other text."""
         }
 
     def _format_forks(self, prefix_tree: Dict, max_forks: int = 6) -> str:
-        """从前缀树中找出分叉节点（children>1），展示各分支的成功/失败计数。"""
+        """从前缀树中找出分叉节点（children>1），展示各分支的成功/失败计数。
+
+        分支标签 ``a`` 是归一化后的 action（实例编号已折成 "#"，见
+        ``traces_pool._merge_prefix_tree``），代表的是"去 cabinet 还是 drawer"
+        这类真正的决策分歧，而不是"去 cabinet 3 还是 cabinet 7"这种同一决策
+        下的不同具体实例。``n_variants``>1 时附上几个具体实例样例，只作为
+        grounding 提示，不应被当成分支本身。
+        """
         forks: List[str] = []
+
+        def branch_label(a: str, c: Dict) -> str:
+            n_variants = c.get("n_variants", 1)
+            examples = c.get("example_actions") or []
+            hint = f" [{n_variants} instance variants, e.g. {', '.join(examples)}]" if n_variants > 1 and examples else ""
+            return f"'{a}'{hint} (succ={c['n_success']},fail={c['n_failure']})"
 
         def walk(node, path):
             if len(forks) >= max_forks:
                 return
             children = node.get("children", {})
             if len(children) > 1:
-                branch_desc = "; ".join(
-                    f"'{a}' (succ={c['n_success']},fail={c['n_failure']})"
-                    for a, c in list(children.items())[:5]
-                )
+                branch_desc = "; ".join(branch_label(a, c) for a, c in list(children.items())[:5])
                 forks.append(f"After [{' -> '.join(path) if path else 'start'}]: {branch_desc}")
             for a, c in children.items():
                 walk(c, path + [a])
