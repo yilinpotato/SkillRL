@@ -7,7 +7,8 @@ set -euo pipefail
 # Comparison standard follows run_alfworld_playbook_evolve_norl.sh:
 #   train_data_size=12, val_data_size=32, group_size=6 -> 72 episodes/group
 #   100 groups -> 7200 episodes, checkpoint every 2 groups.  With four GPUs,
-#   default topology is 2 data-parallel workers x tensor parallel size 2.
+#   default topology is 4 data-parallel workers x TP=1 (one independent vLLM
+#   replica per GPU); DP=2, TP=2 remains an explicit legacy variant.
 # WebShop-specific contract follows examples/grpo_trainer/run_webshop_skills.sh:
 #   small 1000-product simulator, max_steps=15, prompt=8192, response=4096.
 # =============================================================================
