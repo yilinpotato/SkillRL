@@ -155,6 +155,7 @@ def _driver_cmd(args, outdir: Path, manifest: Path, episodes: int, batch: int,
            "--max_episodes", str(episodes),
            "--batch_rollout_size", str(batch), "--max_steps", str(args.max_steps),
            "--seed", str(args.seed), "--retrieval_mode", args.retrieval_mode,
+           "--gpu_mem_util", str(args.gpu_mem_util),
            "--vllm_enforce_eager", str(args.vllm_enforce_eager),
            "--enable_coskill", str(enable_coskill), "--enable_skill_tree", str(enable_tree),
            "--enable_skill_tree_evolve", str(enable_tree_evolve),
@@ -656,6 +657,9 @@ def main() -> None:
     ap.add_argument("--retrieval_mode", default="template", choices=("template", "embedding"))
     ap.add_argument("--data_parallel_workers", type=int, default=0)
     ap.add_argument("--rollout_worker_gpus", default=None)
+    ap.add_argument("--gpu_mem_util", type=float,
+                    default=float(os.environ.get("VLLM_GPU_MEMORY_UTILIZATION", "0.8")),
+                    help="vLLM per-replica GPU memory fraction; must match the launcher preflight")
     ap.add_argument("--vllm_enforce_eager", type=int, choices=(0, 1),
                     default=int(os.environ.get("VLLM_ENFORCE_EAGER", "0")),
                     help="0 enables vLLM CUDA Graph after warm-up; 1 is an explicit debug fallback")
@@ -664,6 +668,8 @@ def main() -> None:
     args = ap.parse_args()
     if args.rollouts_per_type < 1:
         ap.error("--rollouts_per_type must be at least 1")
+    if not 0 < args.gpu_mem_util <= 1:
+        ap.error("--gpu_mem_util must be in (0, 1]")
     if not args.alfworld_data:
         ap.error("--alfworld_data or ALFWORLD_DATA is required")
     args.project_root = Path(__file__).resolve().parents[2]
@@ -686,6 +692,7 @@ def main() -> None:
                                              "bootstrap_rollouts_per_type": args.rollouts_per_type,
                                              "eval_rollouts_per_type": args.rollouts_per_type,
                                              "rollouts_per_group": len(TASK_TYPES) * args.rollouts_per_type,
+                                             "gpu_mem_util": args.gpu_mem_util,
                                              "vllm_enforce_eager": bool(args.vllm_enforce_eager),
                                              "seed": args.seed,
                                              "sample_seed": args.sample_seed, "git_commit": _git_commit(args.project_root),

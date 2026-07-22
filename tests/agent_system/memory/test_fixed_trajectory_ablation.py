@@ -14,7 +14,7 @@ from agent_system.memory.skill_updater import SkillUpdater
 from agent_system.memory.traces_pool import TracesPool
 from examples.playbook_evolve.fixed_trajectory_ablation import (
     RUNTIME_TASK_TYPES, TASK_TYPE_TO_RUNTIME, _empty_skill_bank, _ensure_empty_bootstrap_skills,
-    _tree_stats, build_tree_artifact, validate_manifest_pair,
+    _driver_cmd, _tree_stats, build_tree_artifact, validate_manifest_pair,
 )
 from examples.playbook_evolve.run_playbook_evolve import (
     _fixed_manifest_dp_plan, _fixed_request_seed, _stable_game_id,
@@ -43,6 +43,16 @@ def test_all_compression_off_has_raw_observations_and_no_prefix_fields():
     assert step["observation"] == "room\nobject"
     assert "obs_delta" not in step
     assert batch["compression"]["enable_obs_delta"] is False
+
+
+def test_driver_forwards_gpu_memory_fraction_to_every_rollout(tmp_path):
+    args = SimpleNamespace(
+        rollouts_per_type=12, max_steps=40, seed=0, retrieval_mode="template",
+        gpu_mem_util=0.76, vllm_enforce_eager=0, log_trajectories=0,
+        model_path=None, data_parallel_workers=1, rollout_worker_gpus="0", driver_arg=[],
+    )
+    cmd = _driver_cmd(args, tmp_path / "out", tmp_path / "games.json", 72, 72, 1, 1, 0, 0)
+    assert cmd[cmd.index("--gpu_mem_util") + 1] == "0.76"
 
 
 def test_default_compression_remains_delta_compatible():
