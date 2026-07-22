@@ -10,14 +10,17 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
 from agent_system.memory.coskill_loop import CoSkillCloudLoop
+from agent_system.memory.hierarchical_skill_lib import HierarchicalSkillLib
 from agent_system.memory.skill_updater import SkillUpdater
 from agent_system.memory.traces_pool import TracesPool
 from examples.playbook_evolve.fixed_trajectory_ablation import (
-    RUNTIME_TASK_TYPES, TASK_TYPE_TO_RUNTIME, _empty_skill_bank, _ensure_empty_bootstrap_skills,
-    _driver_cmd, _tree_stats, build_tree_artifact, validate_manifest_pair,
+    RUNTIME_TASK_TYPES, SKILL_LEVEL_ARMS, TASK_TYPE_TO_RUNTIME, _empty_skill_bank,
+    _ensure_empty_bootstrap_skills, _driver_cmd, _tree_stats, build_l0_artifact,
+    build_tree_artifact, evaluate_arm, validate_manifest_pair, write_summary,
 )
 from examples.playbook_evolve.run_playbook_evolve import (
     _fixed_manifest_dp_plan, _fixed_request_seed, _stable_game_id,
+    _trace_compression_metric_fields,
 )
 from mini_test_pen_shelf.agent_vllm import VLLMAgent
 
@@ -249,6 +252,196 @@ def test_artifacts_use_runtime_retrieval_categories_not_manifest_categories():
     assert TASK_TYPE_TO_RUNTIME["look_at_obj_in_light"] == "look_at_obj_in_light"
 
 
+def test_skill_level_arms_are_l0_through_l5_without_none():
+    assert SKILL_LEVEL_ARMS == tuple(f"skill_level_l{i}" for i in range(6))
+    assert "none" not in SKILL_LEVEL_ARMS
+
+
+def test_l0_artifact_is_original_skillrl_flat_schema_without_tree(tmp_path, monkeypatch):
+    import examples.playbook_evolve.fixed_trajectory_ablation as ablation
+
+    class FakeUpdater:
+        def __init__(self, max_new_skills_per_update):
+            assert max_new_skills_per_update == 3
+            self.last_prompt = "skillrl prompt"
+            self.last_response = "skillrl response"
+            self.last_usage = {"prompt": 11, "completion": 7, "total": 18}
+
+        def analyze_failures(self, failures, current_skills):
+            assert failures[0]["task_type"] == "heat"
+            assert "skill_trees" not in current_skills
+            return [{
+                "skill_id": "dyn_001", "title": "Inspect Before Heating",
+                "principle": "Inspect the target before acting.",
+                "when_to_apply": "Before heating an object.",
+            }]
+
+    monkeypatch.setattr(ablation, "SkillUpdater", FakeUpdater)
+    raw = tmp_path / "raw.jsonl"
+    raw.write_text(json.dumps({
+        "traj_uid": "failure-1", "task": "heat a potato", "task_type": "heat",
+        "outcome": "failure", "episode_reward": 0,
+        "steps": [{"action": "look", "observation": "a kitchen"}],
+    }) + "\n")
+    manifest = json.loads(build_l0_artifact(raw, tmp_path / "l0").read_text())
+    skills = json.loads((tmp_path / "l0" / "skills.json").read_text())
+    assert manifest["arm"] == "skill_level_l0"
+    assert manifest["skill_level"] == "L0" and manifest["target_depth"] == 0
+    assert manifest["flat_skills"]["total"] == 1
+    assert "skill_trees" not in skills
+    assert skills["task_specific_skills"]["heat"][0]["skill_id"] == "dyn_001"
+
+
+def test_l0_evaluation_injects_flat_only_and_l3_injects_tree_only(tmp_path, monkeypatch):
+    import examples.playbook_evolve.fixed_trajectory_ablation as ablation
+
+    calls = []
+    monkeypatch.setattr(ablation, "_run", lambda cmd, _root: calls.append(cmd))
+    args = SimpleNamespace(
+        rollouts_per_type=12, eval_groups_per_level=2, max_steps=40, seed=0,
+        retrieval_mode="template", gpu_mem_util=0.8, vllm_enforce_eager=0,
+        log_trajectories=0, model_path=None, data_parallel_workers=1,
+        rollout_worker_gpus="0", driver_arg=[], project_root=tmp_path,
+    )
+    eval_manifest = tmp_path / "eval.json"
+    eval_manifest.write_text("{}")
+    for arm in ("skill_level_l0", "skill_level_l3"):
+        artifact = tmp_path / "artifacts" / arm
+        artifact.mkdir(parents=True)
+        (artifact / "artifact_manifest.json").write_text(json.dumps({
+            "status": "ready", "evaluation_eligible": True,
+        }))
+        (artifact / "skills.json").write_text("{}")
+        evaluate_arm(args, tmp_path, eval_manifest, arm)
+
+    l0, l3 = calls
+    assert l0[l0.index("--enable_coskill") + 1] == "1"
+    assert l0[l0.index("--enable_skill_tree") + 1] == "0"
+    assert l0[l0.index("--enable_hierarchy") + 1] == "0"
+    assert l3[l3.index("--enable_coskill") + 1] == "0"
+    assert l3[l3.index("--enable_skill_tree") + 1] == "1"
+    assert l3[l3.index("--enable_hierarchy") + 1] == "1"
+    for cmd in calls:
+        assert cmd[cmd.index("--max_episodes") + 1] == "144"
+        assert cmd[cmd.index("--batch_rollout_size") + 1] == "72"
+        assert cmd[cmd.index("--epochs") + 1] == "2"
+
+
+def test_hierarchy_off_keeps_original_skillrl_flat_json_unlayered(tmp_path):
+    path = tmp_path / "skills.json"
+    path.write_text(json.dumps({
+        "general_skills": [{
+            "skill_id": "dyn_001", "title": "Inspect First",
+            "principle": "Inspect before acting.", "when_to_apply": "Always",
+        }],
+        "task_specific_skills": {}, "common_mistakes": [],
+    }))
+    flat = HierarchicalSkillLib(str(path), retrieval_mode="template",
+                                enable_hierarchy=False, enable_playbook=False)
+    assert "lifecycle" not in flat.skills["general_skills"][0]
+
+
+def test_trace_compression_off_launcher_only_appends_four_disable_flags():
+    script = (PROJECT_ROOT / "examples/playbook_evolve" /
+              "run_alfworld_trace_compression_off_norl.sh").read_text()
+    assert "run_alfworld_playbook_evolve_norl.sh" in script
+    # 7200 episodes and batch 72 come from the production launcher itself;
+    # this wrapper must not create a second, drifting copy of those defaults.
+    assert "MAX_EPISODES=" not in script
+    assert "BATCH_ROLLOUT_SIZE=" not in script
+    for flag in (
+        "trace_enable_loop_filter", "trace_enable_obs_delta",
+        "trace_enable_prefix_tree", "trace_enable_consensus_prefix",
+    ):
+        assert f"--{flag} 0" in script
+
+
+def test_one_two_four_gpu_ablation_launchers_keep_global_protocol():
+    scripts = PROJECT_ROOT / "examples" / "playbook_evolve"
+    expected = {
+        "run_alfworld_skill_tree_depth_ablation_1gpu.sh": 1,
+        "run_alfworld_skill_tree_depth_ablation_2gpu.sh": 2,
+        "run_alfworld_trace_compression_off_norl_1gpu.sh": 1,
+        "run_alfworld_trace_compression_off_norl_2gpu.sh": 2,
+        "run_alfworld_trace_compression_off_norl_4xa800.sh": 4,
+    }
+    for name, workers in expected.items():
+        script = (scripts / name).read_text()
+        assert f"DATA_PARALLEL_WORKERS={workers}" in script
+        assert "TENSOR_PARALLEL_SIZE=1" in script
+        assert "MAX_EPISODES=" not in script
+        assert "BATCH_ROLLOUT_SIZE=" not in script
+
+
+def test_ablation_container_has_separate_skill_and_trace_modes():
+    entrypoint = (PROJECT_ROOT / "docker" / "alfworld-ablation" / "entrypoint.sh").read_text()
+    assert "ablation|skill-level)" in entrypoint
+    assert "examples.playbook_evolve.skill_tree_depth_ablation" in entrypoint
+    assert "trace-compression-off)" in entrypoint
+    assert "run_alfworld_trace_compression_off_norl.sh" in entrypoint
+
+
+def test_trace_compression_condition_is_written_from_all_four_flags():
+    args = SimpleNamespace(
+        trace_enable_loop_filter=0, trace_enable_obs_delta=0,
+        trace_enable_prefix_tree=0, trace_enable_consensus_prefix=0,
+    )
+    metrics = _trace_compression_metric_fields(args)
+    assert metrics["experiment/trace_compression/condition"] == "all_off"
+    assert all(value == 0 for key, value in metrics.items() if key !=
+               "experiment/trace_compression/condition")
+
+
+def test_skill_level_summary_writes_root_metrics_and_na_task_matrix(tmp_path):
+    ready_arm = "skill_level_l0"
+    ready_artifact_dir = tmp_path / "artifacts" / ready_arm
+    ready_summary_dir = tmp_path / "arms" / ready_arm
+    ready_artifact_dir.mkdir(parents=True)
+    ready_summary_dir.mkdir(parents=True)
+    (ready_artifact_dir / "artifact_manifest.json").write_text(json.dumps({
+        "status": "ready", "evaluation_eligible": True, "target_depth": 0,
+        "flat_skills": {"skills": []}, "skill_trees": {}, "cloud_calls": [],
+    }))
+    (ready_summary_dir / "summary.json").write_text(json.dumps({
+        "total_episodes": 1, "wins": 1, "success_rate": 1.0,
+        "per_game": [{
+            "step": 1, "detected_type": "heat", "won": True,
+            "used_steps": 4, "valid_actions": 4, "strict_valid_actions": 4,
+            "skill_ids_used": [],
+        }],
+        "token_usage": {
+            "small_model": {
+                "prompt": 10, "response": 2, "total": 12,
+                "accounting": "vllm_request_tokens_single_pass",
+                "by_task_type": {"heat": {"prompt": 10, "response": 2, "total": 12}},
+            },
+            "large_model": {"prompt": 0, "completion": 0, "total": 0},
+        },
+    }))
+
+    na_arm = "skill_level_l1"
+    na_artifact_dir = tmp_path / "artifacts" / na_arm
+    na_summary_dir = tmp_path / "arms" / na_arm
+    na_artifact_dir.mkdir(parents=True)
+    na_summary_dir.mkdir(parents=True)
+    (na_artifact_dir / "artifact_manifest.json").write_text(json.dumps({
+        "status": "N.A.", "evaluation_eligible": False, "target_depth": 1,
+        "unavailable_reason": "depth_validation_failed",
+    }))
+    (na_summary_dir / "summary.json").write_text("{}")
+
+    write_summary(tmp_path, {})
+    arm_rows = [json.loads(line) for line in (tmp_path / "metrics.jsonl").read_text().splitlines()]
+    task_rows = [json.loads(line) for line in
+                 (tmp_path / "metrics_by_task.jsonl").read_text().splitlines()]
+    assert [row["arm"] for row in arm_rows] == [ready_arm, na_arm]
+    assert arm_rows[1]["status"] == "N.A."
+    assert any(row["arm"] == ready_arm and row["task_type"] == "heat" and
+               row["small_model_total_tokens"] == 12 for row in task_rows)
+    assert sum(row["arm"] == ready_arm for row in task_rows) == 6
+    assert sum(row["arm"] == na_arm and row["status"] == "N.A." for row in task_rows) == 6
+
+
 def test_fixed_depth_cloud_prompt_is_explicit_without_dummy_local_rewrite():
     analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
     analyzer.environment_name = "ALFWorld"
@@ -267,9 +460,25 @@ def test_depth_repair_prompt_forces_semantic_deepening():
     prompt = analyzer._build_evolve_prompt(
         "pick_heat_then_place_in_recep", None, [], [_trace()], [], target_depth=3,
         repair_candidate="# Existing root",
+        repair_feedback={"actual_depth": 1, "depth_validation_errors": ["missing_heading_levels:2,3"]},
     )
-    assert "FORCE a semantic deepening" in prompt
+    assert "TOO SHALLOW" in prompt
+    assert "DEEPEN it" in prompt
+    assert "missing_heading_levels:2,3" in prompt
     assert "same-evidence grounding" in prompt
+
+
+def test_depth_repair_prompt_explicitly_shallows_too_deep_candidate():
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.environment_name = "ALFWorld"
+    prompt = analyzer._build_evolve_prompt(
+        "pick_heat_then_place_in_recep", None, [], [_trace()], [], target_depth=2,
+        repair_candidate="# Root\n## Child\n### Too deep",
+        repair_feedback={"actual_depth": 3, "depth_validation_errors": ["heading_deeper_than_target:3"]},
+    )
+    assert "TOO DEEP" in prompt
+    assert "SHALLOW it" in prompt
+    assert "heading_deeper_than_target:3" in prompt
 
 
 def test_tree_arm_becomes_na_after_twenty_invalid_cloud_attempts(tmp_path, monkeypatch):

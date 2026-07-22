@@ -31,7 +31,8 @@ RUN --mount=type=bind,from=conda_env,source=/faiss-overlay.tar.gz,target=/tmp/fa
 WORKDIR /workspace/CoSkill
 COPY . /workspace/CoSkill
 RUN chmod +x docker/alfworld-ablation/entrypoint.sh \
-             examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation.sh && \
+             examples/playbook_evolve/run_alfworld_skill_tree_depth_ablation*.sh \
+             examples/playbook_evolve/run_alfworld_trace_compression_off_norl*.sh && \
     python -m pip freeze | sort > /opt/skillRL-runtime-freeze.txt
 
 COPY --from=alfworld . /opt/data/alfworld
@@ -39,4 +40,4 @@ COPY --from=model . /opt/models/Qwen3-4B-Thinking-2507
 
 VOLUME ["/workspace/outputs", "/workspace/cache"]
 ENTRYPOINT ["/workspace/CoSkill/docker/alfworld-ablation/entrypoint.sh"]
-CMD ["ablation", "--phase", "all"]
+CMD ["skill-level", "--phase", "all"]

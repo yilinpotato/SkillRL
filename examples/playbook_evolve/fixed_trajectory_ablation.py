@@ -1,4 +1,4 @@
-"""Reproducible ALFWorld fixed-trajectory ablations for CoSkill.
+"""Reproducible ALFWorld fixed-trajectory L0-L5 skill-representation experiment.
 
 The runner deliberately separates four phases so expensive rollouts never need
 to be repeated: ``manifests`` -> ``bootstrap`` -> ``artifacts`` -> ``evaluate``.
@@ -19,7 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-from agent_system.memory import CoSkillCloudLoop, HierarchicalSkillLib, TracesPool
+from agent_system.memory import HierarchicalSkillLib, TracesPool
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
 from agent_system.memory.skill_updater import SkillUpdater
 from mini_test_pen_shelf.env_utils import find_games_by_type
@@ -52,10 +52,8 @@ TASK_TYPE_TO_RUNTIME = {
     "pick_two_obj_and_place": "pick_two_obj_and_place",
 }
 RUNTIME_TASK_TYPES = tuple(TASK_TYPE_TO_RUNTIME[tt] for tt in TASK_TYPES)
-RUNTIME_TO_TASK_TYPE = {runtime: canonical for canonical, runtime in TASK_TYPE_TO_RUNTIME.items()}
-TREE_ARMS = tuple(f"tree_depth_{i}" for i in range(1, 6))
-REPRESENTATION_ARMS = ("none", "flat_claude", *TREE_ARMS)
-COMPRESSION_ARMS = ("compression_all_on", "compression_all_off")
+SKILL_LEVEL_ARMS = tuple(f"skill_level_l{i}" for i in range(6))
+TREE_ARMS = SKILL_LEVEL_ARMS[1:]
 MAX_TREE_GENERATION_ATTEMPTS = 20
 
 
@@ -63,6 +61,22 @@ def _write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    os.replace(tmp, path)
+
+
+def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
+    """Atomically replace a derived JSONL report.
+
+    The controller is resumable, so appending here would duplicate completed
+    arms every time ``--phase evaluate`` is re-entered.  Per-rollout driver
+    logs remain append-only; these root-level comparison files are rebuilt
+    deterministically from those canonical outputs.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
     os.replace(tmp, path)
 
 
@@ -78,8 +92,8 @@ def _sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _approx_tokens(text: str) -> int:
@@ -305,6 +319,7 @@ def _ensure_empty_bootstrap_skills(root: Path) -> Path:
 
 
 def _raw_to_skillrl_failure(trace: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert one frozen failure to the original SkillRL updater schema."""
     return {
         "task": trace.get("task", ""), "task_type": trace.get("task_type", "unknown"),
         "trajectory": [{"action": step.get("action", ""), "observation": step.get("observation", "")}
@@ -370,7 +385,8 @@ def _save_artifact_manifest(directory: Path, arm: str, raw_path: Path, skills: D
     return path
 
 
-def build_flat_artifact(raw_path: Path, directory: Path) -> Path:
+def build_l0_artifact(raw_path: Path, directory: Path) -> Path:
+    """Build L0 with the original flat SkillRL failure-analysis protocol."""
     raw = _read_jsonl(raw_path)
     skills, audit = _empty_skill_bank(), []
     source_trace_ids: Dict[str, List[str]] = {}
@@ -382,28 +398,32 @@ def build_flat_artifact(raw_path: Path, directory: Path) -> Path:
     for tt in RUNTIME_TASK_TYPES:
         generated = updater.analyze_failures(failures.get(tt, []), skills) if failures.get(tt) else []
         for skill in generated:
-            # Keep the persisted flat skill exactly in the SkillRL Claude
-            # schema.  Placement/provenance belongs in the audit manifest,
-            # not as extra prompt-visible fields.
             source_trace_ids[skill["skill_id"]] = [x.get("traj_uid") for x in failures[tt]]
         skills["task_specific_skills"][tt].extend(generated)
         call_dir = directory / "cloud_io"
         call_dir.mkdir(parents=True, exist_ok=True)
         if updater.last_prompt:
-            (call_dir / f"flat_{tt}_prompt.txt").write_text(updater.last_prompt)
+            (call_dir / f"l0_{tt}_prompt.txt").write_text(updater.last_prompt)
         if updater.last_response:
-            (call_dir / f"flat_{tt}_response.txt").write_text(updater.last_response)
-        audit.append({"purpose": "skillrl_flat_failure_analysis", "task_type": tt,
-                      "failure_count": len(failures.get(tt, [])), "generated_ids": [x["skill_id"] for x in generated],
-                      **updater.last_usage,
-                      "prompt_sha256": _sha256_json(updater.last_prompt or ""),
-                      "response_sha256": _sha256_json(updater.last_response or "")})
-    return _save_artifact_manifest(directory, "flat_claude", raw_path, skills, audit,
-                                   {"generation_protocol": "SkillRL SkillUpdater-compatible failure-only Claude JSON",
-                                    "flat_skill_source_trace_ids": source_trace_ids})
+            (call_dir / f"l0_{tt}_response.txt").write_text(updater.last_response)
+        audit.append({
+            "purpose": "skillrl_flat_failure_analysis", "task_type": tt,
+            "failure_count": len(failures.get(tt, [])),
+            "generated_ids": [x["skill_id"] for x in generated],
+            "prompt_sha256": _sha256_text(updater.last_prompt or ""),
+            "response_sha256": _sha256_text(updater.last_response or ""),
+            **updater.last_usage,
+        })
+    return _save_artifact_manifest(
+        directory, "skill_level_l0", raw_path, skills, audit,
+        {"skill_level": "L0", "target_depth": 0,
+         "generation_protocol": "original SkillRL flat failure-analysis JSON",
+         "flat_skill_source_trace_ids": source_trace_ids},
+    )
 
 
-def build_tree_artifact(raw_path: Path, directory: Path, depth: int) -> Path:
+def build_tree_artifact(raw_path: Path, directory: Path, depth: int,
+                        max_attempts: int = MAX_TREE_GENERATION_ATTEMPTS) -> Path:
     raw = _read_jsonl(raw_path)
     batch = _compress_raw(raw, directory / "traces_pool", enable_loop_filter=True,
                           enable_obs_delta=True, enable_prefix_tree=True, enable_consensus_prefix=True)
@@ -419,10 +439,14 @@ def build_tree_artifact(raw_path: Path, directory: Path, depth: int) -> Path:
     for tt in RUNTIME_TASK_TYPES:
         bucket = grouped[tt]
         result, attempts, repair_candidate = None, 0, None
-        while attempts < MAX_TREE_GENERATION_ATTEMPTS:
+        while attempts < max_attempts:
             result = analyzer.evolve_playbook(
                 tt, None, bucket["success"], bucket["failure"], diagnoses.get(tt, []),
                 target_depth=depth, repair_candidate=repair_candidate,
+                repair_feedback=({
+                    "actual_depth": result.get("actual_depth"),
+                    "depth_validation_errors": result.get("depth_validation_errors", []),
+                } if result else None),
             )
             attempts += 1
             if result and result.get("depth_valid", False):
@@ -444,11 +468,12 @@ def build_tree_artifact(raw_path: Path, directory: Path, depth: int) -> Path:
                       "actual_depth": result.get("actual_depth")}
     failed = {tt: info for tt, info in status.items() if info["status"] != "ok"}
     _write_json(directory / "generation_status.json", status)
-    return _save_artifact_manifest(directory, f"tree_depth_{depth}", raw_path, lib.skills,
+    return _save_artifact_manifest(directory, f"skill_level_l{depth}", raw_path, lib.skills,
                                    analyzer.call_audit,
                                    {"generation_protocol": "CoSkill diagnose_failures + evolve_playbook",
+                                    "skill_level": f"L{depth}",
                                     "target_depth": depth, "tree_generation_status": status,
-                                    "tree_generation_max_attempts": MAX_TREE_GENERATION_ATTEMPTS,
+                                    "tree_generation_max_attempts": max_attempts,
                                     "status": "N.A." if failed else "ready",
                                     "evaluation_eligible": not bool(failed),
                                     "unavailable_reason": ("depth_validation_failed" if failed else None),
@@ -457,64 +482,19 @@ def build_tree_artifact(raw_path: Path, directory: Path, depth: int) -> Path:
                                     **_payload_accounting(batch)})
 
 
-def build_compression_artifact(raw_path: Path, directory: Path, all_on: bool,
-                               global_step: int) -> Path:
-    raw = _read_jsonl(raw_path)
-    flags = ({"enable_loop_filter": True, "enable_obs_delta": True,
-              "enable_prefix_tree": True, "enable_consensus_prefix": True}
-             if all_on else
-             {"enable_loop_filter": False, "enable_obs_delta": False,
-              "enable_prefix_tree": False, "enable_consensus_prefix": False})
-    pool = TracesPool(output_dir=str(directory / "traces_pool"), min_samples=999999, **flags)
-    for trace in raw:
-        pool.add_trace(trace)
-    empty_path = directory / "empty_skills.json"
-    _write_json(empty_path, _empty_skill_bank())
-    lib = HierarchicalSkillLib(str(empty_path), retrieval_mode="template", enable_playbook=True)
-    loop = CoSkillCloudLoop(str(directory), enable_coskill=True, enable_playbook_evolve=True,
-                            enable_failure_analysis=True, max_new_skills=3,
-                            playbook_evolve_min_samples=6, environment_name="ALFWorld")
-    if not loop.maybe_update(pool, lib, global_step=global_step,
-                             force_reason="fixed_trajectory_ablation"):
-        raise RuntimeError(f"cloud generation failed for {'all_on' if all_on else 'all_off'}")
-    # TracesPool(output_dir=X) always writes under X/traces_pool/, so the
-    # real batches land one level below `directory / "traces_pool"`. Globbing
-    # that path directly always missed, silently leaving "compression" and
-    # the cloud_payload_* accounting empty in the artifact manifest.
-    batch_files = sorted((directory / "traces_pool" / "traces_pool").glob("batch_*.json"))
-    batch = _read_json(batch_files[-1]) if batch_files else {}
-    return _save_artifact_manifest(directory,
-                                   "compression_all_on" if all_on else "compression_all_off",
-                                   raw_path, lib.skills, (loop.cloud_analyzer.call_audit if loop.cloud_analyzer else []),
-                                   {"generation_protocol": "full CoSkill cloud loop", "compression": batch.get("compression", {}),
-                                    **_payload_accounting(batch)})
-
-
 def build_artifacts(args, root: Path, raw_path: Path) -> Dict[str, Path]:
     artifacts = root / "artifacts"
     result = {}
-    none_dir = artifacts / "none"
-    none_manifest = none_dir / "artifact_manifest.json"
-    result["none"] = (none_manifest if none_manifest.exists() else
-                      _save_artifact_manifest(none_dir, "none", raw_path, _empty_skill_bank(), [],
-                                              {"generation_protocol": "no skill"}))
-    flat_manifest = artifacts / "flat_claude" / "artifact_manifest.json"
-    result["flat_claude"] = (flat_manifest if flat_manifest.exists() else
-                              build_flat_artifact(raw_path, artifacts / "flat_claude"))
+    l0 = artifacts / "skill_level_l0" / "artifact_manifest.json"
+    result["skill_level_l0"] = (
+        l0 if l0.exists() else build_l0_artifact(raw_path, artifacts / "skill_level_l0")
+    )
     for depth in range(1, 6):
-        path = artifacts / f"tree_depth_{depth}" / "artifact_manifest.json"
-        result[f"tree_depth_{depth}"] = (path if path.exists() else
-                                          build_tree_artifact(raw_path, artifacts / f"tree_depth_{depth}", depth))
-    on = artifacts / "compression_all_on" / "artifact_manifest.json"
-    off = artifacts / "compression_all_off" / "artifact_manifest.json"
-    result["compression_all_on"] = (on if on.exists() else
-                                    build_compression_artifact(
-                                        raw_path, artifacts / "compression_all_on", True,
-                                        len(TASK_TYPES) * args.rollouts_per_type))
-    result["compression_all_off"] = (off if off.exists() else
-                                     build_compression_artifact(
-                                         raw_path, artifacts / "compression_all_off", False,
-                                         len(TASK_TYPES) * args.rollouts_per_type))
+        arm = f"skill_level_l{depth}"
+        path = artifacts / arm / "artifact_manifest.json"
+        result[arm] = (path if path.exists() else
+                       build_tree_artifact(raw_path, artifacts / arm, depth,
+                                           args.tree_generation_attempts))
     return result
 
 
@@ -538,11 +518,17 @@ def evaluate_arm(args, root: Path, eval_manifest: Path, arm: str) -> Path:
     artifact = root / "artifacts" / arm / "skills.json"
     if not artifact.exists():
         raise FileNotFoundError(f"missing artifact for {arm}: {artifact}")
-    tree = int(arm.startswith("tree_depth_") or arm.startswith("compression_"))
-    bullets = int(arm == "flat_claude" or arm.startswith("compression_"))
-    total_rollouts = len(TASK_TYPES) * args.rollouts_per_type
-    _run(_driver_cmd(args, output, eval_manifest, total_rollouts, total_rollouts, bullets, tree, 0, 0,
-                     ["--skills_json", str(artifact)]), args.project_root)
+    level = int(arm.rsplit("l", 1)[1])
+    use_flat_skills = int(level == 0)
+    use_skill_tree = int(level > 0)
+    rollouts_per_group = len(TASK_TYPES) * args.rollouts_per_type
+    total_rollouts = rollouts_per_group * args.eval_groups_per_level
+    cmd = _driver_cmd(args, output, eval_manifest, total_rollouts, rollouts_per_group,
+                      use_flat_skills, use_skill_tree, 0, 0,
+                      ["--enable_hierarchy", str(int(level > 0)),
+                       "--skills_json", str(artifact)])
+    cmd[cmd.index("--epochs") + 1] = str(args.eval_groups_per_level)
+    _run(cmd, args.project_root)
     return summary
 
 
@@ -553,7 +539,8 @@ def _latest_group_metrics(path: Path) -> Dict[str, Any]:
 
 def write_summary(root: Path, manifests: Dict[str, str]) -> None:
     rows, detailed = [], {}
-    for arm in (*REPRESENTATION_ARMS, *COMPRESSION_ARMS):
+    per_task_rows = []
+    for arm in SKILL_LEVEL_ARMS:
         summary_path = root / "arms" / arm / "summary.json"
         artifact_path = root / "artifacts" / arm / "artifact_manifest.json"
         if not summary_path.exists() or not artifact_path.exists():
@@ -572,6 +559,21 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                 "target_tree_depth": artifact.get("target_depth"),
                 "raw_traces_sha256": artifact.get("raw_traces_sha256"),
             })
+            for tt in RUNTIME_TASK_TYPES:
+                per_task_rows.append({
+                    "arm": arm, "status": "N.A.",
+                    "target_tree_depth": artifact.get("target_depth"),
+                    "task_type": tt, "episodes": 0, "wins": 0,
+                    "success_rate": None,
+                    "small_model_prompt_tokens": None,
+                    "small_model_response_tokens": None,
+                    "small_model_total_tokens": None,
+                    "artifact_task_scoped_large_model_calls": None,
+                    "artifact_task_scoped_large_model_prompt_tokens": None,
+                    "artifact_task_scoped_large_model_completion_tokens": None,
+                    "artifact_task_scoped_large_model_total_tokens": None,
+                    "reason": reason,
+                })
             continue
         metrics = _latest_group_metrics(root / "arms" / arm / "group_metrics.jsonl")
         per_type = defaultdict(lambda: {"episodes": 0, "wins": 0})
@@ -610,6 +612,45 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                              "tree_injection_count": tree_injection_count,
                              "tree_text_tokens_chars_div_4": tree_injection_tokens,
                          }}
+        small_by_type = (small_usage.get("by_task_type", {}) or {})
+        # Emit a complete six-task matrix even if a malformed/interrupted arm
+        # missed a task. A missing row would otherwise look like missing data
+        # rather than the observable zero-episode condition.
+        for tt in RUNTIME_TASK_TYPES:
+            values = per_type[tt]
+            usage = small_by_type.get(tt, {}) or {}
+            artifact_calls = [
+                call for call in (artifact.get("cloud_calls", []) or [])
+                if call.get("task_type") == tt
+            ]
+            per_task_rows.append({
+                "arm": arm,
+                "status": "ready",
+                "target_tree_depth": artifact.get("target_depth"),
+                "task_type": tt,
+                "episodes": values["episodes"],
+                "wins": values["wins"],
+                "success_rate": (values["wins"] / values["episodes"]
+                                 if values["episodes"] else None),
+                "small_model_prompt_tokens": usage.get("prompt", 0),
+                "small_model_response_tokens": usage.get("response", 0),
+                "small_model_total_tokens": usage.get("total", 0),
+                "artifact_task_scoped_large_model_calls": len(artifact_calls),
+                "artifact_task_scoped_large_model_prompt_tokens": sum(
+                    int(call.get("prompt_tokens", call.get("prompt", 0)) or 0)
+                    for call in artifact_calls
+                ),
+                "artifact_task_scoped_large_model_completion_tokens": sum(
+                    int(call.get("completion_tokens", call.get("completion", 0)) or 0)
+                    for call in artifact_calls
+                ),
+                "artifact_task_scoped_large_model_total_tokens": sum(
+                    int(call.get("total_tokens", call.get("total", 0)) or 0)
+                    for call in artifact_calls
+                ),
+            })
+        artifact_calls_all = artifact.get("cloud_calls", []) or []
+        artifact_calls_unscoped = [call for call in artifact_calls_all if not call.get("task_type")]
         row = {"arm": arm, "status": "ready", "episodes": summary.get("total_episodes", 0),
                "success_rate": summary.get("success_rate", 0), "wins": summary.get("wins", 0),
                "strict_valid_action_rate": strict_valid / max(action_count, 1),
@@ -622,6 +663,14 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                "large_model_prompt_tokens_cumulative": large_usage.get("prompt"),
                "large_model_completion_tokens_cumulative": large_usage.get("completion"),
                "large_model_total_tokens_cumulative": large_usage.get("total"),
+               "artifact_generation_large_model_calls": len(artifact_calls_all),
+               "artifact_generation_large_model_total_tokens": sum(
+                   int(call.get("total_tokens", call.get("total", 0)) or 0)
+                   for call in artifact_calls_all),
+               "artifact_generation_unscoped_large_model_calls": len(artifact_calls_unscoped),
+               "artifact_generation_unscoped_large_model_total_tokens": sum(
+                   int(call.get("total_tokens", call.get("total", 0)) or 0)
+                   for call in artifact_calls_unscoped),
                "perf_total_num_tokens_last_group": metrics.get("perf/total_num_tokens"),
                "perf_total_num_tokens_cumulative_equivalent": small_usage.get("total"),
                "flat_skill_injection_count": flat_injection_count,
@@ -636,9 +685,20 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                                                                         "small_model": "reported_per_arm_in_small_model_token_accounting",
                                                                         "large_model": "provider_api_usage",
                                                                         "perf/total_num_tokens": "driver compatibility metric"}})
+    _write_jsonl(root / "metrics.jsonl", rows)
+    _write_jsonl(root / "metrics_by_task.jsonl", per_task_rows)
     with (root / "ablation_summary.csv").open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=sorted({k for row in rows for k in row}))
         writer.writeheader(); writer.writerows(rows)
+    with (root / "skill_level_by_task.csv").open("w", newline="") as f:
+        fields = ("arm", "status", "target_tree_depth", "task_type", "episodes", "wins", "success_rate",
+                  "small_model_prompt_tokens", "small_model_response_tokens", "small_model_total_tokens",
+                  "artifact_task_scoped_large_model_calls",
+                  "artifact_task_scoped_large_model_prompt_tokens",
+                  "artifact_task_scoped_large_model_completion_tokens",
+                  "artifact_task_scoped_large_model_total_tokens", "reason")
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader(); writer.writerows(per_task_rows)
 
 
 def main() -> None:
@@ -653,6 +713,11 @@ def main() -> None:
     ap.add_argument("--rollouts_per_type", type=int, default=12,
                     help="each of the six fixed games is sampled this many times; "
                          "the formal default is 12 x 6 = 72 rollouts per bootstrap/evaluation arm")
+    ap.add_argument("--eval_groups_per_level", type=int, default=1,
+                    help="number of 72-rollout evaluation groups for each L0-L5 arm; default 1")
+    ap.add_argument("--tree_generation_attempts", type=int,
+                    default=MAX_TREE_GENERATION_ATTEMPTS,
+                    help="same-evidence cloud attempts per task/tree; formal default 20")
     ap.add_argument("--model_path", default=os.environ.get("MODEL_PATH"))
     ap.add_argument("--retrieval_mode", default="template", choices=("template", "embedding"))
     ap.add_argument("--data_parallel_workers", type=int, default=0)
@@ -668,6 +733,10 @@ def main() -> None:
     args = ap.parse_args()
     if args.rollouts_per_type < 1:
         ap.error("--rollouts_per_type must be at least 1")
+    if args.eval_groups_per_level < 1:
+        ap.error("--eval_groups_per_level must be at least 1")
+    if args.tree_generation_attempts < 1:
+        ap.error("--tree_generation_attempts must be at least 1")
     if not 0 < args.gpu_mem_util <= 1:
         ap.error("--gpu_mem_util must be in (0, 1]")
     if not args.alfworld_data:
@@ -678,19 +747,42 @@ def main() -> None:
     config_path = root / "run_config.json"
     if config_path.exists():
         existing = _read_json(config_path)
+        if existing.get("experiment_kind") != "alfworld_skill_level_l0_l5":
+            raise RuntimeError(
+                "existing root belongs to the legacy combined fixed-trajectory ablation. "
+                "Use a new --root for the independent L0-L5 skill-level experiment.")
         existing_rollouts = existing.get("bootstrap_rollouts_per_type")
         if existing_rollouts is not None and existing_rollouts != args.rollouts_per_type:
             raise RuntimeError(
                 "existing ablation root uses bootstrap_rollouts_per_type="
                 f"{existing_rollouts}; requested {args.rollouts_per_type}. "
-                "Use a new --root so 36- and 72-rollout arms never mix.")
+                "Use a new --root so different rollout multiplicities never mix.")
+        existing_groups = existing.get("eval_groups_per_level", 1)
+        if existing_groups != args.eval_groups_per_level:
+            raise RuntimeError(
+                "existing skill-tree experiment uses eval_groups_per_level="
+                f"{existing_groups}; requested {args.eval_groups_per_level}. Use a new --root.")
+        existing_attempts = existing.get(
+            "tree_depth_generation_max_attempts", MAX_TREE_GENERATION_ATTEMPTS)
+        if existing_attempts != args.tree_generation_attempts:
+            raise RuntimeError(
+                "existing skill-tree experiment uses tree_generation_attempts="
+                f"{existing_attempts}; requested {args.tree_generation_attempts}. Use a new --root.")
     bootstrap_empty_skills = _ensure_empty_bootstrap_skills(root)
     boot_manifest, eval_manifest = create_manifests(root, data_root, args.split, args.sample_seed)
     manifest_hashes = validate_manifest_pair(boot_manifest, eval_manifest, data_root)
-    _write_json(config_path, {"task_types": TASK_TYPES,
+    _write_json(config_path, {"experiment_kind": "alfworld_skill_level_l0_l5",
+                                             "schema_version": 1,
+                                             "task_types": TASK_TYPES,
+                                             "skill_levels": list(SKILL_LEVEL_ARMS),
+                                             "skill_level_definition": {
+                                                 "L0": "original SkillRL flat skills; no hierarchy",
+                                                 "L1-L5": "CoSkill skill trees with exact maximum Markdown heading depth",
+                                             },
                                              "runtime_task_type_map": TASK_TYPE_TO_RUNTIME,
                                              "bootstrap_rollouts_per_type": args.rollouts_per_type,
                                              "eval_rollouts_per_type": args.rollouts_per_type,
+                                             "eval_groups_per_level": args.eval_groups_per_level,
                                              "rollouts_per_group": len(TASK_TYPES) * args.rollouts_per_type,
                                              "gpu_mem_util": args.gpu_mem_util,
                                              "vllm_enforce_eager": bool(args.vllm_enforce_eager),
@@ -705,7 +797,7 @@ def main() -> None:
                                                  "enable_coskill": True,
                                                  "enable_skill_tree": True,
                                              },
-                                             "tree_depth_generation_max_attempts": MAX_TREE_GENERATION_ATTEMPTS,
+                                             "tree_depth_generation_max_attempts": args.tree_generation_attempts,
                                              **manifest_hashes})
     if args.phase == "manifests":
         return
@@ -715,7 +807,7 @@ def main() -> None:
     build_artifacts(args, root, raw)
     if args.phase == "artifacts":
         return
-    for arm in (*REPRESENTATION_ARMS, *COMPRESSION_ARMS):
+    for arm in SKILL_LEVEL_ARMS:
         evaluate_arm(args, root, eval_manifest, arm)
     write_summary(root, manifest_hashes)
 

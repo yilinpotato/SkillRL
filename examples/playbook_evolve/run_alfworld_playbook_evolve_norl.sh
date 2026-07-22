@@ -51,7 +51,7 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID
 # Opt-in single-GPU mode for an ALFWorld no-RL job.  It keeps the global
 # rollout group at 72 and changes only where the frozen vLLM replica runs.
 # If the scheduler exposes several devices, use the first entry in its existing
-# CUDA_VISIBLE_DEVICES mask rather than assuming that physical GPU 0 is ours.
+# CUDA_VISIBLE_DEVICES mask rather than assuming a particular physical GPU is ours.
 COSKILL_ONE_GPU="${COSKILL_ONE_GPU:-0}"
 if [[ "$COSKILL_ONE_GPU" != "0" && "$COSKILL_ONE_GPU" != "1" ]]; then
     echo "COSKILL_ONE_GPU must be 0 or 1." >&2
@@ -86,14 +86,14 @@ elif [ -d /GLOBALFS/hit_wxia_1 ]; then
     export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
     NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
 else
-    if [ -n "${CUDA_VISIBLE_DEVICES:-}" ] && [ "$CUDA_VISIBLE_DEVICES" != "0" ]; then
-        echo "Local shared-server launcher only permits CUDA_VISIBLE_DEVICES=0." >&2
+    if [ -n "${CUDA_VISIBLE_DEVICES:-}" ] && [ "$CUDA_VISIBLE_DEVICES" != "1" ]; then
+        echo "Local shared-server launcher only permits CUDA_VISIBLE_DEVICES=1." >&2
         exit 1
     fi
-    export CUDA_VISIBLE_DEVICES=0
-    GPU0_ACTIVE_PIDS=$(nvidia-smi --id=0 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)
-    if [ -n "$GPU0_ACTIVE_PIDS" ]; then
-        echo "GPU 0 is in use by PID(s): $GPU0_ACTIVE_PIDS. Refusing to start." >&2
+    export CUDA_VISIBLE_DEVICES=1
+    GPU1_ACTIVE_PIDS=$(nvidia-smi --id=1 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)
+    if [ -n "$GPU1_ACTIVE_PIDS" ]; then
+        echo "GPU 1 is in use by PID(s): $GPU1_ACTIVE_PIDS. Refusing to start." >&2
         exit 1
     fi
     NUM_VISIBLE_GPUS=1
@@ -200,8 +200,8 @@ export SKILL_UPDATER_BACKEND="${SKILL_UPDATER_BACKEND:-deepseek}"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
 # export DEEPSEEK_API_KEY=...   # 需在环境里提供
 
-PROJECT_NAME="verl_agent_alfworld"
-EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_v8"
+PROJECT_NAME="${PROJECT_NAME:-verl_agent_alfworld}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-qwen3-4b_skill_tree_evolve_norl_v8}"
 OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 echo "All run outputs will be saved to: $OUTPUT_DIR"

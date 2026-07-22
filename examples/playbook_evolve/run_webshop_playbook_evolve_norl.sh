@@ -43,7 +43,7 @@ export PYTHONUNBUFFERED=1
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
 # Docker is an isolated allocation.  It must not fall through to the shared
-# local-3090 guard, which would silently discard all but GPU 0 on a 4/8-GPU
+# local-3090 guard, which would silently discard all but one GPU on a 4/8-GPU
 # server.  When Docker did not set CUDA_VISIBLE_DEVICES, enumerate its visible
 # logical devices and let the data-parallel driver bind one replica per GPU.
 IS_CONTAINER=0
@@ -64,14 +64,14 @@ elif [ -d /GLOBALFS/hit_wxia_1 ]; then
     export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
     NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
 else
-    if [ -n "${CUDA_VISIBLE_DEVICES:-}" ] && [ "$CUDA_VISIBLE_DEVICES" != "0" ]; then
-        echo "Local shared-server launcher only permits CUDA_VISIBLE_DEVICES=0." >&2
+    if [ -n "${CUDA_VISIBLE_DEVICES:-}" ] && [ "$CUDA_VISIBLE_DEVICES" != "1" ]; then
+        echo "Local shared-server launcher only permits CUDA_VISIBLE_DEVICES=1." >&2
         exit 1
     fi
-    export CUDA_VISIBLE_DEVICES=0
-    GPU0_ACTIVE_PIDS=$(nvidia-smi --id=0 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)
-    if [ -n "$GPU0_ACTIVE_PIDS" ]; then
-        echo "GPU 0 is in use by PID(s): $GPU0_ACTIVE_PIDS. Refusing to start." >&2
+    export CUDA_VISIBLE_DEVICES=1
+    GPU1_ACTIVE_PIDS=$(nvidia-smi --id=1 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)
+    if [ -n "$GPU1_ACTIVE_PIDS" ]; then
+        echo "GPU 1 is in use by PID(s): $GPU1_ACTIVE_PIDS. Refusing to start." >&2
         exit 1
     fi
     NUM_VISIBLE_GPUS=1

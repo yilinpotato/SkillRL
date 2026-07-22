@@ -350,6 +350,7 @@ Return ONLY the JSON array, no other text."""
         history: Optional[List[Dict]] = None,
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
+        repair_feedback: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict]:
         """生成 / 细化该 agent 唯一的 skill tree（大模型从零撰写，层次化推进）。
 
@@ -370,7 +371,7 @@ Return ONLY the JSON array, no other text."""
         prompt = self._build_evolve_prompt(
             task_type, current_playbook, success_traces, failure_traces,
             diagnoses or [], history or [], target_depth=target_depth,
-            repair_candidate=repair_candidate,
+            repair_candidate=repair_candidate, repair_feedback=repair_feedback,
         )
         # 落盘发给云端大模型的原始 prompt（call 计数器区分同一 task_type 的多轮进化）。
         if self.playbook_io_dir is not None:
@@ -446,6 +447,7 @@ Return ONLY the JSON array, no other text."""
         history: Optional[List[Dict]] = None,
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
+        repair_feedback: Optional[Dict[str, Any]] = None,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
         cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
@@ -477,13 +479,35 @@ not merely rename or repeat a parent node.
 """
         repair_section = ""
         if repair_candidate:
+            feedback = repair_feedback or {}
+            actual_depth = feedback.get("actual_depth")
+            target = int(target_depth) if target_depth is not None else None
+            if isinstance(actual_depth, int) and target is not None and actual_depth < target:
+                direction = (
+                    f"The candidate is TOO SHALLOW: its deepest semantic heading is level "
+                    f"{actual_depth}, but the required deepest level is {target}. DEEPEN it by "
+                    "adding evidence-grounded child decisions or preconditions."
+                )
+            elif isinstance(actual_depth, int) and target is not None and actual_depth > target:
+                direction = (
+                    f"The candidate is TOO DEEP: its deepest semantic heading is level "
+                    f"{actual_depth}, but the required deepest level is {target}. SHALLOW it by "
+                    "merging or lifting overly deep nodes without deleting their useful rules."
+                )
+            else:
+                direction = (
+                    "The candidate has an invalid heading structure. Rebuild it so every required "
+                    "semantic heading level is present and no heading deeper than the target occurs."
+                )
+            errors = feedback.get("depth_validation_errors") or []
+            error_text = ", ".join(str(x) for x in errors) or "unspecified_depth_error"
             repair_section = f"""
 
 DEPTH-REPAIR CANDIDATE: The following candidate was generated from the SAME evidence but did not
-meet the requested heading depth. FORCE a semantic deepening when it is too shallow: add
-evidence-grounded child decisions/preconditions under the appropriate existing nodes until every
-required level is present. If it is too deep, rewrite it to the exact requested depth. Preserve the
-same-evidence grounding and do not add dummy headings.
+meet the requested heading depth.
+DEPTH VALIDATION: {direction}
+VALIDATION ERRORS: {error_text}
+Preserve the same-evidence grounding and do not add dummy headings.
 \"\"\"
 {repair_candidate.strip()}
 \"\"\"

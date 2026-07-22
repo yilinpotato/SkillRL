@@ -166,38 +166,76 @@ rl=1 TREE_RL_ORDER=root \
 模型可挂载，也可在首次启动时由 ModelScope 自动下载。构建与运行命令见
 [docker/coskill/README.md](docker/coskill/README.md)。
 
-### ALFWorld 固定轨迹消融（1×/4×A800，非 Docker）
+### ALFWorld 两组独立消融（1×/4×A800，非 Docker）
 
-固定轨迹消融使用独立入口，不改变上述主训练过程。它固定六类任务各一条
-bootstrap game 与一条非重叠 eval game；所有臂共用冻结 raw traces。bootstrap
-保留 CoSkill 检索/树提示词框架但显式使用空技能库，深度树最多经 20 次同证据云端
-深化，仍不合格的臂记录为 `N.A.` 而不会中止其他臂。
+技能层级实验只包含 `L0..L5`，不再包含 `None`，也不再混入轨迹压缩臂。`L0` 是
+原始 SkillRL `SkillUpdater` 从同一批冻结失败轨迹生成的扁平 skill（无层次）；
+`L1..L5` 是最大 Markdown heading 深度严格等于目标层数的 CoSkill skill tree。
+六个层级共用冻结 bootstrap raw traces 和非重叠 eval games。树生成不满足目标深度时，
+云端修复 prompt 会按实际结果明确要求 `DEEPEN` 或 `SHALLOW`，最多 20 次；仍不合格
+的整臂记为 `N.A.`，其他层级继续。默认每层评估 1 个 group，即 6 类任务各 12 条、
+总计 72 rollout，并分别输出各任务成功率和本地小模型 prompt/response/total token。
 
 ```bash
 conda activate skillRL
 cd /path/to/CoSkill
 
-# 单张 A800：DP=1、TP=1，仍固定 bootstrap=36、每个评估臂=36 条轨迹；
+# 单张 A800：DP=1、TP=1，仍固定 bootstrap=72、每个层级每 group=72 条轨迹；
 # 只改变吞吐，不能把它与四卡的 wall-clock 时间直接比较。
 CUDA_VISIBLE_DEVICES=0 ABLATION_PREFLIGHT_ONLY=1 \
-  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_1xa800.sh
+  bash examples/playbook_evolve/run_alfworld_skill_tree_depth_ablation_1xa800.sh
 
 CUDA_VISIBLE_DEVICES=0 \
-  AB_ROOT=/path/to/outputs/alfworld_ablation_1xa800 \
-  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_1xa800.sh
+  AB_ROOT=/path/to/outputs/skill_levels_1xa800 \
+  bash examples/playbook_evolve/run_alfworld_skill_tree_depth_ablation_1gpu.sh
+
+# 双卡：DP=2、TP=1，全局仍是每个层级 72 rollout。
+CUDA_VISIBLE_DEVICES=0,1 \
+  AB_ROOT=/path/to/outputs/skill_levels_2gpu \
+  bash examples/playbook_evolve/run_alfworld_skill_tree_depth_ablation_2gpu.sh
 
 # 仅检查 4 张 A800、模型、数据与云端 API；不启动 rollout。
 CUDA_VISIBLE_DEVICES=0,1,2,3 ABLATION_PREFLIGHT_ONLY=1 \
-  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_4xa800.sh
+  bash examples/playbook_evolve/run_alfworld_skill_tree_depth_ablation_4xa800.sh
 
 # 正式运行；AB_ROOT 必须保留，后续同一路径可按 phase 继续。
 CUDA_VISIBLE_DEVICES=0,1,2,3 \
-  AB_ROOT=/path/to/outputs/alfworld_ablation_4xa800 \
-  bash examples/playbook_evolve/run_alfworld_fixed_trajectory_ablation_4xa800.sh
+  AB_ROOT=/path/to/outputs/skill_levels_4xa800 \
+  bash examples/playbook_evolve/run_alfworld_skill_tree_depth_ablation_4xa800.sh
 ```
 
-预检默认会发起一次最小云端请求；若只检查本地依赖，加入 `CLOUD_PROBE=0`。完整
-产物、恢复和指标说明见 [docker/alfworld-ablation/README.md](docker/alfworld-ablation/README.md)。
+需要每层重复多个 72-rollout group 时设置 `EVAL_GROUPS_PER_LEVEL=N`；同一 `AB_ROOT`
+恢复时该值必须保持不变。预检默认会发起一次最小云端请求；若只检查本地依赖，加入
+`CLOUD_PROBE=0`。根目录会生成 `metrics.jsonl`（每个 L0-L5 臂一行）、
+`metrics_by_task.jsonl`（每个层级/任务一行）、`ablation_summary.json`、
+`ablation_summary.csv` 和 `skill_level_by_task.csv`；每个臂内部仍保留标准 driver 的
+`arms/skill_level_lN/metrics.jsonl`、`group_metrics.jsonl` 与 `summary.json`。
+
+轨迹压缩实验完全独立：已有标准 CoSkill no-RL 运行是压缩开启对照，只新增一个
+compression-off 运行。它直接复用标准 no-RL launcher 的 100 groups × 72 rollout、
+模型、prompt、采样、云端更新和指标设置，仅关闭 loop filter、observation delta、
+prefix tree、consensus prefix 四项轨迹处理。wrapper 不重新声明 episode、batch、
+max-step 或 token 参数，避免与主脚本默认值漂移：
+
+```bash
+# 单卡/双卡/四卡只改变 DP，不改变 100×72 协议。
+CUDA_VISIBLE_DEVICES=0 \
+  OUTPUT_DIR=/path/to/outputs/coskill_norl_compression_off_1gpu \
+  bash examples/playbook_evolve/run_alfworld_trace_compression_off_norl_1gpu.sh
+
+CUDA_VISIBLE_DEVICES=0,1 \
+  OUTPUT_DIR=/path/to/outputs/coskill_norl_compression_off_2gpu \
+  bash examples/playbook_evolve/run_alfworld_trace_compression_off_norl_2gpu.sh
+
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+  OUTPUT_DIR=/path/to/outputs/coskill_norl_compression_off \
+  bash examples/playbook_evolve/run_alfworld_trace_compression_off_norl_4xa800.sh
+```
+
+CUDA Graph 默认启用（`VLLM_ENFORCE_EAGER=0`），只改变执行速度。轨迹压缩实验的
+compression-off 输出目录同样生成标准 `metrics.jsonl`、`group_metrics.jsonl` 和
+`summary.json`；前两者逐行记录四个压缩开关及 `all_off` 条件。容器产物、恢复和
+指标说明见 [docker/alfworld-ablation/README.md](docker/alfworld-ablation/README.md)。
 
 ### Memory Data Generation
 The first step of our training pipeline uses the base model to generate memory data. This data serves as the foundation for the agent's initial experiences. The specific prompt used to guide this generation can be found at: `memory_data/prompt/prompt.txt`.

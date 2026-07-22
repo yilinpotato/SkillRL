@@ -47,6 +47,25 @@ SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
 NORL_TASK_TYPES = tuple(_TASK_TYPE_TO_ID.keys()) + ("unknown",)
 
 
+def _trace_compression_metric_fields(args):
+    """Return the exact trace-payload condition recorded in every metric row."""
+    flags = {
+        "enable_loop_filter": bool(args.trace_enable_loop_filter),
+        "enable_obs_delta": bool(args.trace_enable_obs_delta),
+        "enable_prefix_tree": bool(args.trace_enable_prefix_tree),
+        "enable_consensus_prefix": bool(args.trace_enable_consensus_prefix),
+    }
+    condition = "all_on" if all(flags.values()) else (
+        "all_off" if not any(flags.values()) else "partial")
+    return {
+        "experiment/trace_compression/condition": condition,
+        **{
+            f"experiment/trace_compression/{name}": int(enabled)
+            for name, enabled in flags.items()
+        },
+    }
+
+
 def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
     """读取固定 game manifest，返回 ``(games, task_types, task_type_ids)``。
 
@@ -1106,6 +1125,7 @@ def main():
 
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
     group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
+    trace_compression_metrics = _trace_compression_metric_fields(args)
     # ``group_metrics.jsonl`` is the sole canonical group-level comparison log.
     # It already contains every ``comparison/*`` field below.  Older runs may
     # still have a duplicated comparison_metrics.jsonl; never delete it, but do
@@ -1219,6 +1239,7 @@ def main():
                 "experiment/skill_tree_enabled": int(enable_skill_tree),
                 "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
                 "experiment/skill_bullets_enabled": int(enable_coskill),
+                **trace_compression_metrics,
                 "experiment/cloud_round_used": ep_record["cloud_round_used"],
                 "coskill/cloud_update_fired": bool(fired),
                 "episode/running_total_episodes": ep_record["running_total_episodes"],
@@ -1358,6 +1379,7 @@ def main():
             "experiment/skill_tree_enabled": int(enable_skill_tree),
             "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
             "experiment/skill_bullets_enabled": int(enable_coskill),
+            **trace_compression_metrics,
             "experiment/rl_enabled": 0,
             "experiment/tree_rl_internalize_enabled": 0,
             "experiment/cloud_round": cloud_updates,

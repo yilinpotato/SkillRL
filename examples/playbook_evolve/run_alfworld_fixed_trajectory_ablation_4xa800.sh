@@ -41,7 +41,7 @@ export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/skillrl_outputs}"
 RUN_ID="${ABLATION_RUN_ID:-4xa800_$(date +%Y%m%d_%H%M%S)}"
-export AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_fixed_trajectory_ablation/$RUN_ID}"
+export AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_skill_tree_depth_ablation/$RUN_ID}"
 
 if [[ ! -d "$ALFWORLD_DATA/json_2.1.1" || ! -d "$ALFWORLD_DATA/logic" ]]; then
   echo "ALFWorld data is incomplete: ALFWORLD_DATA=$ALFWORLD_DATA" >&2
@@ -86,7 +86,7 @@ echo "[4xa800-ablation] CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 echo "[4xa800-ablation] MODEL_PATH=$MODEL_PATH"
 echo "[4xa800-ablation] ALFWORLD_DATA=$ALFWORLD_DATA"
 echo "[4xa800-ablation] AB_ROOT=$AB_ROOT"
-echo "[4xa800-ablation] DP=4 TP=1 total_eval_rollouts_per_arm=${ABLATION_ROLLOUTS_PER_TYPE:-12}x6=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 ))"
+echo "[4xa800-ablation] DP=4 TP=1 levels=L0-L5 eval_groups_per_level=${EVAL_GROUPS_PER_LEVEL:-1} rollouts_per_group=${ABLATION_ROLLOUTS_PER_TYPE:-12}x6=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 ))"
 
 if [[ "${ABLATION_PREFLIGHT_ONLY:-0}" == "1" ]]; then
   echo "[4xa800-ablation] preflight passed; no rollout started."

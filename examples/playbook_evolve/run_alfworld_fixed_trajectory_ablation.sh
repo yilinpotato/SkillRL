@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fixed-trajectory ALFWorld ablations.  This script intentionally does not
+# Fixed-trajectory ALFWorld L0-L5 skill-level experiment. This script intentionally does not
 # source run_alfworld_playbook_evolve_norl.sh because that launcher executes a
 # training run immediately; it only mirrors its environment contract.
 set -euo pipefail
@@ -19,15 +19,15 @@ source "$PROJECT_ROOT/scripts/load_private_env.sh"
 export HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn CUDA_DEVICE_ORDER=PCI_BUS_ID PYTHONUNBUFFERED=1
 
-GPU0_NAME="$(nvidia-smi --id=0 --query-gpu=name --format=csv,noheader 2>/dev/null || true)"
-if [[ "${COSKILL_FORCE_LOCAL_3090:-0}" == "1" || ( "${COSKILL_FORCE_ACCELERATOR:-0}" != "1" && "$GPU0_NAME" == *"RTX 3090"* ) ]]; then
+GPU1_NAME="$(nvidia-smi --id=1 --query-gpu=name --format=csv,noheader 2>/dev/null || true)"
+if [[ "${COSKILL_FORCE_LOCAL_3090:-0}" == "1" || ( "${COSKILL_FORCE_ACCELERATOR:-0}" != "1" && "$GPU1_NAME" == *"RTX 3090"* ) ]]; then
   # The shared local 3090 rule remains in force.
-  [[ -z "${CUDA_VISIBLE_DEVICES:-}" || "$CUDA_VISIBLE_DEVICES" == "0" ]] || {
-    echo "Local ablations may only use physical GPU 0." >&2; exit 1;
+  [[ -z "${CUDA_VISIBLE_DEVICES:-}" || "$CUDA_VISIBLE_DEVICES" == "1" ]] || {
+    echo "Local ablations may only use physical GPU 1." >&2; exit 1;
   }
-  export CUDA_VISIBLE_DEVICES="0"
-  active="$(nvidia-smi --id=0 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)"
-  [[ -z "$active" ]] || { echo "GPU 0 is in use: $active" >&2; exit 1; }
+  export CUDA_VISIBLE_DEVICES="1"
+  active="$(nvidia-smi --id=1 --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)"
+  [[ -z "$active" ]] || { echo "GPU 1 is in use: $active" >&2; exit 1; }
   RUN_ENV="local-3090"
 else
   if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -49,7 +49,7 @@ export CACHE_ROOT="${CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}}"
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 
-AB_ROOT="${AB_ROOT:-$PROJECT_ROOT/skillrl_outputs/alfworld_fixed_trajectory_ablation/$(date +%Y%m%d_%H%M%S)}"
+AB_ROOT="${AB_ROOT:-$PROJECT_ROOT/skillrl_outputs/alfworld_skill_tree_depth_ablation/$(date +%Y%m%d_%H%M%S)}"
 DP_WORKERS="${DATA_PARALLEL_WORKERS:-$(tr ',' '\n' <<<"$CUDA_VISIBLE_DEVICES" | grep -c .)}"
 # CUDA Graph changes only vLLM execution scheduling, not prompts, sampling
 # seeds, rewards, or the fixed trajectory protocol.  Eager remains a supported
@@ -60,15 +60,17 @@ else
   VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-1}"
 fi
 ABLATION_ROLLOUTS_PER_TYPE="${ABLATION_ROLLOUTS_PER_TYPE:-12}"
+EVAL_GROUPS_PER_LEVEL="${EVAL_GROUPS_PER_LEVEL:-1}"
 echo "[ablation] env=$RUN_ENV GPUs=$CUDA_VISIBLE_DEVICES DP=$DP_WORKERS root=$AB_ROOT"
-echo "[ablation] rollouts_per_type=$ABLATION_ROLLOUTS_PER_TYPE total_per_group=$((6 * ABLATION_ROLLOUTS_PER_TYPE)) vllm_enforce_eager=$VLLM_ENFORCE_EAGER"
+echo "[ablation] levels=L0-L5 eval_groups_per_level=$EVAL_GROUPS_PER_LEVEL rollouts_per_group=$((6 * ABLATION_ROLLOUTS_PER_TYPE)) vllm_enforce_eager=$VLLM_ENFORCE_EAGER"
 
-python -u -m examples.playbook_evolve.fixed_trajectory_ablation \
+python -u -m examples.playbook_evolve.skill_tree_depth_ablation \
   --root "$AB_ROOT" \
   --alfworld_data "$ALFWORLD_DATA" \
   --model_path "$MODEL_PATH" \
   --data_parallel_workers "$DP_WORKERS" \
   --rollout_worker_gpus "$CUDA_VISIBLE_DEVICES" \
   --rollouts_per_type "$ABLATION_ROLLOUTS_PER_TYPE" \
+  --eval_groups_per_level "$EVAL_GROUPS_PER_LEVEL" \
   --vllm_enforce_eager "$VLLM_ENFORCE_EAGER" \
   "$@"

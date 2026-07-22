@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1.7
+# Fast local rebuild: reuse a validated CoSkill runtime/data image and replace
+# only the repository source plus the dedicated ablation entrypoint.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG SOURCE_COMMIT=unknown
+ENV COSKILL_SOURCE_COMMIT=${SOURCE_COMMIT} \
+    PYTHONPATH=/workspace/CoSkill \
+    COSKILL_PROJECT_ROOT=/workspace/CoSkill \
+    OUTPUT_ROOT=/workspace/outputs \
+    ALFWORLD_DATA=/opt/data/alfworld
+
+WORKDIR /workspace/CoSkill
+COPY . /workspace/CoSkill
+RUN chmod +x docker/alfworld-ablation/entrypoint.sh \
+    examples/playbook_evolve/run_alfworld_skill_tree_depth_ablation*.sh \
+    examples/playbook_evolve/run_alfworld_trace_compression_off_norl*.sh
+
+VOLUME ["/workspace/outputs", "/workspace/cache"]
+ENTRYPOINT ["/workspace/CoSkill/docker/alfworld-ablation/entrypoint.sh"]
+CMD ["skill-level", "--phase", "all"]

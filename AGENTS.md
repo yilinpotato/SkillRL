@@ -39,7 +39,7 @@ WebShop 输出必须遵守 `<think>...</think><action>...</action>`；不要只�
 
 ## GPU、数据与安全
 
-本地共享 3090 只可使用空闲的物理 GPU 0；先检查 `nvidia-smi`。超算按 launcher/调度器分配使用 2 或 4 张 A800，不要在 worker 内重写继承的 `CUDA_VISIBLE_DEVICES`。模型、数据和 API key 一律通过环境变量或 launcher 参数提供；不得提交 token、绝对个人路径、checkpoint、生成轨迹、原始输出或无关 dirty 文件。
+本地共享 3090 只可使用空闲的物理 GPU 1；先检查 `nvidia-smi`。超算按 launcher/调度器分配使用 2 或 4 张 A800，不要在 worker 内重写继承的 `CUDA_VISIBLE_DEVICES`。模型、数据和 API key 一律通过环境变量或 launcher 参数提供；不得提交 token、绝对个人路径、checkpoint、生成轨迹、原始输出或无关 dirty 文件。
 
 ## 提交与审查
 

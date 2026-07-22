@@ -61,16 +61,19 @@ class HierarchicalSkillLib(SkillsOnlyMemory):
         self.min_task_types_l2 = min_task_types_l2
         self.cycle = 0
 
-        # 为所有已有技能补默认 lifecycle（缺省安全）
+        # 为所有已有技能补默认 lifecycle（缺省安全）。关闭 hierarchy 时必须保持
+        # 原始 SkillsOnlyMemory/SkillRL 的扁平 JSON，不应仅因经过这个兼容类就给
+        # 技能写入 CoSkill L2/protected 元数据。
         # 初始技能（启动时就在库里的手写种子技能 gen_*）的处理：
         #   - protected=True：永不 deprecate/demote（见 advance_lifecycle 守卫）。
         #   - layer="L2"：直接进入 Skill2param 待固化队列（get_cold_skills 选 L2 且
         #     未 internalized 的）。即"初始技能是 L2、不变、且要被 RL 固化进模型"。
         # 固化前仍照常注入 prompt；固化完成 mark_internalized 后热路径不再注入。
-        for s in self._iter_all_skills():
-            lc = self._ensure_lifecycle(s)
-            lc["protected"] = True
-            lc["layer"] = "L2"
+        if self.enable_hierarchy:
+            for s in self._iter_all_skills():
+                lc = self._ensure_lifecycle(s)
+                lc["protected"] = True
+                lc["layer"] = "L2"
 
     # ------------------------------------------------------------------ #
     # lifecycle 工具                                                       #

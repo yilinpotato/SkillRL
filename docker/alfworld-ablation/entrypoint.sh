@@ -73,11 +73,12 @@ fi
 export CUDA_VISIBLE_DEVICES
 
 # One full 4B vLLM replica per visible GPU is fastest for these independent
-# rollouts. TP/PP remain 1; total evaluation rollout count remains exactly 36.
+# rollouts. TP/PP remain 1; the global rollout count does not change with DP.
 DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$GPU_COUNT}"
 ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
-AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_fixed_trajectory_ablation}"
-export DATA_PARALLEL_WORKERS ROLLOUT_WORKER_GPUS AB_ROOT
+AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_skill_tree_depth_ablation}"
+TRACE_OUTPUT_DIR="${TRACE_OUTPUT_DIR:-${OUTPUT_DIR:-$OUTPUT_ROOT/alfworld_trace_compression_off_norl}}"
+export DATA_PARALLEL_WORKERS ROLLOUT_WORKER_GPUS AB_ROOT TRACE_OUTPUT_DIR
 
 echo "CoSkill container: GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS TP=1"
 echo "ALFWORLD_DATA=$ALFWORLD_DATA"
@@ -85,16 +86,21 @@ echo "MODEL_PATH=$MODEL_PATH"
 echo "AB_ROOT=$AB_ROOT"
 
 cd "$COSKILL_PROJECT_ROOT"
-case "${1:-ablation}" in
-  ablation)
+case "${1:-skill-level}" in
+  ablation|skill-level)
     shift || true
-    exec python -u -m examples.playbook_evolve.fixed_trajectory_ablation \
+    exec python -u -m examples.playbook_evolve.skill_tree_depth_ablation \
       --root "$AB_ROOT" \
       --alfworld_data "$ALFWORLD_DATA" \
       --model_path "$MODEL_PATH" \
       --data_parallel_workers "$DATA_PARALLEL_WORKERS" \
       --rollout_worker_gpus "$ROLLOUT_WORKER_GPUS" \
       "$@"
+    ;;
+  trace-compression-off)
+    shift || true
+    export OUTPUT_DIR="$TRACE_OUTPUT_DIR"
+    exec bash examples/playbook_evolve/run_alfworld_trace_compression_off_norl.sh "$@"
     ;;
   shell)
     exec bash

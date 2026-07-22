@@ -261,6 +261,10 @@ class CoSkillCloudLoop:
                     history=[],
                     target_depth=self.required_tree_depth,
                     repair_candidate=candidate,
+                    repair_feedback={
+                        "actual_depth": result.get("actual_depth"),
+                        "depth_validation_errors": result.get("depth_validation_errors", []),
+                    },
                 )
                 repairs += 1
             if not result:

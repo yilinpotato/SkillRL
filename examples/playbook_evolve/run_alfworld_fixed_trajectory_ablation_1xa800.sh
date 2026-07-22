@@ -31,7 +31,7 @@ fi
 export DATA_PARALLEL_WORKERS=1
 export ROLLOUT_WORKER_GPUS="$CUDA_VISIBLE_DEVICES"
 # The base launcher normally applies the shared local-3090 policy by looking
-# at physical GPU 0.  This wrapper has already validated an explicit one-GPU
+# at physical GPU 1.  This wrapper has already validated an explicit one-GPU
 # accelerator allocation, so it must not be misclassified on a mixed node.
 export COSKILL_FORCE_ACCELERATOR=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
@@ -60,7 +60,7 @@ export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 export OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_ROOT/skillrl_outputs}"
 RUN_ID="${ABLATION_RUN_ID:-1xa800_$(date +%Y%m%d_%H%M%S)}"
-export AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_fixed_trajectory_ablation/$RUN_ID}"
+export AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_skill_tree_depth_ablation/$RUN_ID}"
 
 if [[ ! -d "$ALFWORLD_DATA/json_2.1.1" || ! -d "$ALFWORLD_DATA/logic" ]]; then
   echo "ALFWorld data is incomplete: ALFWORLD_DATA=$ALFWORLD_DATA" >&2
@@ -169,7 +169,7 @@ echo "[1xa800-ablation] MODEL_PATH=$MODEL_PATH"
 echo "[1xa800-ablation] ALFWORLD_DATA=$ALFWORLD_DATA"
 echo "[1xa800-ablation] AB_ROOT=$AB_ROOT"
 echo "[1xa800-ablation] vllm_gpu_memory_utilization=$VLLM_GPU_MEMORY_UTILIZATION wait_seconds=$GPU_MEMORY_WAIT_SECONDS"
-echo "[1xa800-ablation] DP=1 TP=1 total_bootstrap_rollouts=${ABLATION_ROLLOUTS_PER_TYPE:-12}x6=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 )) total_eval_rollouts_per_arm=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 ))"
+echo "[1xa800-ablation] DP=1 TP=1 levels=L0-L5 total_bootstrap_rollouts=${ABLATION_ROLLOUTS_PER_TYPE:-12}x6=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 )) eval_groups_per_level=${EVAL_GROUPS_PER_LEVEL:-1} rollouts_per_group=$(( ${ABLATION_ROLLOUTS_PER_TYPE:-12} * 6 ))"
 
 if [[ "${ABLATION_PREFLIGHT_ONLY:-0}" == "1" ]]; then
   echo "[1xa800-ablation] preflight passed; no rollout started."
