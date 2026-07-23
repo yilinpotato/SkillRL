@@ -55,6 +55,20 @@ RUNTIME_TASK_TYPES = tuple(TASK_TYPE_TO_RUNTIME[tt] for tt in TASK_TYPES)
 SKILL_LEVEL_ARMS = tuple(f"skill_level_l{i}" for i in range(6))
 TREE_ARMS = SKILL_LEVEL_ARMS[1:]
 MAX_TREE_GENERATION_ATTEMPTS = 20
+# V2 receives a large fixed corpus.  Keep every trace in the compression
+# statistics/prefix tree, then choose the *prompt examples* deterministically
+# rather than letting JSONL input order decide what the cloud sees.
+TREE_EVIDENCE_SAMPLING = {
+    "algorithm": "hash_stratified_outcome_length_loop_task_diversity_v1",
+    "seed": 20260723,
+    # Diagnosis is per task type in V2, so this remains a bounded prompt.
+    "diagnose": {"success": 6, "failure": 10},
+    # The actual tree-authoring prompt gets more evidence than diagnosis.
+    "evolve": {"success": 10, "failure": 14},
+    # L0 preserves SkillRL's original five-example prompt budget.  Only its
+    # choice of those five failures is made order-independent.
+    "flat_skillrl": {"failure": 5},
+}
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -98,6 +112,95 @@ def _sha256_text(value: str) -> str:
 
 def _approx_tokens(text: str) -> int:
     return max(1, len(text) // 4) if text else 0
+
+
+def _stable_trace_rank(trace: Dict[str, Any], *, salt: str) -> str:
+    """Stable pseudo-random order without depending on JSONL line order."""
+    value = f"{TREE_EVIDENCE_SAMPLING['seed']}:{salt}:{trace.get('traj_uid', '')}"
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _trace_task_key(trace: Dict[str, Any]) -> str:
+    """Prefer one example per natural-language goal before repeating a goal."""
+    task = " ".join(str(trace.get("task", "")).split())
+    return task or str(trace.get("traj_uid", ""))
+
+
+def _stratified_trace_sample(traces: List[Dict[str, Any]], limit: int, *, salt: str
+                             ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Pick bounded, reproducible evidence across length/loop/task strata.
+
+    Callers already split by task type and outcome.  Within that bucket this
+    avoids a corpus sorted by seed, game, or outcome variant silently turning
+    into a first-N prompt.  A first pass prefers different natural-language
+    task descriptions; a second pass fills any remaining budget.
+    """
+    if limit <= 0 or not traces:
+        return [], {"available": len(traces), "requested": limit, "selected": 0,
+                    "selected_traj_uids": [], "selected_strata": {}}
+    ranked = sorted(traces, key=lambda trace: (
+        len(trace.get("steps") or []), _stable_trace_rank(trace, salt=salt)))
+    length_bucket: Dict[str, str] = {}
+    total = len(ranked)
+    for index, trace in enumerate(ranked):
+        # Tertiles are local to this task_type/outcome bucket, which makes the
+        # same rule usable for both short successes and long failures.
+        length_bucket[str(trace.get("traj_uid", ""))] = ("short" if index * 3 < total
+                                                            else "medium" if index * 3 < total * 2
+                                                            else "long")
+    strata: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for trace in traces:
+        loop = "loop" if int(trace.get("dropped_loops", 0) or 0) > 0 else "no_loop"
+        bucket = length_bucket[str(trace.get("traj_uid", ""))]
+        strata[f"{loop}:{bucket}"].append(trace)
+    for values in strata.values():
+        values.sort(key=lambda trace: _stable_trace_rank(trace, salt=salt))
+
+    ordered_strata = sorted(strata)
+    positions = {name: 0 for name in ordered_strata}
+    selected: List[Dict[str, Any]] = []
+    selected_ids = set()
+    selected_tasks = set()
+
+    def take_one(*, require_new_task: bool) -> bool:
+        progressed = False
+        for name in ordered_strata:
+            values = strata[name]
+            while positions[name] < len(values):
+                trace = values[positions[name]]
+                positions[name] += 1
+                uid = str(trace.get("traj_uid", ""))
+                if uid in selected_ids:
+                    continue
+                if require_new_task and _trace_task_key(trace) in selected_tasks:
+                    continue
+                selected.append(trace)
+                selected_ids.add(uid)
+                selected_tasks.add(_trace_task_key(trace))
+                progressed = True
+                break
+            if len(selected) >= limit:
+                break
+        return progressed
+
+    while len(selected) < limit and take_one(require_new_task=True):
+        pass
+    # Reset cursors so examples skipped solely because their task duplicated a
+    # first-pass example remain eligible to fill the requested quota.
+    positions = {name: 0 for name in ordered_strata}
+    while len(selected) < limit and take_one(require_new_task=False):
+        pass
+
+    selected_strata: Dict[str, int] = defaultdict(int)
+    for trace in selected:
+        loop = "loop" if int(trace.get("dropped_loops", 0) or 0) > 0 else "no_loop"
+        selected_strata[f"{loop}:{length_bucket[str(trace.get('traj_uid', ''))]}"] += 1
+    audit = {
+        "available": len(traces), "requested": limit, "selected": len(selected),
+        "selected_traj_uids": [str(trace.get("traj_uid", "")) for trace in selected],
+        "selected_strata": dict(sorted(selected_strata.items())),
+    }
+    return selected, audit
 
 
 def _git_commit(root: Path) -> str:
@@ -411,6 +514,57 @@ def _payload_accounting(batch: Dict[str, Any]) -> Dict[str, Any]:
             "cloud_payload_chars": len(text), "cloud_payload_tokens_chars_div_4": _approx_tokens(text)}
 
 
+def _tree_evidence_selection(batch: Dict[str, Any], directory: Path) -> Dict[str, Dict[str, Any]]:
+    """Select and persist the exact prompt evidence for canonical-tree V2.
+
+    The compressed batch remains an all-corpus artifact.  This separate file
+    makes the bounded cloud prompt reproducible and auditable without treating
+    unshown traces as if they had been individually read by the provider.
+    """
+    by_type: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(
+        lambda: {"success": [], "failure": []})
+    for trace in batch.get("success_samples", []) or []:
+        by_type[str(trace.get("task_type", "unknown"))]["success"].append(trace)
+    for trace in batch.get("failure_samples", []) or []:
+        by_type[str(trace.get("task_type", "unknown"))]["failure"].append(trace)
+
+    selected: Dict[str, Dict[str, Any]] = {}
+    for task_type in RUNTIME_TASK_TYPES:
+        bucket = by_type[task_type]
+        diag_success, diag_success_audit = _stratified_trace_sample(
+            bucket["success"], TREE_EVIDENCE_SAMPLING["diagnose"]["success"],
+            salt=f"diagnose:{task_type}:success")
+        diag_failure, diag_failure_audit = _stratified_trace_sample(
+            bucket["failure"], TREE_EVIDENCE_SAMPLING["diagnose"]["failure"],
+            salt=f"diagnose:{task_type}:failure")
+        evolve_success, evolve_success_audit = _stratified_trace_sample(
+            bucket["success"], TREE_EVIDENCE_SAMPLING["evolve"]["success"],
+            salt=f"evolve:{task_type}:success")
+        evolve_failure, evolve_failure_audit = _stratified_trace_sample(
+            bucket["failure"], TREE_EVIDENCE_SAMPLING["evolve"]["failure"],
+            salt=f"evolve:{task_type}:failure")
+        selected[task_type] = {
+            "diagnose": {"success": diag_success, "failure": diag_failure,
+                         "audit": {"success": diag_success_audit, "failure": diag_failure_audit}},
+            "evolve": {"success": evolve_success, "failure": evolve_failure,
+                       "audit": {"success": evolve_success_audit, "failure": evolve_failure_audit}},
+        }
+    # Keep only lineage/stratum metadata on disk: raw trajectory content is
+    # already preserved exactly once in compressed_batch.json.
+    audit = {
+        "sampling": TREE_EVIDENCE_SAMPLING,
+        "task_types": {
+            task_type: {
+                phase: values[phase]["audit"]
+                for phase in ("diagnose", "evolve")
+            }
+            for task_type, values in selected.items()
+        },
+    }
+    _write_json(directory / "tree_evidence_selection.json", audit)
+    return selected
+
+
 def _empty_skill_bank() -> Dict[str, Any]:
     return {
         "general_skills": [],
@@ -576,10 +730,15 @@ def build_l0_artifact(raw_path: Path, directory: Path) -> Path:
         if trace.get("outcome") != "success" and trace.get("episode_reward", 0) <= 0:
             failures[trace.get("task_type", "unknown")].append(_raw_to_skillrl_failure(trace))
     updater = SkillUpdater(max_new_skills_per_update=3)
+    evidence_selection = {"sampling": TREE_EVIDENCE_SAMPLING, "task_types": {}}
     for tt in RUNTIME_TASK_TYPES:
-        generated = updater.analyze_failures(failures.get(tt, []), skills) if failures.get(tt) else []
+        selected, selection_audit = _stratified_trace_sample(
+            failures.get(tt, []), TREE_EVIDENCE_SAMPLING["flat_skillrl"]["failure"],
+            salt=f"flat_skillrl:{tt}:failure")
+        evidence_selection["task_types"][tt] = {"failure": selection_audit}
+        generated = updater.analyze_failures(selected, skills) if selected else []
         for skill in generated:
-            source_trace_ids[skill["skill_id"]] = [x.get("traj_uid") for x in failures[tt]]
+            source_trace_ids[skill["skill_id"]] = [x.get("traj_uid") for x in selected]
         skills["task_specific_skills"][tt].extend(generated)
         call_dir = directory / "cloud_io"
         call_dir.mkdir(parents=True, exist_ok=True)
@@ -589,17 +748,21 @@ def build_l0_artifact(raw_path: Path, directory: Path) -> Path:
             (call_dir / f"l0_{tt}_response.txt").write_text(updater.last_response)
         audit.append({
             "purpose": "skillrl_flat_failure_analysis", "task_type": tt,
-            "failure_count": len(failures.get(tt, [])),
+            "failure_count_available": len(failures.get(tt, [])),
+            "failure_count_prompt_selected": len(selected),
+            "source_traj_uids": [x.get("traj_uid") for x in selected],
             "generated_ids": [x["skill_id"] for x in generated],
             "prompt_sha256": _sha256_text(updater.last_prompt or ""),
             "response_sha256": _sha256_text(updater.last_response or ""),
             **updater.last_usage,
         })
+    _write_json(directory / "flat_evidence_selection.json", evidence_selection)
     return _save_artifact_manifest(
         directory, "skill_level_l0", raw_path, skills, audit,
         {"skill_level": "L0", "target_depth": 0,
          "generation_protocol": "original SkillRL flat failure-analysis JSON",
-         "flat_skill_source_trace_ids": source_trace_ids},
+         "flat_skill_source_trace_ids": source_trace_ids,
+         "evidence_sampling": TREE_EVIDENCE_SAMPLING},
     )
 
 
@@ -673,18 +836,30 @@ def build_canonical_tree_artifact(raw_path: Path, directory: Path,
     _write_json(empty_path, _empty_skill_bank())
     lib = HierarchicalSkillLib(str(empty_path), retrieval_mode="template", enable_playbook=True)
     analyzer = CloudAnalyzer(output_dir=str(directory), environment_name="ALFWorld")
-    diagnoses = analyzer.diagnose_failures(batch)
-    grouped: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(lambda: {"success": [], "failure": []})
-    for trace in (batch.get("success_samples", []) + batch.get("failure_samples", [])):
-        grouped[trace.get("task_type", "unknown")][trace.get("outcome", "failure")].append(trace)
+    evidence = _tree_evidence_selection(batch, directory)
+    diagnoses: Dict[str, List[Dict[str, Any]]] = {}
+    # One type per call permits substantially more evidence without a six-task
+    # mega-prompt and makes cloud usage honestly attributable to that type.
+    for tt in RUNTIME_TASK_TYPES:
+        diag_evidence = evidence[tt]["diagnose"]
+        diag_batch = dict(batch)
+        diag_batch.update({"task_type": tt, "success_samples": diag_evidence["success"],
+                           "failure_samples": diag_evidence["failure"]})
+        diagnoses[tt] = analyzer.diagnose_failures(
+            diag_batch, task_type=tt,
+            max_success_examples=TREE_EVIDENCE_SAMPLING["diagnose"]["success"],
+            max_failure_examples=TREE_EVIDENCE_SAMPLING["diagnose"]["failure"],
+        ).get(tt, [])
     status, node_accounting = {}, {}
     for tt in RUNTIME_TASK_TYPES:
-        bucket = grouped[tt]
+        bucket = evidence[tt]["evolve"]
         result, attempts, repair_candidate = None, 0, None
         while attempts < max_attempts:
             result = analyzer.evolve_playbook(
                 tt, None, bucket["success"], bucket["failure"], diagnoses.get(tt, []),
                 target_depth=5, repair_candidate=repair_candidate,
+                max_success_examples=TREE_EVIDENCE_SAMPLING["evolve"]["success"],
+                max_failure_examples=TREE_EVIDENCE_SAMPLING["evolve"]["failure"],
                 repair_feedback=({
                     "actual_depth": result.get("actual_depth"),
                     "depth_validation_errors": result.get("depth_validation_errors", []),
@@ -719,6 +894,8 @@ def build_canonical_tree_artifact(raw_path: Path, directory: Path,
         {"generation_protocol": "one_canonical_l5_per_task_then_deterministic_truncation",
          "canonical_tree_depth": 5, "tree_generation_status": status,
          "tree_generation_max_attempts": max_attempts,
+         "evidence_sampling": TREE_EVIDENCE_SAMPLING,
+         "evidence_selection_sha256": _sha256_path(directory / "tree_evidence_selection.json"),
          "node_token_accounting": node_accounting,
          "node_generated_tokens_chars_div_4_total": sum(
              int(value.get("generated_tokens_chars_div_4", 0) or 0)

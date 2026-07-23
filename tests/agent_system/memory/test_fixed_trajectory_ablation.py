@@ -17,7 +17,8 @@ from examples.playbook_evolve.fixed_trajectory_ablation import (
     RUNTIME_TASK_TYPES, SKILL_LEVEL_ARMS, TASK_TYPE_TO_RUNTIME, _empty_skill_bank,
     _ensure_empty_bootstrap_skills, _driver_cmd, _small_tokens_from_episodes, _tree_stats, build_l0_artifact,
     _tree_node_token_accounting, _truncate_tree_to_depth, build_derived_tree_artifact,
-    build_tree_artifact, evaluate_arm, import_external_raw_traces, validate_manifest_pair, write_summary,
+    _stratified_trace_sample, build_tree_artifact, evaluate_arm, import_external_raw_traces,
+    validate_manifest_pair, write_summary,
 )
 from examples.playbook_evolve.run_playbook_evolve import (
     NORL_TASK_TYPES, _canonical_task_type, _canonicalize_token_breakdown,
@@ -249,6 +250,36 @@ def test_external_trace_import_normalizes_runtime_labels_and_records_lineage(tmp
     assert len(lineage["source_sha256"]) == len(lineage["normalized_sha256"]) == 64
 
 
+def test_tree_evidence_sampling_is_order_independent_and_stratified():
+    traces = []
+    for index in range(18):
+        traces.append({
+            "traj_uid": f"trace-{index}", "task": f"goal-{index % 9}",
+            "steps": [{"action": "x"}] * (index + 1),
+            "dropped_loops": 1 if index % 2 else 0,
+        })
+    selected_a, audit_a = _stratified_trace_sample(traces, 9, salt="test")
+    selected_b, audit_b = _stratified_trace_sample(list(reversed(traces)), 9, salt="test")
+    assert [trace["traj_uid"] for trace in selected_a] == [trace["traj_uid"] for trace in selected_b]
+    assert audit_a == audit_b
+    assert audit_a["selected"] == 9
+    assert len(audit_a["selected_strata"]) >= 4
+    assert len({trace["task"] for trace in selected_a}) >= 6
+
+
+def test_tree_prompt_respects_explicit_larger_evidence_budget():
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.environment_name = "ALFWorld"
+    successes = [_trace("success") | {"traj_uid": f"success-{i}"} for i in range(6)]
+    failures = [_trace("failure") | {"traj_uid": f"failure-{i}"} for i in range(8)]
+    prompt = analyzer._build_evolve_prompt(
+        "heat", None, successes, failures, [], target_depth=2,
+        max_success_examples=6, max_failure_examples=8,
+    )
+    assert "Trajectory 6 [success]" in prompt
+    assert "Trajectory 8 [failure]" in prompt
+
+
 def test_derived_tree_artifact_has_no_duplicate_cloud_calls(tmp_path):
     raw = tmp_path / "raw.jsonl"
     raw.write_text(json.dumps(_trace("success")) + "\n")
@@ -347,6 +378,8 @@ def test_l0_artifact_is_original_skillrl_flat_schema_without_tree(tmp_path, monk
     assert manifest["arm"] == "skill_level_l0"
     assert manifest["skill_level"] == "L0" and manifest["target_depth"] == 0
     assert manifest["flat_skills"]["total"] == 1
+    evidence = json.loads((tmp_path / "l0" / "flat_evidence_selection.json").read_text())
+    assert evidence["task_types"]["heat"]["failure"]["selected_traj_uids"] == ["failure-1"]
     assert "skill_trees" not in skills
     assert skills["task_specific_skills"]["heat"][0]["skill_id"] == "dyn_001"
 

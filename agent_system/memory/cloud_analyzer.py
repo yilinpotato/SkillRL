@@ -185,6 +185,10 @@ class CloudAnalyzer:
     def diagnose_failures(
         self,
         compressed_batch: Dict[str, Any],
+        *,
+        task_type: Optional[str] = None,
+        max_success_examples: int = 3,
+        max_failure_examples: int = 6,
     ) -> Dict[str, List[Dict]]:
         """一次 LLM 调用，诊断本批**所有失败轨迹**的错误原因。
 
@@ -204,8 +208,11 @@ class CloudAnalyzer:
         fail_by_type = self._group_by_task_type(failures)
         succ_by_type = self._group_by_task_type(successes)
 
-        prompt = self._build_diagnose_prompt(fail_by_type, succ_by_type,
-                                             compressed_batch.get("prefix_tree", {}))
+        prompt = self._build_diagnose_prompt(
+            fail_by_type, succ_by_type, compressed_batch.get("prefix_tree", {}),
+            max_success_examples=max_success_examples,
+            max_failure_examples=max_failure_examples,
+        )
         # 落盘发给云端大模型的原始 prompt（诊断产物本身已落盘，这里额外存"看到的输入"，
         # 便于核对共识折叠/分叉点是否真的按预期传给了大模型）。
         if self.playbook_io_dir is not None:
@@ -219,16 +226,25 @@ class CloudAnalyzer:
                 max_completion_tokens=self.max_completion_tokens,
             )
             content = response.choices[0].message.content
-            self._record_call("diagnose_failures", prompt, content, getattr(response, "usage", None))
+            self._record_call("diagnose_failures", prompt, content, getattr(response, "usage", None),
+                              task_type=task_type)
             if self.playbook_io_dir is not None:
                 self._dump_text(self.playbook_io_dir,
                                 f"diagnose_response_{compressed_batch.get('batch_id', 'x')[:8]}.txt", content)
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
-                # Mixes every task_type in one call - see contrastive_distill.
-                self.total_prompt_tokens_mixed += response.usage.prompt_tokens
-                self.total_completion_tokens_mixed += response.usage.completion_tokens
+                if task_type:
+                    self.total_prompt_tokens_by_task_type[task_type] = (
+                        self.total_prompt_tokens_by_task_type.get(task_type, 0)
+                        + response.usage.prompt_tokens)
+                    self.total_completion_tokens_by_task_type[task_type] = (
+                        self.total_completion_tokens_by_task_type.get(task_type, 0)
+                        + response.usage.completion_tokens)
+                else:
+                    # Legacy callers can still submit a mixed batch.
+                    self.total_prompt_tokens_mixed += response.usage.prompt_tokens
+                    self.total_completion_tokens_mixed += response.usage.completion_tokens
             self.n_diagnose_calls += 1
 
             diags = self._parse_json_array(content)
@@ -255,19 +271,23 @@ class CloudAnalyzer:
         fail_by_type: Dict[str, List[Dict]],
         succ_by_type: Dict[str, List[Dict]],
         prefix_tree: Dict,
+        *,
+        max_success_examples: int = 3,
+        max_failure_examples: int = 6,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
         sections = []
         for tt, fails in fail_by_type.items():
             # 给每条失败轨迹一个稳定 ref: "<task_type>#<i>"
             fail_labeled = []
-            for i, tr in enumerate(fails[:6]):
+            for i, tr in enumerate(fails[:max_failure_examples]):
                 tr = dict(tr)
                 tr["_ref"] = f"{tt}#{i}"
                 fail_labeled.append(tr)
             # 共识前缀（该类型成功轨迹一致的起始段）：端侧已掌握，折叠不重发。
             consensus = longest_common_action_prefix(succ_by_type.get(tt, []))
-            succ_txt = self._format_difftraces(succ_by_type.get(tt, []), limit=3, consensus=consensus)
+            succ_txt = self._format_difftraces(
+                succ_by_type.get(tt, []), limit=max_success_examples, consensus=consensus)
             fail_txt = self._format_difftraces_reflabeled(fail_labeled, consensus=consensus)
             con_line = (f"CONSENSUS PREFIX (the edge already masters these opening steps — the failure "
                         f"is NOT here, look at the DIVERGENCE after it): {' → '.join(consensus)}\n"
@@ -358,6 +378,8 @@ Return ONLY the JSON array, no other text."""
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
         repair_feedback: Optional[Dict[str, Any]] = None,
+        max_success_examples: int = 4,
+        max_failure_examples: int = 5,
     ) -> Optional[Dict]:
         """生成 / 细化该 agent 唯一的 skill tree（大模型从零撰写，层次化推进）。
 
@@ -379,6 +401,8 @@ Return ONLY the JSON array, no other text."""
             task_type, current_playbook, success_traces, failure_traces,
             diagnoses or [], history or [], target_depth=target_depth,
             repair_candidate=repair_candidate, repair_feedback=repair_feedback,
+            max_success_examples=max_success_examples,
+            max_failure_examples=max_failure_examples,
         )
         # 落盘发给云端大模型的原始 prompt（call 计数器区分同一 task_type 的多轮进化）。
         if self.playbook_io_dir is not None:
@@ -455,12 +479,16 @@ Return ONLY the JSON array, no other text."""
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
         repair_feedback: Optional[Dict[str, Any]] = None,
+        max_success_examples: int = 4,
+        max_failure_examples: int = 5,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
         cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
         consensus = longest_common_action_prefix(success_traces)
-        succ_txt = self._format_difftraces(success_traces, limit=4, consensus=consensus)
-        fail_txt = self._format_difftraces(failure_traces, limit=5, consensus=consensus)
+        succ_txt = self._format_difftraces(
+            success_traces, limit=max_success_examples, consensus=consensus)
+        fail_txt = self._format_difftraces(
+            failure_traces, limit=max_failure_examples, consensus=consensus)
         diag_txt = self._format_diagnoses(diagnoses)
         con_txt = (" → ".join(consensus) if consensus else
                    "(none — no shared successful opening yet)")
