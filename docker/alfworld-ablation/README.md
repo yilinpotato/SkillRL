@@ -134,6 +134,37 @@ HOST_MODEL_PATH=/path/to/Qwen3-4B-Thinking-2507 \
 bash docker/run_alfworld_ablation_container.sh trace-compression-off
 ```
 
+### Skill-tree V2: imported traces and one canonical tree
+
+Set `HOST_EXTERNAL_RAW_TRACES` to a host-side `raw_traces.jsonl`. The helper
+mounts it read-only and switches the skill-level runner to V2: it imports and
+validates the trace schema, generates one exact L5 canonical tree per task,
+then derives L1–L5 only by deterministic heading truncation. No bootstrap
+rollout is run. V2 selects five distinct evaluation games per task by default;
+with the standard 12 replicas per game this is 360 evaluation rollouts per arm.
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+HOST_MODEL_PATH=/path/to/Qwen3-4B-Thinking-2507 \
+HOST_EXTERNAL_RAW_TRACES=/path/to/raw_traces.jsonl \
+EVAL_GAMES_PER_TYPE=5 \
+HOST_OUTPUT_ROOT=/path/to/skill_tree_v2 \
+bash docker/run_alfworld_ablation_container.sh skill-level --phase all
+```
+
+`artifacts/canonical_tree_l5/tree_node_token_accounting.json` records the
+exclusive rendered-text token estimate for every node. The root
+`ablation_summary.json` records that shared canonical generation cost once;
+provider API usage remains a separate per-request metric.
+
+All real cloud-backed modes validate the cloud backend before CUDA/vLLM allocation.
+Pass `DEEPSEEK_API_KEY` either through the host environment or the repository
+`.env`/`COSKILL_ENV_FILE`; the container helper forwards it without putting the
+secret in image layers. The default `CLOUD_BOOTSTRAP_PROBE=1` makes one tiny
+real API request and fails immediately for an unavailable key or endpoint. Set
+`CLOUD_BOOTSTRAP_PROBE=0` only when queue validation must remain offline; it
+still checks the local CloudAnalyzer configuration and requires the key.
+
 Set `CUDA_VISIBLE_DEVICES=0,1` or `0,1,2,3` for DP=2 or DP=4. On the shared
 local 3090 host the helper intentionally permits only an idle physical GPU 1.
 `HOST_MODEL_PATH` is mounted read-only; omit it when the model is baked into

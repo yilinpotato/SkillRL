@@ -16,6 +16,9 @@ fi
 set -u
 
 source "$PROJECT_ROOT/scripts/load_private_env.sh"
+# This is intentionally before any nvidia-smi/GPU selection.  The external
+# trace V2 still needs cloud generation of its one canonical L5 tree.
+source "$PROJECT_ROOT/scripts/preflight_cloud_api.sh"
 export HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn CUDA_DEVICE_ORDER=PCI_BUS_ID PYTHONUNBUFFERED=1
 

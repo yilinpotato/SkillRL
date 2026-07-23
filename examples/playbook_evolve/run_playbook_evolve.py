@@ -35,16 +35,45 @@ from mini_test_pen_shelf.run_generic import extract_task, parse_model_output
 
 SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
 
-# Canonical no-RL task_type vocabulary for the per-subtask token breakdown.
-# Sourced from ALFWorld's own ground-truth traj_data.json field (the same
-# vocabulary find_games_by_type/_TASK_TYPE_TO_ID key on) rather than
-# ray_trainer.py's KNOWN_TASK_TYPES: the RL side only has decoded prompt text
-# to work with and detects task_type via regex heuristic, but the no-RL
-# driver already retrieves the exact ground-truth task_type per episode
-# (ProdObsBuilder.retrieved["task_type"]), so it uses its own real vocabulary
-# instead of forcing the RL side's heuristic taxonomy onto it. "unknown" is
-# included since retrieval falls back to it when unset.
-NORL_TASK_TYPES = tuple(_TASK_TYPE_TO_ID.keys()) + ("unknown",)
+# ``ProdObsBuilder``/``SkillsOnlyMemory`` and the skill trees use these short
+# runtime labels.  ALFWorld's ``traj_data.json`` instead uses the longer
+# dataset labels in ``_TASK_TYPE_TO_ID``.  Token accounting used to initialize
+# with the latter but accumulate with the former, then serialize only the
+# former; four of six per-task token buckets were silently dropped.  Keep one
+# canonical vocabulary for every runtime metric and normalize legacy dataset
+# names only at input boundaries (fixed manifests and old checkpoints).
+TASK_TYPE_TO_RUNTIME = {
+    "pick_and_place_simple": "pick_and_place",
+    "look_at_obj_in_light": "look_at_obj_in_light",
+    "pick_clean_then_place_in_recep": "clean",
+    "pick_heat_then_place_in_recep": "heat",
+    "pick_cool_then_place_in_recep": "cool",
+    "pick_two_obj_and_place": "pick_two_obj_and_place",
+}
+NORL_TASK_TYPES = tuple(TASK_TYPE_TO_RUNTIME.values()) + ("unknown",)
+
+
+def _canonical_task_type(task_type):
+    """Map dataset/legacy ALFWorld labels into the runtime metric vocabulary."""
+    task_type = str(task_type or "unknown")
+    return TASK_TYPE_TO_RUNTIME.get(task_type, task_type if task_type in NORL_TASK_TYPES else "unknown")
+
+
+def _canonicalize_token_breakdown(by_task_type, token_keys):
+    """Merge old and new task labels without losing resume-time token usage."""
+    normalized = {tt: {key: 0 for key in token_keys} for tt in NORL_TASK_TYPES}
+    for raw_tt, usage in (by_task_type or {}).items():
+        bucket = normalized[_canonical_task_type(raw_tt)]
+        for key in token_keys:
+            bucket[key] += int((usage or {}).get(key, 0) or 0)
+    return normalized
+
+
+def _canonicalize_count_breakdown(by_task_type):
+    normalized = {tt: 0 for tt in NORL_TASK_TYPES}
+    for raw_tt, value in (by_task_type or {}).items():
+        normalized[_canonical_task_type(raw_tt)] += int(value or 0)
+    return normalized
 
 
 def _trace_compression_metric_fields(args):
@@ -155,6 +184,11 @@ def _load_resume_state(args):
         "large_model_tokens_by_tt": {
             tt: {"prompt": 0, "completion": 0, "total": 0} for tt in NORL_TASK_TYPES},
         "large_model_tokens_mixed": {"prompt": 0, "completion": 0, "total": 0},
+        "large_model_usage": {
+            "reported_calls": 0, "missing_calls": 0,
+            "missing_calls_by_task_type": {tt: 0 for tt in NORL_TASK_TYPES},
+            "missing_calls_mixed": 0,
+        },
         "cloud_updates": 0,
         "cloud_update_steps": [],
     }
@@ -202,25 +236,43 @@ def _load_resume_state(args):
         key: int(saved_large_tokens.get(key, 0) or 0)
         for key in ("prompt", "completion", "total")
     }
-    saved_small_by_tt = (saved_small_tokens.get("by_task_type", {}) or {})
-    state["small_model_tokens_by_tt"] = {
-        tt: {
-            key: int((saved_small_by_tt.get(tt, {}) or {}).get(key, 0) or 0)
-            for key in ("prompt", "response", "total")
-        } for tt in NORL_TASK_TYPES
-    }
-    saved_large_by_tt = (saved_large_tokens.get("by_task_type", {}) or {})
-    state["large_model_tokens_by_tt"] = {
-        tt: {
-            key: int((saved_large_by_tt.get(tt, {}) or {}).get(key, 0) or 0)
-            for key in ("prompt", "completion", "total")
-        } for tt in NORL_TASK_TYPES
-    }
+    # A checkpoint written before the runtime-name fix may contain both old
+    # dataset keys (zero) and dynamically-added runtime keys (non-zero).
+    # Canonicalizing and summing here preserves its actual accumulated usage.
+    state["small_model_tokens_by_tt"] = _canonicalize_token_breakdown(
+        saved_small_tokens.get("by_task_type", {}) or {},
+        ("prompt", "response", "total"),
+    )
+    state["large_model_tokens_by_tt"] = _canonicalize_token_breakdown(
+        saved_large_tokens.get("by_task_type", {}) or {},
+        ("prompt", "completion", "total"),
+    )
     saved_large_mixed = (saved_large_tokens.get("mixed", {}) or {})
     state["large_model_tokens_mixed"] = {
         key: int(saved_large_mixed.get(key, 0) or 0)
         for key in ("prompt", "completion", "total")
     }
+    saved_usage = saved_large_tokens.get("usage", {}) or {}
+    state["large_model_usage"] = {
+        "reported_calls": int(saved_usage.get("reported_calls", 0) or 0),
+        "missing_calls": int(saved_usage.get("missing_calls", 0) or 0),
+        "missing_calls_by_task_type": _canonicalize_count_breakdown(
+            saved_usage.get("missing_calls_by_task_type", {}) or {}),
+        "missing_calls_mixed": int(saved_usage.get("missing_calls_mixed", 0) or 0),
+    }
+    # ``per_game`` has always stored the actual runtime label and episode
+    # tokens.  Rebuild this ledger when resuming a pre-fix run, where the
+    # serialized per-task summary may already have dropped four buckets.
+    if state["per_game"]:
+        rebuilt_small = {tt: {"prompt": 0, "response": 0, "total": 0}
+                         for tt in NORL_TASK_TYPES}
+        for episode in state["per_game"]:
+            bucket = rebuilt_small[_canonical_task_type(episode.get("detected_type"))]
+            for key, field in (("prompt", "tokens_prompt"),
+                               ("response", "tokens_response"),
+                               ("total", "tokens_total")):
+                bucket[key] += int(episode.get(field, 0) or 0)
+        state["small_model_tokens_by_tt"] = rebuilt_small
     state["cloud_update_steps"] = list(prev_summary.get("cloud_update_steps", []) or [])
     state["cloud_updates"] = len(state["cloud_update_steps"])
 
@@ -1152,6 +1204,9 @@ def main():
     }
     large_model_token_offset_mixed = dict(
         resume_state.get("large_model_tokens_mixed", {"prompt": 0, "completion": 0, "total": 0}))
+    large_model_usage_offset = dict(resume_state.get("large_model_usage", {}) or {})
+    large_model_usage_offset_by_tt = _canonicalize_count_breakdown(
+        large_model_usage_offset.get("missing_calls_by_task_type", {}) or {})
 
     # env.seed() 只在 make_single_env() 建环境时调用过一次（见上方注释）：接下来的
     # reset() 全部靠 textworld 自带的 shuffled_cycle 自然推进 + 整轮重洗，不再逐局
@@ -1164,7 +1219,7 @@ def main():
         won = ep_result["won"]
         used = ep_result["used"]
         raw_trace = ep_result["raw_trace"]
-        tt_detected = ep_result["task_type"]
+        tt_detected = _canonical_task_type(ep_result["task_type"])
         injected = ep_result["injected"]
         nval = ep_result["n_valid"]
         logrows = ep_result["logrows"]
@@ -1271,22 +1326,41 @@ def main():
                 "prompt": 0, "completion": 0, "total": 0,
                 "by_task_type": zero_by_tt,
                 "mixed": {"prompt": 0, "completion": 0, "total": 0},
+                "usage": {
+                    "reported_calls": int(large_model_usage_offset.get("reported_calls", 0) or 0),
+                    "missing_calls": int(large_model_usage_offset.get("missing_calls", 0) or 0),
+                    "missing_calls_by_task_type": large_model_usage_offset_by_tt,
+                    "missing_calls_mixed": int(
+                        large_model_usage_offset.get("missing_calls_mixed", 0) or 0),
+                },
             }
         prompt = int(getattr(analyzer, "total_prompt_tokens", 0) or 0)
         completion = int(getattr(analyzer, "total_completion_tokens", 0) or 0)
-        by_tt_prompt = getattr(analyzer, "total_prompt_tokens_by_task_type", {}) or {}
-        by_tt_completion = getattr(analyzer, "total_completion_tokens_by_task_type", {}) or {}
+        by_tt_prompt = _canonicalize_token_breakdown(
+            {tt: {"prompt": value} for tt, value in
+             (getattr(analyzer, "total_prompt_tokens_by_task_type", {}) or {}).items()},
+            ("prompt",),
+        )
+        by_tt_completion = _canonicalize_token_breakdown(
+            {tt: {"completion": value} for tt, value in
+             (getattr(analyzer, "total_completion_tokens_by_task_type", {}) or {}).items()},
+            ("completion",),
+        )
         by_task_type = {}
         for tt in NORL_TASK_TYPES:
             p = int(large_model_token_offset_by_tt.get(tt, {}).get("prompt", 0) or 0) \
-                + int(by_tt_prompt.get(tt, 0) or 0)
+                + int(by_tt_prompt[tt]["prompt"] or 0)
             c = int(large_model_token_offset_by_tt.get(tt, {}).get("completion", 0) or 0) \
-                + int(by_tt_completion.get(tt, 0) or 0)
+                + int(by_tt_completion[tt]["completion"] or 0)
             by_task_type[tt] = {"prompt": p, "completion": c, "total": p + c}
         mixed_prompt = int(large_model_token_offset_mixed.get("prompt", 0) or 0) \
             + int(getattr(analyzer, "total_prompt_tokens_mixed", 0) or 0)
         mixed_completion = int(large_model_token_offset_mixed.get("completion", 0) or 0) \
             + int(getattr(analyzer, "total_completion_tokens_mixed", 0) or 0)
+        missing_by_tt = _canonicalize_count_breakdown(
+            getattr(analyzer, "usage_missing_calls_by_task_type", {}) or {})
+        for tt in NORL_TASK_TYPES:
+            missing_by_tt[tt] += large_model_usage_offset_by_tt[tt]
         return {
             "prompt": int(large_model_token_offset.get("prompt", 0) or 0) + prompt,
             "completion": int(large_model_token_offset.get("completion", 0) or 0) + completion,
@@ -1295,6 +1369,16 @@ def main():
             "mixed": {
                 "prompt": mixed_prompt, "completion": mixed_completion,
                 "total": mixed_prompt + mixed_completion,
+            },
+            "usage": {
+                "reported_calls": int(large_model_usage_offset.get("reported_calls", 0) or 0)
+                + int(getattr(analyzer, "usage_reported_calls", 0) or 0),
+                "missing_calls": int(large_model_usage_offset.get("missing_calls", 0) or 0)
+                + int(getattr(analyzer, "usage_missing_calls", 0) or 0),
+                "missing_calls_by_task_type": missing_by_tt,
+                "missing_calls_mixed": int(
+                    large_model_usage_offset.get("missing_calls_mixed", 0) or 0)
+                + int(getattr(analyzer, "usage_missing_calls_mixed", 0) or 0),
             },
         }
 
@@ -1318,8 +1402,8 @@ def main():
 
         small_by_tt = {tt: {"prompt": 0, "response": 0, "total": 0} for tt in NORL_TASK_TYPES}
         for record in records:
-            tt = record["detected_type"]
-            bucket = small_by_tt.setdefault(tt, {"prompt": 0, "response": 0, "total": 0})
+            tt = _canonical_task_type(record["detected_type"])
+            bucket = small_by_tt[tt]
             bucket["prompt"] += int(record.get("tokens_prompt", 0) or 0)
             bucket["response"] += int(record.get("tokens_response", 0) or 0)
             bucket["total"] += int(record.get("tokens_total", 0) or 0)
@@ -1328,6 +1412,12 @@ def main():
                 tt, {"prompt": 0, "response": 0, "total": 0})
             for key in ("prompt", "response", "total"):
                 totals[key] += small_by_tt[tt][key]
+
+        small_by_tt_total = sum(bucket["total"] for bucket in small_by_tt.values())
+        if small_by_tt_total != int(small_tokens.get("total", 0) or 0):
+            raise RuntimeError(
+                "small-model token accounting mismatch: group total "
+                f"{small_tokens.get('total', 0)} != canonical task sum {small_by_tt_total}")
 
         large_delta = {
             "prompt": max(0, large_after["prompt"] - large_before["prompt"]),
@@ -1347,6 +1437,10 @@ def main():
             "completion": max(0, large_after["mixed"]["completion"] - large_before["mixed"]["completion"]),
         }
         large_delta_mixed["total"] = large_delta_mixed["prompt"] + large_delta_mixed["completion"]
+        large_usage_before = large_before.get("usage", {}) or {}
+        large_usage_after = large_after.get("usage", {}) or {}
+        large_missing_delta = max(0, int(large_usage_after.get("missing_calls", 0) or 0)
+                                  - int(large_usage_before.get("missing_calls", 0) or 0))
 
         metrics = {
             # group_id is the no-RL equivalent of one GRPO training step.
@@ -1391,6 +1485,9 @@ def main():
             "tokens/small_model/prompt_cumulative": small_model_token_totals["prompt"],
             "tokens/small_model/response_cumulative": small_model_token_totals["response"],
             "tokens/small_model/total_cumulative": small_model_token_totals["total"],
+            "tokens/small_model/by_task_type/total_reconciled": small_by_tt_total,
+            "tokens/small_model/by_task_type/reconciliation_error": (
+                int(small_tokens.get("total", 0) or 0) - small_by_tt_total),
             "tokens/large_model/prompt": large_delta["prompt"],
             "tokens/large_model/completion": large_delta["completion"],
             "tokens/large_model/total": large_delta["total"],
@@ -1398,6 +1495,11 @@ def main():
             "tokens/large_model/prompt_cumulative": large_after["prompt"],
             "tokens/large_model/completion_cumulative": large_after["completion"],
             "tokens/large_model/total_cumulative": large_after["total"],
+            "tokens/large_model/usage_missing_calls": large_missing_delta,
+            "tokens/large_model/usage_missing_calls_cumulative": int(
+                large_usage_after.get("missing_calls", 0) or 0),
+            "tokens/large_model/usage_reported_calls_cumulative": int(
+                large_usage_after.get("reported_calls", 0) or 0),
             "timing_s/rollout": round(float(rollout_seconds), 6),
             "timing_s/cloud_update": round(float(cloud_seconds), 6),
             "timing_s/group_total": round(float(total_seconds), 6),
@@ -1435,6 +1537,8 @@ def main():
             metrics[f"tokens/large_model/by_task_type/{tt}/total"] = large_delta_by_tt[tt]["total"]
             metrics[f"tokens/large_model/by_task_type/{tt}/total_cumulative"] = \
                 large_after["by_task_type"][tt]["total"]
+            metrics[f"tokens/large_model/by_task_type/{tt}/usage_missing_calls_cumulative"] = \
+                int((large_usage_after.get("missing_calls_by_task_type", {}) or {}).get(tt, 0) or 0)
         # contrastive_distill/diagnose_failures each mix every task_type into
         # one cloud call, so those tokens aren't attributable to a single
         # subtask - tracked honestly here instead of a fabricated split.
@@ -1443,6 +1547,8 @@ def main():
         metrics["tokens/large_model/mixed/total"] = large_delta_mixed["total"]
         metrics["tokens/large_model/mixed/total_cumulative"] = large_after["mixed"]["total"]
         metrics["tokens/large_model/mixed/accounting"] = "provider_api_usage_mixed_task_types"
+        metrics["tokens/large_model/mixed/usage_missing_calls_cumulative"] = int(
+            large_usage_after.get("missing_calls_mixed", 0) or 0)
 
         canonical_record = {
             "step": group_id,
@@ -1479,6 +1585,11 @@ def main():
     def _build_summary(status="running", checkpoint_reason=None, completed_groups=0):
         n = len(per_game)
         trees = _skill_tree_snapshot()
+        small_by_tt_total = sum(
+            int(usage.get("total", 0) or 0)
+            for usage in small_model_token_totals_by_tt.values()
+        )
+        small_reconciliation_error = int(small_model_token_totals.get("total", 0) or 0) - small_by_tt_total
         return {
             "status": status,
             "checkpoint_reason": checkpoint_reason,
@@ -1524,6 +1635,8 @@ def main():
                     "by_task_type": {
                         tt: dict(small_model_token_totals_by_tt[tt]) for tt in NORL_TASK_TYPES
                     },
+                    "by_task_type_total": small_by_tt_total,
+                    "by_task_type_reconciliation_error": small_reconciliation_error,
                 },
                 "large_model": _large_model_token_usage(),
             },

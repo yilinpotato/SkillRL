@@ -111,8 +111,11 @@ def _relative_game(game_file: str, data_root: Path) -> str:
     return os.path.relpath(os.path.realpath(game_file), os.path.realpath(data_root))
 
 
-def create_manifests(root: Path, data_root: Path, split: str, sample_seed: int) -> Tuple[Path, Path]:
-    """Select two distinct solvable games per type and write portable manifests."""
+def create_manifests(root: Path, data_root: Path, split: str, sample_seed: int,
+                     eval_games_per_type: int = 1) -> Tuple[Path, Path]:
+    """Select one bootstrap and N distinct evaluation games per task type."""
+    if eval_games_per_type < 1:
+        raise ValueError("eval_games_per_type must be at least 1")
     manifest_dir = root / "manifests"
     boot_path, eval_path = manifest_dir / "bootstrap_games.json", manifest_dir / "eval_games.json"
     if boot_path.exists() and eval_path.exists():
@@ -122,20 +125,27 @@ def create_manifests(root: Path, data_root: Path, split: str, sample_seed: int) 
     bootstrap, evaluation = [], []
     for offset, task_type in enumerate(TASK_TYPES):
         games = find_games_by_type(
-            task_type, alfworld_data=str(data_root), split=split, sample_n=2,
+            task_type, alfworld_data=str(data_root), split=split,
+            sample_n=1 + eval_games_per_type,
             sample_seed=sample_seed + offset, verbose=False,
         )
-        if len(games) < 2:
-            raise RuntimeError(f"need two solvable games for {task_type}, found {len(games)}")
-        for target, (game_file, _traj), role in (
-            (bootstrap, games[0], "bootstrap"), (evaluation, games[1], "eval"),
-        ):
-            target.append({
-                "label": f"{role}_{task_type}", "task_type": task_type,
+        if len(games) < 1 + eval_games_per_type:
+            raise RuntimeError(
+                f"need {1 + eval_games_per_type} solvable games for {task_type}, found {len(games)}")
+        game_file, _traj = games[0]
+        bootstrap.append({
+                "label": f"bootstrap_{task_type}", "task_type": task_type,
                 "game_file": _relative_game(game_file, data_root),
             })
-    _write_json(boot_path, {"split": split, "role": "bootstrap", "games": bootstrap})
-    _write_json(eval_path, {"split": split, "role": "eval", "games": evaluation})
+        for index, (game_file, _traj) in enumerate(games[1:], start=1):
+            evaluation.append({
+                "label": f"eval_{task_type}_{index}", "task_type": task_type,
+                "game_file": _relative_game(game_file, data_root),
+            })
+    _write_json(boot_path, {"split": split, "role": "bootstrap", "games": bootstrap,
+                            "games_per_task_type": 1})
+    _write_json(eval_path, {"split": split, "role": "eval", "games": evaluation,
+                            "games_per_task_type": eval_games_per_type})
     validate_manifest_pair(boot_path, eval_path, data_root)
     return boot_path, eval_path
 
@@ -143,13 +153,18 @@ def create_manifests(root: Path, data_root: Path, split: str, sample_seed: int) 
 def validate_manifest_pair(bootstrap_path: Path, eval_path: Path, data_root: Path) -> Dict[str, Any]:
     boot, ev = _read_json(bootstrap_path), _read_json(eval_path)
     b_games, e_games = boot.get("games", []), ev.get("games", [])
-    if {x.get("task_type") for x in b_games} != set(TASK_TYPES):
+    if {x.get("task_type") for x in b_games} != set(TASK_TYPES) or len(b_games) != len(TASK_TYPES):
         raise ValueError("bootstrap manifest must contain all six task types exactly once")
     if {x.get("task_type") for x in e_games} != set(TASK_TYPES):
-        raise ValueError("eval manifest must contain all six task types exactly once")
+        raise ValueError("eval manifest must contain every task type")
+    expected_eval_per_type = ev.get("games_per_task_type")
+    if expected_eval_per_type is not None:
+        if any(sum(x.get("task_type") == tt for x in e_games) != expected_eval_per_type
+               for tt in TASK_TYPES):
+            raise ValueError("eval manifest does not contain the declared number of games per task type")
     b_paths = {os.path.realpath(data_root / x["game_file"]) for x in b_games}
     e_paths = {os.path.realpath(data_root / x["game_file"]) for x in e_games}
-    if len(b_paths) != 6 or len(e_paths) != 6 or b_paths & e_paths:
+    if len(b_paths) != len(b_games) or len(e_paths) != len(e_games) or b_paths & e_paths:
         raise ValueError("bootstrap/eval manifests must each have six unique, non-overlapping games")
     missing = [p for p in b_paths | e_paths if not os.path.isfile(p)]
     if missing:
@@ -197,8 +212,111 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+def _canonical_runtime_task_type(task_type: Any) -> str:
+    """Accept either dataset-manifest or runtime skill-retrieval task labels."""
+    value = str(task_type or "")
+    return TASK_TYPE_TO_RUNTIME.get(value, value if value in RUNTIME_TASK_TYPES else "")
+
+
+def _normalize_external_trace(trace: Dict[str, Any], line_number: int) -> Dict[str, Any]:
+    """Validate and normalize an externally collected ALFWorld trace row.
+
+    The interface intentionally accepts the normal driver ``raw_traces.jsonl``
+    schema without requiring a run directory.  Only immutable trajectory data
+    is imported: no source skills, model state, or prior cloud outputs enter
+    the V2 artifact generation.
+    """
+    if not isinstance(trace, dict):
+        raise ValueError(f"external trace line {line_number} must be a JSON object")
+    task_type = _canonical_runtime_task_type(trace.get("task_type"))
+    if not task_type:
+        raise ValueError(
+            f"external trace line {line_number} has unsupported task_type={trace.get('task_type')!r}")
+    steps = trace.get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise ValueError(f"external trace line {line_number} must contain a non-empty steps list")
+    normalized_steps = []
+    for step_index, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):
+            raise ValueError(f"external trace line {line_number} step {step_index} must be an object")
+        action, observation = step.get("action"), step.get("observation")
+        if not isinstance(action, str) or not action.strip():
+            raise ValueError(f"external trace line {line_number} step {step_index} has no action")
+        if not isinstance(observation, str):
+            raise ValueError(f"external trace line {line_number} step {step_index} has no observation")
+        normalized_steps.append(dict(step))
+    success = trace.get("outcome") == "success" or float(trace.get("episode_reward", 0) or 0) > 0
+    normalized = dict(trace)
+    normalized["task_type"] = task_type
+    normalized["outcome"] = "success" if success else "failure"
+    normalized["episode_reward"] = float(trace.get("episode_reward", 1.0 if success else 0.0) or 0.0)
+    normalized["steps"] = normalized_steps
+    normalized.setdefault("traj_uid", f"external_line_{line_number}")
+    normalized.setdefault("task", "")
+    return normalized
+
+
+def import_external_raw_traces(source: Path, root: Path) -> Path:
+    """Import a supplied JSONL corpus once, with reproducible source lineage."""
+    source = source.expanduser().resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"external raw trace JSONL not found: {source}")
+    destination = root / "frozen" / "raw_traces.jsonl"
+    import_record = root / "frozen" / "external_trace_import.json"
+    source_sha256 = _sha256_path(source)
+    if destination.exists() or import_record.exists():
+        if not (destination.exists() and import_record.exists()):
+            raise RuntimeError("external trace import is incomplete; use a new --root")
+        existing = _read_json(import_record)
+        if existing.get("source_sha256") != source_sha256:
+            raise RuntimeError(
+                "external trace source differs from the corpus already imported into this root; "
+                "use a new --root rather than mixing trajectory evidence")
+        if existing.get("normalized_sha256") != _sha256_path(destination):
+            raise RuntimeError("imported external trace corpus checksum mismatch; use a new --root")
+        return destination
+
+    counts, success_counts = defaultdict(int), defaultdict(int)
+    normalized_lines: List[str] = []
+    seen_uids = set()
+    with source.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"external trace line {line_number} is not valid JSON: {exc}") from exc
+            trace = _normalize_external_trace(raw, line_number)
+            uid = str(trace["traj_uid"])
+            if uid in seen_uids:
+                raise ValueError(f"external trace traj_uid is duplicated: {uid!r}")
+            seen_uids.add(uid)
+            counts[trace["task_type"]] += 1
+            success_counts[trace["task_type"]] += int(trace["outcome"] == "success")
+            normalized_lines.append(json.dumps(trace, ensure_ascii=False) + "\n")
+    missing = [tt for tt in RUNTIME_TASK_TYPES if not counts[tt]]
+    if missing:
+        raise ValueError(f"external traces are missing task types: {', '.join(missing)}")
+    if not normalized_lines:
+        raise ValueError("external trace JSONL is empty")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("".join(normalized_lines), encoding="utf-8")
+    _write_json(import_record, {
+        "source_path": str(source), "source_sha256": source_sha256,
+        "normalized_raw_traces": str(destination), "normalized_sha256": _sha256_path(destination),
+        "trace_count": len(normalized_lines), "task_type_counts": dict(counts),
+        "success_counts": dict(success_counts),
+        "schema": {"required": ["task_type", "steps[].action", "steps[].observation"],
+                   "accepted_task_type_labels": list(TASK_TYPES) + list(RUNTIME_TASK_TYPES)},
+    })
+    return destination
+
+
 def bootstrap(args, root: Path, bootstrap_manifest: Path) -> Path:
     """Generate the common corpus; retry only task types with no success."""
+    if args.external_raw_traces:
+        return import_external_raw_traces(Path(args.external_raw_traces), root)
     frozen = root / "frozen" / "raw_traces.jsonl"
     empty_skills = _ensure_empty_bootstrap_skills(root)
     coverage_path = root / "frozen" / "bootstrap_coverage.json"
@@ -351,6 +469,69 @@ def _tree_stats(markdown: str) -> Dict[str, Any]:
     }
 
 
+def _tree_node_token_accounting(markdown: str) -> Dict[str, Any]:
+    """Attribute rendered tree text to exclusive nodes for V2 cost reporting.
+
+    Provider API usage is available only per request, not per Markdown node.
+    Therefore ``generated_tokens_chars_div_4`` is explicitly a reproducible
+    rendered-text estimate, while the unmodified provider totals remain in
+    ``cloud_calls``.  A node receives its heading and direct non-heading text,
+    never text owned by a descendant, so node totals compose exactly.
+    """
+    nodes: List[Dict[str, Any]] = []
+    stack: List[int] = []
+    current_index = None
+    for line in (markdown or "").splitlines():
+        if line.startswith("#") and line.lstrip("#").startswith(" "):
+            depth = len(line) - len(line.lstrip("#"))
+            while stack and nodes[stack[-1]]["depth"] >= depth:
+                stack.pop()
+            parent_index = stack[-1] if stack else None
+            index = len(nodes)
+            node = {
+                "node_id": f"n{index + 1}", "parent_node_id": (
+                    nodes[parent_index]["node_id"] if parent_index is not None else None),
+                "depth": depth, "label": line[depth:].strip(), "direct_lines": [line],
+            }
+            nodes.append(node)
+            stack.append(index)
+            current_index = index
+        elif current_index is not None:
+            nodes[current_index]["direct_lines"].append(line)
+    for node in nodes:
+        rendered = "\n".join(node.pop("direct_lines")).strip()
+        node["rendered_chars"] = len(rendered)
+        node["generated_tokens_chars_div_4"] = _approx_tokens(rendered)
+    return {
+        "method": "exclusive_node_rendered_text_chars_div_4",
+        "nodes": nodes,
+        "generated_tokens_chars_div_4": sum(
+            int(node["generated_tokens_chars_div_4"]) for node in nodes),
+    }
+
+
+def _truncate_tree_to_depth(markdown: str, target_depth: int) -> str:
+    """Derive L1-L5 from one canonical tree without another cloud request."""
+    if target_depth < 1:
+        raise ValueError("target_depth must be at least 1")
+    lines, include_current = [], False
+    for line in (markdown or "").splitlines():
+        if line.startswith("#") and line.lstrip("#").startswith(" "):
+            depth = len(line) - len(line.lstrip("#"))
+            include_current = depth <= target_depth
+            if include_current:
+                lines.append(line)
+        elif include_current:
+            lines.append(line)
+    result = "\n".join(lines).strip()
+    validation = CloudAnalyzer._validate_tree_depth(result, target_depth)
+    if not validation.get("depth_valid", False):
+        raise ValueError(
+            f"canonical tree cannot derive exact L{target_depth}: "
+            f"{validation.get('depth_validation_errors', [])}")
+    return result
+
+
 def _skill_stats(skills: Dict[str, Any]) -> Dict[str, Any]:
     flat = list(skills.get("general_skills", []))
     for _, entries in (skills.get("task_specific_skills", {}) or {}).items():
@@ -482,6 +663,117 @@ def build_tree_artifact(raw_path: Path, directory: Path, depth: int,
                                     **_payload_accounting(batch)})
 
 
+def build_canonical_tree_artifact(raw_path: Path, directory: Path,
+                                  max_attempts: int = MAX_TREE_GENERATION_ATTEMPTS) -> Path:
+    """Generate one exact L5 tree per task, the only cloud tree-generation step in V2."""
+    raw = _read_jsonl(raw_path)
+    batch = _compress_raw(raw, directory / "traces_pool", enable_loop_filter=True,
+                          enable_obs_delta=True, enable_prefix_tree=True, enable_consensus_prefix=True)
+    empty_path = directory / "empty_skills.json"
+    _write_json(empty_path, _empty_skill_bank())
+    lib = HierarchicalSkillLib(str(empty_path), retrieval_mode="template", enable_playbook=True)
+    analyzer = CloudAnalyzer(output_dir=str(directory), environment_name="ALFWorld")
+    diagnoses = analyzer.diagnose_failures(batch)
+    grouped: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(lambda: {"success": [], "failure": []})
+    for trace in (batch.get("success_samples", []) + batch.get("failure_samples", [])):
+        grouped[trace.get("task_type", "unknown")][trace.get("outcome", "failure")].append(trace)
+    status, node_accounting = {}, {}
+    for tt in RUNTIME_TASK_TYPES:
+        bucket = grouped[tt]
+        result, attempts, repair_candidate = None, 0, None
+        while attempts < max_attempts:
+            result = analyzer.evolve_playbook(
+                tt, None, bucket["success"], bucket["failure"], diagnoses.get(tt, []),
+                target_depth=5, repair_candidate=repair_candidate,
+                repair_feedback=({
+                    "actual_depth": result.get("actual_depth"),
+                    "depth_validation_errors": result.get("depth_validation_errors", []),
+                } if result else None),
+            )
+            attempts += 1
+            if result and result.get("depth_valid", False):
+                break
+            repair_candidate = (result or {}).get("skill_tree") or repair_candidate
+        if not result or not result.get("depth_valid", False):
+            status[tt] = {
+                "status": "generation_failed", "attempts": attempts,
+                "actual_depth": (result or {}).get("actual_depth"),
+                "heading_levels_present": (result or {}).get("heading_levels_present", []),
+                "depth_validation_errors": (result or {}).get("depth_validation_errors", ["cloud_no_result"]),
+            }
+            continue
+        rec = lib.update_playbook(tt, result["skill_tree"], result.get("level", "outline"), {
+            "target_depth": 5, "actual_depth": result.get("actual_depth"),
+            "depth_generation_attempts": attempts, "critique": result.get("critique", ""),
+            "changelog": result.get("changelog", ""),
+            "generation_protocol": "v2_canonical_l5_then_truncate",
+        })
+        node_accounting[tt] = _tree_node_token_accounting(rec["content"])
+        status[tt] = {"status": "ok", "version": rec["version"], "attempts": attempts,
+                      "actual_depth": result.get("actual_depth")}
+    failed = {tt: info for tt, info in status.items() if info["status"] != "ok"}
+    _write_json(directory / "generation_status.json", status)
+    _write_json(directory / "tree_node_token_accounting.json", node_accounting)
+    return _save_artifact_manifest(
+        directory, "canonical_tree_l5", raw_path, lib.skills, analyzer.call_audit,
+        {"generation_protocol": "one_canonical_l5_per_task_then_deterministic_truncation",
+         "canonical_tree_depth": 5, "tree_generation_status": status,
+         "tree_generation_max_attempts": max_attempts,
+         "node_token_accounting": node_accounting,
+         "node_generated_tokens_chars_div_4_total": sum(
+             int(value.get("generated_tokens_chars_div_4", 0) or 0)
+             for value in node_accounting.values()),
+         "status": "N.A." if failed else "ready", "evaluation_eligible": False,
+         "failed_task_types": sorted(failed), "compression": batch.get("compression", {}),
+         **_payload_accounting(batch)})
+
+
+def build_derived_tree_artifact(raw_path: Path, directory: Path, depth: int,
+                                canonical_directory: Path) -> Path:
+    """Materialize one evaluation arm by truncating the shared canonical L5 trees."""
+    canonical_manifest = _read_json(canonical_directory / "artifact_manifest.json")
+    canonical_skills = _read_json(canonical_directory / "skills.json")
+    skills = _empty_skill_bank()
+    status, node_accounting = {}, {}
+    for tt in RUNTIME_TASK_TYPES:
+        canonical_status = (canonical_manifest.get("tree_generation_status", {}) or {}).get(tt, {})
+        source = (canonical_skills.get("skill_trees", {}) or {}).get(tt)
+        if canonical_status.get("status") != "ok" or not isinstance(source, dict):
+            status[tt] = dict(canonical_status or {"status": "generation_failed"})
+            continue
+        content = _truncate_tree_to_depth(str(source.get("content", "")), depth)
+        record = dict(source)
+        record["content"] = content
+        record["level"] = f"derived_l{depth}"
+        metadata = dict(record.get("metadata", {}) or {})
+        metadata.update({"target_depth": depth, "derived_from": "canonical_tree_l5",
+                         "canonical_content_sha256": _sha256_text(str(source.get("content", "")))})
+        record["metadata"] = metadata
+        skills.setdefault("skill_trees", {})[tt] = record
+        node_accounting[tt] = _tree_node_token_accounting(content)
+        status[tt] = {"status": "ok", "derivation": "truncate_canonical_l5",
+                      "actual_depth": depth}
+    failed = {tt: info for tt, info in status.items() if info["status"] != "ok"}
+    _write_json(directory / "generation_status.json", status)
+    _write_json(directory / "tree_node_token_accounting.json", node_accounting)
+    return _save_artifact_manifest(
+        directory, f"skill_level_l{depth}", raw_path, skills, [],
+        {"generation_protocol": "deterministic_truncation_of_shared_canonical_l5",
+         "generation_cost_scope": "shared_canonical_tree_l5",
+         "canonical_artifact_sha256": canonical_manifest.get("skills_sha256"),
+         "canonical_cloud_call_count": len(canonical_manifest.get("cloud_calls", []) or []),
+         "canonical_node_generated_tokens_chars_div_4_total": canonical_manifest.get(
+             "node_generated_tokens_chars_div_4_total", 0),
+         "skill_level": f"L{depth}", "target_depth": depth,
+         "tree_generation_status": status, "node_token_accounting": node_accounting,
+         "node_generated_tokens_chars_div_4_total": sum(
+             int(value.get("generated_tokens_chars_div_4", 0) or 0)
+             for value in node_accounting.values()),
+         "status": "N.A." if failed else "ready", "evaluation_eligible": not bool(failed),
+         "unavailable_reason": "canonical_tree_generation_failed" if failed else None,
+         "failed_task_types": sorted(failed)})
+
+
 def build_artifacts(args, root: Path, raw_path: Path) -> Dict[str, Path]:
     artifacts = root / "artifacts"
     result = {}
@@ -489,12 +781,23 @@ def build_artifacts(args, root: Path, raw_path: Path) -> Dict[str, Path]:
     result["skill_level_l0"] = (
         l0 if l0.exists() else build_l0_artifact(raw_path, artifacts / "skill_level_l0")
     )
-    for depth in range(1, 6):
-        arm = f"skill_level_l{depth}"
-        path = artifacts / arm / "artifact_manifest.json"
-        result[arm] = (path if path.exists() else
-                       build_tree_artifact(raw_path, artifacts / arm, depth,
-                                           args.tree_generation_attempts))
+    if getattr(args, "external_raw_traces", None):
+        canonical_dir = artifacts / "canonical_tree_l5"
+        canonical_manifest = canonical_dir / "artifact_manifest.json"
+        if not canonical_manifest.exists():
+            build_canonical_tree_artifact(raw_path, canonical_dir, args.tree_generation_attempts)
+        for depth in range(1, 6):
+            arm = f"skill_level_l{depth}"
+            path = artifacts / arm / "artifact_manifest.json"
+            result[arm] = (path if path.exists() else
+                           build_derived_tree_artifact(raw_path, artifacts / arm, depth, canonical_dir))
+    else:
+        for depth in range(1, 6):
+            arm = f"skill_level_l{depth}"
+            path = artifacts / arm / "artifact_manifest.json"
+            result[arm] = (path if path.exists() else
+                           build_tree_artifact(raw_path, artifacts / arm, depth,
+                                               args.tree_generation_attempts))
     return result
 
 
@@ -521,7 +824,13 @@ def evaluate_arm(args, root: Path, eval_manifest: Path, arm: str) -> Path:
     level = int(arm.rsplit("l", 1)[1])
     use_flat_skills = int(level == 0)
     use_skill_tree = int(level > 0)
-    rollouts_per_group = len(TASK_TYPES) * args.rollouts_per_type
+    eval_games = _read_json(eval_manifest).get("games", [])
+    # Unit-level callers historically supplied a skeletal manifest because
+    # they inspect only the generated driver command. Real manifests are
+    # validated before this point; retain the original six-game fallback for
+    # that narrow compatibility path.
+    eval_game_count = len(eval_games) if eval_games else len(TASK_TYPES)
+    rollouts_per_group = eval_game_count * args.rollouts_per_type
     total_rollouts = rollouts_per_group * args.eval_groups_per_level
     cmd = _driver_cmd(args, output, eval_manifest, total_rollouts, rollouts_per_group,
                       use_flat_skills, use_skill_tree, 0, 0,
@@ -535,6 +844,36 @@ def evaluate_arm(args, root: Path, eval_manifest: Path, arm: str) -> Path:
 def _latest_group_metrics(path: Path) -> Dict[str, Any]:
     rows = _read_jsonl(path)
     return (rows[-1].get("metrics", {}) if rows else {})
+
+
+def _cloud_usage_status_counts(calls: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Separate reported zero usage from absent/legacy provider usage."""
+    return {
+        "missing": sum(1 for call in calls if call.get("usage_reported") is False),
+        # Artifacts written before explicit usage_status cannot distinguish a
+        # real provider-reported zero from a missing usage object.  Flag them
+        # as unverifiable instead of retrospectively asserting a zero cost.
+        "unverifiable": sum(1 for call in calls if "usage_reported" not in call),
+    }
+
+
+def _runtime_task_type(task_type: str) -> str:
+    """Use the skill-retrieval vocabulary for every derived report."""
+    return TASK_TYPE_TO_RUNTIME.get(task_type, task_type if task_type in RUNTIME_TASK_TYPES else "unknown")
+
+
+def _small_tokens_from_episodes(episodes: List[Dict[str, Any]]) -> Dict[str, Dict[str, int]]:
+    """Rebuild task-scoped SLM usage from the authoritative per-episode ledger."""
+    usage = {tt: {"prompt": 0, "response": 0, "total": 0} for tt in RUNTIME_TASK_TYPES}
+    for episode in episodes:
+        bucket = usage.get(_runtime_task_type(episode.get("detected_type", "unknown")))
+        if bucket is None:
+            continue
+        for key, field in (("prompt", "tokens_prompt"),
+                           ("response", "tokens_response"),
+                           ("total", "tokens_total")):
+            bucket[key] += int(episode.get(field, 0) or 0)
+    return usage
 
 
 def write_summary(root: Path, manifests: Dict[str, str]) -> None:
@@ -591,6 +930,14 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
         token_usage = summary.get("token_usage", {}) or {}
         small_usage = token_usage.get("small_model", {}) or {}
         large_usage = token_usage.get("large_model", {}) or {}
+        # ``per_game`` retains the actual runtime task name and token count.
+        # Rebuild from it so historical reports are repaired even when their
+        # serialized ``small_model.by_task_type`` used the old long labels.
+        has_episode_token_ledger = any("tokens_total" in episode for episode in episodes)
+        small_by_type = (_small_tokens_from_episodes(episodes) if has_episode_token_ledger
+                         else (small_usage.get("by_task_type", {}) or {}))
+        small_by_type_total = sum(v["total"] for v in small_by_type.values())
+        small_by_type_reconciliation_error = int(small_usage.get("total", 0) or 0) - small_by_type_total
         flat_tokens = {
             item.get("skill_id"): _approx_tokens(json.dumps(item, ensure_ascii=False))
             for item in (artifact.get("flat_skills", {}) or {}).get("skills", [])
@@ -612,7 +959,6 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                              "tree_injection_count": tree_injection_count,
                              "tree_text_tokens_chars_div_4": tree_injection_tokens,
                          }}
-        small_by_type = (small_usage.get("by_task_type", {}) or {})
         # Emit a complete six-task matrix even if a malformed/interrupted arm
         # missed a task. A missing row would otherwise look like missing data
         # rather than the observable zero-episode condition.
@@ -623,6 +969,7 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                 call for call in (artifact.get("cloud_calls", []) or [])
                 if call.get("task_type") == tt
             ]
+            artifact_usage_status = _cloud_usage_status_counts(artifact_calls)
             per_task_rows.append({
                 "arm": arm,
                 "status": "ready",
@@ -636,6 +983,8 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                 "small_model_response_tokens": usage.get("response", 0),
                 "small_model_total_tokens": usage.get("total", 0),
                 "artifact_task_scoped_large_model_calls": len(artifact_calls),
+                "artifact_task_scoped_large_model_usage_missing_calls": artifact_usage_status["missing"],
+                "artifact_task_scoped_large_model_usage_unverifiable_calls": artifact_usage_status["unverifiable"],
                 "artifact_task_scoped_large_model_prompt_tokens": sum(
                     int(call.get("prompt_tokens", call.get("prompt", 0)) or 0)
                     for call in artifact_calls
@@ -650,6 +999,7 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                 ),
             })
         artifact_calls_all = artifact.get("cloud_calls", []) or []
+        artifact_usage_status_all = _cloud_usage_status_counts(artifact_calls_all)
         artifact_calls_unscoped = [call for call in artifact_calls_all if not call.get("task_type")]
         row = {"arm": arm, "status": "ready", "episodes": summary.get("total_episodes", 0),
                "success_rate": summary.get("success_rate", 0), "wins": summary.get("wins", 0),
@@ -658,12 +1008,16 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                "small_model_prompt_tokens_cumulative": small_usage.get("prompt"),
                "small_model_response_tokens_cumulative": small_usage.get("response"),
                "small_model_total_tokens_cumulative": small_usage.get("total"),
+               "small_model_by_task_type_total_rebuilt": small_by_type_total,
+               "small_model_by_task_type_reconciliation_error": small_by_type_reconciliation_error,
                "small_model_token_accounting": metrics.get(
                    "tokens/small_model/accounting", small_usage.get("accounting")),
                "large_model_prompt_tokens_cumulative": large_usage.get("prompt"),
                "large_model_completion_tokens_cumulative": large_usage.get("completion"),
                "large_model_total_tokens_cumulative": large_usage.get("total"),
                "artifact_generation_large_model_calls": len(artifact_calls_all),
+               "artifact_generation_large_model_usage_missing_calls": artifact_usage_status_all["missing"],
+               "artifact_generation_large_model_usage_unverifiable_calls": artifact_usage_status_all["unverifiable"],
                "artifact_generation_large_model_total_tokens": sum(
                    int(call.get("total_tokens", call.get("total", 0)) or 0)
                    for call in artifact_calls_all),
@@ -680,7 +1034,27 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                "artifact_sha256": artifact.get("skills_sha256"),
                "raw_traces_sha256": artifact.get("raw_traces_sha256")}
         rows.append(row)
+    canonical_generation = None
+    canonical_path = root / "artifacts" / "canonical_tree_l5" / "artifact_manifest.json"
+    if canonical_path.exists():
+        canonical = _read_json(canonical_path)
+        canonical_calls = canonical.get("cloud_calls", []) or []
+        canonical_generation = {
+            "status": canonical.get("status"),
+            "generation_cost_scope": "shared_once_for_all_l1_l5_arms",
+            "provider_api_call_count": len(canonical_calls),
+            "provider_usage_missing_calls": _cloud_usage_status_counts(canonical_calls)["missing"],
+            "provider_usage_unverifiable_calls": _cloud_usage_status_counts(canonical_calls)["unverifiable"],
+            "provider_total_tokens": sum(
+                int(call.get("total_tokens", call.get("total", 0)) or 0)
+                for call in canonical_calls),
+            "node_generated_tokens_chars_div_4_total": canonical.get(
+                "node_generated_tokens_chars_div_4_total", 0),
+            "node_token_accounting": canonical.get("node_token_accounting", {}),
+            "artifact_sha256": canonical.get("skills_sha256"),
+        }
     _write_json(root / "ablation_summary.json", {"manifests": manifests, "arms": detailed,
+                                                   "canonical_tree_generation": canonical_generation,
                                                    "token_accounting": {"trajectory_estimate": "chars_div_4",
                                                                         "small_model": "reported_per_arm_in_small_model_token_accounting",
                                                                         "large_model": "provider_api_usage",
@@ -694,6 +1068,8 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
         fields = ("arm", "status", "target_tree_depth", "task_type", "episodes", "wins", "success_rate",
                   "small_model_prompt_tokens", "small_model_response_tokens", "small_model_total_tokens",
                   "artifact_task_scoped_large_model_calls",
+                  "artifact_task_scoped_large_model_usage_missing_calls",
+                  "artifact_task_scoped_large_model_usage_unverifiable_calls",
                   "artifact_task_scoped_large_model_prompt_tokens",
                   "artifact_task_scoped_large_model_completion_tokens",
                   "artifact_task_scoped_large_model_total_tokens", "reason")
@@ -704,7 +1080,7 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", required=True, help="ablation output root; phases are resumable")
-    ap.add_argument("--phase", choices=("manifests", "bootstrap", "artifacts", "evaluate", "all"), default="all")
+    ap.add_argument("--phase", choices=("manifests", "bootstrap", "artifacts", "evaluate", "summary", "all"), default="all")
     ap.add_argument("--alfworld_data", default=os.environ.get("ALFWORLD_DATA"))
     ap.add_argument("--split", default="train")
     ap.add_argument("--sample_seed", type=int, default=0)
@@ -712,7 +1088,12 @@ def main() -> None:
     ap.add_argument("--max_steps", type=int, default=40)
     ap.add_argument("--rollouts_per_type", type=int, default=12,
                     help="each of the six fixed games is sampled this many times; "
-                         "the formal default is 12 x 6 = 72 rollouts per bootstrap/evaluation arm")
+                    "the formal default is 12 x 6 = 72 rollouts per bootstrap/evaluation arm")
+    ap.add_argument("--eval_games_per_type", type=int, default=None,
+                    help="distinct fixed evaluation games per task type; V2 external-trace runs default to 5, "
+                    "legacy self-bootstrap runs retain 1")
+    ap.add_argument("--external_raw_traces", default=None,
+                    help="existing ALFWorld raw_traces.jsonl to import instead of generating bootstrap rollouts")
     ap.add_argument("--eval_groups_per_level", type=int, default=1,
                     help="number of 72-rollout evaluation groups for each L0-L5 arm; default 1")
     ap.add_argument("--tree_generation_attempts", type=int,
@@ -731,8 +1112,26 @@ def main() -> None:
     ap.add_argument("--log_trajectories", type=int, default=0)
     ap.add_argument("--driver_arg", action="append", default=[], help="extra one-token argument forwarded to the main driver")
     args = ap.parse_args()
+    args.project_root = Path(__file__).resolve().parents[2]
+    root = Path(args.root).resolve()
+    if args.phase == "summary":
+        config_path = root / "run_config.json"
+        if not config_path.exists():
+            ap.error(f"--phase summary requires an existing run_config.json under {root}")
+        existing = _read_json(config_path)
+        if existing.get("experiment_kind") != "alfworld_skill_level_l0_l5":
+            ap.error("--phase summary only supports the independent L0-L5 skill-level experiment")
+        write_summary(root, {
+            "bootstrap_sha256": existing.get("bootstrap_sha256"),
+            "eval_sha256": existing.get("eval_sha256"),
+        })
+        return
     if args.rollouts_per_type < 1:
         ap.error("--rollouts_per_type must be at least 1")
+    if args.eval_games_per_type is None:
+        args.eval_games_per_type = 5 if args.external_raw_traces else 1
+    if args.eval_games_per_type < 1:
+        ap.error("--eval_games_per_type must be at least 1")
     if args.eval_groups_per_level < 1:
         ap.error("--eval_groups_per_level must be at least 1")
     if args.tree_generation_attempts < 1:
@@ -741,8 +1140,7 @@ def main() -> None:
         ap.error("--gpu_mem_util must be in (0, 1]")
     if not args.alfworld_data:
         ap.error("--alfworld_data or ALFWORLD_DATA is required")
-    args.project_root = Path(__file__).resolve().parents[2]
-    root, data_root = Path(args.root).resolve(), Path(args.alfworld_data).resolve()
+    root, data_root = root, Path(args.alfworld_data).resolve()
     root.mkdir(parents=True, exist_ok=True)
     config_path = root / "run_config.json"
     if config_path.exists():
@@ -768,11 +1166,26 @@ def main() -> None:
             raise RuntimeError(
                 "existing skill-tree experiment uses tree_generation_attempts="
                 f"{existing_attempts}; requested {args.tree_generation_attempts}. Use a new --root.")
+        existing_eval_games = existing.get("eval_games_per_type", 1)
+        if existing_eval_games != args.eval_games_per_type:
+            raise RuntimeError(
+                "existing skill-tree experiment uses eval_games_per_type="
+                f"{existing_eval_games}; requested {args.eval_games_per_type}. Use a new --root.")
+        existing_external = bool(existing.get("external_raw_traces"))
+        if existing_external != bool(args.external_raw_traces):
+            raise RuntimeError("existing root uses a different bootstrap/external-trace protocol; use a new --root.")
     bootstrap_empty_skills = _ensure_empty_bootstrap_skills(root)
-    boot_manifest, eval_manifest = create_manifests(root, data_root, args.split, args.sample_seed)
+    boot_manifest, eval_manifest = create_manifests(
+        root, data_root, args.split, args.sample_seed, args.eval_games_per_type)
     manifest_hashes = validate_manifest_pair(boot_manifest, eval_manifest, data_root)
+    external_source = None
+    if args.external_raw_traces:
+        external_path = Path(args.external_raw_traces).expanduser().resolve()
+        if not external_path.is_file():
+            ap.error(f"--external_raw_traces does not exist: {external_path}")
+        external_source = {"path": str(external_path), "sha256": _sha256_path(external_path)}
     _write_json(config_path, {"experiment_kind": "alfworld_skill_level_l0_l5",
-                                             "schema_version": 1,
+                                             "schema_version": 2 if external_source else 1,
                                              "task_types": TASK_TYPES,
                                              "skill_levels": list(SKILL_LEVEL_ARMS),
                                              "skill_level_definition": {
@@ -782,8 +1195,14 @@ def main() -> None:
                                              "runtime_task_type_map": TASK_TYPE_TO_RUNTIME,
                                              "bootstrap_rollouts_per_type": args.rollouts_per_type,
                                              "eval_rollouts_per_type": args.rollouts_per_type,
+                                             "eval_games_per_type": args.eval_games_per_type,
                                              "eval_groups_per_level": args.eval_groups_per_level,
-                                             "rollouts_per_group": len(TASK_TYPES) * args.rollouts_per_type,
+                                             "rollouts_per_group": (len(TASK_TYPES) * args.eval_games_per_type *
+                                                                    args.rollouts_per_type),
+                                             "external_raw_traces": external_source,
+                                             "tree_representation_protocol": (
+                                                 "one_canonical_l5_per_task_then_deterministic_l1_l5_truncation"
+                                                 if external_source else "independent_tree_generation_per_depth"),
                                              "gpu_mem_util": args.gpu_mem_util,
                                              "vllm_enforce_eager": bool(args.vllm_enforce_eager),
                                              "seed": args.seed,

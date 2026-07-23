@@ -81,6 +81,13 @@ class CloudAnalyzer:
         self.total_completion_tokens_by_task_type: Dict[str, int] = {}
         self.total_prompt_tokens_mixed = 0
         self.total_completion_tokens_mixed = 0
+        # Provider responses occasionally omit ``usage``.  A missing usage
+        # object is not a zero-token cloud call; retain it explicitly so cost
+        # reports never present an unreported call as free.
+        self.usage_reported_calls = 0
+        self.usage_missing_calls = 0
+        self.usage_missing_calls_by_task_type: Dict[str, int] = {}
+        self.usage_missing_calls_mixed = 0
         # Skill-tree 进化 / 失败诊断的可观测计数（并入 get_update_summary）。
         self.playbook_history: List[Dict] = []
         self.n_diagnose_calls = 0
@@ -663,15 +670,30 @@ Return ONLY the JSON object, no other text."""
                       task_type: Optional[str] = None) -> None:
         """Record hashes/token usage without putting API text in normal metrics."""
         import hashlib
-        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
-        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        usage_reported = usage is not None and (
+            getattr(usage, "prompt_tokens", None) is not None or
+            getattr(usage, "completion_tokens", None) is not None
+        )
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0) if usage_reported else None
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0) if usage_reported else None
+        if usage_reported:
+            self.usage_reported_calls += 1
+        else:
+            self.usage_missing_calls += 1
+            if task_type:
+                self.usage_missing_calls_by_task_type[task_type] = (
+                    self.usage_missing_calls_by_task_type.get(task_type, 0) + 1)
+            else:
+                self.usage_missing_calls_mixed += 1
         self.call_audit.append({
             "purpose": purpose,
             "task_type": task_type,
             "model": self.model,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
-            "total_tokens": prompt_tokens + completion_tokens,
+            "total_tokens": (prompt_tokens + completion_tokens) if usage_reported else None,
+            "usage_reported": usage_reported,
+            "usage_status": "reported" if usage_reported else "missing",
             "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "response_sha256": hashlib.sha256((response or "").encode("utf-8")).hexdigest(),
         })
@@ -1066,6 +1088,12 @@ Return ONLY the JSON array, no other text."""
             "large_model_prompt_tokens_mixed": self.total_prompt_tokens_mixed,
             "large_model_completion_tokens_mixed": self.total_completion_tokens_mixed,
             "large_model_total_tokens_mixed": self.total_prompt_tokens_mixed + self.total_completion_tokens_mixed,
+            "large_model_usage_reported_calls": int(getattr(self, "usage_reported_calls", 0) or 0),
+            "large_model_usage_missing_calls": int(getattr(self, "usage_missing_calls", 0) or 0),
+            "large_model_usage_missing_calls_by_task_type": dict(
+                getattr(self, "usage_missing_calls_by_task_type", {}) or {}),
+            "large_model_usage_missing_calls_mixed": int(
+                getattr(self, "usage_missing_calls_mixed", 0) or 0),
             # skill-tree 进化 / 失败诊断可观测
             "diagnose_calls": self.n_diagnose_calls,
             "evolve_calls": self.n_evolve_calls,

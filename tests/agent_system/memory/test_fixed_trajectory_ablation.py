@@ -15,11 +15,13 @@ from agent_system.memory.skill_updater import SkillUpdater
 from agent_system.memory.traces_pool import TracesPool
 from examples.playbook_evolve.fixed_trajectory_ablation import (
     RUNTIME_TASK_TYPES, SKILL_LEVEL_ARMS, TASK_TYPE_TO_RUNTIME, _empty_skill_bank,
-    _ensure_empty_bootstrap_skills, _driver_cmd, _tree_stats, build_l0_artifact,
-    build_tree_artifact, evaluate_arm, validate_manifest_pair, write_summary,
+    _ensure_empty_bootstrap_skills, _driver_cmd, _small_tokens_from_episodes, _tree_stats, build_l0_artifact,
+    _tree_node_token_accounting, _truncate_tree_to_depth, build_derived_tree_artifact,
+    build_tree_artifact, evaluate_arm, import_external_raw_traces, validate_manifest_pair, write_summary,
 )
 from examples.playbook_evolve.run_playbook_evolve import (
-    _fixed_manifest_dp_plan, _fixed_request_seed, _stable_game_id,
+    NORL_TASK_TYPES, _canonical_task_type, _canonicalize_token_breakdown,
+    _fixed_manifest_dp_plan, _fixed_request_seed, _load_resume_state, _stable_game_id,
     _trace_compression_metric_fields,
 )
 from mini_test_pen_shelf.agent_vllm import VLLMAgent
@@ -216,6 +218,63 @@ def test_tree_depth_and_structure_accounting():
     assert stats["leaf_count"] == 2
 
 
+def test_v2_truncation_derives_every_level_from_one_canonical_tree():
+    canonical = "# Root\nroot text\n## Branch\nbranch text\n### Leaf\nleaf text\n#### Deep\ndeep text\n##### Final\nfinal text"
+    node_tokens = _tree_node_token_accounting(canonical)
+    assert node_tokens["generated_tokens_chars_div_4"] == sum(
+        node["generated_tokens_chars_div_4"] for node in node_tokens["nodes"])
+    assert len(node_tokens["nodes"]) == 5
+    for depth in range(1, 6):
+        derived = _truncate_tree_to_depth(canonical, depth)
+        assert CloudAnalyzer._validate_tree_depth(derived, depth)["depth_valid"] is True
+        assert all(len(line) - len(line.lstrip("#")) <= depth
+                   for line in derived.splitlines() if line.startswith("#"))
+
+
+def test_external_trace_import_normalizes_runtime_labels_and_records_lineage(tmp_path):
+    source = tmp_path / "external.jsonl"
+    rows = []
+    for index, task_type in enumerate(TASK_TYPE_TO_RUNTIME):
+        rows.append({
+            "traj_uid": f"trace-{index}", "task": "task", "task_type": task_type,
+            "outcome": "success", "episode_reward": 1,
+            "steps": [{"action": "look", "observation": "room", "reward": 1}],
+        })
+    source.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    imported = import_external_raw_traces(source, tmp_path / "run")
+    normalized = [json.loads(line) for line in imported.read_text().splitlines()]
+    assert {row["task_type"] for row in normalized} == set(RUNTIME_TASK_TYPES)
+    lineage = json.loads((tmp_path / "run" / "frozen" / "external_trace_import.json").read_text())
+    assert lineage["trace_count"] == 6
+    assert len(lineage["source_sha256"]) == len(lineage["normalized_sha256"]) == 64
+
+
+def test_derived_tree_artifact_has_no_duplicate_cloud_calls(tmp_path):
+    raw = tmp_path / "raw.jsonl"
+    raw.write_text(json.dumps(_trace("success")) + "\n")
+    canonical_dir = tmp_path / "canonical"
+    canonical_dir.mkdir()
+    canonical_tree = "# Root\n## Branch\n### Leaf\n#### Deep\n##### Final"
+    canonical_skills = _empty_skill_bank()
+    canonical_skills["skill_trees"] = {
+        task_type: {"content": canonical_tree, "level": "outline", "version": 1}
+        for task_type in RUNTIME_TASK_TYPES
+    }
+    (canonical_dir / "skills.json").write_text(json.dumps(canonical_skills))
+    (canonical_dir / "artifact_manifest.json").write_text(json.dumps({
+        "skills_sha256": "canonical-sha", "cloud_calls": [{"purpose": "evolve_playbook"}],
+        "tree_generation_status": {task_type: {"status": "ok"} for task_type in RUNTIME_TASK_TYPES},
+        "node_generated_tokens_chars_div_4_total": 42,
+    }))
+    manifest = json.loads(build_derived_tree_artifact(raw, tmp_path / "l2", 2, canonical_dir).read_text())
+    assert manifest["cloud_calls"] == []
+    assert manifest["generation_cost_scope"] == "shared_canonical_tree_l5"
+    assert manifest["canonical_cloud_call_count"] == 1
+    skills = json.loads((tmp_path / "l2" / "skills.json").read_text())
+    assert all(_tree_stats(record["content"])["max_depth"] == 2
+               for record in skills["skill_trees"].values())
+
+
 def test_skillrl_json_parser_requires_claude_fields():
     updater = SkillUpdater.__new__(SkillUpdater)
     parsed = updater._parse_skills_response(
@@ -390,6 +449,56 @@ def test_trace_compression_condition_is_written_from_all_four_flags():
     assert metrics["experiment/trace_compression/condition"] == "all_off"
     assert all(value == 0 for key, value in metrics.items() if key !=
                "experiment/trace_compression/condition")
+
+
+def test_token_ledger_uses_runtime_task_names_and_merges_legacy_names():
+    assert NORL_TASK_TYPES == (
+        "pick_and_place", "look_at_obj_in_light", "clean", "heat", "cool",
+        "pick_two_obj_and_place", "unknown",
+    )
+    assert _canonical_task_type("pick_heat_then_place_in_recep") == "heat"
+    ledger = _canonicalize_token_breakdown({
+        "pick_heat_then_place_in_recep": {"prompt": 10, "response": 2, "total": 12},
+        "heat": {"prompt": 3, "response": 1, "total": 4},
+    }, ("prompt", "response", "total"))
+    assert ledger["heat"] == {"prompt": 13, "response": 3, "total": 16}
+    assert sum(v["total"] for v in ledger.values()) == 16
+
+
+def test_derived_ablation_report_rebuilds_small_tokens_from_per_game():
+    rebuilt = _small_tokens_from_episodes([
+        {"detected_type": "pick_heat_then_place_in_recep", "tokens_prompt": 9,
+         "tokens_response": 2, "tokens_total": 11},
+        {"detected_type": "heat", "tokens_prompt": 4,
+         "tokens_response": 1, "tokens_total": 5},
+    ])
+    assert rebuilt["heat"] == {"prompt": 13, "response": 3, "total": 16}
+
+
+def test_resume_rebuilds_pre_fix_task_token_ledger_from_per_game(tmp_path):
+    outdir = tmp_path / "resume"
+    outdir.mkdir()
+    (outdir / "summary_partial.json").write_text(json.dumps({
+        "current_epoch": 1, "next_episode_index_in_epoch": 2,
+        "completed_rollout_groups": 0, "wins": 1,
+        "per_game": [{
+            "detected_type": "heat", "tokens_prompt": 10,
+            "tokens_response": 2, "tokens_total": 12,
+        }],
+        "token_usage": {
+            "small_model": {
+                "prompt": 10, "response": 2, "total": 12,
+                # Pre-fix serialization had only this legacy, zero bucket.
+                "by_task_type": {"pick_heat_then_place_in_recep": {
+                    "prompt": 0, "response": 0, "total": 0,
+                }},
+            },
+            "large_model": {},
+        },
+    }))
+    args = SimpleNamespace(outdir=str(outdir), resume=1, skills_json="seed.json")
+    state = _load_resume_state(args)
+    assert state["small_model_tokens_by_tt"]["heat"]["total"] == 12
 
 
 def test_skill_level_summary_writes_root_metrics_and_na_task_matrix(tmp_path):

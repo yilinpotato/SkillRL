@@ -21,6 +21,7 @@ from agent_system.memory.coskill_loop import CoSkillCloudLoop
 
 def _analyzer_with_history():
     analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.model = "test-model"
     analyzer.update_history = []
     # 2 evolve_playbook calls for tt_a (one kept, one refined) and 1 for tt_b.
     analyzer.playbook_history = [
@@ -90,3 +91,22 @@ def test_coskill_loop_metrics_without_cloud_analyzer_omits_breakdown(tmp_path):
     m = loop.metrics(traces_pool=None, skill_lib=None)
     assert not any(k.startswith("coskill/cloud/by_task_type/") for k in m)
     assert not any(k.startswith("coskill/skill_tree/by_task_type/") for k in m)
+
+
+def test_cloud_call_without_provider_usage_is_not_recorded_as_zero_tokens():
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.model = "test-model"
+    analyzer.call_audit = []
+    analyzer.usage_reported_calls = 0
+    analyzer.usage_missing_calls = 0
+    analyzer.usage_missing_calls_by_task_type = {}
+    analyzer.usage_missing_calls_mixed = 0
+    analyzer._record_call("evolve_playbook", "prompt", "response", None, task_type="heat")
+
+    call = analyzer.call_audit[0]
+    assert call["usage_status"] == "missing"
+    assert call["prompt_tokens"] is None
+    assert call["completion_tokens"] is None
+    assert call["total_tokens"] is None
+    assert analyzer.usage_missing_calls == 1
+    assert analyzer.usage_missing_calls_by_task_type == {"heat": 1}

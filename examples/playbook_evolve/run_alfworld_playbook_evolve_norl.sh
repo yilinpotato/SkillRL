@@ -36,6 +36,65 @@ if [[ "$RL_MODE" == "1" ]]; then
     exec bash "$SCRIPT_DIR/../grpo_trainer/run_coskill_tree_rl.sh" alfworld "$@"
 fi
 
+# Cloud credentials must be checked before CUDA discovery or vLLM allocation.
+# ``scripts/load_private_env.sh`` above accepts either COSKILL_ENV_FILE/.env or
+# an already-exported DEEPSEEK_API_KEY, and deliberately keeps its values out
+# of shell xtrace output.  A real probe is the default for long no-RL runs: a
+# missing/invalid key must fail now, not after a frozen model has loaded.
+#
+# CLOUD_BOOTSTRAP_PROBE=0 still validates the exact CloudAnalyzer settings and
+# credential locally, but skips the single remote request for offline queue
+# validation.  COSKILL_LAUNCHER_DRY_RUN is intentionally exempt because its
+# contract is static launcher validation with no cloud or GPU side effects.
+CLOUD_BOOTSTRAP_PROBE="${CLOUD_BOOTSTRAP_PROBE:-1}"
+if [[ "$CLOUD_BOOTSTRAP_PROBE" != "0" && "$CLOUD_BOOTSTRAP_PROBE" != "1" ]]; then
+    echo "CLOUD_BOOTSTRAP_PROBE must be 0 or 1." >&2
+    exit 1
+fi
+
+CLOUD_SKILLS_JSON="memory_data/alfworld/claude_style_skills.json"
+for ((cloud_arg_index = 1; cloud_arg_index <= $#; cloud_arg_index++)); do
+    cloud_arg="${!cloud_arg_index}"
+    case "$cloud_arg" in
+        --skills_json)
+            next_cloud_arg_index=$((cloud_arg_index + 1))
+            if [[ "$next_cloud_arg_index" -gt "$#" ]]; then
+                echo "--skills_json requires a path." >&2
+                exit 1
+            fi
+            CLOUD_SKILLS_JSON="${!next_cloud_arg_index}"
+            cloud_arg_index=$next_cloud_arg_index
+            ;;
+        --skills_json=*)
+            CLOUD_SKILLS_JSON="${cloud_arg#--skills_json=}"
+            ;;
+    esac
+done
+unset cloud_arg cloud_arg_index next_cloud_arg_index
+
+if [[ "${COSKILL_LAUNCHER_DRY_RUN:-0}" != "1" && "${COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE:-0}" != "1" ]]; then
+    if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+        echo "DEEPSEEK_API_KEY is required before a CoSkill no-RL rollout." >&2
+        echo "Export DEEPSEEK_API_KEY or set it in ${COSKILL_ENV_FILE:-$PROJECT_ROOT/.env}." >&2
+        exit 2
+    fi
+    cloud_check_args=(
+        --environment alfworld
+        --skills-json "$CLOUD_SKILLS_JSON"
+    )
+    if [[ "$CLOUD_BOOTSTRAP_PROBE" == "1" ]]; then
+        cloud_check_args+=(--probe)
+    fi
+    echo "Checking cloud API before CUDA/vLLM allocation (probe=$CLOUD_BOOTSTRAP_PROBE)..."
+    python3 "$PROJECT_ROOT/scripts/check_cloud_bootstrap.py" "${cloud_check_args[@]}"
+    unset cloud_check_args
+elif [[ "${COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE:-0}" == "1" ]]; then
+    echo "Cloud API was already validated by the container entrypoint."
+else
+    echo "Skipping cloud API preflight for COSKILL_LAUNCHER_DRY_RUN=1."
+fi
+unset CLOUD_SKILLS_JSON COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE
+
 # 强制离线
 export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1

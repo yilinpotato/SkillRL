@@ -22,6 +22,7 @@ set -u
 PRIVATE_ENV_FILE="${COSKILL_ENV_FILE:-$PROJECT_ROOT/.env}"
 source "$PROJECT_ROOT/scripts/load_private_env.sh"
 unset PRIVATE_ENV_FILE
+source "$PROJECT_ROOT/scripts/preflight_cloud_api.sh"
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
@@ -71,16 +72,6 @@ for index in range(4):
     if "a800" not in name.lower():
         print(f"[4xa800-preflight] WARNING: expected A800, got {name}")
 PY
-
-if [[ "${CLOUD_PROBE:-1}" == "1" ]]; then
-  python "$PROJECT_ROOT/scripts/check_cloud_bootstrap.py" \
-    --environment alfworld \
-    --skills-json "$PROJECT_ROOT/memory_data/alfworld/claude_style_skills.json" \
-    --probe
-elif [[ "${CLOUD_PROBE:-1}" != "0" ]]; then
-  echo "CLOUD_PROBE must be 0 or 1, got: ${CLOUD_PROBE}" >&2
-  exit 2
-fi
 
 echo "[4xa800-ablation] CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 echo "[4xa800-ablation] MODEL_PATH=$MODEL_PATH"

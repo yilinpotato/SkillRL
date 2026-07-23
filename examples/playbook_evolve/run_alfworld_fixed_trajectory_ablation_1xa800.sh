@@ -17,6 +17,7 @@ fi
 set -u
 
 source "$PROJECT_ROOT/scripts/load_private_env.sh"
+source "$PROJECT_ROOT/scripts/preflight_cloud_api.sh"
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 # A scheduler should set this to its assigned A800.  Defaulting to 0 makes an
@@ -149,20 +150,6 @@ while True:
         )
     time.sleep(min(10, max(1, remaining)))
 PY
-
-# The complete protocol makes cloud calls while creating the flat/tree arms.
-# Probe before reserving vLLM so a bad credential fails cheaply. Set 0 only
-# for local dependency checks; a real all-phase run still needs usable cloud
-# credentials when it reaches artifact construction.
-if [[ "${CLOUD_PROBE:-1}" == "1" ]]; then
-  python "$PROJECT_ROOT/scripts/check_cloud_bootstrap.py" \
-    --environment alfworld \
-    --skills-json "$PROJECT_ROOT/memory_data/alfworld/claude_style_skills.json" \
-    --probe
-elif [[ "${CLOUD_PROBE:-1}" != "0" ]]; then
-  echo "CLOUD_PROBE must be 0 or 1, got: ${CLOUD_PROBE}" >&2
-  exit 2
-fi
 
 echo "[1xa800-ablation] CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 echo "[1xa800-ablation] MODEL_PATH=$MODEL_PATH"

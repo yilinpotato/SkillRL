@@ -25,6 +25,37 @@ if [[ "${1:-}" == "cloud-check" ]]; then
     "$@"
 fi
 
+# Both independent skill-tree generation and trace-compression-off require
+# cloud access. Validate before model/data/GPU checks. The no-RL child consumes
+# the marker to avoid charging a second probe request for trace runs.
+if [[ "${1:-}" == "trace-compression-off" || "${1:-}" == "skill-level" || "${1:-}" == "ablation" ]]; then
+  unset COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE
+  CLOUD_BOOTSTRAP_PROBE="${CLOUD_BOOTSTRAP_PROBE:-1}"
+  if [[ "$CLOUD_BOOTSTRAP_PROBE" != "0" && "$CLOUD_BOOTSTRAP_PROBE" != "1" ]]; then
+    echo "CLOUD_BOOTSTRAP_PROBE must be 0 or 1." >&2
+    exit 2
+  fi
+  if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+    echo "DEEPSEEK_API_KEY is required before CoSkill experiment startup." >&2
+    echo "Pass it with --env-file/-e DEEPSEEK_API_KEY or use docker/run_alfworld_ablation_container.sh with COSKILL_ENV_FILE." >&2
+    exit 2
+  fi
+  cloud_check_args=(
+    --environment alfworld
+    --skills-json memory_data/alfworld/claude_style_skills.json
+  )
+  if [[ "$CLOUD_BOOTSTRAP_PROBE" == "1" ]]; then
+    cloud_check_args+=(--probe)
+  fi
+  echo "Checking cloud API before container model/data/GPU setup (probe=$CLOUD_BOOTSTRAP_PROBE)..."
+  (
+    cd "$COSKILL_PROJECT_ROOT"
+    python scripts/check_cloud_bootstrap.py "${cloud_check_args[@]}"
+  )
+  unset cloud_check_args
+  export COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE=1
+fi
+
 mkdir -p "$COSKILL_CACHE_ROOT" "$OUTPUT_ROOT"
 if [[ -f "$BAKED_MODEL_PATH/config.json" ]]; then
   MODEL_PATH="${MODEL_PATH:-$BAKED_MODEL_PATH}"
@@ -89,12 +120,21 @@ cd "$COSKILL_PROJECT_ROOT"
 case "${1:-skill-level}" in
   ablation|skill-level)
     shift || true
+    v2_args=()
+    if [[ -n "${EXTERNAL_RAW_TRACES:-}" ]]; then
+      if [[ ! -f "$EXTERNAL_RAW_TRACES" ]]; then
+        echo "EXTERNAL_RAW_TRACES is not a readable JSONL file: $EXTERNAL_RAW_TRACES" >&2
+        exit 2
+      fi
+      v2_args=(--external_raw_traces "$EXTERNAL_RAW_TRACES" --eval_games_per_type "${EVAL_GAMES_PER_TYPE:-5}")
+    fi
     exec python -u -m examples.playbook_evolve.skill_tree_depth_ablation \
       --root "$AB_ROOT" \
       --alfworld_data "$ALFWORLD_DATA" \
       --model_path "$MODEL_PATH" \
       --data_parallel_workers "$DATA_PARALLEL_WORKERS" \
       --rollout_worker_gpus "$ROLLOUT_WORKER_GPUS" \
+      "${v2_args[@]}" \
       "$@"
     ;;
   trace-compression-off)
