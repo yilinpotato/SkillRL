@@ -62,9 +62,9 @@ TREE_EVIDENCE_SAMPLING = {
     "algorithm": "hash_stratified_outcome_length_loop_task_diversity_v1",
     "seed": 20260723,
     # Diagnosis is per task type in V2, so this remains a bounded prompt.
-    "diagnose": {"success": 6, "failure": 10},
+    "diagnose": {"success": 12, "failure": 18},
     # The actual tree-authoring prompt gets more evidence than diagnosis.
-    "evolve": {"success": 10, "failure": 14},
+    "evolve": {"success": 16, "failure": 24},
     # L0 preserves SkillRL's original five-example prompt budget.  Only its
     # choice of those five failures is made order-independent.
     "flat_skillrl": {"failure": 5},
