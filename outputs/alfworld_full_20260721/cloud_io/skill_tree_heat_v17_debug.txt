@@ -1,0 +1,125 @@
+=== Skill Tree Debug — scope=heat  v17 (level=3, tree_depth=3, 10 nodes) ===
+action: refine
+critique: The agent followed the consensus prefix (fridge open) but then deviated: after checking countertops, it skipped the mandatory 'look' and flat-surface survey and jumped to cabinets, violating the search order. The skill tree's wording was clear, but the agent likely skimmed over the critical ordering rule buried in sub-subsections. The refined tree now presents the search order as a prominent numbered list at the top of the Locate section, making the 'flat surfaces before containers' rule impossible to overlook.
+changelog: Refined section 2 (Locate the object) by consolidating the search steps into a clear numbered list with a strong warning about skipping categories, and moved the persistence note directly after the search order to reinforce exhaustive exploration before giving up.
+consensus prefix (folded, not re-taught this round): go to fridge 1 → open fridge 1
+n_success this round: 13  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent failed to find a potato anywhere despite exploring multiple locations. | evidence: They visited countertops, cabinets, diningtable, and fridge but no potato was seen. | fix: Search all possible locations for the target object before proceeding. | skill_tree_gap: Lack of a comprehensive search strategy for target objects. | patch_location: ## heat -> new subsection ### Object Search
+
+--- Node tree (per-node lifecycle, this version=v17) ---
+[STABLE              ] heat                                     level=1 stable_versions=16 calls=352 success=284 rate=80.7%
+[MODIFIED            ] heat/1-interpret-the-task                level=2 stable_versions=0 calls=352 success=284 rate=80.7%
+[STABLE              ] heat/2-locate-the-object                 level=2 stable_versions=10 calls=352 success=284 rate=80.7%
+[NEW                 ] heat/2-locate-the-object/critical-search-order-do-not-skip-steps level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] heat/2-locate-the-object/persistence-and-retry level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] heat/3-heat-the-object                   level=2 stable_versions=9 calls=352 success=284 rate=80.7%
+[STABLE              ] heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory level=3 stable_versions=4 calls=242 success=216 rate=89.3%
+[STABLE              ] heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory level=3 stable_versions=3 calls=214 success=192 rate=89.7%
+[STABLE              ] heat/4-place-the-heated-object           level=2 stable_versions=4 calls=242 success=216 rate=89.3%
+[STABLE              ] heat/5-completion-check-and-termination  level=2 stable_versions=4 calls=345 success=282 rate=81.7%
+
+--- Line diff vs previous version (v16 -> v17) ---
+--- v16
++++ v17
+@@ -1,34 +1,27 @@
+ # heat
+ 
+ ## 1. Interpret the task
+-- Identify the object to heat and the target placement location from the task description.
++- Identify the object to heat and the target placement location.
+ - The heating appliance is the microwave.
+ 
+ ## 2. Locate the object
+-### 2.1 Initial check: fridge and countertops
+-- Start at the fridge (already opened) – look inside. If the target object is present, take it and proceed to heating.
+-- If not, go to **each countertop** you can see (use a `look` to see which countertops are present). Examine its contents. Take the object if found.
+-- **Do not skip any countertop** you see in the room description.
++### Critical search order (DO NOT skip steps)
++1. **Start at fridge** (already open). Look inside. If target present, take it and go to heating.
++2. **Check every countertop** you can see. Use `look` to see which countertops are present. Examine each, take object if found.
++3. **After checking all countertops** (and not finding object), perform a `look` to refresh the room description. Identify all flat surfaces: diningtable, sidetables, shelves, desk, coffee table, etc. Visit each one, look, take if found.
++4. **Only after all flat surfaces have been visited**, proceed to openable containers in strict order:
++   - First all cabinets (go to each, open, look inside)
++   - Then all drawers
++   - Then the sinkbasin
++   - Then the garbagecan
++   - Then the microwave (yes, even though it is the heating appliance)
++   - Then any other openable container (e.g., coffeemaker)
++5. **Do not skip any category** – if you stop after only a few, you will miss the object.
++6. If still not found after completing the full list, see "Persistence and retry" below.
+ 
+-### 2.2 If object still not found – survey all other flat surfaces
+-- After checking all countertops (and not finding the object), perform a `look` action to refresh the room description.
+-- Identify every flat surface mentioned: **diningtable, sidetables, shelves, desk, coffee table, etc.**
+-- Go to each one, look at it, and take the object if present.
+-- **You must visit every flat surface before moving on to containers.**
+-
+-### 2.3 Openable containers (cabinets, drawers, sinkbasin, garbagecan, microwave, coffeemaker)
+-- **Only after checking all flat surfaces**, proceed to openable containers. You must check **every** container in a systematic order:
+-  1. Open and look inside **all cabinets** (go to each cabinet, open it, look inside). Do not stop until every cabinet has been checked.
+-  2. Then open and look inside **all drawers** (go to each drawer, open it, look inside).
+-  3. Then open and look inside **the sinkbasin**.
+-  4. Then open and look inside **the garbagecan**.
+-  5. Then open and look inside **the microwave** (even though it is the heating appliance, it can hold objects).
+-  6. Then open and look inside **any other openable container** (e.g., coffeemaker).
+-- **Do not skip any category.** If you stop after only a few containers, you will miss the object. The object may be hidden in a drawer or sinkbasin that you have not yet checked.
+-
+-### 2.4 Persistence and retry
+-- If the object is still not found **after completing the full list** (all flat surfaces + all openable containers above), perform a `look` action again. If new receptacles appear, repeat the entire search from step 2.1.
+-- Otherwise, re-read the task to confirm the object type. If there is another room available, go there and repeat the search.
++### Persistence and retry
++- Perform a `look` again. If new receptacles appear, repeat the entire search from step 1.
++- Otherwise, re-read the task to confirm object type. If another room is available, go there and repeat the search.
+ 
+ ## 3. Heat the object
+ ### 3.1 Efficient heating method (direct from inventory)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location.
+- The heating appliance is the microwave.
+
+## 2. Locate the object
+### Critical search order (DO NOT skip steps)
+1. **Start at fridge** (already open). Look inside. If target present, take it and go to heating.
+2. **Check every countertop** you can see. Use `look` to see which countertops are present. Examine each, take object if found.
+3. **After checking all countertops** (and not finding object), perform a `look` to refresh the room description. Identify all flat surfaces: diningtable, sidetables, shelves, desk, coffee table, etc. Visit each one, look, take if found.
+4. **Only after all flat surfaces have been visited**, proceed to openable containers in strict order:
+   - First all cabinets (go to each, open, look inside)
+   - Then all drawers
+   - Then the sinkbasin
+   - Then the garbagecan
+   - Then the microwave (yes, even though it is the heating appliance)
+   - Then any other openable container (e.g., coffeemaker)
+5. **Do not skip any category** – if you stop after only a few, you will miss the object.
+6. If still not found after completing the full list, see "Persistence and retry" below.
+
+### Persistence and retry
+- Perform a `look` again. If new receptacles appear, repeat the entire search from step 1.
+- Otherwise, re-read the task to confirm object type. If another room is available, go there and repeat the search.
+
+## 3. Heat the object
+### 3.1 Efficient heating method (direct from inventory)
+- Once the object is in your inventory, go to the microwave.
+- Use action `heat <object> with microwave` while holding it. This works reliably.
+- If direct heat fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.
+- After heating, the object is ready. Do not return it to the microwave.
+
+### 3.2 Prerequisite: Object must be in inventory
+- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the exhaustive search again.
+
+## 4. Place the heated object
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).
+- The destination must be different from the source where the object originally came from.
+- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.
+- Put the object into/onto the receptacle: `move <object> to <receptacle>`.
+- **Critical**: Do not take the object back after placing it. Stop.
+
+## 5. Completion check and termination
+- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.
+- If the object is there, the task is complete. Do not perform any further actions.
+- **Termination rule**: Once placed at the target, stop all actions immediately.

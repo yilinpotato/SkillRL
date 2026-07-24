@@ -1,0 +1,160 @@
+{
+  "batch_id": "b96e56b5-e970-4593-aad6-e3028a84970a",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located and took a kettle, spending all actions opening empty cabinets instead of searching common surfaces where kettles are typically found.",
+        "evidence": "No 'take kettle' action appears; after exploring cabinets 1-5 (all empty), agent returns to countertop 1 and stops.",
+        "corrective_rule": "Before opening containers, first visit all open surfaces (countertops, diningtable, stoveburners) to find the target object.",
+        "skill_tree_gap": "Missing a systematic search strategy that prioritizes open surfaces over containers.",
+        "patch_location": "Under '## clean', add a new subsection '### Object location strategy'",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never picked up a mug because it did not search areas where mugs commonly appear (e.g., diningtable, countertops, cabinets) and instead wandered through shelves and stoveburners without opening containers.",
+        "evidence": "No 'take mug' action; visited countertop2, diningtable, shelves, sinkbasin, stoveburners, fridge, but never found a mug.",
+        "corrective_rule": "After the consensus prefix, systematically check diningtable and countertops, and if not found, open cabinets and drawers.",
+        "skill_tree_gap": "Missing a structured search routine for objects not visible on initial surfaces.",
+        "patch_location": "Under '## cool', add a new subsection '### Object search after consensus prefix'",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a cup because it skipped likely locations like diningtable and drawers, and wasted time exploring shelves and cabinets that contained no cup.",
+        "evidence": "No 'take cup' action; visited countertop2, countertop3, shelves, and cabinets (all without cups).",
+        "corrective_rule": "After the consensus prefix, first check diningtable and countertops for the cup before moving to less common locations.",
+        "skill_tree_gap": "Missing a prioritized visitation order for object search.",
+        "patch_location": "Under '## heat', add a new subsection '### Object location after consensus prefix'",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not locate the laptop; after using desklamp and not seeing it on desk, it wandered to sidetables and drawers instead of checking other likely spots like bed or safe.",
+        "evidence": "No 'take laptop' action; desk had no laptop, and subsequent locations (sidetable1, sidetable2, dresser, drawers) did not contain a laptop.",
+        "corrective_rule": "If the target object is not at the lit location, systematically search other receptacles (bed, drawers, safe) before giving up.",
+        "skill_tree_gap": "Missing a comprehensive search strategy for objects not at the expected location.",
+        "patch_location": "Under '## look_at_obj_in_light', add a new subsection '### Object search when not at desk'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a cellphone because it limited exploration to armchair, sidetables, bed, and cabinets, missing the dresser and drawers where cellphones might be.",
+        "evidence": "No 'take cellphone' action; visited locations showed no cellphone.",
+        "corrective_rule": "When the object is not at the first few locations, expand search to all containers and furniture types (dresser, drawers) before stopping.",
+        "skill_tree_gap": "Lack of exhaustive search routine for target objects.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### Systematic object search'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent picked up a towel instead of a cloth, misidentifying the required object.",
+        "evidence": "Action 'take towel 1 from towelholder 1' while the task requires a cloth.",
+        "corrective_rule": "Before picking an object, verify that its name exactly matches the target object in the task description.",
+        "skill_tree_gap": "Missing a check to match object name with task requirement before picking.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### Object name verification'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent picked up a soapbar instead of a soapbottle, confusing similar object types.",
+        "evidence": "Action 'take soapbar 1 from cabinet 4' while the task requires a soapbottle.",
+        "corrective_rule": "Always confirm the object's full name matches the target before picking it up.",
+        "skill_tree_gap": "Missing precise object name matching step.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### Object name verification'",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found any cup because it only opened cabinets and ignored open surfaces like countertops and diningtable where cups are commonly found.",
+        "evidence": "No 'take cup' action; only cabinets were visited, none contained a cup.",
+        "corrective_rule": "Before opening containers, search all open surfaces (countertops, tables) for the target objects.",
+        "skill_tree_gap": "Missing a surface-first search policy.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Surface-first search before containers'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one spraybottle and then stopped, failing to retrieve the second required object.",
+        "evidence": "Only one 'move spraybottle 3 to garbagecan 1' action; no further search or placement.",
+        "corrective_rule": "After placing the first object, continue searching for the second object and repeat the placement until both are placed.",
+        "skill_tree_gap": "Missing a loop or counter to ensure both objects are handled.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Repeat until both objects placed'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found any cup because it only searched high-numbered cabinets and did not visit common surfaces like countertops or diningtable.",
+        "evidence": "No 'take cup' action; only cabinets visited, none contained cups.",
+        "corrective_rule": "Search visible surfaces (countertops, tables) before opening containers, and check drawers as well.",
+        "skill_tree_gap": "Missing a systematic search that prioritizes open surfaces.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Surface-first search before containers'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one cellphone and then got stuck in a loop between armchair and bed without searching for a second cellphone.",
+        "evidence": "Only one cellphone taken and placed; subsequent actions are repeated movements between armchair and bed.",
+        "corrective_rule": "After placing the first object, systematically explore other locations (drawers, sidetables) to find the second object.",
+        "skill_tree_gap": "Missing a plan to continue searching after first placement.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Repeat until both objects placed'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one newspaper and then stopped, not retrieving the second required newspaper.",
+        "evidence": "Only one 'move newspaper 1 to armchair 1' action; subsequent actions do not attempt to get another newspaper.",
+        "corrective_rule": "After placing the first object, continue searching for the second object and repeat placement.",
+        "skill_tree_gap": "Missing a loop to ensure both objects are placed.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Repeat until both objects placed'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one kettle and then stopped, not retrieving the second kettle required.",
+        "evidence": "Only one 'move kettle 3 to diningtable 1' action; no further search for a second kettle.",
+        "corrective_rule": "After placing the first object, continue searching for the second object and repeat placement.",
+        "skill_tree_gap": "Missing a loop to ensure both objects are placed.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Repeat until both objects placed'",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

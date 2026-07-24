@@ -1,0 +1,187 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\n- Put exactly two instances of a specific object into a specified target receptacle.\n- Object type must match exactly. Read the object name carefully every time before taking. Do not pick up objects that are not the exact type.\n- You need both. Do not stop after one.\n\n## Critical Initial Steps\n- Read the task and note the object type and target.\n- **Before moving, read the room description and list every furniture item. Do not skip this step.**\n- If you are in a room, list all furniture items from the description.\n- Open all closed containers (drawers, cabinets, dressers, safes, etc.) systematically. Do not skip any.\n- Check open surfaces (countertops, tables, shelves, etc.) as you go.\n\n## Search Strategy\n- Exhaustive sweep: check every furniture item once. Do not repeat until you have checked all.\n- Use object-specific location priors to guide order, but never skip a container type.\n- For common object types:\n  - Food/consumables: fridge, countertop, diningtable, cabinet.\n  - Electronics/remotecontrols: sofa, armchair, tvstand, coffeetable, sidetable.\n  - Boxes/packages: dresser, sidetable, armchair, closet.\n  - Watches/jewelry: diningtable, sidetable, drawers.\n  - Toiletries (tissuebox, soapbottle, toiletpaper, spraybottle): shelf, sinkbasin, countertop, cabinet, handtowelholder, toiletpaperhanger.\n  - Books/pens/paper: shelves, desk, sidetable, drawers.\n  - Statues, candles, vases, etc.: often on tables, shelves, countertops, or dressers.\n- **If you are searching for spraybottle, be sure to check shelves and cabinets, not just countertops and drawers.**\n\n### Systematic Search\n- After initial open of containers, check ALL furniture types: tables, cabinets, shelves, beds, dressers, sofas, armchairs, desks, etc. Do not assume the object is only in drawers or shelves.\n- If you have only searched one type (e.g., only drawers), immediately expand to other types before re-checking any location.\n\n## Object Manipulation\n### Object Identity Verification\n- Before you take any object, look at its exact name. Compare it to the object type required by the task.\n- If the name does not match (e.g., \"soapbar\" vs \"soapbottle\", \"pen\" vs \"pencil\"), do NOT take it.\n- This check applies to every object you consider picking up, for both the first and the second object.\n- If you accidentally pick up a wrong object, put it back in its original location or drop it, but do not place it in the target.\n\n## Multi-Object Handling\n### Finding the First Object\n- When you see the object of the required type (after verifying identity), take it.\n- If the source is closed, open it first.\n- Go to the target and move the object there.\n\n### After Placing the First Object\n- Immediately begin a fresh exhaustive search for the second object. Follow the **Exhaustive Search Loop** below.\n- Do not stop, do not get distracted.\n- **Crucially, do not assume the second object will be in the same type of location as the first.** If you found the first object on a countertop, still check drawers, cabinets, shelves, tables, etc. for the second. Do not limit your search to only the container type that held the first object.\n\n### Exhaustive Search Loop\n- After placing the first object, you must find the second. Do not stop searching until you have either found it or checked every possible location.\n- Follow the same systematic search as in ## Search Strategy: visit every furniture item you haven't yet examined, open every closed container, check every open surface.\n- Do NOT revisit any location you have already searched until you have checked ALL other possible locations in the room.\n- **If you find yourself only searching one type of container (e.g., only drawers or only cabinets), force yourself to switch to a different furniture type immediately.** This is a common failure pattern.\n- Keep a mental list of which furniture items you have already checked. If you are unsure, re-read the room description to see which items remain.\n\n### Finding and Placing the Second Object\n- Use the same search strategy as for the first, including identity verification before taking.\n- Once you pick up the second object, go directly to the target and move it there. **Do not perform any other actions between arriving at the target and moving the object.** Specifically, do not issue 'look', 'inventory', or any other command before issuing the 'move' action. If you already have the object in hand and are at the target, act immediately: move the object.\n\n## Completion Detection\n- After moving the second object, the environment will indicate success. If not, continue searching – you may have missed one or the object may have been relocated.\n- Do not assume success after one placement. Keep searching until you have placed two.",
+  "level": 3,
+  "version": 11,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent partially followed the skill tree but made two key errors: (1) It did not exhaustively list and visit all furniture items, causing it to miss potential locations; (2) After reaching the target with the second object, it issued look/inventory commands instead of immediately moving the object, causing a loop. The tree's instructions on exhaustive search and immediate move were present but not sufficiently emphasized or explicitly forbade look/inventory after arrival, which may have contributed to the second failure.",
+  "changelog": "Refined 'Critical Initial Steps' to explicitly mandate listing all furniture before moving, and refined 'Finding and Placing the Second Object' to explicitly forbid look/inventory commands before moving the object upon arrival, to prevent the looping failure.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched shelves, desk, and some drawers but never found any book; likely books were in a different drawer or on a different shelf not examined.",
+      "skill_tree_gap": "The search is not exhaustive; it misses many drawers and shelves.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "loop",
+      "root_cause": "After picking up the towel, the agent reached the toilet but then entered a loop of look/inventory actions instead of executing the move action to place the towel.",
+      "skill_tree_gap": "The action sequencing does not enforce that a put action follows arrival at the target location.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_1152",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 10,
+      "call_count": 254,
+      "success_when_used": 205,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "6810f1773b2f",
+      "created_version": 1,
+      "last_changed_version": 9,
+      "stable_versions": 2,
+      "call_count": 254,
+      "success_when_used": 205,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-initial-steps": {
+      "title": "Critical Initial Steps",
+      "level": 2,
+      "body_hash": "1b87082f7926",
+      "created_version": 7,
+      "last_changed_version": 11,
+      "stable_versions": 0,
+      "call_count": 99,
+      "success_when_used": 83,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy": {
+      "title": "Search Strategy",
+      "level": 2,
+      "body_hash": "a621635b2fa2",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 4,
+      "call_count": 254,
+      "success_when_used": 205,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy/systematic-search": {
+      "title": "Systematic Search",
+      "level": 3,
+      "body_hash": "539844c72489",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 3,
+      "call_count": 86,
+      "success_when_used": 73,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-manipulation": {
+      "title": "Object Manipulation",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 9,
+      "last_changed_version": 9,
+      "stable_versions": 2,
+      "call_count": 69,
+      "success_when_used": 60,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-manipulation/object-identity-verification": {
+      "title": "Object Identity Verification",
+      "level": 3,
+      "body_hash": "ff5ceeeb6258",
+      "created_version": 9,
+      "last_changed_version": 9,
+      "stable_versions": 2,
+      "call_count": 69,
+      "success_when_used": 60,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-handling": {
+      "title": "Multi-Object Handling",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 7,
+      "last_changed_version": 7,
+      "stable_versions": 4,
+      "call_count": 99,
+      "success_when_used": 83,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-handling/finding-the-first-object": {
+      "title": "Finding the First Object",
+      "level": 3,
+      "body_hash": "6c501d63cd7f",
+      "created_version": 7,
+      "last_changed_version": 9,
+      "stable_versions": 2,
+      "call_count": 99,
+      "success_when_used": 83,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-handling/after-placing-the-first-object": {
+      "title": "After Placing the First Object",
+      "level": 3,
+      "body_hash": "d3f49bcc8c6b",
+      "created_version": 7,
+      "last_changed_version": 10,
+      "stable_versions": 1,
+      "call_count": 99,
+      "success_when_used": 83,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-handling/exhaustive-search-loop": {
+      "title": "Exhaustive Search Loop",
+      "level": 3,
+      "body_hash": "28368b7afc54",
+      "created_version": 9,
+      "last_changed_version": 10,
+      "stable_versions": 1,
+      "call_count": 69,
+      "success_when_used": 60,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-handling/finding-and-placing-the-second-object": {
+      "title": "Finding and Placing the Second Object",
+      "level": 3,
+      "body_hash": "e00a20eff933",
+      "created_version": 7,
+      "last_changed_version": 11,
+      "stable_versions": 0,
+      "call_count": 99,
+      "success_when_used": 83,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/completion-detection": {
+      "title": "Completion Detection",
+      "level": 2,
+      "body_hash": "f6491f107d97",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 4,
+      "call_count": 254,
+      "success_when_used": 205,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

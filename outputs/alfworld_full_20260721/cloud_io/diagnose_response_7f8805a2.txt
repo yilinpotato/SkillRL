@@ -1,0 +1,92 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent wasted steps opening irrelevant drawers instead of searching countertops and sinks where a dishsponge is typically found.",
+    "evidence": "After arriving at countertop 1 (no dishsponge), it goes to sinkbasin (empty), then repeatedly opens drawers 1-5 without finding the dishsponge.",
+    "corrective_rule": "When searching for a common surface item like dishsponge, first inspect all visible surfaces (countertops, tables, sink) before opening containers.",
+    "skill_tree_gap": "Lack of a prioritized surface-search heuristic for objects that commonly appear on countertops.",
+    "patch_location": "Under '# clean' > '## Search for object', add a new subsection '### Surface-first search' that prioritizes inspecting all open surfaces before opening cabinets or drawers.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a cup instead of a mug because it did not verify the object type before taking.",
+    "evidence": "Step 'take cup 3 from countertop 1' (task requires mug, not cup); afterwards it moves it back to countertop and stops.",
+    "corrective_rule": "Before picking up an object, confirm that its type matches the task specification (e.g., 'mug' not 'cup'); if not, continue searching.",
+    "skill_tree_gap": "No object-type checking step between locating and picking up an object.",
+    "patch_location": "Under '# clean' > '## Object handling', add a new subsection '### Type verification' that forces a check of the object's type against the task requirement before executing a take action.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a pan because it did not systematically open all available cabinets and drawers that might contain a pan.",
+    "evidence": "It opens only cabinets 2,3,4 but never checks other cabinets or drawers; then wanders to countertops and sinkbasin without picking anything.",
+    "corrective_rule": "When searching for a pan, systematically visit every cabinet, drawer, and storage container in the kitchen, checking each one.",
+    "skill_tree_gap": "Incomplete exploration routine that does not guarantee all storage locations are searched.",
+    "patch_location": "Under '# clean' > '## Search for object', add a new subsection '### Systematic container search' that iterates through all cabinets and drawers until the target object is found.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate a cup because it only checked the fridge (which had no cup) and then opened a few cabinets without exploring other common locations like countertops or drawers.",
+    "evidence": "After opening fridge and seeing no cup, it goes to countertops and opens cabinets 1-4 but never finds a cup; it never proceeds to heat or place.",
+    "corrective_rule": "When the initial location (fridge) does not contain the required object, expand the search to all other surfaces and containers in the room.",
+    "skill_tree_gap": "Lack of a fallback search strategy that covers all furniture types when the first expected location fails.",
+    "patch_location": "Under '# heat' > '## Search for object', add a new subsection '### Broad area search' that defines a systematic order for checking all receptacles (fridge, countertops, cabinets, drawers).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched shelves and a few sidetables and drawers, missing other furniture like the bed, dresser, or armchair where a CD could be.",
+    "evidence": "It visits shelf1, shelf2, sidetable1, sidetable2, and opens some drawers, but never goes to bed, dresser, or other listed furniture from the initial observation.",
+    "corrective_rule": "When searching for an object, visit every piece of furniture visible in the initial room description (including beds, dressers, armchairs, etc.) before opening containers.",
+    "skill_tree_gap": "No comprehensive furniture visitation list for room-scale exploration.",
+    "patch_location": "Under '# pick_and_place' > '## Exploration', add a new subsection '### Comprehensive furniture check' that makes the agent visit all initially listed furniture locations.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent restricted its search to cabinets only and never checked other potential storage areas like drawers, fridge, or stove for pans.",
+    "evidence": "It visits only cabinets (1-8) and countertop1 (briefly), ignoring drawers and other appliances; no pan is ever picked up.",
+    "corrective_rule": "For pans, search all cabinets, drawers, and kitchen appliances (fridge, stove) – not just cabinets.",
+    "skill_tree_gap": "Search routine too narrow; does not include drawers and appliances that commonly hold pans.",
+    "patch_location": "Under '# pick_two_obj_and_place' > '## Multi-object search', add a new subsection '### All location coverage' that forces checking of cabinets, drawers, fridge, and stove for pans.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After picking up one saltshaker, the agent stopped without searching for a second one, failing to satisfy the 'two' requirement.",
+    "evidence": "After 'take saltshaker 1 from countertop 1', the trajectory ends; no further action to find another saltshaker or place them.",
+    "corrective_rule": "For tasks requiring multiple objects, after picking the first, continue searching until the required count is reached, then place all.",
+    "skill_tree_gap": "Lack of a loop that checks remaining quantity needed before terminating the search.",
+    "patch_location": "Under '# pick_two_obj_and_place' > '## Counting and collection', add a new subsection '### Verify count before stopping' that uses a counter to ensure the required number is collected.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a soapbottle instead of a soapbar, and also stopped prematurely without finding a second soapbar.",
+    "evidence": "Step 'take soapbottle 1 from cabinet 1' while task requires 'soapbar'; no second object is obtained.",
+    "corrective_rule": "Check the object type exactly against the task specification (soapbar vs soapbottle) before picking; if incorrect, continue searching.",
+    "skill_tree_gap": "No exact type matching step; also missing count check for multiple objects.",
+    "patch_location": "Under '# pick_two_obj_and_place' > '## Object identification', add a new subsection '### Exact type matching' that compares object type strings with the task requirement before taking.",
+    "confidence": 0.95
+  }
+]
+```

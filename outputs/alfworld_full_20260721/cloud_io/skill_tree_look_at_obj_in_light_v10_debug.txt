@@ -1,0 +1,60 @@
+=== Skill Tree Debug — scope=look_at_obj_in_light  v10 (level=3, tree_depth=3, 5 nodes) ===
+action: refine
+critique: The agent used the skill tree but inconsistently performed the examine action, suggesting Phase 3's requirement to examine was not aligned with the environment's success condition; the skill tree itself misled by implying examine is mandatory when taking the object under the lamp actually suffices.
+changelog: Refined Phase 3 to state that task completes upon taking the object while the lamp is on, removing the unnecessary examine action requirement.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v10) ---
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/search-strategy-for-target-objects level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-3-task-completion level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v9 -> v10) ---
+--- v9
++++ v10
+@@ -1,4 +1,4 @@
+-# Goal: Examine a target object using a light source (e.g., desklamp)
++# Goal: Examine or look at a target object using a light source (e.g., desklamp)
+ 
+ ## Phase 1: Find and turn on the desklamp
+ - Search the surfaces you can see at your current location for a desklamp. If you see one, note its location and move there if necessary.
+@@ -17,6 +17,6 @@
+ - If you already knew the target's location from earlier, go directly there and take it.
+ - The object is now in your inventory.
+ 
+-## Phase 3: Examine the object under the lamp
+-- With the desklamp still on and the target object in your inventory, use the examine action on the object (action: examine <object>). The observation will confirm the examination.
+-- The task is complete once you have examined the target object while the desklamp is on. No further action is required.
++## Phase 3: Task completion
++- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.
++  (If you wish, you may use the examine action on the object, but it is not necessary for success.)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Examine or look at a target object using a light source (e.g., desklamp)
+
+## Phase 1: Find and turn on the desklamp
+- Search the surfaces you can see at your current location for a desklamp. If you see one, note its location and move there if necessary.
+- If no desklamp is visible, move to another surface receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) and check its contents. Continue moving among receptacles until you find a desklamp.
+- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.
+- Important: You may encounter the target object before finding the lamp. If that happens, remember where it is and continue searching for the lamp. Do **not** take the object until the lamp is on.
+
+## Phase 2: Locate and take the target object
+- After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then systematically move to other likely receptacles.
+
+### Search Strategy for Target Objects
+- Check receptacles in this priority order: desk, bed, dresser, sidetable, coffeetable, sofa, shelf, and any other surface you haven't visited.
+- Do **not** open drawers or cabinets; the target is always on an open surface (bed, desk, sofa, etc.). Opening unnecessary containers wastes steps.
+- When you arrive at a receptacle, read its contents (the observation lists items on it). If you see the target object, take it (action: take <object> from <receptacle>).
+- If you do not see the target, move to the next receptacle on the list. Continue until the target is found.
+- If you already knew the target's location from earlier, go directly there and take it.
+- The object is now in your inventory.
+
+## Phase 3: Task completion
+- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.
+  (If you wish, you may use the examine action on the object, but it is not necessary for success.)

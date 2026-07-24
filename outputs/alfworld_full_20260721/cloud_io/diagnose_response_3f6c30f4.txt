@@ -1,0 +1,167 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "gave_up",
+    "root_cause": "Agent stopped exploring after checking only a few locations and never found a mug to clean.",
+    "evidence": "Trajectory ends after 'go to countertop 1' without having picked up any mug or cleaned.",
+    "corrective_rule": "If the target object is not on visible surfaces, systematically search all cabinets, drawers, fridge, and other containers before giving up.",
+    "skill_tree_gap": "Lacks a systematic search subroutine for locating objects that are not immediately visible.",
+    "patch_location": "Under 'clean' task type, add a new subsection '### Search for target object'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "gave_up",
+    "root_cause": "Agent did not find a plate because it only searched surfaces and the fridge, ignoring cabinets and drawers where plates are often stored.",
+    "evidence": "After opening fridge and seeing no plate, agent returns to countertop 1 and stops.",
+    "corrective_rule": "When a plate is not on visible surfaces, open cabinets and drawers to search for it.",
+    "skill_tree_gap": "Missing a rule to search storage containers for objects that are typically stored out of sight.",
+    "patch_location": "Under 'cool' task type, add a new subsection '### Search in containers'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "wrong_target",
+    "root_cause": "Agent picked up a kettle instead of a mug because it did not verify the object type against the task requirement.",
+    "evidence": "Action 'take kettle 1 from stoveburner 2' when task requires a mug.",
+    "corrective_rule": "Only pick up an object if its name exactly matches the target object type specified in the task.",
+    "skill_tree_gap": "No check to ensure picked object matches the required object type before proceeding.",
+    "patch_location": "Under 'cool' task type, add a new subsection '### Verify object identity'.",
+    "confidence": 0.98
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "gave_up",
+    "root_cause": "Agent could not locate a cup and stopped after opening a few cabinets that were empty, without searching drawers or other containers.",
+    "evidence": "Last action 'open cabinet 3' (empty) followed by end of trajectory; no cup found.",
+    "corrective_rule": "If cabinets yield no cup, search drawers and other receptacles before concluding unavailability.",
+    "skill_tree_gap": "Search strategy does not include drawers as a candidate location for cups.",
+    "patch_location": "Under 'heat' task type, add a new subsection '### Expand search to drawers'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "gave_up",
+    "root_cause": "Agent did not find a pencil and stopped after opening a few empty cabinets, missing drawers and other furniture.",
+    "evidence": "After opening cabinet 3 (empty), agent goes to sidetable 2 and trajectory ends.",
+    "corrective_rule": "When the target object (pencil) is not on shelves or sidetables, search drawers and dressers as well.",
+    "skill_tree_gap": "No systematic procedure for searching all furniture types for a small object like pencil.",
+    "patch_location": "Under 'pick_and_place' task type, add a new subsection '### Comprehensive object search'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "gave_up",
+    "root_cause": "Agent visited many shelves but never found a pen, and stopped after opening one empty drawer.",
+    "evidence": "After opening drawer 1 (empty), agent goes to shelf 1 and stops.",
+    "corrective_rule": "Search all drawers, dressers, and cabinets systematically after checking shelves.",
+    "skill_tree_gap": "Lacks a strategy to search drawers thoroughly for the target object.",
+    "patch_location": "Under 'pick_and_place' task type, add a new subsection '### Drawer and cabinet search'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#2",
+    "task_type": "pick_and_place",
+    "failure_type": "gave_up",
+    "root_cause": "Agent did not find a pencil and stopped after opening a few empty cabinets, missing drawers and other locations.",
+    "evidence": "After opening cabinet 3 (empty), agent goes to sidetable 1 and trajectory ends.",
+    "corrective_rule": "When a pencil is not on sidetables or beds, search drawers and cabinets thoroughly.",
+    "skill_tree_gap": "No exhaustive search routine for small objects in multiple furniture types.",
+    "patch_location": "Under 'pick_and_place' task type, add a new subsection '### Exhaustive search for target'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#3",
+    "task_type": "pick_and_place",
+    "failure_type": "gave_up",
+    "root_cause": "Agent searched many shelves and sidetables but never found a cellphone, and stopped without checking drawers or dressers.",
+    "evidence": "After visiting shelf 9 and sidetable 1, agent goes to shelf 9 and trajectory ends with no cellphone taken.",
+    "corrective_rule": "If cellphone is not on shelves or sidetables, search drawers, dressers, and cabinets.",
+    "skill_tree_gap": "No rule to search closed containers for electronics like cellphones.",
+    "patch_location": "Under 'pick_and_place' task type, add a new subsection '### Search containers for electronics'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#4",
+    "task_type": "pick_and_place",
+    "failure_type": "gave_up",
+    "root_cause": "Agent did not find an alarmclock and stopped after opening one cabinet and one empty drawer, missing dressers and other drawers.",
+    "evidence": "After going to drawer 2 (closed), agent goes to desk 1 and stops.",
+    "corrective_rule": "Search all drawers and dressers completely before assuming alarmclock is absent.",
+    "skill_tree_gap": "Incomplete search of drawers and dressers for alarmclocks.",
+    "patch_location": "Under 'pick_and_place' task type, add a new subsection '### Thorough drawer exploration'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent failed to find winebottles in cabinets and then repeatedly performed 'look' actions without exploring other areas.",
+    "evidence": "Dropped 4 looping actions after looking at coffeemachine.",
+    "corrective_rule": "When cabinets do not contain the target object, move to other locations (fridge, countertops, drawers) instead of repeating look.",
+    "skill_tree_gap": "No branching exploration strategy when initial container search fails.",
+    "patch_location": "Under 'pick_two_obj_and_place' task type, add a new subsection '### Diversify search locations'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent found no kettles in cabinets and then got stuck in a loop of looking at coffeemachine without expanding search.",
+    "evidence": "Dropped 4 looping actions after looking at coffeemachine.",
+    "corrective_rule": "After empty cabinets, proceed to search other furniture (stoveburners, countertops) where kettles may be present.",
+    "skill_tree_gap": "No transition to alternative search areas after a container sweep.",
+    "patch_location": "Under 'pick_two_obj_and_place' task type, add a new subsection '### Alternative location search'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "gave_up",
+    "root_cause": "Agent walked past many cabinets without opening them and then gave up after going to countertop 1.",
+    "evidence": "After going to countertop 1, trajectory ends; only cabinet 21 was opened.",
+    "corrective_rule": "Systematically open each cabinet you pass; tomatoes are often in cabinets or on countertops.",
+    "skill_tree_gap": "Lacks discipline to open every cabinet encountered during navigation.",
+    "patch_location": "Under 'pick_two_obj_and_place' task type, add a new subsection '### Systematic cabinet opening'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent found only non-target objects in cabinets and then looped after a look action, never checking fridge or countertops where lettuce is common.",
+    "evidence": "Dropped 1 looping action after looking at cabinet 6; lettuce often in fridge or on countertops.",
+    "corrective_rule": "If cabinets yield no lettuce, search fridge and countertops immediately.",
+    "skill_tree_gap": "No rule to prioritize fridge and countertops for food items.",
+    "patch_location": "Under 'pick_two_obj_and_place' task type, add a new subsection '### Food search in fridge and countertops'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent searched only cabinets and armchairs, found no watches, then looped between armchair 1 and 2 without exploring drawers or dressers.",
+    "evidence": "Dropped 2 looping actions after visiting armchair 2.",
+    "corrective_rule": "When watches are not on armchairs or in cabinets, search drawers and dressers.",
+    "skill_tree_gap": "No search extension to drawers and dressers for small valuables.",
+    "patch_location": "Under 'pick_two_obj_and_place' task type, add a new subsection '### Search drawers and dressers'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent found a soapbar but not a soapbottle in cabinets, and then looped after a look action without searching other locations like sinkbasin or countertop.",
+    "evidence": "Dropped 4 looping actions after looking at countertop 1.",
+    "corrective_rule": "If soapbottles are not in cabinets, search sinkbasin and countertops where they are often placed.",
+    "skill_tree_gap": "No systematic search of sinkbasin and countertops for bottles.",
+    "patch_location": "Under 'pick_two_obj_and_place' task type, add a new subsection '### Search sinkbasin and countertops'.",
+    "confidence": 0.95
+  }
+]

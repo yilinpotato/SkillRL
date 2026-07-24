@@ -1,0 +1,110 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v29 (level=3, tree_depth=4, 12 nodes) ===
+action: refine
+critique: The current skill tree explicitly instructed the agent to restart search after first placement and maintain a mental counter, but the agent still stopped after placing one soapbottle. The failure suggests the agent did not internalize the counting rule, possibly because it was buried under multiple subheadings. The skill tree's wording was not misleading, but its structure may have reduced the prominence of that critical instruction.
+changelog: Added a top-level '### Count Tracking' section to place the counter front and center, and reorganized the 'Persistent Search Loop' to explicitly check the counter before any other action, making premature termination harder to overlook.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 15  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] The agent placed only one soapbottle and then stopped, failing to retrieve and place the second required soapbottle. | evidence: After moving soapbottle 1 to countertop 1, the trajectory ends; no further search or placement for a second soapbottle occurs. | fix: Keep a count of objects placed; continue searching for and placing additional copies until the required number (two) is reached. | skill_tree_gap: No mechanism to track the number of items placed versus the task requirement, causing premature task termination. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### Multi-object tracking' that maintains a counter and loops until the required quantity is placed.
+
+--- Node tree (per-node lifecycle, this version=v29) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=28 calls=683 success=541 rate=79.2%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=8 calls=683 success=541 rate=79.2%
+[STABLE              ] pick-two-obj-and-place/goal/common-failure-patterns-avoid-these level=3 stable_versions=1 calls=16 success=15 rate=93.8%
+[NEW                 ] pick-two-obj-and-place/goal/count-tracking level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/goal/critical-rule-overrides-all-others level=3 stable_versions=0 calls=16 success=15 rate=93.8%
+[STABLE              ] pick-two-obj-and-place/goal/exact-type-matching-reminder level=3 stable_versions=1 calls=16 success=15 rate=93.8%
+[MODIFIED            ] pick-two-obj-and-place/goal/multi-object-collection-protocol level=3 stable_versions=0 calls=16 success=15 rate=93.8%
+[MODIFIED            ] pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed level=3 stable_versions=0 calls=16 success=15 rate=93.8%
+[STABLE              ] pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-1-create-master-list level=4 stable_versions=1 calls=16 success=15 rate=93.8%
+[STABLE              ] pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-2-visit-each-furniture-item-systematically level=4 stable_versions=1 calls=16 success=15 rate=93.8%
+[STABLE              ] pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-3-immediate-placement level=4 stable_versions=1 calls=16 success=15 rate=93.8%
+[STABLE              ] pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-4-second-object-search-critical level=4 stable_versions=1 calls=16 success=15 rate=93.8%
+
+--- Line diff vs previous version (v28 -> v29) ---
+--- v28
++++ v29
+@@ -3,17 +3,22 @@
+ ## Goal
+ Place exactly two instances of a specific object type into a specified target receptacle.
+ 
++### Count Tracking
++- Keep a mental counter of objects placed: start at 0. After each successful placement, increment by 1.
++- **Never stop until counter == 2.** If counter == 1, you must immediately search for and place the second object.
++- If after two complete passes through all furniture you still have only 1 placed, the task may be impossible — but only then may you stop.
++
+ ### Critical Rule (Overrides All Others)
+ - **After taking any matching object, immediately go to the target and place it. Do not take any other action (including searching for the second object) until this placement is complete.**
+-- You need exactly two placed objects. After first placement, mental counter = 1. Then restart search for the second. Never stop at counter = 1.
++- You need exactly two placed objects. After first placement, mental counter = 1. Then restart search for the second.
+ 
+ ### Multi-Object Collection Protocol
+-- You must collect and place two objects. After placing the first, immediately begin a second search. Do **not** wander or explore unrelated items.
++- Collect and place two objects. After placing the first, immediately begin a second search. Do **not** wander or explore unrelated items.
+ - If during the first search you saw a second matching object at the same location (e.g., on same countertop or inside same open container), return directly there and take it.
+ - Otherwise, perform a full systematic search (see Persistent Search Loop) again.
+ 
+ ### Persistent Search Loop (Repeat Until Two Placed)
+-This loop is your core control flow. Run it once for the first object, then immediately repeat it for the second.
++Run this loop once for the first object, then immediately repeat it for the second.
+ 
+ #### Step 1: Create Master List
+ - After the initial room description, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, sinkbasin 1). This is your checklist. Do not miss any item.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specific object type into a specified target receptacle.
+
+### Count Tracking
+- Keep a mental counter of objects placed: start at 0. After each successful placement, increment by 1.
+- **Never stop until counter == 2.** If counter == 1, you must immediately search for and place the second object.
+- If after two complete passes through all furniture you still have only 1 placed, the task may be impossible — but only then may you stop.
+
+### Critical Rule (Overrides All Others)
+- **After taking any matching object, immediately go to the target and place it. Do not take any other action (including searching for the second object) until this placement is complete.**
+- You need exactly two placed objects. After first placement, mental counter = 1. Then restart search for the second.
+
+### Multi-Object Collection Protocol
+- Collect and place two objects. After placing the first, immediately begin a second search. Do **not** wander or explore unrelated items.
+- If during the first search you saw a second matching object at the same location (e.g., on same countertop or inside same open container), return directly there and take it.
+- Otherwise, perform a full systematic search (see Persistent Search Loop) again.
+
+### Persistent Search Loop (Repeat Until Two Placed)
+Run this loop once for the first object, then immediately repeat it for the second.
+
+#### Step 1: Create Master List
+- After the initial room description, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, sinkbasin 1). This is your checklist. Do not miss any item.
+
+#### Step 2: Visit Each Furniture Item Systematically
+- Pick any unvisited item from your master list. Go to it.
+- If it is closed (drawer, cabinet, fridge, etc.), **open it**.
+- **Examine its contents** (inside if container, on top if surface).
+- If you see an object whose exact name matches the required type, **take it immediately**.
+- Check off that item as visited.
+- Repeat for every item on the list. Do not skip any even if you already found one object; you need to find all possible sources.
+
+#### Step 3: Immediate Placement
+- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. **No other actions in between.**
+- After placing, increment your mental counter. (After first placement, counter=1; after second, counter=2.)
+
+#### Step 4: Second Object Search (Critical)
+- **After placing the first object, you must immediately begin the Persistent Search Loop again.**
+- If you earlier observed a second matching object at the same location (e.g., on the same countertop or inside the same open container), go directly back to that location and take it.
+- If you did not notice a second object at any visited location, **execute Step 1 and Step 2 again from scratch**, including reopening all previously opened containers.
+- Do not stop after visiting only a few items. You must visit **every** furniture item on your master list again (a second complete pass).
+- If after a full second pass you still find only one object, the task may be impossible – but do not give up before finishing both passes. If counter is still 1 after both passes, you may stop (task likely impossible).
+
+### Common Failure Patterns (Avoid These)
+- **Premature stop after taking first object without placing it**: You must place it immediately before doing anything else.
+- **Stopping after first placement**: Immediately restart the loop. Do not wander or explore unrelated items.
+- **Incomplete master list**: Omitting any furniture item leads to missing objects. Ensure you list every item from the initial observation.
+- **Not reopening containers during second pass**: New objects may appear inside.
+- **Stopping early due to frustration**: Complete at least two full passes before concluding impossibility.
+- **Picking wrong object**: Verify exact name before taking.
+- **Skipping surfaces (countertops, sidetables, etc.)**: Visit every furniture item in the master list, including surfaces. Do not assume an object is only inside containers.
+
+### Exact Type Matching Reminder
+Before taking any object, compare its exact name to the required type. Only take exact matches. Ignore objects with similar names (e.g., soapbottle vs soapbar).

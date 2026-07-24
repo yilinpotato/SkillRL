@@ -1,0 +1,169 @@
+{
+  "batch_id": "a1ffe681-236e-4845-bd33-490a34320218",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent limited its search to cabinets and never explored drawers or other receptacles, so it never found a pan.",
+        "evidence": "After opening cabinet 5 and seeing nothing, the trajectory ends without locating a pan.",
+        "corrective_rule": "If the target object is not found in cabinets, search all other receptacles (drawers, fridge, countertops) systematically.",
+        "skill_tree_gap": "Lack of a systematic search strategy for unknown object locations.",
+        "patch_location": "## clean / ### Locating target object (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched cabinets and countertops but ignored drawers and the fridge, preventing it from finding a pan.",
+        "evidence": "After opening cabinet 5 and moving to diningtable 1, the trajectory ends without a pan being located.",
+        "corrective_rule": "Check all common receptacles (drawers, fridge, cabinets) when the target object is not immediately visible.",
+        "skill_tree_gap": "No exhaustive search subroutine that covers all furniture types.",
+        "patch_location": "## clean / ### Locating target object (new subsection)",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent visited many locations but never searched drawers or additional cabinets, so it never found a tomato.",
+        "evidence": "After examining cabinet 1 and countertop 1, the trajectory ends with no tomato in sight.",
+        "corrective_rule": "Systematically search all receptacles in the room if the target object is not found in the first few locations.",
+        "skill_tree_gap": "Missing a complete search procedure for objects that may be in less obvious places.",
+        "patch_location": "## cool / ### Object search strategy (new subsection)",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched fridge, countertop, and cabinets, but did not check drawers or diningtable, so it never found an apple.",
+        "evidence": "After opening cabinet 4 and seeing nothing, the trajectory ends without an apple.",
+        "corrective_rule": "If the target object is not in obvious places, check drawers and other surfaces.",
+        "skill_tree_gap": "Incomplete search coverage for objects that may be in drawers.",
+        "patch_location": "## heat / ### Locating target objects (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent picked up a mug when the task required a cup, because it did not find a cup and settled for an incorrect object.",
+        "evidence": "After taking mug 1 from cabinet 1, the trajectory ends without heating or placing a cup.",
+        "corrective_rule": "Only pick up objects that exactly match the target object type; if not found, continue searching.",
+        "skill_tree_gap": "Lack of object matching or verification against the task specification.",
+        "patch_location": "## heat / ### Object identification and selection (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#2",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to locate an egg because it did not search diningtable or drawers, limiting its search to fridge, countertops, and a few cabinets.",
+        "evidence": "Returning to fridge after searching several locations, no egg was found.",
+        "corrective_rule": "Exhaustively search all containers and surfaces, including diningtable and drawers.",
+        "skill_tree_gap": "No systematic exploration that visits all furniture types.",
+        "patch_location": "## heat / ### Search and exploration (new subsection)",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched many drawers and shelves but never went to the dresser, where the cellphone might have been located.",
+        "evidence": "After opening drawer 4, the trajectory ends without a cellphone; dresser was never visited.",
+        "corrective_rule": "When searching for an object, visit all named furniture items, especially those commonly containing the object.",
+        "skill_tree_gap": "No prioritized list of possible locations based on object type.",
+        "patch_location": "## pick_and_place / ### Object location search (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched cabinets and countertops and did not check drawers, missing the butterknife which often resides in drawers.",
+        "evidence": "After opening cabinet 5 and seeing nothing, the trajectory ends without a butterknife.",
+        "corrective_rule": "Search drawers as well as cabinets for utensils like butterknives.",
+        "skill_tree_gap": "Missing drawer search in the utensil-seeking behavior.",
+        "patch_location": "## pick_and_place / ### Searching for utensils (new subsection)",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched shelves and a few drawers, ignoring the dresser and other furniture where cellphones might be.",
+        "evidence": "After searching shelf 7, the trajectory ends with no cellphone found.",
+        "corrective_rule": "Expand search to all furniture types, including dresser, bed, and other surfaces.",
+        "skill_tree_gap": "Incomplete search coverage for multiple objects.",
+        "patch_location": "## pick_two_obj_and_place / ### Exhaustive search for multiple objects (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched many drawers and sidetable but never checked shelves or other surfaces for books.",
+        "evidence": "After opening drawer 5 and seeing nothing, the trajectory ends without a book.",
+        "corrective_rule": "Check shelves, sidetables, and other surfaces for books.",
+        "skill_tree_gap": "Lack of search strategy for books specifically.",
+        "patch_location": "## pick_two_obj_and_place / ### Searching for books (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Only one spraybottle was found; the agent did not exhaustively search all possible locations for a second spraybottle.",
+        "evidence": "After opening drawer 2 and finding nothing, the trajectory ends with only one spraybottle placed.",
+        "corrective_rule": "Continue searching all receptacles until two objects are found.",
+        "skill_tree_gap": "Lack of persistence and coverage in multi-object collection.",
+        "patch_location": "## pick_two_obj_and_place / ### Multi-object collection strategy (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Only one saltshaker was found; the agent did not search all containers and surfaces for a second saltshaker.",
+        "evidence": "After opening cabinet 4 and seeing nothing, the trajectory ends with only one saltshaker placed.",
+        "corrective_rule": "Search all possible containers and surfaces for the second object.",
+        "skill_tree_gap": "Incomplete search for multiple objects.",
+        "patch_location": "## pick_two_obj_and_place / ### Multi-object collection (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched cabinets and countertops but did not check drawers for kettles.",
+        "evidence": "After going to diningtable 1, the trajectory ends with no kettle found.",
+        "corrective_rule": "Search drawers and other receptacles for kettles.",
+        "skill_tree_gap": "Missing search in drawers for specific objects.",
+        "patch_location": "## pick_two_obj_and_place / ### Search for kettles (new subsection)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Only one soapbar was found; after placing it, the agent only checked a few drawers and surfaces and then stopped.",
+        "evidence": "After going to drawer 3 and seeing nothing, the trajectory ends with only one soapbar placed.",
+        "corrective_rule": "Continue searching all remaining drawers and containers until two soapbars are found.",
+        "skill_tree_gap": "Incomplete persistence in multi-object tasks.",
+        "patch_location": "## pick_two_obj_and_place / ### Multi-object collection (new subsection)",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent wandered through many locations without locating the plate or performing the cleaning and placement actions.",
+    "evidence": "After prefix, they visited countertop1, countertop2, diningtable, shelves, burners, etc., but never took a plate or went to sink.",
+    "corrective_rule": "Systematically search all countertops and common surfaces for the target object before exploring other locations.",
+    "skill_tree_gap": "Lack of a structured object search strategy.",
+    "patch_location": "## clean -> new subsection ### Systematic Countertop Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find the pot despite visiting several countertops and cabinets.",
+    "evidence": "They visited countertop1,2,3 and opened cabinets but no pot was seen.",
+    "corrective_rule": "Exhaustively search all countertops and storage for the target object.",
+    "skill_tree_gap": "Lack of exhaustive search strategy for target object.",
+    "patch_location": "## clean -> new subsection ### Exhaustive Object Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent visited multiple countertops and cabinets but never located a spoon.",
+    "evidence": "They went to countertop1,2,3,4 and opened cabinets, but no spoon was observed.",
+    "corrective_rule": "Ensure the target object is located by checking all countertops and common receptacles.",
+    "skill_tree_gap": "Lack of systematic object search.",
+    "patch_location": "## clean -> new subsection ### Object Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a potato anywhere despite exploring multiple locations.",
+    "evidence": "They visited countertops, cabinets, diningtable, and fridge but no potato was seen.",
+    "corrective_rule": "Search all possible locations for the target object before proceeding.",
+    "skill_tree_gap": "Lack of a comprehensive search strategy for target objects.",
+    "patch_location": "## heat -> new subsection ### Object Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "misread_state",
+    "root_cause": "The agent saw the spraybottle in an open cabinet but did not take it.",
+    "evidence": "After opening cabinet3, they saw spraybottle3 but then went to cabinet4 instead of taking it.",
+    "corrective_rule": "When the target object is observed, immediately take it.",
+    "skill_tree_gap": "Missing rule to pick up object upon sight.",
+    "patch_location": "## pick_and_place -> new subsection ### Object Acquisition",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a soapbar instead of a soapbottle because they did not find the correct object.",
+    "evidence": "They took soapbar1 from cabinet4, but the task required soapbottle.",
+    "corrective_rule": "Only take objects that match the target type specified in the task.",
+    "skill_tree_gap": "Lack of object type verification when picking.",
+    "patch_location": "## pick_and_place -> new subsection ### Object Identification",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed only one box and then stopped searching for the second box.",
+    "evidence": "They placed box2 on coffeetable, then searched drawers but found no second box and ended.",
+    "corrective_rule": "After placing the first object, continue searching for the second instance of the same type until both are placed.",
+    "skill_tree_gap": "Lack of counting mechanism to ensure all required objects are placed.",
+    "patch_location": "## pick_two_obj_and_place -> new subsection ### Multiple Object Handling",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed only one spraybottle and then stopped without finding the second.",
+    "evidence": "They placed spraybottle3 in garbagecan, then went to cabinet4 and countertop1 but did not find another spraybottle.",
+    "corrective_rule": "After placing the first object, continue searching for the second instance of the same type until both are placed.",
+    "skill_tree_gap": "Lack of counting mechanism to ensure all required objects are placed.",
+    "patch_location": "## pick_two_obj_and_place -> new subsection ### Multiple Object Handling",
+    "confidence": 0.9
+  }
+]

@@ -1,0 +1,111 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v49 (level=2, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent failed to follow explicit rules in the skill tree: it did not verify object type before picking (picked soapbottle for soapbar task) and did not place the first object before stopping (trajectory 1). The tree's wording was clear, but the agent likely did not internalize the pre-pick verification step and the requirement to immediately go to the target after picking. The new sections reinforce these rules to improve compliance.
+changelog: Added two new sections '## Verify object type before picking' and '## Ensure two objects are placed (counter enforcement)' to address failures caused by picking wrong object types and stopping after one pick, respectively.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 16  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] The agent stopped after taking only one remotecontrol, failing to find a second one and to place any remotecontrol in the armchair. | evidence: The trajectory ends immediately after 'take remotecontrol 4 from coffeetable 1' with no further actions. | fix: Continue searching for the second target object and then place both; do not stop after collecting only one. | skill_tree_gap: Missing a loop or counter to ensure exactly two objects are collected and placed. | patch_location: New subsection '### ensure correct count of objects' under '## pick_two_obj_and_place'
+- [wrong_target] The agent took a soapbottle (soapbottle2) instead of a soapbar, and then placed it in the cabinet, completely missing the required object type. | evidence: Action 'take soapbottle 2 from countertop 1' followed by 'move soapbottle 2 to cabinet 1'. | fix: Before taking an object, verify that its type matches the target (soapbar, not soapbottle). | skill_tree_gap: Missing object type verification step before picking up. | patch_location: New subsection '### verify object type before pick' under '## pick_two_obj_and_place'
+- [wrong_target] The agent took soapbars (soapbar3 and soapbar2) instead of soapbottles, and placed them on the countertop, fulfilling the wrong object type. | evidence: Actions 'take soapbar 3 from bathtubbasin 1' and 'take soapbar 2 from countertop 1' then moved them to countertop1. | fix: Before taking, confirm the object is the required type (soapbottle, not soapbar). | skill_tree_gap: Missing object type verification step. | patch_location: New subsection '### verify object type before pick' under '## pick_two_obj_and_place'
+
+--- Node tree (per-node lifecycle, this version=v49) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=48 calls=1045 success=805 rate=77.0%
+[NEW                 ] pick-two-obj-and-place/ensure-two-objects-are-placed-counter-enforcement level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/failure-prevention level=2 stable_versions=0 calls=19 success=16 rate=84.2%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=1 calls=1045 success=805 rate=77.0%
+[MODIFIED            ] pick-two-obj-and-place/immediate-rules-must-follow level=2 stable_versions=0 calls=19 success=16 rate=84.2%
+[STABLE              ] pick-two-obj-and-place/immediate-rules-must-follow/multi-object-completion level=3 stable_versions=1 calls=19 success=16 rate=84.2%
+[MODIFIED            ] pick-two-obj-and-place/search-procedure  level=2 stable_versions=0 calls=19 success=16 rate=84.2%
+[STABLE              ] pick-two-obj-and-place/stop-condition    level=2 stable_versions=1 calls=19 success=16 rate=84.2%
+[NEW                 ] pick-two-obj-and-place/verify-object-type-before-picking level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v48 -> v49) ---
+--- v48
++++ v49
+@@ -3,8 +3,18 @@
+ ## Goal
+ Place exactly two instances of a specific object type into a specified target receptacle. Stop only when counter == 2 or after two exhaustive passes without finding a second object.
+ 
++## Verify object type before picking
++- Before taking any object, read its full name from the observation. Compare it exactly to the required object type (e.g., if the task says "soapbottle", you must pick only objects named "soapbottle X").
++- If the object name does NOT match exactly, do not take it. Ignore it and continue searching.
++- If you accidentally take a non-matching object, drop it immediately (use `drop`) and resume search from where you left off.
++
++## Ensure two objects are placed (counter enforcement)
++- After placing the first matching object, counter becomes 1. You must NOT stop. Immediately begin a systematic search for the second object.
++- Perform Phase 2 exactly as described in the Search Procedure: two full passes over all furniture items from the initial observation list.
++- If you ever have counter == 1 and have no objects in hand, you are in a searching state. Do not wander; follow the master list order.
++
+ ## Immediate Rules (Must Follow)
+-- **Counter:** Start at 0. After each placement, increment by 1. If counter == 1, continue searching. If counter == 2, task complete.
++- **Counter:** Start at 0. After each successful placement, increment by 1. If counter == 1, continue searching. If counter == 2, task complete.
+ - **After picking up an object that matches the target type, your very next action MUST be `go to [target receptacle]`.** Do not open, look, or move anywhere else first. Then open the receptacle if closed, and place the object.
+ - **Do not stop after placing only one object.** Immediately begin the second-phase search (see Search Procedure).
+ 
+@@ -16,7 +26,7 @@
+ 2. **Visit each item in exact order.** For each:
+    - If closed, open it.
+    - Examine contents (surfaces: just look; containers: look inside).
+-   - If you see an object whose exact name matches the required type, **take it immediately**, then go directly to the target receptacle, open if needed, and place it. Increment counter.
++   - If you see an object whose exact name matches the required type, **verify the type** (see Verify section), **take it immediately**, then go directly to the target receptacle, open if needed, and place it. Increment counter.
+    - If counter becomes 1, proceed to step 3 (Phase 2).
+    - If no match, move to next item. Do not revisit any item in this pass.
+ 3. **Phase 2 (two full passes after first placement):** After placing the first object, re-read the initial observation, rebuild the master list, and perform two systematic full passes (each visits every furniture item once). If you already know where the second object is (e.g., saw it during first pass), go directly there.
+@@ -28,7 +38,7 @@
+ - **Looping:** If you revisit the same few locations without taking a target object, stop, re-read the observation, rebuild the master list, and restart from the first item.
+ - **Skipping furniture types:** The target object may be on any surface or inside any container. Follow the master list order; do not only check drawers or only shelves.
+ - **Opening target receptacle:** When placing, if the target is closed, open it first.
+-- **Taking wrong object:** If you accidentally take a non-matching object, drop it (use `drop` action) and resume search.
++- **Taking wrong object:** If you accidentally take a non-matching object, drop it (use `drop`) and resume search.
+ 
+ ## Stop Condition
+ - counter == 2 -> success
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specific object type into a specified target receptacle. Stop only when counter == 2 or after two exhaustive passes without finding a second object.
+
+## Verify object type before picking
+- Before taking any object, read its full name from the observation. Compare it exactly to the required object type (e.g., if the task says "soapbottle", you must pick only objects named "soapbottle X").
+- If the object name does NOT match exactly, do not take it. Ignore it and continue searching.
+- If you accidentally take a non-matching object, drop it immediately (use `drop`) and resume search from where you left off.
+
+## Ensure two objects are placed (counter enforcement)
+- After placing the first matching object, counter becomes 1. You must NOT stop. Immediately begin a systematic search for the second object.
+- Perform Phase 2 exactly as described in the Search Procedure: two full passes over all furniture items from the initial observation list.
+- If you ever have counter == 1 and have no objects in hand, you are in a searching state. Do not wander; follow the master list order.
+
+## Immediate Rules (Must Follow)
+- **Counter:** Start at 0. After each successful placement, increment by 1. If counter == 1, continue searching. If counter == 2, task complete.
+- **After picking up an object that matches the target type, your very next action MUST be `go to [target receptacle]`.** Do not open, look, or move anywhere else first. Then open the receptacle if closed, and place the object.
+- **Do not stop after placing only one object.** Immediately begin the second-phase search (see Search Procedure).
+
+### Multi-object completion
+- You must place exactly two matching objects. Placing one does **not** complete the task. After placing the first, you must continue searching and placing until the second is placed. Only after two full passes (following the first placement) with counter still 1 may you conclude the task is impossible.
+
+## Search Procedure
+1. **Build master list.** From the initial observation (and again after each placement), write down every furniture item in the order they appear. Include all surfaces (countertop, table, bed, sofa, shelf, sidetable, etc.) and all containers (cabinet, drawer, fridge, dresser, garbagecan, etc.). Do not skip any type.
+2. **Visit each item in exact order.** For each:
+   - If closed, open it.
+   - Examine contents (surfaces: just look; containers: look inside).
+   - If you see an object whose exact name matches the required type, **verify the type** (see Verify section), **take it immediately**, then go directly to the target receptacle, open if needed, and place it. Increment counter.
+   - If counter becomes 1, proceed to step 3 (Phase 2).
+   - If no match, move to next item. Do not revisit any item in this pass.
+3. **Phase 2 (two full passes after first placement):** After placing the first object, re-read the initial observation, rebuild the master list, and perform two systematic full passes (each visits every furniture item once). If you already know where the second object is (e.g., saw it during first pass), go directly there.
+4. **If the second object is found and placed, counter becomes 2: stop.**
+5. **If after both Phase 2 passes counter is still 1, the task is impossible. Stop.**
+
+## Failure Prevention
+- **Stopping early:** If you catch yourself not searching after placing one object, re-read the initial observation and restart Phase 2 from the first item.
+- **Looping:** If you revisit the same few locations without taking a target object, stop, re-read the observation, rebuild the master list, and restart from the first item.
+- **Skipping furniture types:** The target object may be on any surface or inside any container. Follow the master list order; do not only check drawers or only shelves.
+- **Opening target receptacle:** When placing, if the target is closed, open it first.
+- **Taking wrong object:** If you accidentally take a non-matching object, drop it (use `drop`) and resume search.
+
+## Stop Condition
+- counter == 2 -> success
+- counter == 1 after two full passes following first placement -> impossible, stop.

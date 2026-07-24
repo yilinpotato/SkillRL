@@ -1,0 +1,115 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Object Search and Retrieval\n\n### Exhaustive Search\n1. **Re-read the room description** from the prompt. Note all receptacle types and their instance numbers.\n2. **Search surfaces in this fixed order:**\n   - countertops (all numbered instances)\n   - diningtables\n   - sidetables\n   - shelves\n   - sinkbasin\n   - stoveburners\n   \n   For each instance: go to it, read the objects listed. If you see the exact target object name, take it immediately and proceed to Phase 2. If the receptacle is open (e.g., sinkbasin), check inside. If closed, only note it – do not open yet.\n3. **After all surfaces are searched** (you have visited every instance of the six categories above and the object is not found), proceed to **closed receptacles** in this order:\n   - fridge\n   - cabinets\n   - drawers\n   - microwave\n   \n   For **each instance** of each category:\n   - Go to it.\n   - If it is closed, open it.\n   - Look inside and take the object if present.\n   - **Do not stop** until you have opened and checked every instance of every category. For example, check cabinet 1, cabinet 2, … all drawers, and the microwave.\n4. **If you accidentally go to a category that is not the next one in the sequence**, immediately go to the correct next category (do not backtrack to earlier ones).\n5. **If after all surfaces and all closed receptacles you still have not found the object**, it is absent (but this should not happen in valid tasks).\n\n### Prioritize Common Locations\n- When searching closed receptacles, start with the fridge (common for perishable items), then cabinets, drawers, microwave. This order reflects typical likelihood based on object type.\n- For non-food objects, still follow the same order; the priority is a heuristic, not a rule.\n\n## Phase 2: Cool the object using the fridge\n- After picking up the object, go directly to the fridge.\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Phase 3: Move the cooled object to the target location\n- Go to the target location.\n- If the target receptacle is closed, open it first.\n- Use `move <object> to <target>`.\n\n## Completion check\n- Object is cooled and placed at the target location – task complete.",
+  "level": 3,
+  "version": 27,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent followed the surface search order but stopped prematurely during closed-receptacle search, failing to open all instances (e.g., missed drawers or microwave). The skill tree's backtracking rule may have caused confusion but the main gap was lack of explicit emphasis on completing every closed-receptacle instance.",
+  "changelog": "Added new section 'Object Search and Retrieval' with subsections 'Exhaustive Search' (systematic protocol including surface order and complete closed-receptacle checking) and 'Prioritize Common Locations'; removed original Phase 1 step 2 to avoid duplication; refined backtracking rule to prevent revisiting earlier categories.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never located a plate because it failed to search cabinets and drawers thoroughly, only checking one cabinet and missing the plate's location.",
+      "skill_tree_gap": "Missing a sub-skill for exhaustive object search that covers all common receptacles.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to find an apple because it did not check the fridge or drawers, instead wasting time visiting stoveburners and re-visiting countertops.",
+      "skill_tree_gap": "Lack of a prioritized list of likely object locations (fridge for perishables, drawers for utensils, etc.).",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_3168",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 26,
+      "call_count": 457,
+      "success_when_used": 390,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval": {
+      "title": "Object Search and Retrieval",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/exhaustive-search": {
+      "title": "Exhaustive Search",
+      "level": 3,
+      "body_hash": "b6a3f6968587",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/prioritize-common-locations": {
+      "title": "Prioritize Common Locations",
+      "level": 3,
+      "body_hash": "8bc03a226fc5",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge",
+      "level": 2,
+      "body_hash": "de516de96541",
+      "created_version": 24,
+      "last_changed_version": 27,
+      "stable_versions": 0,
+      "call_count": 53,
+      "success_when_used": 48,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location",
+      "level": 2,
+      "body_hash": "ee2daf0b8a33",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 3,
+      "call_count": 53,
+      "success_when_used": 48,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check",
+      "level": 2,
+      "body_hash": "68f9629c26b4",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,115 @@
+=== Skill Tree Debug — scope=heat  v9 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent did not fully follow the current skill tree's search order; it skipped drawers, diningtables, and did not perform a second 'look' after failing to find the object. Additionally, the skill tree lacked explicit instructions on verifying that the picked object matches the task's target type, leading to picking a mug when a cup was required. The refinements add an object identification subsection and strengthen the exhaustive search instructions.
+changelog: Added subsection 'Object identification and selection' under Locate the object and enhanced 'Systematic search order' to emphasize exhaustive coverage of all receptacle types, including a repeat 'look' step, based on failure diagnoses.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 10  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent only searched fridge, countertop, and cabinets, but did not check drawers or diningtable, so it never found an apple. | evidence: After opening cabinet 4 and seeing nothing, the trajectory ends without an apple. | fix: If the target object is not in obvious places, check drawers and other surfaces. | skill_tree_gap: Incomplete search coverage for objects that may be in drawers. | patch_location: ## heat / ### Locating target objects (new subsection)
+- [wrong_target] The agent picked up a mug when the task required a cup, because it did not find a cup and settled for an incorrect object. | evidence: After taking mug 1 from cabinet 1, the trajectory ends without heating or placing a cup. | fix: Only pick up objects that exactly match the target object type; if not found, continue searching. | skill_tree_gap: Lack of object matching or verification against the task specification. | patch_location: ## heat / ### Object identification and selection (new subsection)
+- [inefficient_exploration] The agent failed to locate an egg because it did not search diningtable or drawers, limiting its search to fridge, countertops, and a few cabinets. | evidence: Returning to fridge after searching several locations, no egg was found. | fix: Exhaustively search all containers and surfaces, including diningtable and drawers. | skill_tree_gap: No systematic exploration that visits all furniture types. | patch_location: ## heat / ### Search and exploration (new subsection)
+
+--- Node tree (per-node lifecycle, this version=v9) ---
+[STABLE              ] heat                                     level=1 stable_versions=8 calls=123 success=78 rate=63.4%
+[STABLE              ] heat/1-interpret-the-task                level=2 stable_versions=1 calls=123 success=78 rate=63.4%
+[STABLE              ] heat/2-locate-the-object                 level=2 stable_versions=2 calls=123 success=78 rate=63.4%
+[NEW                 ] heat/2-locate-the-object/2-1-after-any-move-look level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] heat/2-locate-the-object/2-2-exhaustive-search-of-all-receptacle-types level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] heat/2-locate-the-object/2-3-object-identification-and-selection level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] heat/2-locate-the-object/2-4-persistence-and-common-hiding-spots level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] heat/3-heat-the-object                   level=2 stable_versions=1 calls=123 success=78 rate=63.4%
+[STABLE              ] heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory level=3 stable_versions=1 calls=13 success=10 rate=76.9%
+[STABLE              ] heat/4-place-the-heated-object           level=2 stable_versions=1 calls=13 success=10 rate=76.9%
+[STABLE              ] heat/5-completion-check-and-termination  level=2 stable_versions=1 calls=116 success=76 rate=65.5%
+
+--- Line diff vs previous version (v8 -> v9) ---
+--- v8
++++ v9
+@@ -5,20 +5,26 @@
+ - The heating appliance is the microwave.
+ 
+ ## 2. Locate the object
+-### 2.1 Immediate after any move: look
++### 2.1 After any move: look
+ - Perform a 'look' action to refresh the list of all receptacles in the current room.
+ - Write down every receptacle name you see. Do not skip this.
+ 
+-### 2.2 Systematic search order
+-- Check each receptacle in this order:
+-  1. Fridge: open and look inside; take the object if present. If not, close the fridge.
+-  2. Countertops: go to each one, look at its contents, take the object if present. Check every countertop, not just one or two.
+-  3. Other flat surfaces: sidetables, diningtables, shelves. Check each.
+-  4. Cabinets, drawers, garbagecan, sinkbasin, and other containers: open each, look inside. Do not skip any.
+-- If after checking all receptacles from your list you still have not found the object, perform another 'look' to see if new receptacles have appeared, and continue.
++### 2.2 Exhaustive search of all receptacle types
++- Follow this exact order, checking **every single instance** of each type:
++  1. **Fridge**: go to it, open, look inside. Take the target object if present. Close after.
++  2. **Countertops**: go to each countertop one by one, look at contents, take if found.
++  3. **Other flat surfaces**: sidetables, diningtables, shelves (and any other flat surface listed). Go to each, look at its contents.
++  4. **Cabinets, drawers, garbagecan, sinkbasin, and all other containers**: open each one, look inside. Do not skip any. Even if you have already opened some, double-check you covered every visible container.
++- **Important**: Do not stop after checking only a few items. You must visit every receptacle from your list. If you have not found the object after finishing this list, perform another 'look' (action: look) to see if new receptacles have appeared. Then repeat the search on any that were previously missed or newly appeared.
+ 
+-### 2.3 Persistence and common hiding spots
+-- Do not stop after checking only a few receptacles. Small kitchen items (mugs, cups, bowls, etc.) are often stored in cabinets or drawers, not on open surfaces. 
++### 2.3 Object identification and selection
++- Before picking up any object, read the task description again to know the exact target object type (e.g., "mug", "cup", "apple", "egg"). 
++- Only pick up an object if it **exactly matches** that type. For example, if the task says "cup", do not pick up a "mug" – continue searching.
++- If you are unsure, examine the object (action: examine <object>) to see its name.
++- After picking up, verify in your inventory that the object is the correct one.
++
++### 2.4 Persistence and common hiding spots
++- Small kitchen items (mugs, cups, bowls, etc.) are often stored in cabinets or drawers, not on open surfaces. 
+ - If you have searched flat surfaces and the fridge without success, immediately focus on opening and looking into every cabinet and drawer. Do not give up after one or two empties.
+ 
+ ## 3. Heat the object
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location from the task description.
+- The heating appliance is the microwave.
+
+## 2. Locate the object
+### 2.1 After any move: look
+- Perform a 'look' action to refresh the list of all receptacles in the current room.
+- Write down every receptacle name you see. Do not skip this.
+
+### 2.2 Exhaustive search of all receptacle types
+- Follow this exact order, checking **every single instance** of each type:
+  1. **Fridge**: go to it, open, look inside. Take the target object if present. Close after.
+  2. **Countertops**: go to each countertop one by one, look at contents, take if found.
+  3. **Other flat surfaces**: sidetables, diningtables, shelves (and any other flat surface listed). Go to each, look at its contents.
+  4. **Cabinets, drawers, garbagecan, sinkbasin, and all other containers**: open each one, look inside. Do not skip any. Even if you have already opened some, double-check you covered every visible container.
+- **Important**: Do not stop after checking only a few items. You must visit every receptacle from your list. If you have not found the object after finishing this list, perform another 'look' (action: look) to see if new receptacles have appeared. Then repeat the search on any that were previously missed or newly appeared.
+
+### 2.3 Object identification and selection
+- Before picking up any object, read the task description again to know the exact target object type (e.g., "mug", "cup", "apple", "egg"). 
+- Only pick up an object if it **exactly matches** that type. For example, if the task says "cup", do not pick up a "mug" – continue searching.
+- If you are unsure, examine the object (action: examine <object>) to see its name.
+- After picking up, verify in your inventory that the object is the correct one.
+
+### 2.4 Persistence and common hiding spots
+- Small kitchen items (mugs, cups, bowls, etc.) are often stored in cabinets or drawers, not on open surfaces. 
+- If you have searched flat surfaces and the fridge without success, immediately focus on opening and looking into every cabinet and drawer. Do not give up after one or two empties.
+
+## 3. Heat the object
+### 3.1 Efficient heating method (direct from inventory)
+- Once the object is in your inventory, go to the microwave.
+- You can heat it while holding it: perform action 'heat <object> with microwave'. This is the simplest method and works reliably.
+- If you prefer or if direct heat fails, you can follow the longer sequence: open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is the first choice.
+- After heating, the object is ready. Do not return it to the microwave.
+
+## 4. Place the heated object
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).
+- The destination must be different from the source where the object originally came from.
+- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.
+- Put the object into/onto the receptacle: action 'move <object> to <receptacle>'.
+- **Critical**: Do not take the object back after placing it. Stop.
+
+## 5. Completion check and termination
+- After placing the object, verify: examine the receptacle (action: 'examine <receptacle>') and check your inventory (action: 'inventory'). Your inventory should be empty, and the object should be visible on/in the receptacle.
+- If the object is there, the task is complete. Do not perform any further actions.
+- If you ever find yourself holding the object after having placed it, that is a mistake — do not continue; stop and end the episode.
+- **Termination rule**: Once placed at the target, stop all actions immediately. No more moving, heating, or searching.

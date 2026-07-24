@@ -1,0 +1,63 @@
+=== Skill Tree Debug — scope=pick_and_place  v1 (level=3, tree_depth=3, 10 nodes) ===
+action: rewrite
+critique: 
+changelog: Created first skill tree from analysis of successful and failed trajectories.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 11  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [wrong_target] Agent took a towel instead of the required cloth, then later found cloth but did not pick it up. | evidence: Action: 'take towel 1 from towelholder 1' while task is 'put a cloth in toilet'. | fix: Verify that the object being picked matches the target object name exactly. | skill_tree_gap: No object-check before pickup. | patch_location: Under 'pick_and_place', add a new subsection '### verify object identity before picking'.
+- [inefficient_exploration] Agent never found a laptop; it only checked drawers and coffee tables, missing other furniture like ottoman or sidetable. | evidence: No laptop appeared in any observation; agent stopped after drawer 5. | fix: Search all receptacles including ottoman, sidetable, and shelves. | skill_tree_gap: Incomplete search for pick_and_place tasks. | patch_location: Under 'pick_and_place', add a new subsection '### systematic search of all receptacles'.
+- [premature_stop] Agent picked up a tissuebox and went to armchair but did not use the 'move' action to place it. | evidence: Last action: 'go to armchair 1' with no subsequent 'move tissuebox to armchair'. | fix: After arriving at the target receptacle with the object, always execute the 'move' action. | skill_tree_gap: Missing post-arrival move step. | patch_location: Under 'pick_and_place', add a new subsection '### ensure move action after reaching target'.
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] pick-and-place-skill-tree                level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/common-mistakes-to-avoid level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/goal           level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/1-parse-the-task level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/2-locate-the-target-object level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/3-verify-and-pick-up level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/4-navigate-to-the-target-receptacle level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/5-place-the-object level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/6-termination level=3 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+You must pick up a specific object and place it into or onto a specified receptacle. The task description states both the object and the target (e.g., "put a book in sofa").
+
+## Sub-Goal Flow
+### 1. Parse the task
+Identify two entities: the **target object** (what to pick) and the **target receptacle** (where to place it). Keep these in mind throughout.
+
+### 2. Locate the target object
+- Begin by moving to each receptacle listed in the initial room observation (drawers, cabinets, shelves, tables, etc.).
+- If a receptacle is closed, open it before examining its contents.
+- Read the observation after opening or arriving: it will list objects inside or on the receptacle.
+- If the target object is not in the current receptacle, continue to the next one. Do **not** stop after checking only a subset of possible containers.
+
+### 3. Verify and pick up
+- Before picking up any object, confirm that its name **exactly matches** the target object (e.g., if task says "cloth", do not pick "towel").
+- Once confirmed, use `take <object> from <receptacle>` to pick it up.
+- If you are already carrying something else and it is not the target, you may need to drop it (not typical in these tasks, but avoid carrying wrong items).
+
+### 4. Navigate to the target receptacle
+- After successfully picking up the target object, move to the target receptacle (e.g., "sofa 1", "toilet 1", "garbagecan 1").
+- You can use `go to <receptacle>`.
+
+### 5. Place the object
+- When you arrive at the target receptacle, immediately execute `move <object> to <receptacle>`.
+- Do **not** perform any other actions (like examining or going away) before placing; placing is the final required action.
+
+### 6. Termination
+- After the `move` action, the task is complete. No further actions are needed.
+
+## Common Mistakes to Avoid
+- **Wrong object pickup:** Always re-verify the object name in the observation before using `take`.
+- **Incomplete search:** Do not skip containers; the target object may be in any receptacle, including those on tables, shelves, or inside cabinets.
+- **Missing the placement step:** Arriving at the target is not enough; you must explicitly `move` the object.

@@ -1,0 +1,123 @@
+{
+  "batch_id": "f15f1a75-4341-4773-afee-327c25741dce",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located an egg because it did not visit the diningtable or fridge, where eggs commonly appear.",
+        "evidence": "After exploring countertops and cabinets, the agent returned to countertop 2 without ever going to diningtable or fridge.",
+        "corrective_rule": "When tasked to clean an object, first search all countertops, dining tables, and fridge before opening cabinets.",
+        "skill_tree_gap": "Missing a prioritized search order for common object locations in the clean task.",
+        "patch_location": "Under '## clean', add a new subsection '### locate target object' with a rule to search surfaces and fridge first.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not explore all cabinets and countertops for the plate, stopping after one empty cabinet.",
+        "evidence": "After opening cabinet 1 (empty), the agent returned to countertop 1 without checking the remaining 12 cabinets.",
+        "corrective_rule": "When searching for a specific object, open all cabinets in the room, not just the first one encountered.",
+        "skill_tree_gap": "Lack of a systematic cabinet-by-cabinet search routine in the clean task.",
+        "patch_location": "Under '## clean' -> '### locate target object', add a step to iterate through all cabinets.",
+        "confidence": 0.85
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found an apple and failed to open the fridge properly, so it could not cool any object.",
+        "evidence": "After opening fridge, observation still said 'The fridge 1 is closed', indicating the open action did not succeed, and no apple was seen elsewhere.",
+        "corrective_rule": "After moving to the fridge, verify the open action changes state; if not, re-navigate and try again. Also search for the apple on all surfaces and inside the fridge.",
+        "skill_tree_gap": "No verification of container state after opening and incomplete search for apples.",
+        "patch_location": "Under '## cool', add a subsection '### open container' with state verification, and expand '### locate object' to include fridge interior.",
+        "confidence": 0.8
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not search all countertops and cabinets for the soapbottle, missing likely locations.",
+        "evidence": "After opening cabinet 4 (empty), it returned to countertop 1 without exploring other areas like diningtable or shelf.",
+        "corrective_rule": "When tasked to place an object, search all visible surfaces and open every cabinet until the object is found.",
+        "skill_tree_gap": "Incomplete object search routine for pick_and_place tasks.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### locate object' with exhaustive search instructions.",
+        "confidence": 0.85
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing the first pen, the agent did not exhaustively search all drawers and shelves for a second pen.",
+        "evidence": "It only checked drawer 8 (empty) and then looped back to desk and bed without opening other drawers or shelves.",
+        "corrective_rule": "When needing two identical objects, continue searching all receptacles (drawers, shelves, surfaces) until two are found or all are exhausted.",
+        "skill_tree_gap": "Lack of exhaustive multiple-object search strategy.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a subsection '### exhaustive search' that mandates checking all drawers, shelves, and surfaces.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent limited its search to cabinets only, ignoring countertops and dining tables where spoons are often found.",
+        "evidence": "After opening cabinet 6, it ended without ever visiting countertops or the diningtable.",
+        "corrective_rule": "When searching for spoons, check countertops and dining tables in addition to cabinets.",
+        "skill_tree_gap": "Over-reliance on cabinets; missing domain knowledge about typical spoon locations.",
+        "patch_location": "Under '## pick_two_obj_and_place' -> '### locate object', add object-specific location hints (e.g., spoons on countertops).",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not explore stoveburners and countertops where pans are commonly stored, only searching cabinets.",
+        "evidence": "It visited cabinet 2 and then went to countertop 1, but never went to stoveburners (where pans were seen in successful runs).",
+        "corrective_rule": "For pans, prioritize checking stoveburners and countertops before cabinets.",
+        "skill_tree_gap": "Lack of object-specific location knowledge for pans.",
+        "patch_location": "Under '## pick_two_obj_and_place' -> '### locate object', add rule to check stoveburners for pans.",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent stopped after picking up one ladle, without placing it or searching for a second ladle.",
+        "evidence": "The last action is 'take ladle 2 from countertop 1' and then the trajectory ends with no further actions.",
+        "corrective_rule": "After picking up an object, immediately proceed to the next subgoal (place or find second object) without stopping.",
+        "skill_tree_gap": "Missing a continuation check after each pick action in multi-object tasks.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a subsection '### progress verification' that ensures the agent does not stop mid-task.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent entered a loop moving between armchair, bed, and countertop without picking up a second creditcard.",
+        "evidence": "Repeated actions: go to armchair2, armchair1, bed1, countertop1 in a cycle (dropped looping actions noted).",
+        "corrective_rule": "If the same sequence of location changes repeats twice without picking a new object, break the loop by directing the agent to an unexplored location.",
+        "skill_tree_gap": "No loop detection or recovery mechanism in the exploration policy.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a subsection '### loop detection' to identify and break repetitive patterns.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "After placing the first cellphone, the agent got stuck in a loop between armchair1 and bed1, never seeking a second cellphone elsewhere.",
+        "evidence": "Repeated actions: go to armchair1, bed1, armchair1, bed1... (continuous loop).",
+        "corrective_rule": "After placing the first object, if the second is not found in the immediate area, expand the search to all remaining receptacles in the room.",
+        "skill_tree_gap": "Lack of a strategy to transition from partial success to full exploration.",
+        "patch_location": "Under '## pick_two_obj_and_place' -> '### loop detection', add rule to expand search when no progress is made.",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

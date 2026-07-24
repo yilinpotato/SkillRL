@@ -1,0 +1,96 @@
+=== Skill Tree Debug — scope=cool  v36 (level=4, tree_depth=4, 9 nodes) ===
+action: refine
+critique: The agent followed the surface search protocol reasonably but when transitioning to container search, it failed to open containers (e.g., visited cabinet without opening) and did not stick to the prescribed order. The existing skill tree's instructions to open containers were clear, but the agent's behavior suggests it either overlooked that part or lacked a detailed subroutine to execute it reliably. The refined section now provides explicit step-by-step actions and verification checks to bridge that gap.
+changelog: Deepened the 'Closed Container Search' section by adding a '#### Step-by-Step Procedure' subheading with explicit open/verify/look steps, a requirement to continue through all instances, and a verification check for opening success.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 9  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent never located the potato because it failed to open the fridge (or any other container) that likely contained the object. | evidence: After 'go to fridge 1', observation is 'The fridge 1 is closed.' Agent then leaves without opening it. | fix: When searching for a target object, systematically open all closed containers (fridge, cabinets, drawers) encountered. | skill_tree_gap: Lack of a systematic container-opening routine during object search. | patch_location: Under '## cool', add a new subsection '### Object Search with Container Opening'
+- [inefficient_exploration] Agent explored many locations but never found the potato, likely because it was inside a container (e.g., cabinet) that was not opened. | evidence: After opening fridge (no potato) and opening only one cabinet (nothing), the agent stops without checking other cabinets. | fix: When the target object is not visible, open all reachable containers in the vicinity before giving up. | skill_tree_gap: Insufficient depth in container exploration; agent opens only one cabinet then stops. | patch_location: Under '## cool', add a new subsection '### Exhaustive Container Search'
+
+--- Node tree (per-node lifecycle, this version=v36) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=35 calls=635 success=551 rate=86.8%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=9 calls=178 success=161 rate=90.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval level=2 stable_versions=9 calls=178 success=161 rate=90.4%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/closed-container-search-only-after-surfaces-exhausted level=3 stable_versions=0 calls=48 success=43 rate=89.6%
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/closed-container-search-only-after-surfaces-exhausted/step-by-step-procedure level=4 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/object-verification-before-picking level=3 stable_versions=5 calls=118 success=109 rate=92.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/systematic-search-protocol-follow-strictly-in-order level=3 stable_versions=1 calls=48 success=43 rate=89.6%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge level=2 stable_versions=3 calls=231 success=209 rate=90.5%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location level=2 stable_versions=12 calls=231 success=209 rate=90.5%
+
+--- Line diff vs previous version (v35 -> v36) ---
+--- v35
++++ v36
+@@ -12,14 +12,16 @@
+ **Crucial rule:** Do NOT move to the next type until ALL instances of the current type have been exhausted (i.e., you have tried every number that exists). Do NOT skip any type. Do NOT go to closed containers (fridge, etc.) until you have finished all six surface types.
+ 
+ ### Closed Container Search (only after surfaces exhausted)
+-- Search in this exact order:
+-  1. **Fridge** (all instances – fridge 1, fridge 2, …)
+-  2. **Cabinet** (all instances)
+-  3. **Drawer** (all instances)
+-  4. **Microwave** (all instances)
+-- For each container: go to it, open it (use `open` action), look inside. If object found, take it and go to Phase 2.
+-- **Do not backtrack** to surfaces or earlier containers until you have checked all four container types. Continue through the list without skipping.
+-- If still not found after all containers, you may have missed a container – restart from step 1 of surfaces, but this is rare.
++#### Step-by-Step Procedure
++- **Order:** 1. Fridge (all instances) → 2. Cabinet (all instances) → 3. Drawer (all instances) → 4. Microwave (all instances). Do not skip any type.
++- **For each container instance:**
++  1. Go to the container (e.g., `go to fridge 1`).
++  2. If the observation says the container is closed, use the `open` action.
++  3. After `open`, check the observation to confirm it now says "open". If not, re-open.
++  4. Once open, look inside (the observation will list contents). If the target object is present, take it and go to Phase 2.
++  5. If the object is not there, close the container (optional but good practice) and proceed to the next container instance.
++- **Important:** Do not give up after one container. Continue through all instances of each type. Only after finishing all four types (all instances) may you consider restarting surface search if object still not found (rare).
++- **Verification:** If you are at a container and you do not see its contents in the observation, you have not opened it. Re-apply the open action until you get a description of the interior.
+ 
+ ### Object Verification before Picking
+ - Before taking any object, **read its exact name** from the observation and compare it with the task's target object (e.g., if task says "apple", only take an object named "apple 1" or similar – not "kettle" or "mug").
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Object Search and Retrieval
+
+### Systematic Search Protocol (follow strictly in order)
+1. **Countertops** – Start with countertop 1, go to it and look. If the target object is present, take it and go to Phase 2. If not, try countertop 2, then countertop 3, etc. Continue incrementing the number until you receive an error message (e.g., "That is not a valid location") or you see no more instances. Do not stop after only one countertop.
+2. **Diningtables** – Same iteration: diningtable 1, diningtable 2, etc.
+3. **Sidetables** – Same iteration.
+4. **Shelves** – Same iteration.
+5. **Sinkbasins** – Same iteration.
+6. **Stoveburners** – Same iteration.
+**Crucial rule:** Do NOT move to the next type until ALL instances of the current type have been exhausted (i.e., you have tried every number that exists). Do NOT skip any type. Do NOT go to closed containers (fridge, etc.) until you have finished all six surface types.
+
+### Closed Container Search (only after surfaces exhausted)
+#### Step-by-Step Procedure
+- **Order:** 1. Fridge (all instances) → 2. Cabinet (all instances) → 3. Drawer (all instances) → 4. Microwave (all instances). Do not skip any type.
+- **For each container instance:**
+  1. Go to the container (e.g., `go to fridge 1`).
+  2. If the observation says the container is closed, use the `open` action.
+  3. After `open`, check the observation to confirm it now says "open". If not, re-open.
+  4. Once open, look inside (the observation will list contents). If the target object is present, take it and go to Phase 2.
+  5. If the object is not there, close the container (optional but good practice) and proceed to the next container instance.
+- **Important:** Do not give up after one container. Continue through all instances of each type. Only after finishing all four types (all instances) may you consider restarting surface search if object still not found (rare).
+- **Verification:** If you are at a container and you do not see its contents in the observation, you have not opened it. Re-apply the open action until you get a description of the interior.
+
+### Object Verification before Picking
+- Before taking any object, **read its exact name** from the observation and compare it with the task's target object (e.g., if task says "apple", only take an object named "apple 1" or similar – not "kettle" or "mug").
+- If the object's type does not match the target, do not take it. Continue searching.
+- This prevents picking the wrong item, which would waste time and fail the task.
+
+## Phase 2: Cool the object using the fridge
+- Ensure you are carrying the target object. If you are not carrying it, go back to searching (do not proceed to fridge).
+- Go directly to the fridge.
+- If the fridge is closed, open it.
+- Verify the fridge is open (check observation). If not, re-approach and open again.
+- Use `cool <object> with fridge`.
+
+## Phase 3: Move the cooled object to the target location
+- Go to the target location.
+- If the target receptacle is closed, open it first.
+- Use `move <object> to <target>`.
+
+## Completion check
+- Object is cooled and placed at the target location – task complete.

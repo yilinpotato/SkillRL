@@ -1,0 +1,193 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\n- Place exactly two instances of a specific object into a specified target receptacle.\n\n## Multi-object search\n\n### Full Location Coverage\n- From the initial room description, list every visible furniture item (e.g., cabinet, drawer, shelf, countertop, dresser, sink, fridge, bathtub, toilet, etc.). Do not skip any type.\n- Visit each item exactly once in your first pass. For each:\n  - Go to it.\n  - If it is a container (closed drawer, cabinet, etc.), open it.\n  - Examine its contents (on surfaces or inside).\n- Common misses: dressers, garbage cans, bathtub basins, handtowel holders, toiletpaperhangers, stove burners, fridge interiors.\n- If after visiting all items you still lack one or both objects, repeat the list but check opened containers again (objects may have been moved).\n\n### Object-Specific Hints\n- Some objects are often found near their functional location, e.g., toiletpaper on toiletpaperhanger or nearby cabinet, soapbottle on sink or counter, newspaper on sidetable or sofa.\n- Use these hints to prioritize search, but do not skip any furniture type – always eventually check all.\n\n## Counting and collection\n\n### Keep a counter\n- Start a counter at 0. After placing the first object, update to 1. Do not stop until counter is 2.\n### Verify count before stopping\n- After placing an object, immediately check your counter. If it is not 2, begin a fresh, systematic search for the next object. Do not assume the task is complete.\n\n## Object identification\n\n### Exact type matching\n- Before taking any object, compare its exact name (as it appears in the observation) to the required object type from the task. Do not take if the names differ (e.g., soapbottle vs soapbar). Only take when names match exactly.\n\n## Procedure (step-by-step algorithm)\n1. **Identify task**: Note the required object type and target receptacle.\n2. **List all furniture**: From the initial room description, write down every visible furniture item. This is your master list.\n3. **First object search**: Follow the Multi-object search section. When you find an object that matches the required type exactly, take it.\n4. **Place the first object**: Go directly to the target receptacle. Use \"move <object> to <target>\" immediately. Do not perform any other actions.\n5. **Second object search**: Reset your mental list to the master list. Repeat step 3 exactly, but now you need only one more object. Do not skip any furniture type – re-visit all.\n6. **Place the second object**: Repeat step 4. After placing, verify count (see Counting and collection). The task is complete when counter reaches 2.\n\n## Common Failure Patterns\n- **insufficient_exploration**: You did not visit every furniture type. Use the Full Location Coverage section to ensure no type is missed.\n- **premature_stop**: You stopped after picking or placing one object. Use the Counting and collection section to continue until count is 2.\n- **wrong_object**: You took an object that does not match the required type exactly. Use the Exact type matching section before taking.\n\n## Critical warnings (avoid these failures)\n- **List all furniture at the start** – failing to do so leads to missed locations.\n- **Do not stop after one object** – always search for the second.\n- **Open containers before checking** – \"examine\" does not open.\n- **Verify exact name** – no partial matches.\n- **At target receptacle with correct object, use move action immediately – no delays.",
+  "level": 3,
+  "version": 18,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent had the current skill tree but did not follow its instructions, especially the listing of all furniture and the count verification; this is partly because these rules were less prominent. The skill tree's own wording was not misleading, but its organization allowed key checks to be missed. The refinement makes them explicit sections.",
+  "changelog": "Reorganized the skill tree by adding dedicated sections for Multi-object search, Counting and collection, and Object identification to house the full location coverage, count verification, and exact type matching rules respectively, ensuring they are easy to find and follow.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent restricted its search to cabinets only and never checked other potential storage areas like drawers, fridge, or stove for pans.",
+      "skill_tree_gap": "Search routine too narrow; does not include drawers and appliances that commonly hold pans.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "After picking up one saltshaker, the agent stopped without searching for a second one, failing to satisfy the 'two' requirement.",
+      "skill_tree_gap": "Lack of a loop that checks remaining quantity needed before terminating the search.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "The agent picked up a soapbottle instead of a soapbar, and also stopped prematurely without finding a second soapbar.",
+      "skill_tree_gap": "No exact type matching step; also missing count check for multiple objects.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_2160",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 17,
+      "call_count": 474,
+      "success_when_used": 384,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "1bd0fc947f84",
+      "created_version": 1,
+      "last_changed_version": 13,
+      "stable_versions": 5,
+      "call_count": 474,
+      "success_when_used": 384,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-search": {
+      "title": "Multi-object search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-search/full-location-coverage": {
+      "title": "Full Location Coverage",
+      "level": 3,
+      "body_hash": "278d31b402f3",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-search/object-specific-hints": {
+      "title": "Object-Specific Hints",
+      "level": 3,
+      "body_hash": "a6ef3f24c20d",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counting-and-collection": {
+      "title": "Counting and collection",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counting-and-collection/keep-a-counter": {
+      "title": "Keep a counter",
+      "level": 3,
+      "body_hash": "121ea3d7e26e",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counting-and-collection/verify-count-before-stopping": {
+      "title": "Verify count before stopping",
+      "level": 3,
+      "body_hash": "b8caf587adf1",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-identification": {
+      "title": "Object identification",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-identification/exact-type-matching": {
+      "title": "Exact type matching",
+      "level": 3,
+      "body_hash": "6c645406e547",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/procedure-step-by-step-algorithm": {
+      "title": "Procedure (step-by-step algorithm)",
+      "level": 2,
+      "body_hash": "0cc34e45711e",
+      "created_version": 13,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 187,
+      "success_when_used": 154,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns": {
+      "title": "Common Failure Patterns",
+      "level": 2,
+      "body_hash": "b200908bf4bf",
+      "created_version": 14,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 176,
+      "success_when_used": 145,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-warnings-avoid-these-failures": {
+      "title": "Critical warnings (avoid these failures)",
+      "level": 2,
+      "body_hash": "b40b656f33c4",
+      "created_version": 13,
+      "last_changed_version": 18,
+      "stable_versions": 0,
+      "call_count": 187,
+      "success_when_used": 154,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

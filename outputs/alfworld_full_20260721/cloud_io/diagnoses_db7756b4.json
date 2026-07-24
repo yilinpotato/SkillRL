@@ -1,0 +1,136 @@
+{
+  "batch_id": "db7756b4-038b-45ed-998a-c60de9822882",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent stopped searching for a mug after opening only a few cabinets, failing to locate the required object.",
+        "evidence": "You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.",
+        "corrective_rule": "Continue searching systematically through all receptacles until the target object is found.",
+        "skill_tree_gap": "Lack of systematic search strategy when object not found early.",
+        "patch_location": "Under 'Object Search' as a new subsection 'Systematic Search Protocol'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent did not find a soapbar and stopped searching prematurely.",
+        "evidence": "You open the drawer 3. The drawer 3 is open. In it, you see nothing.",
+        "corrective_rule": "Continue searching all possible receptacles until the soapbar is found.",
+        "skill_tree_gap": "Lack of exhaustive search.",
+        "patch_location": "Under 'Object Search' as a new subsection 'Systematic Search Protocol'.",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent failed to locate an egg and ended search too early.",
+        "evidence": "You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.",
+        "corrective_rule": "Continue searching all cabinets and drawers until an egg is found.",
+        "skill_tree_gap": "Lack of exhaustive search.",
+        "patch_location": "Under 'Object Search' as a new subsection 'Systematic Search Protocol'.",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent did not locate a box and stopped searching prematurely.",
+        "evidence": "You arrive at drawer 2. The drawer 2 is closed.",
+        "corrective_rule": "Continue searching all receptacles and surfaces until a box is found.",
+        "skill_tree_gap": "Lack of systematic search.",
+        "patch_location": "Under 'Object Search' as a new subsection 'Systematic Search Protocol'.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent mistook a handtowel for a cloth and attempted to complete the task with the wrong object.",
+        "evidence": "take handtowel 1 from handtowelholder 2",
+        "corrective_rule": "Verify that the object name matches the target exactly; do not substitute similar items.",
+        "skill_tree_gap": "Lack of object identity verification before using.",
+        "patch_location": "Under 'Object Identification' as a new subsection 'Name Matching Check'.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "After placing the first cellphone, the agent did not conduct a thorough search for the second cellphone and stopped prematurely.",
+        "evidence": "You open the drawer 2. The drawer 2 is open. In it, you see nothing.",
+        "corrective_rule": "After placing the first object, continue searching all possible locations for the second object until found.",
+        "skill_tree_gap": "Lack of systematic re-search after placing first object.",
+        "patch_location": "Under 'Multi-Object Tasks' as a new subsection 'Search for Second Object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent failed to locate a second newspaper after placing the first, and stopped searching.",
+        "evidence": "You arrive at coffeetable 1. On the coffeetable 1, you see a box 1, a cellphone 3, and a statue 1.",
+        "corrective_rule": "Systematically search all remaining receptacles for the second newspaper.",
+        "skill_tree_gap": "Lack of systematic search for second object.",
+        "patch_location": "Under 'Multi-Object Tasks' as a new subsection 'Search for Second Object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent did not find any creditcards and stopped searching after opening a few drawers, failing to explore other areas.",
+        "evidence": "You open the drawer 2. The drawer 2 is open. In it, you see nothing.",
+        "corrective_rule": "If initial locations yield no target objects, expand search to all rooms and surfaces.",
+        "skill_tree_gap": "Lack of broad exploration strategy.",
+        "patch_location": "Under 'Object Search' as a new subsection 'Systematic Search Protocol'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "After placing one spraybottle, the agent could not find a second and stopped searching.",
+        "evidence": "You arrive at cart 1. On the cart 1, you see a dishsponge 1, and a spraybottle 3.",
+        "corrective_rule": "After placing one, continue searching all possible locations for the second spraybottle.",
+        "skill_tree_gap": "Lack of systematic search for second object.",
+        "patch_location": "Under 'Multi-Object Tasks' as a new subsection 'Search for Second Object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent obtained one spraybottle but then stopped before placing it or finding a second.",
+        "evidence": "You pick up the spraybottle 1 from the countertop 1.",
+        "corrective_rule": "After obtaining objects, continue to place them and find the second if needed; do not halt prematurely.",
+        "skill_tree_gap": "Lack of task completion monitoring.",
+        "patch_location": "Under 'Task Execution' as a new subsection 'Ensure Completion Criteria'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent could not locate a second newspaper and stopped searching after only checking armchairs.",
+        "evidence": "You arrive at coffeetable 1. On the coffeetable 1, you see a laptop 1, and a statue 1.",
+        "corrective_rule": "If the second object is not in the initial location, search all other receptacles thoroughly.",
+        "skill_tree_gap": "Lack of systematic search for second object.",
+        "patch_location": "Under 'Multi-Object Tasks' as a new subsection 'Search for Second Object'.",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

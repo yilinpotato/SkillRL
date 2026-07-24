@@ -1,0 +1,141 @@
+=== Skill Tree Debug — scope=pick_and_place  v66 (level=4, tree_depth=3, 12 nodes) ===
+action: refine
+critique: The agent often ignored explicit rules: it used `look` multiple times despite the single-look rule, revisited receptacles despite the do-not-revisit rule, and took an object without matching the target name. The tree's truncation-handling instruction was ambiguous when `look` returned an empty list, possibly contributing to the loop in failure1; the fix clarifies that the original truncated list should be retained. The object verification rule was present but not prominent enough; the new dedicated 'Object Selection Filter' section emphasizes it.
+changelog: Added 'Loop Avoidance' subsection under Systematic Search and 'Object Selection Filter' section; clarified truncation handling to retain original list if look returns empty; tightened wording throughout.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 20  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [loop] The agent got stuck in a loop opening empty drawers instead of searching for the fork elsewhere. | evidence: After opening drawer 2 (empty), it repeatedly went to drawer 1 and back. | fix: If a drawer is empty, avoid re-opening it and expand search to other containers in the room. | skill_tree_gap: Loop detection and reset of search direction not present. | patch_location: ## pick_and_place
+### Search & Escape Loop
+- [wrong_target] The agent picked up a pencil (irrelevant object) instead of a box, and never retrieved the correct object. | evidence: Action 'take pencil 1 from sidetable 1' when the task is to put a box on armchair. | fix: Only take an object if its type matches the target object specified in the task. | skill_tree_gap: Lack of task-object matching before picking actions. | patch_location: ## pick_and_place
+### Object Selection Filter
+
+--- Node tree (per-node lifecycle, this version=v66) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=65 calls=1573 success=1407 rate=89.4%
+[NEW                 ] pick-and-place-skill-tree/critical-rules-summary level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=32 calls=1573 success=1407 rate=89.4%
+[MODIFIED            ] pick-and-place-skill-tree/initial-observation-list-extraction level=2 stable_versions=0 calls=22 success=20 rate=90.9%
+[STABLE              ] pick-and-place-skill-tree/object-acquisition level=2 stable_versions=1 calls=854 success=754 rate=88.3%
+[NEW                 ] pick-and-place-skill-tree/object-selection-filter level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/placement      level=2 stable_versions=1 calls=854 success=754 rate=88.3%
+[MODIFIED            ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=0 calls=1573 success=1407 rate=89.4%
+[STABLE              ] pick-and-place-skill-tree/systematic-search-mandatory level=2 stable_versions=6 calls=109 success=93 rate=85.3%
+[NEW                 ] pick-and-place-skill-tree/systematic-search-mandatory/loop-avoidance level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/systematic-search-mandatory/step-1-go-to-the-target-receptacle-first level=3 stable_versions=1 calls=22 success=20 rate=90.9%
+[MODIFIED            ] pick-and-place-skill-tree/systematic-search-mandatory/step-2-visit-every-other-receptacle-in-list-order level=3 stable_versions=0 calls=22 success=20 rate=90.9%
+
+--- Line diff vs previous version (v65 -> v66) ---
+--- v65
++++ v66
+@@ -4,14 +4,14 @@
+ Pick up a specified object and place it into or onto a specified receptacle.
+ 
+ ## Sub-Goal Flow
+-1. Extract the full list of all receptacles from the initial observation (without moving).
++1. Extract the full list of all receptacles from the initial observation.
+ 2. Systematically visit every receptacle in that exact order, starting with the target receptacle.
+ 3. When the target object is found, take it and go to the target receptacle to place it.
+ 4. Stop immediately after the move action.
+ 
+ ## Initial Observation & List Extraction
+ - From the welcome observation, note every furniture item (e.g., bed 1, drawer 2, cabinet 3). Include all surfaces (countertop, sidetable, sofa, armchair) and containers (drawer, cabinet, safe).
+-- If the observation is truncated (ends abruptly), use `look` once to get the full list. After that, **do not `look` again**.
++- If the observation is truncated (ends abruptly), use `look` once to get the full list. **If the look result is empty, keep the original truncated list as your mental list.** After that, **do not `look` again**.
+ - Create a mental list **in the exact order they appear**. This list determines the search order.
+ 
+ ## Systematic Search (mandatory)
+@@ -27,18 +27,17 @@
+   - Read the observation. If the target object is present, `take <object> from <receptacle>` and go to Placement.
+   - If not present, **immediately move to the next receptacle in the list**. Do not `examine`, `close`, or `look`.
+ - **Strictly follow the list order** – do not skip any receptacle, and do not revisit a receptacle.
+-- **Continue until every single receptacle on the list has been visited exactly once.** Do not stop early, no matter how unlikely the object seems on a particular surface or container.
++- **Continue until every single receptacle on the list has been visited exactly once.** Do not stop early.
+ 
+-### Critical rules to avoid failure
+-- **Do not use object-specific guesses** – the object can be anywhere. The systematic list guarantees you find it.
+-- **Include all surface types**: countertops, armchairs, sofas, diningtables, sidetables, etc. are valid receptacles. Do not skip them even if you have already checked many containers.
+-- **Include all container types**: open every drawer, cabinet, safe, etc. Do not leave any closed container unchecked.
+-- **No `look` or `inventory` during search** – it wastes actions and does not help. The only allowed `look` is the single one if the initial observation was truncated.
++### Loop Avoidance
++- If you ever find yourself at a receptacle you have already visited (check your mental list), you have looped. **Break the loop by moving to the next unvisited receptacle in the list.** Do not go back to a previous one.
++- If the observation ever says "nothing" or repeats the same description, do not repeat actions; move on to the next receptacle.
+ 
+-## Object Verification
+-Before taking any object, verify that the base noun matches the target object exactly.
+-- Example: target "soapbottle" is not "soapbar". Target "pillow" is not "cushion".
++## Object Selection Filter
++- **Before taking any object, verify that the base noun matches the target object exactly.**
++  - Example: target "soapbottle" is not "soapbar". Target "pillow" is not "cushion".
+ - Do not take an object if the name does not match. Continue searching.
++- If you are holding an object that does not match, you may have picked it by mistake. Check inventory (`inventory` action) and then continue search, but avoid picking objects outside the systematic flow.
+ 
+ ## Object Acquisition
+ - Action: `take <object> from <receptacle>` only after verification passes.
+@@ -48,5 +47,8 @@
+ - Go to the target receptacle. If it is closed, open it. Then `move <object> to <receptacle>`.
+ - **Stop immediately** after the move action. Do not perform any further actions.
+ 
+-## Final Reminder
+-- The entire task hinges on **exhaustive, sequential search**. Do not deviate from the list order. Do not stop early. Do not skip any receptacle. The object will be found if you check everything once.
++## Critical Rules Summary
++- **Do not use object-specific guesses** – the object can be anywhere. The systematic list guarantees you find it.
++- **Include all surface types and container types** – do not skip any.
++- **No `look` or `inventory` during search** (except the single allowed `look` on truncation).
++- **Never revisit a receptacle** – if you catch yourself, go to the next unvisited one.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specified object and place it into or onto a specified receptacle.
+
+## Sub-Goal Flow
+1. Extract the full list of all receptacles from the initial observation.
+2. Systematically visit every receptacle in that exact order, starting with the target receptacle.
+3. When the target object is found, take it and go to the target receptacle to place it.
+4. Stop immediately after the move action.
+
+## Initial Observation & List Extraction
+- From the welcome observation, note every furniture item (e.g., bed 1, drawer 2, cabinet 3). Include all surfaces (countertop, sidetable, sofa, armchair) and containers (drawer, cabinet, safe).
+- If the observation is truncated (ends abruptly), use `look` once to get the full list. **If the look result is empty, keep the original truncated list as your mental list.** After that, **do not `look` again**.
+- Create a mental list **in the exact order they appear**. This list determines the search order.
+
+## Systematic Search (mandatory)
+
+### Step 1: Go to the target receptacle first
+- Navigate to the receptacle named in the task (e.g., if task says "put on armchair", go to armchair 1).
+- If the receptacle is closed, `open` it immediately. Check if the target object is there.
+
+### Step 2: Visit every other receptacle in list order
+- If the object is not at the target receptacle, go to the **next receptacle in your list** (the one that appears after the target in the original observation).
+- For each receptacle:
+  - If it is closed, `open` it immediately upon arrival.
+  - Read the observation. If the target object is present, `take <object> from <receptacle>` and go to Placement.
+  - If not present, **immediately move to the next receptacle in the list**. Do not `examine`, `close`, or `look`.
+- **Strictly follow the list order** – do not skip any receptacle, and do not revisit a receptacle.
+- **Continue until every single receptacle on the list has been visited exactly once.** Do not stop early.
+
+### Loop Avoidance
+- If you ever find yourself at a receptacle you have already visited (check your mental list), you have looped. **Break the loop by moving to the next unvisited receptacle in the list.** Do not go back to a previous one.
+- If the observation ever says "nothing" or repeats the same description, do not repeat actions; move on to the next receptacle.
+
+## Object Selection Filter
+- **Before taking any object, verify that the base noun matches the target object exactly.**
+  - Example: target "soapbottle" is not "soapbar". Target "pillow" is not "cushion".
+- Do not take an object if the name does not match. Continue searching.
+- If you are holding an object that does not match, you may have picked it by mistake. Check inventory (`inventory` action) and then continue search, but avoid picking objects outside the systematic flow.
+
+## Object Acquisition
+- Action: `take <object> from <receptacle>` only after verification passes.
+- Use the exact object name as it appears in the observation.
+
+## Placement
+- Go to the target receptacle. If it is closed, open it. Then `move <object> to <receptacle>`.
+- **Stop immediately** after the move action. Do not perform any further actions.
+
+## Critical Rules Summary
+- **Do not use object-specific guesses** – the object can be anywhere. The systematic list guarantees you find it.
+- **Include all surface types and container types** – do not skip any.
+- **No `look` or `inventory` during search** (except the single allowed `look` on truncation).
+- **Never revisit a receptacle** – if you catch yourself, go to the next unvisited one.

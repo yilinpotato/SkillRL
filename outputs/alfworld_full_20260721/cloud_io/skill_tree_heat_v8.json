@@ -1,0 +1,145 @@
+{
+  "content": "# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location from the task description.\n- The heating appliance is the microwave.\n\n## 2. Locate the object\n### 2.1 Immediate after any move: look\n- Perform a 'look' action to refresh the list of all receptacles in the current room.\n- Write down every receptacle name you see. Do not skip this.\n\n### 2.2 Systematic search order\n- Check each receptacle in this order:\n  1. Fridge: open and look inside; take the object if present. If not, close the fridge.\n  2. Countertops: go to each one, look at its contents, take the object if present. Check every countertop, not just one or two.\n  3. Other flat surfaces: sidetables, diningtables, shelves. Check each.\n  4. Cabinets, drawers, garbagecan, sinkbasin, and other containers: open each, look inside. Do not skip any.\n- If after checking all receptacles from your list you still have not found the object, perform another 'look' to see if new receptacles have appeared, and continue.\n\n### 2.3 Persistence and common hiding spots\n- Do not stop after checking only a few receptacles. Small kitchen items (mugs, cups, bowls, etc.) are often stored in cabinets or drawers, not on open surfaces. \n- If you have searched flat surfaces and the fridge without success, immediately focus on opening and looking into every cabinet and drawer. Do not give up after one or two empties.\n\n## 3. Heat the object\n### 3.1 Efficient heating method (direct from inventory)\n- Once the object is in your inventory, go to the microwave.\n- You can heat it while holding it: perform action 'heat <object> with microwave'. This is the simplest method and works reliably.\n- If you prefer or if direct heat fails, you can follow the longer sequence: open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is the first choice.\n- After heating, the object is ready. Do not return it to the microwave.\n\n## 4. Place the heated object\n- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).\n- The destination must be different from the source where the object originally came from.\n- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.\n- Put the object into/onto the receptacle: action 'move <object> to <receptacle>'.\n- **Critical**: Do not take the object back after placing it. Stop.\n\n## 5. Completion check and termination\n- After placing the object, verify: examine the receptacle (action: 'examine <receptacle>') and check your inventory (action: 'inventory'). Your inventory should be empty, and the object should be visible on/in the receptacle.\n- If the object is there, the task is complete. Do not perform any further actions.\n- If you ever find yourself holding the object after having placed it, that is a mistake — do not continue; stop and end the episode.\n- **Termination rule**: Once placed at the target, stop all actions immediately. No more moving, heating, or searching.",
+  "level": 4,
+  "version": 8,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "The agent partially followed the skill tree's search order but stopped after only two cabinets, missing drawers and other containers, and did not re-look for new receptacles. The tree itself was clear but lacked explicit emphasis on persistence and on the fact that small items are often in cabinets/drawers; this refinement adds that emphasis and also simplifies the heating procedure to match successful trajectories that heat directly from inventory.",
+  "changelog": "Simplified section 3 to allow direct heating from inventory (consistent with successful trajectory 2), added subsection 2.3 to reinforce persistent search of all cabinets/drawers and common hiding spots, and reorganized search order to prioritize cabinets/drawers after flat surfaces.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched fridge, countertops, shelves, and one cabinet but never found the mug because it did not investigate other cabinets or drawers.",
+      "skill_tree_gap": "The search plan lacks coverage of cabinets and drawers for small kitchen items.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_1152",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 110,
+      "success_when_used": 68,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "ba00fe4c40c0",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 110,
+      "success_when_used": 68,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 1,
+      "call_count": 110,
+      "success_when_used": 68,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-1-immediate-after-any-move-look": {
+      "title": "2.1 Immediate after any move: look",
+      "level": 3,
+      "body_hash": "3cc0bbff60e8",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-2-systematic-search-order": {
+      "title": "2.2 Systematic search order",
+      "level": 3,
+      "body_hash": "a6fbffef5ce5",
+      "created_version": 7,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 40,
+      "success_when_used": 39,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-3-persistence-and-common-hiding-spots": {
+      "title": "2.3 Persistence and common hiding spots",
+      "level": 3,
+      "body_hash": "38c32d0315b7",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 110,
+      "success_when_used": 68,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory": {
+      "title": "3.1 Efficient heating method (direct from inventory)",
+      "level": 3,
+      "body_hash": "5b6736bc7991",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object": {
+      "title": "4. Place the heated object",
+      "level": 2,
+      "body_hash": "198c9df99bb3",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check-and-termination": {
+      "title": "5. Completion check and termination",
+      "level": 2,
+      "body_hash": "81dbacb278d4",
+      "created_version": 2,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 103,
+      "success_when_used": 66,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

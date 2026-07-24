@@ -1,0 +1,105 @@
+=== Skill Tree Debug — scope=cool  v33 (level=3, tree_depth=3, 8 nodes) ===
+action: refine
+critique: The agent did not follow the skill tree's search order; it skipped sidetables and shelves, went to the fridge without having the object, and did not proceed with closed container search after failing on surfaces. The skill tree's wording was clear but the agent failed to adhere to the strict ordering; we added explicit guards to prevent premature fridge visits and reinforced the need to verify container state after opening.
+changelog: Added verification of container open state, explicit rule against going to fridge before having the object, and reinforced that closed container search must follow surface search exhaustively.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 8  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never found an apple and failed to open the fridge properly, so it could not cool any object. | evidence: After opening fridge, observation still said 'The fridge 1 is closed', indicating the open action did not succeed, and no apple was seen elsewhere. | fix: After moving to the fridge, verify the open action changes state; if not, re-navigate and try again. Also search for the apple on all surfaces and inside the fridge. | skill_tree_gap: No verification of container state after opening and incomplete search for apples. | patch_location: Under '## cool', add a subsection '### open container' with state verification, and expand '### locate object' to include fridge interior.
+
+--- Node tree (per-node lifecycle, this version=v33) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=32 calls=577 success=499 rate=86.5%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=6 calls=120 success=109 rate=90.8%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval level=2 stable_versions=6 calls=120 success=109 rate=90.8%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/closed-container-search level=3 stable_versions=0 calls=96 success=90 rate=93.8%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/object-verification-before-picking level=3 stable_versions=2 calls=60 success=57 rate=95.0%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/surface-search level=3 stable_versions=0 calls=96 success=90 rate=93.8%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge level=2 stable_versions=0 calls=173 success=157 rate=90.8%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location level=2 stable_versions=9 calls=173 success=157 rate=90.8%
+
+--- Line diff vs previous version (v32 -> v33) ---
+--- v32
++++ v33
+@@ -10,6 +10,7 @@
+ - Then **sinkbasin** instances – every one.
+ - Finally **stoveburner** instances – every one.
+ - **Strict order:** You must exhaust each surface type completely before moving to the next. Do not skip to a later type or to closed containers until all surface types have been fully searched. **Common failure: skipping a surface type (e.g., diningtable or sidetable) causes the agent to miss the object.**
++- **Critical:** Do not go to the fridge (or any container) until you have found the object on a surface. Going to the fridge without the object wastes time and may cause you to miss the object elsewhere.
+ - If you finish all surfaces and still have not found the object, proceed to Closed Container Search.
+ 
+ ### Closed Container Search
+@@ -20,9 +21,10 @@
+   3. **drawer** (all instances)
+   4. **microwave** (all instances)
+ - For each category, visit **every single instance** without exception.
+-- For each instance: go to it, then **open it using the `open` action** (do not just `look` — looking at a closed container shows only its exterior). After opening, look at the contents. If the target object is present, take it and proceed to Phase 2. If not, close it (optional) and move to the next instance.
++- For each instance: go to it, then **open it using the `open` action** (do not just `look` — looking at a closed container shows only its exterior). After opening, look at the contents. **Verify the observation confirms the container is open** (e.g., "The fridge 1 is open"). If it still says closed, re-navigate to the container and try opening again.
++- If the target object is present, take it and proceed to Phase 2. If not, close it (optional) and move to the next instance. **Do not backtrack to surfaces** until you have exhausted all container types in the list.
+ - Important: once you start the Closed Container Search, **do not return to surfaces** (countertops, tables, etc.) until you have exhausted all container types. Continue through the list without backtracking.
+-- Do not stop prematurely – continue until all categories and all instances have been checked. If the object is still not found, it may be in a container you missed, but that is rare; double-check by revisiting each container type.
++- Do not stop prematurely – continue until all categories and all instances have been checked.
+ 
+ ### Object Verification before Picking
+ - Before taking any object, **read its exact name** from the observation and compare it with the task's target object (e.g., if task says "apple", only take an object named "apple 1" or similar – not "kettle" or "mug").
+@@ -30,8 +32,10 @@
+ - This prevents picking the wrong item, which would waste time and fail the task.
+ 
+ ## Phase 2: Cool the object using the fridge
+-- After picking up the object, go directly to the fridge.
++- Ensure you are carrying the target object. If you are not carrying it, go back to searching (do not proceed to fridge).
++- Go directly to the fridge.
+ - If the fridge is closed, open it.
++- Verify the fridge is open (check observation). If not, re-approach and open again.
+ - Use `cool <object> with fridge`.
+ 
+ ## Phase 3: Move the cooled object to the target location
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Object Search and Retrieval
+
+### Surface Search
+- Start at **countertop** instances. Visit **every single countertop** one by one (do not skip any). For each, go to it and look at the objects listed. If the target object is present, take it and proceed to Phase 2.
+- After **all** countertops have been checked, move to **diningtable** instances – visit every one.
+- Then **sidetable** instances – every one.
+- Then **shelf** instances – every one.
+- Then **sinkbasin** instances – every one.
+- Finally **stoveburner** instances – every one.
+- **Strict order:** You must exhaust each surface type completely before moving to the next. Do not skip to a later type or to closed containers until all surface types have been fully searched. **Common failure: skipping a surface type (e.g., diningtable or sidetable) causes the agent to miss the object.**
+- **Critical:** Do not go to the fridge (or any container) until you have found the object on a surface. Going to the fridge without the object wastes time and may cause you to miss the object elsewhere.
+- If you finish all surfaces and still have not found the object, proceed to Closed Container Search.
+
+### Closed Container Search
+- Only start this phase AFTER you have inspected every single instance of every surface type listed above and the object was not found.
+- Search closed receptacles in this order:
+  1. **fridge** (all instances)
+  2. **cabinet** (all instances)
+  3. **drawer** (all instances)
+  4. **microwave** (all instances)
+- For each category, visit **every single instance** without exception.
+- For each instance: go to it, then **open it using the `open` action** (do not just `look` — looking at a closed container shows only its exterior). After opening, look at the contents. **Verify the observation confirms the container is open** (e.g., "The fridge 1 is open"). If it still says closed, re-navigate to the container and try opening again.
+- If the target object is present, take it and proceed to Phase 2. If not, close it (optional) and move to the next instance. **Do not backtrack to surfaces** until you have exhausted all container types in the list.
+- Important: once you start the Closed Container Search, **do not return to surfaces** (countertops, tables, etc.) until you have exhausted all container types. Continue through the list without backtracking.
+- Do not stop prematurely – continue until all categories and all instances have been checked.
+
+### Object Verification before Picking
+- Before taking any object, **read its exact name** from the observation and compare it with the task's target object (e.g., if task says "apple", only take an object named "apple 1" or similar – not "kettle" or "mug").
+- If the object's type does not match the target, do not take it. Continue searching.
+- This prevents picking the wrong item, which would waste time and fail the task.
+
+## Phase 2: Cool the object using the fridge
+- Ensure you are carrying the target object. If you are not carrying it, go back to searching (do not proceed to fridge).
+- Go directly to the fridge.
+- If the fridge is closed, open it.
+- Verify the fridge is open (check observation). If not, re-approach and open again.
+- Use `cool <object> with fridge`.
+
+## Phase 3: Move the cooled object to the target location
+- Go to the target location.
+- If the target receptacle is closed, open it first.
+- Use `move <object> to <target>`.
+
+## Completion check
+- Object is cooled and placed at the target location – task complete.

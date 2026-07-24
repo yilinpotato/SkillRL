@@ -1,0 +1,199 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specific object type into a specified target receptacle. Do not stop until both are placed (counter == 2).\n\n## Critical Do Not Stop\n- **Never stop after placing only one object.** The only valid stop signals are: counter == 2, OR after two complete passes through all furniture items you have placed exactly 1 and cannot find another matching object anywhere.\n- After each placement, mentally say: \"Counter is now X.\" If X == 1, proceed immediately to Phase 2. If X == 2, task complete.\n\n## Core Rules\n- After taking a matching object, immediately go to the target and place it. Do nothing else until placed.\n- If the target receptacle is closed (e.g., drawer, cabinet), open it first, then place.\n- Keep a mental counter: start at 0, increment by 1 after each successful placement.\n- Never stop while counter < 2.\n- **Before you start, create a master list** of every furniture item from the initial room observation (including all surfaces and containers, and the target receptacle). Write it down in the order they appear. This list is your search order for both phases.\n\n## Object Type Verification\n- Before taking any object, compare its exact name to the required type. Only take exact matches. Do not assume similar objects (e.g., mug vs cup, soapbottle vs soapbar) are acceptable. If the name differs, skip it.\n- If you accidentally take a non-matching object, check inventory, then drop it or leave it; resume search immediately.\n\n## Search and Place Protocol\n### Phase 1: First Object\n1. Use your master list. Visit each item in exact order. For each item:\n   - If closed, open it.\n   - Examine its contents.\n   - If you see an exact-matching object, **take it immediately** (then go to target receptacle, open if needed, place it, increment counter).\n   - **If no matching object is found, move to the next item on the list.** Do not revisit any item in this pass.\n2. After placing, go immediately to Phase 2.\n\n### Phase 2: Second Object (After placing the first)\n1. **Re-read the initial room observation and rewrite the master list.** Include the target receptacle.\n2. Visit every item again in exact order. Repeat the same inspect-take logic.\n3. If you saw a second matching object during Phase 1 (e.g., two together), return directly to that location instead of a full scan.\n4. If taken, place it and stop (counter == 2).\n\n### Comprehensive Search Across All Furniture\n- **Your master list must include EVERY furniture item from the initial observation.** Do not skip any piece. Surfaces (coffeetable, sidetable, sofa, armchair, countertop, bed, etc.) are just as important as closed containers (cabinets, drawers).\n- **Always visit items in the exact order they appear on the list.** Do not jump ahead or go back until you have finished the entire pass.\n- If you have visited every item in the master list once without finding a matching object, that completes one full pass. Then start a second pass (Phase 1 or Phase 2 depending on your counter). Only after two full passes with no success may you conclude the task is impossible.\n- **Do not stop after a partial pass.** Even if you have searched many items and found none, continue to the end of the list.\n\n### Multi-Object Search Strategy\n- After placing the first object, begin Phase 2. **Do not assume the second object will be near the first.** Search every furniture item again, even those already visited in Phase 1.\n- If you find the second object while searching, take and place it immediately.\n- **Never loop back to the same item without having visited all others.** If you catch yourself revisiting an item that you have already inspected in the current pass, stop, re-read the master list, and start the next pass from the beginning.\n\n## Loop Detection and Fallback\n- If you find yourself visiting the same furniture item(s) repeatedly without taking a target object, you are in a loop.\n- **Immediately stop cycling.** Re-read the initial room observation, re-create the master list, then start Phase 2 from the first item again following exact order.\n- Do not revisit the same item more than once per pass unless you are going there to take an object you already spotted.\n- If you have visited all items and found no matching object, the task may be impossible – but only after two full passes (Phase 1 + Phase 2).\n\n## Common Failure Patterns (Avoid These)\n- Premature stop after first placement without beginning Phase 2.\n- Taking a non-matching object or the wrong type.\n- Skipping any furniture item in Phase 2 – visit every item from the master list in order.\n- Not opening the target receptacle before placing.\n- Stopping after only one pass when counter is still 1.\n- **Not checking the target receptacle as a possible source of objects.**\n- **Assuming objects are only in closed containers; surfaces and appliances are equally important.**\n- **Deviating from the list order** – always go to the first unvisited item in your master list.\n\n## Stop Condition Verification\n- After each placement action, immediately check your counter. If counter == 1, you **must** start Phase 2 search. Do not explore or examine anything else until the second object is placed.\n- The only valid stop signals are: counter == 2, or after two complete passes you have exactly 1 placed and no matching object remains.",
+  "level": 3,
+  "version": 42,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent did not consistently follow the master-list sequential search, leading to incomplete exploration and premature stops. The skill tree's instructions were clear but possibly too verbose; the new sections reinforce the critical step-by-step search procedure.",
+  "changelog": "Added 'Comprehensive Search Across All Furniture' and 'Multi-Object Search Strategy' sections under the main goal to explicitly enforce systematic search of every listed furniture item and prevent early termination after partial passes.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only checked cabinets and a few drawers, but never explored other furniture like coffeetable, sofa, or sidetable where the newspapers might be.",
+      "skill_tree_gap": "Missing a subskill for broad furniture search in pick_two_obj_and_place tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only checked cabinets 9-5 and did not inspect countertops or the single drawer for the soapbottles.",
+      "skill_tree_gap": "Missing a systematic search that includes both surfaces and all containers.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "After placing the first candle, the agent did not continue searching for the second candle; it returned to the now-empty countertop and then opened one drawer, but never searched other surfaces.",
+      "skill_tree_gap": "Missing a subskill for multi-object search: after placing one, do not stop until all instances are found.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "After placing the first creditcard, the agent only revisited the initial location and then opened one drawer, failing to search other potential spots (sofa, sidetable, etc.) for the second creditcard.",
+      "skill_tree_gap": "Missing a multi-object search routine that explores all furniture categories.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_4104",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 41,
+      "call_count": 917,
+      "success_when_used": 724,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "d5fe0935dea3",
+      "created_version": 1,
+      "last_changed_version": 37,
+      "stable_versions": 5,
+      "call_count": 917,
+      "success_when_used": 724,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-do-not-stop": {
+      "title": "Critical Do Not Stop",
+      "level": 2,
+      "body_hash": "3ea6fecd986f",
+      "created_version": 39,
+      "last_changed_version": 41,
+      "stable_versions": 1,
+      "call_count": 67,
+      "success_when_used": 41,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/core-rules": {
+      "title": "Core Rules",
+      "level": 2,
+      "body_hash": "e3386366bf13",
+      "created_version": 37,
+      "last_changed_version": 41,
+      "stable_versions": 1,
+      "call_count": 92,
+      "success_when_used": 63,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 2,
+      "body_hash": "d7f0bc1537c8",
+      "created_version": 35,
+      "last_changed_version": 37,
+      "stable_versions": 5,
+      "call_count": 126,
+      "success_when_used": 94,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-and-place-protocol": {
+      "title": "Search and Place Protocol",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 41,
+      "last_changed_version": 41,
+      "stable_versions": 1,
+      "call_count": 14,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-and-place-protocol/phase-1-first-object": {
+      "title": "Phase 1: First Object",
+      "level": 3,
+      "body_hash": "fc31dcb1720f",
+      "created_version": 41,
+      "last_changed_version": 42,
+      "stable_versions": 0,
+      "call_count": 14,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-and-place-protocol/phase-2-second-object-after-placing-the-first": {
+      "title": "Phase 2: Second Object (After placing the first)",
+      "level": 3,
+      "body_hash": "80b13f95b9d5",
+      "created_version": 41,
+      "last_changed_version": 41,
+      "stable_versions": 1,
+      "call_count": 14,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-and-place-protocol/comprehensive-search-across-all-furniture": {
+      "title": "Comprehensive Search Across All Furniture",
+      "level": 3,
+      "body_hash": "2c94a551cf27",
+      "created_version": 42,
+      "last_changed_version": 42,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-and-place-protocol/multi-object-search-strategy": {
+      "title": "Multi-Object Search Strategy",
+      "level": 3,
+      "body_hash": "d9dd3f49fd58",
+      "created_version": 42,
+      "last_changed_version": 42,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/loop-detection-and-fallback": {
+      "title": "Loop Detection and Fallback",
+      "level": 2,
+      "body_hash": "0647731be49f",
+      "created_version": 41,
+      "last_changed_version": 41,
+      "stable_versions": 1,
+      "call_count": 14,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns-avoid-these": {
+      "title": "Common Failure Patterns (Avoid These)",
+      "level": 2,
+      "body_hash": "6c705382b73a",
+      "created_version": 37,
+      "last_changed_version": 41,
+      "stable_versions": 1,
+      "call_count": 92,
+      "success_when_used": 63,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/stop-condition-verification": {
+      "title": "Stop Condition Verification",
+      "level": 2,
+      "body_hash": "3564d42bf317",
+      "created_version": 37,
+      "last_changed_version": 41,
+      "stable_versions": 1,
+      "call_count": 92,
+      "success_when_used": 63,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\n- Place exactly two instances of a specific object into a specified target receptacle.\n\n## Procedure (step-by-step algorithm)\n1. **Identify task**: Note the required object type (e.g., newspaper) and the target receptacle (e.g., sofa).\n2. **Initial exploration**: Read the room description and list every furniture item. For each closed container (drawer, cabinet, safe, fridge, etc.), open it immediately. Do not assume any container is empty.\n3. **First object search**: Visit each furniture item from your list exactly once. For each item:\n   - Go to it.\n   - If it is a container and is closed, open it.\n   - Examine its contents (on surfaces or inside).\n   - If you see an object whose exact name matches the required type, take it. Then go directly to step 4.\n   - If not, move to the next item on the list.\n   - After visiting all items, if you still have not found the object, you may re-visit items (objects may have been moved by earlier actions).\n4. **Place the first object**: Go directly to the target receptacle. Immediately use the action \"move <object> to <target>\". Do not perform any other actions (look, inventory, move elsewhere) before moving.\n5. **Second object search**: **You are not done.** Reset your mental list of furniture items and repeat step 3 exactly. Do not assume the second object is in the same type of location as the first — check all furniture types.\n6. **Place the second object**: Use the same sequence as step 4. After moving, the environment will indicate success.\n\n## Common Failure Patterns\n### thorough_search\n- Ensure you have visited *every* furniture item listed in the initial room description. Do not skip any cabinet, drawer, shelf, counter, stove burner, fridge, or any other surface/container.\n- If an item is closed, open it before checking contents. Do not assume it is empty.\n- After checking all items, if you still lack two copies, revisit any you may have missed or recheck opened containers (objects may have been moved).\n- Common oversight: checking only one type of furniture (e.g., only countertops or only cabinets). Spread your search across all categories.\n\n### check_count\n- After placing the first object, immediately reset your mental list and begin the second search. Do not interpret any intermediate success message as task completion.\n- Before concluding the task, confirm that you have placed exactly two objects of the required type into the target receptacle. The environment will not indicate success until both are placed.\n- If you have placed only one, continue searching. Do not stop until you have picked up, moved, and placed the second object.\n\n## Critical warnings (avoid these failures)\n- **Insufficient search**: You must visit every furniture item on your list. Checking only a few items (e.g., only sidetables or only drawers) will cause failure. If you find yourself revisiting the same type repeatedly, stop and check a different type.\n- **Premature stop**: After placing the first object, immediately begin searching for the second. Do not rest or assume the task is done.\n- **Not opening containers**: Always use \"open\" before looking inside. The action \"examine\" does not open containers.\n- **Wrong object identity**: Before taking any object, verify its exact name against the required type. Do not take if there is any mismatch.\n- **Intervening actions**: When you are at the target receptacle with the correct object in hand, issue the move action immediately. Any delay (looking, inventory, going elsewhere) wastes steps and leads to failure.",
+  "level": 3,
+  "version": 14,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent attempted to follow the skill tree but failed on exhaustive search (missed several cabinets and stove burners) and stopped prematurely after placing only one object. The skill tree's wording is clear, so the failures are execution errors, not misinterpretation of the tree.",
+  "changelog": "Added '### thorough_search' and '### check_count' subsections under a new '## Common Failure Patterns' section to reinforce exhaustive search and count verification before concluding.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only explored a few cabinets and countertops, not searching all cabinets or stoveburners where pans may be stored.",
+      "skill_tree_gap": "No coverage of all storage areas for the pick_two_obj_and_place task.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed only one peppershaker and stopped, failing to find and place a second one.",
+      "skill_tree_gap": "Missing a loop or check that the required count (two) has been fulfilled before stopping.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_1368",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 13,
+      "call_count": 298,
+      "success_when_used": 239,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "1bd0fc947f84",
+      "created_version": 1,
+      "last_changed_version": 13,
+      "stable_versions": 1,
+      "call_count": 298,
+      "success_when_used": 239,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/procedure-step-by-step-algorithm": {
+      "title": "Procedure (step-by-step algorithm)",
+      "level": 2,
+      "body_hash": "195ffae57961",
+      "created_version": 13,
+      "last_changed_version": 13,
+      "stable_versions": 1,
+      "call_count": 11,
+      "success_when_used": 9,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns": {
+      "title": "Common Failure Patterns",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns/thorough-search": {
+      "title": "thorough_search",
+      "level": 3,
+      "body_hash": "a92b1fe69ea2",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns/check-count": {
+      "title": "check_count",
+      "level": 3,
+      "body_hash": "3db75e917545",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-warnings-avoid-these-failures": {
+      "title": "Critical warnings (avoid these failures)",
+      "level": 2,
+      "body_hash": "565acaa619a3",
+      "created_version": 13,
+      "last_changed_version": 13,
+      "stable_versions": 1,
+      "call_count": 11,
+      "success_when_used": 9,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

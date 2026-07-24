@@ -1,0 +1,121 @@
+{
+  "content": "# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location from the task description.\n- The heating appliance is typically the microwave.\n\n## 2. Locate the object\n### 2.1 Immediately after opening the fridge\n- **Perform a 'look' action**. This refreshes the list of all receptacles in the current room. Write down every receptacle name you see.\n- Do **not** skip this look. Without it you may miss the location of the target object.\n\n### 2.2 Systematic search order\n- Check each receptacle in this order:\n  1. Fridge (already open; look inside for the object, take if present. If not, close fridge and proceed.)\n  2. Countertops (go to each, look at contents, take object if present). **Check every countertop** you saw in the look; do not stop after one or two.\n  3. Sidetables, diningtables, shelves, and other flat surfaces (check each).\n  4. Cabinets, drawers, garbagecan, sinkbasin, and other containers (open each, look inside).\n- If after checking all receptacles from the list you still haven't found the object, perform another 'look' to see if new receptacles have appeared, and continue.\n- Do not skip any receptacle. If you lose track, use 'look' and recount.\n\n## 3. Heat the object\n- Once the object is in your inventory, go to the microwave.\n- Open the microwave.\n- Move the object from inventory into the microwave (action: 'move <object> to microwave').\n- Close the microwave.\n- **Now open the microwave again.**\n- **Take the object out of the microwave** (action: 'take <object> from microwave').  \n  Do not try to heat the object while it is still inside — that does not work.\n- **Heat the object while holding it**: perform action 'heat <object> with microwave'. This is required; closing alone does not heat it.\n- **Do not move the object back into the microwave after taking it out.** Move directly to the target location after heating.\n- *If you ever find yourself holding the object after heating, proceed immediately to the target location.*\n\n## 4. Place the heated object in the target location\n- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).\n- **Destination must be different** from the source receptacle where the object originally came from. Returning the object to its original location is invalid.\n- If the receptacle is a container that can be opened (e.g., cabinet, fridge, drawer, garbagecan), open it first.\n- Put the object into/onto the receptacle (action: 'move <object> to <receptacle>').\n- **Critical: Do not take the object back after placing it. Stop.**\n\n## 5. Completion check and termination\n- After placing the object, verify that it is at the target: examine the receptacle (action: 'examine <receptacle>') and check your inventory (action: 'inventory'). Your inventory should be empty, and the object should be visible on/in the receptacle.\n- If the object is there, **the task is complete. Do not perform any further actions.**\n- Resist any impulse to pick up the object again. If you ever find yourself holding the object after having placed it, that is a mistake — do not continue; stop and end the episode.\n- **Termination rule**: Once placed at the target, stop all actions immediately. No more moving, heating, or searching.",
+  "level": 3,
+  "version": 7,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "The agent did not follow the skill tree's instruction to perform a 'look' at the start of locating the object, which led to missing receptacles. The skill tree wording was clear but the agent ignored it; the refinement makes the look step more explicit and imperative.",
+  "changelog": "Refined section 2 'Locate the object' by adding a deeper subheading to enforce a 'look' action immediately after opening the fridge, and clarified the need to check all countertops, addressing the failure where the agent wandered without a comprehensive search.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent opened fridge (consensus), then visited many locations but never found an egg; it did not check other containers that might hold an egg.",
+      "skill_tree_gap": "The agent's search after the consensus prefix is not comprehensive; it misses common egg locations.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_792",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 6,
+      "call_count": 70,
+      "success_when_used": 29,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "00273d90cecd",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 6,
+      "call_count": 70,
+      "success_when_used": 29,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 0,
+      "call_count": 70,
+      "success_when_used": 29,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-1-immediately-after-opening-the-fridge": {
+      "title": "2.1 Immediately after opening the fridge",
+      "level": 3,
+      "body_hash": "bd3f262c0e7e",
+      "created_version": 7,
+      "last_changed_version": 7,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-2-systematic-search-order": {
+      "title": "2.2 Systematic search order",
+      "level": 3,
+      "body_hash": "087d6af2684e",
+      "created_version": 7,
+      "last_changed_version": 7,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "dc53dcf4d334",
+      "created_version": 1,
+      "last_changed_version": 6,
+      "stable_versions": 1,
+      "call_count": 70,
+      "success_when_used": 29,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object-in-the-target-location": {
+      "title": "4. Place the heated object in the target location",
+      "level": 2,
+      "body_hash": "6f4b110c24e3",
+      "created_version": 1,
+      "last_changed_version": 5,
+      "stable_versions": 2,
+      "call_count": 70,
+      "success_when_used": 29,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check-and-termination": {
+      "title": "5. Completion check and termination",
+      "level": 2,
+      "body_hash": "48c52cfa1763",
+      "created_version": 2,
+      "last_changed_version": 5,
+      "stable_versions": 2,
+      "call_count": 63,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

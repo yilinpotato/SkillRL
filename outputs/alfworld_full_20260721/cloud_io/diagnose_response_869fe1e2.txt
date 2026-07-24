@@ -1,0 +1,57 @@
+[
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent stopped searching after checking only cabinets, failing to find any toiletpaper.",
+    "evidence": "After opening cabinet 1 and seeing candle and soapbar, it goes to toiletpaperhanger 1 without picking anything.",
+    "corrective_rule": "Continue searching all receptacles until both target objects are found.",
+    "skill_tree_gap": "Missing systematic exhaustive search strategy and task completion verification.",
+    "patch_location": "new top-level section",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one toiletpaper, agent did not exhaustively search other receptacles and stopped, missing the second toiletpaper.",
+    "evidence": "After moving first toiletpaper, it wanders between bathtubbasin, drawer, sinkbasin, and back to toiletpaperhanger without finding another.",
+    "corrective_rule": "After placing first object, systematically search all remaining receptacles for the second object.",
+    "skill_tree_gap": "Missing systematic post-placement search routine.",
+    "patch_location": "new top-level section",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent stopped after picking up one spraybottle without placing it or searching for a second.",
+    "evidence": "Last action is 'take spraybottle 1 from countertop 1' and then no further actions.",
+    "corrective_rule": "After picking an object, immediately place it in the target receptacle, then continue searching for the second.",
+    "skill_tree_gap": "Missing post-pickup placement and task continuation routine.",
+    "patch_location": "new top-level section",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent stopped after picking up one candle without placing it or searching for a second.",
+    "evidence": "Last action is 'pick up the candle 1 from the shelf 1'.",
+    "corrective_rule": "After picking an object, immediately place it in the target receptacle, then continue searching for the second.",
+    "skill_tree_gap": "Missing post-pickup placement and task continuation routine.",
+    "patch_location": "new top-level section",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one plate, agent failed to search other locations for the second plate and stopped.",
+    "evidence": "After moving plate, it examines coffeetable and diningtable repeatedly, then goes to drawer 1 without opening it.",
+    "corrective_rule": "After placing first object, systematically search all remaining receptacles for the second object.",
+    "skill_tree_gap": "Missing systematic post-placement search routine.",
+    "patch_location": "new top-level section",
+    "confidence": 0.9
+  }
+]

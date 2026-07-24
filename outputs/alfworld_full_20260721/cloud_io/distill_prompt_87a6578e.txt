@@ -1,0 +1,172 @@
+You are an expert at distilling sequential-agent experience into reusable skills.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+You are given COMPRESSED trajectories for task_type="ALL". Each step shows the action
+taken and the OBSERVATION DELTA (only what changed in the environment: +added / -removed lines).
+
+SUCCESSFUL TRAJECTORIES (what to do):
+
+Trajectory 1 [success] task: clean some kettle and put it in cabinet.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 20, a cabinet 19, a cabinet 18, a cabinet 17, a cabinet 16, a cabinet 15, a cabinet 14, a cabinet 13, a cabinet 12, a cabinet 11, a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a co
+  action: go to countertop 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a dishsponge 3, a egg 1, a fork 1, a mug 2, a plate 2, a spatula 2, a spoon 1, a statue 2, and a tomato 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a fork 2, a pan 2, a pot 1, a soapbottle 2, a tomato 2, a vase 3, and a vase 2.
+  action: go to shelf 1  | obs: You arrive at countertop 3. On the countertop 3, you see a bread 2, a butterknife 1, a fork 3, a houseplant 1, a spatula 3, a spatula 1, a spoon 3, and a statue 1.
+  action: go to shelf 2  | obs: You arrive at shelf 1. On the shelf 1, you see a dishsponge 1, a papertowelroll 1, and a peppershaker 1.
+  action: go to shelf 3  | obs: You arrive at shelf 2. On the shelf 2, you see a bowl 1, a soapbottle 1, and a vase 1.
+  action: go to stoveburner 1  | obs: You arrive at shelf 3. On the shelf 3, you see nothing.
+  action: take kettle 1 from stoveburner 1  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see a kettle 1.
+  action: go to sinkbasin 1  | obs: You pick up the kettle 1 from the stoveburner 1.
+  action: clean kettle 1 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a cup 1.
+  action: go to cabinet 1  | obs: You clean the kettle 1 using the sinkbasin 1.
+
+Trajectory 2 [success] task: put a clean kettle in diningtable.
+  action: go to countertop 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 20, a cabinet 19, a cabinet 18, a cabinet 17, a cabinet 16, a cabinet 15, a cabinet 14, a cabinet 13, a cabinet 12, a cabinet 11, a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a co
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a butterknife 2, a egg 1, a plate 2, a saltshaker 1, a soapbottle 1, a spatula 1, and a spoon 1.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a butterknife 3, a fork 1, a tomato 1, and a winebottle 2.
+  action: go to diningtable 2  | obs: You arrive at diningtable 1. On the diningtable 1, you see a butterknife 1, a cup 1, a egg 2, a peppershaker 1, a plate 1, a saltshaker 2, and a winebottle 1.
+  action: take kettle 1 from diningtable 2  | obs: You arrive at diningtable 2. On the diningtable 2, you see a apple 1, a bowl 2, a cellphone 1, a dishsponge 2, a kettle 1, a knife 1, a lettuce 3, a pan 1, and a soapbottle 2.
+  action: go to sinkbasin 1  | obs: You pick up the kettle 1 from the diningtable 2.
+  action: clean kettle 1 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to diningtable 1  | obs: You clean the kettle 1 using the sinkbasin 1.
+  action: move kettle 1 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a butterknife 1, a cup 1, a egg 2, a peppershaker 1, a plate 1, a saltshaker 2, and a winebottle 1.
+
+Trajectory 3 [success] task: put a clean butterknife in diningtable.
+  action: go to countertop 2  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 12, a cabinet 11, a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a countertop 2, a countertop 1, a diningtable 1, a drawer 3, a drawer 2, a drawer 1, a fridge 1, a garbagecan 1, a m
+  action: go to countertop 1  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 1, a dishsponge 1, a egg 1, a ladle 2, a mug 3, a pan 1, a peppershaker 1, and a spatula 2.
+  action: take butterknife 1 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a butterknife 1, a soapbottle 2, and a soapbottle 1.
+  action: go to sinkbasin 1  | obs: You pick up the butterknife 1 from the countertop 1.
+  action: clean butterknife 1 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to diningtable 1  | obs: You clean the butterknife 1 using the sinkbasin 1.
+  action: move butterknife 1 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a bread 2, a butterknife 2, a cup 1, a knife 2, a ladle 3, a lettuce 1, a peppershaker 2, a potato 1, a saltshaker 2, a spoon 2, and a tomato 2.
+
+Trajectory 4 [success] task: clean some mug and put it in coffeemachine.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 16, a cabinet 15, a cabinet 14, a cabinet 13, a cabinet 12, a cabinet 11, a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a countertop 2, a countertop 1, a diningtable 1, a drawer 5,
+  action: go to countertop 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a apple 1, and a peppershaker 1.
+  action: take mug 2 from countertop 2  | obs: You arrive at countertop 2. On the countertop 2, you see a butterknife 2, a butterknife 1, a dishsponge 1, a fork 2, a fork 1, a knife 1, a lettuce 1, a mug 2, a pot 1, a saltshaker 2, and a soapbottle 1.
+  action: go to sinkbasin 1  | obs: You pick up the mug 2 from the countertop 2.
+  action: clean mug 2 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a egg 2, and a spatula 1.
+
+Trajectory 5 [success] task: put a clean bowl in fridge.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 15, a cabinet 14, a cabinet 13, a cabinet 12, a cabinet 11, a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a countertop 4, a countertop 3, a countertop 2, a countertop 1, a drawer 4
+  action: go to countertop 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a papertowelroll 1, and a peppershaker 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 1, a cup 1, a soapbottle 2, and a spatula 1.
+  action: take bowl 2 from countertop 3  | obs: You arrive at countertop 3. On the countertop 3, you see a bowl 2, a bread 3, a bread 2, a lettuce 1, a plate 2, a plate 1, a potato 1, and a spoon 1.
+  action: go to sinkbasin 1  | obs: You pick up the bowl 2 from the countertop 3.
+  action: clean bowl 2 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to fridge 1  | obs: You clean the bowl 2 using the sinkbasin 1.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: move bowl 2 to fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a bowl 3, a cup 3, a egg 2, and a mug 1.
+
+FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: clean some dishsponge and put it in toilet.
+  action: go to countertop 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a countertop 1, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a handtowelholder 2, a handtowelholder 1, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: clean some dishsp
+  action: go to drawer 1  | obs: You arrive at countertop 1. On the countertop 1, you see a cloth 2, a soapbottle 3, a spraybottle 2, a spraybottle 1, a tissuebox 1, and a toiletpaper 1.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: examine drawer 2  | obs: You open the drawer 1. The drawer 1 is open. In it, you see nothing.
+  action: open drawer 2  | obs: The drawer 2 is closed.
+  action: go to drawer 3  | obs: You open the drawer 2. The drawer 2 is open. In it, you see nothing.
+  action: open drawer 3  | obs: You arrive at drawer 3. The drawer 3 is closed.
+  action: open drawer 4  | obs: You open the drawer 3. The drawer 3 is open. In it, you see nothing.
+  action: go to drawer 5  | obs: You open the drawer 4. The drawer 4 is open. In it, you see nothing.
+  action: open drawer 5  | obs: You arrive at drawer 5. The drawer 5 is closed.
+  action: open drawer 6  | obs: You open the drawer 5. The drawer 5 is open. In it, you see nothing.
+  action: go to countertop 1  | obs: You open the drawer 6. The drawer 6 is open. In it, you see nothing.
+
+Trajectory 2 [failure] task: heat some cup and put it in cabinet.
+  action: go to fridge 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 20, a cabinet 19, a cabinet 18, a cabinet 17, a cabinet 16, a cabinet 15, a cabinet 14, a cabinet 13, a cabinet 12, a cabinet 11, a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a co
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: go to countertop 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a bowl 2, a bowl 1, a bread 1, and a lettuce 1.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a apple 1, a knife 1, a peppershaker 3, a peppershaker 2, and a tomato 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a butterknife 1, a creditcard 1, a dishsponge 3, a dishsponge 1, a pan 1, a plate 2, a plate 1, a potato 1, a soapbottle 1, a spoon 2, and a spoon 1.
+  action: go to cabinet 1  | obs: You arrive at countertop 3. On the countertop 3, you see a mug 3, and a spatula 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+
+Trajectory 3 [failure] task: heat some apple and put it in garbagecan.
+  action: go to fridge 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 16, a cabinet 15, a cabinet 14, a cabinet 13, a cabinet 12, a cabinet 11, a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a countertop 2, a countertop 1, a diningtable 1, a drawer 5,
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: go to countertop 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see nothing.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see nothing.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a bread 1, a cup 1, a egg 2, a mug 1, and a pot 1.
+  action: go to cabinet 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a butterknife 2, a cup 2, a dishsponge 2, a fork 1, a houseplant 1, a lettuce 1, a mug 2, a potato 1, a saltshaker 2, a soapbottle 2, a spoon 3, a tomato 3, a tomato 2, and a tomato 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+
+Trajectory 4 [failure] task: find two keychain and put them in armchair.
+  action: go to armchair 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a coffeetable 1, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a sidetable 3, a sidetable 2, a sidetable 1, a sofa 2, a sofa 1, and a tvstand 1.
+
+Your task is to: find two keychain and put them in armchair.
+  action: go to coffeetable 1  | obs: You arrive at armchair 1. On the armchair 1, you see a newspaper 1.
+  action: go to drawer 7  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a laptop 1, and a statue 1.
+  action: open drawer 7  | obs: You arrive at drawer 7. The drawer 7 is closed.
+  action: go to drawer 6  | obs: You open the drawer 7. The drawer 7 is open. In it, you see nothing.
+  action: open drawer 6  | obs: You arrive at drawer 6. The drawer 6 is closed.
+  action: open drawer 5  | obs: You open the drawer 6. The drawer 6 is open. In it, you see nothing.
+  action: go to drawer 4  | obs: You open the drawer 5. The drawer 5 is open. In it, you see nothing.
+  action: open drawer 4  | obs: You arrive at drawer 4. The drawer 4 is closed.
+  action: go to sidetable 1  | obs: You open the drawer 4. The drawer 4 is open. In it, you see nothing.
+  action: go to sidetable 2  | obs: You arrive at sidetable 1. On the sidetable 1, you see a remotecontrol 1.
+  action: take keychain 2 from sidetable 2  | obs: You arrive at sidetable 2. On the sidetable 2, you see a creditcard 3, and a keychain 2.
+
+DECISION FORKS (where successful and failed runs diverged after a shared prefix):
+After [start]: 'look' (succ=14,fail=0); 'go to countertop 1' (succ=22,fail=1); 'go to countertop 2' (succ=2,fail=0); 'go to fridge 1' (succ=7,fail=2); 'go to desk 1' (succ=2,fail=0)
+After [look]: 'go to countertop 1' (succ=10,fail=0); 'go to countertop 4' (succ=1,fail=0); 'go to sidetable 1' (succ=1,fail=0); 'go to bathtubbasin 1' (succ=1,fail=0); 'go to armchair 2' (succ=1,fail=0)
+After [look -> go to countertop 1]: 'go to countertop 2' (succ=6,fail=0); 'go to handtowelholder 1' (succ=1,fail=0); 'take lettuce 1 from countertop 1' (succ=1,fail=0); 'take apple 2 from countertop 1' (succ=1,fail=0); 'take soapbottle 2 from countertop 1' (succ=1,fail=0)
+After [look -> go to countertop 1 -> go to countertop 2]: 'go to countertop 3' (succ=4,fail=0); 'take mug 2 from countertop 2' (succ=1,fail=0); 'take ladle 1 from countertop 2' (succ=1,fail=0)
+After [look -> go to countertop 1 -> go to countertop 2 -> go to countertop 3]: 'go to shelf 1' (succ=1,fail=0); 'take bowl 2 from countertop 3' (succ=1,fail=0); 'go to fridge 1' (succ=1,fail=0); 'take spatula 1 from countertop 3' (succ=1,fail=0)
+After [go to countertop 1]: 'go to countertop 2' (succ=14,fail=0); 'go to diningtable 1' (succ=3,fail=0); 'take soapbar 2 from countertop 1' (succ=1,fail=0); 'take cup 1 from countertop 1' (succ=1,fail=0); 'take toiletpaper 1 from countertop 1' (succ=1,fail=0)
+
+TASK — Contrastive Analysis:
+1. Compare success vs failure: identify what successful runs did right and the exact step where
+   failed runs went off track (use the decision forks).
+2. Abstract the (success - failure) difference into 1-3 NEW, generalizable skills.
+3. Avoid duplicating these existing skills: ['Systematic Exploration', 'Immediate Acquisition', 'Destination First Policy', 'Track Counts & Progress', 'Use State-Changing Tools Early', 'Establish Spatial Relations', 'Open Before Judging Empty', 'Avoid Redundant Rechecks', 'Plan with Landmarks', 'Progressive Goal Decomposition', 'Efficient Relation Search', 'Terminate Only On Success', 'Station Action Execution', 'Common Sense Object Location', 'Examine Open Surfaces First', 'Direct Transformation Then Placement', 'Sequential Container Opening', 'Transform Immediately After Pickup', 'No Examine on Held Object', 'Open Destination Before Placement', 'Hold Object Through Transformation', 'Search Containers Before Surfaces', 'Switch Search Domain After Empties', 'Cover All Container Types Once', 'Proceed Directly After Acquisition', 'Surface Check Before Open', 'Switch Type After Two Empties', 'Exhaust Open Surfaces First', 'Cease Search on Target', 'Scan All Open Surfaces', 'Switch After Two Misses', 'Three Empties Switch', 'Open Before Moving', 'Categorical Target Grab', 'Switch After Non-Target Find', 'Begin at Countertop', 'Sequential Container Search', 'Exhaust All Furniture', 'Open Upon Arrival', 'Avoid Premature Pickup', 'Start at Countertop', 'Avoid Re-Opening Containers', 'No Detours After Pickup', 'Open Then Take', 'Close Empty Containers', 'Same-Type Exhaustion', 'Examine Open Surfaces Only', 'Begin Search on Countertops', 'Exhaust Cabinets Before Drawers', 'Open Before Examine', 'Switch Type After One Empty', 'Take Seen Target Without Delay', 'Exact Name Match', 'Return to Start After Search', 'Resume Search After Placement', 'All Open Surfaces Before Containers', 'Open Destination Before Placing', 'Prioritize Task-Relevant Furniture', 'Take Target After Container Open', 'Avoid Early Sink Visits', 'Grab on First Encounter', 'One Empty Container Rule', 'Scan All Items on Arrival', 'Direct to Transformation', 'No Intermediate Placement', 'Pick Visible Target First', 'Open Only If Needed', 'Sequential Open Surface Scan', 'Avoid Transformation Site Without Object', 'Avoid Redundant Information Actions', 'Monotonic Surface Sweep', 'Immediate Grab on Sight', 'Scan Adjacent Countertops First', 'Return to Safe Start After Fail', 'Start at Countertop One', 'Immediate Transformation After Pickup', 'Direct Placement After Transformation', 'Initial Look Action', 'Limit Container Openings', 'Check Destination Surface First', 'Finish One Furniture Type', 'Sequential Surface Sweep', 'Avoid Premature Container Opening', 'After Toggle, Stay and Examine', 'After Clean Go Directly', 'Hold Object to Sink', 'Three Empties Switch', 'No Detour After Pickup', 'Skip Empty Returns', 'Countertop First Then Containers', 'Acquire Before Transformation', 'Open Specific Destination', 'Return to Source for Multiples', 'Avoid Closed Container Examination', 'Take Matching Category Objects', 'Countertop Sequential Scan', 'Avoid Premature Drawer Opening', 'Exhaust Countertop Pair', 'Diningtable Before Appliances', 'Avoid Premature Sink Visit', 'Countertop Numeric Order', 'No Actions After Pickup', 'Hold Object Before Appliance', 'Open Surfaces Priority', 'Direct Post-Transform Placement', 'Ignore Non-Target Objects', '[pick_and_place] Systematic First-Pass Search', '[pick_and_place] Grab When Seen', '[pick_and_place] Transform Before Transport', '[pick_and_place] Place Before More Search', '[pick_and_place] Track Counts for Multiples', '[pick_and_place] For Drinks, Check Fridge Early', '[pick_two_obj_and_place] Two Objects Means Two Placements', '[pick_two_obj_and_place] Remember the Second Location During First Search', '[pick_two_obj_and_place] Carry-Place-Return Loop', '[pick_two_obj_and_place] Multi-Object: Return to Open Surfaces', '[pick_two_obj_and_place] Return to Previous Found Location', '[pick_two_obj_and_place] Return After Single Placement', '[look_at_obj_in_light] Seek Lamp Surfaces First', '[look_at_obj_in_light] Switch Lamp On', '[look_at_obj_in_light] Acquire Or Fetch Target', '[look_at_obj_in_light] Systematic Surface Search', '[look_at_obj_in_light] Prevent Action Loops', '[look_at_obj_in_light] Stay at Light Source', '[look_at_obj_in_light] After Light Activation, Check Nearby', '[clean] Phase-Ordered Plan', '[clean] Pick Before You Wander', '[clean] Sink First for Cleaning', '[clean] Systematic Container Sweep', '[clean] State Verification Before Drop', '[clean] Use Location Priors', '[clean] Clean After Pickup', '[clean] Place After Clean', '[clean] Fridge First for Food', '[clean] Cabinets First for Clean', '[clean] Clean Then Place Directly', '[clean] Drawer First for Clean', '[clean] Countertop Before Cabinets', '[clean] Transform Then Transport', '[clean] Clean Before Moving to Destination', '[clean] Acquire Before Cleaning', '[clean] Dining Table After Countertops', '[clean] Prefer Sinkbasin for Cleaning', '[clean] No Sink Without Object', '[clean] Open Destination Before Placing', '[clean] No Detour After Clean', '[clean] Clean Immediately After Pickup', '[clean] Containers After Open Surfaces', '[clean] Clean Then Direct Place', '[clean] Clean Objects From Trash', '[clean] Direct Path After Clean', '[clean] Clean on Sink Only', '[clean] Countertop Priority Scan', '[clean] Hold Object Directly to Sink', '[clean] Avoid Initial Sink Visit', '[clean] Systematic Countertop Survey', '[clean] Immediate Destination Preparation', '[clean] No Post-Cleaning Detours', '[clean] Complete Clean Before New Search', '[clean] Sequential Countertop Search', '[clean] Return Cleaned Object to Source', '[clean] Avoid Fridge for Clean Tasks', '[clean] Sink After Pickup', '[clean] Hold Object Before Sink', '[clean] Clean Then Place Directly', '[clean] Start Countertop for Clean', '[clean] Dining Table Search After Countertop', '[clean] Ordered Search for Cleaning', '[clean] Direct Sink After Pickup', '[clean] No Sink Without Object', '[clean] Avoid Circular Placement', '[clean] Skip Examine on Clean Target', '[clean] Search Stoveburners After Countertops', '[clean] Return to Surfaces After Container Miss', '[clean] Avoid Sink Without Target Object', '[clean] Hold Object Before Sink', '[clean] Check Open Surface After Container Miss', '[clean] Start at Countertop for Clean', '[clean] Direct to Sink After Pickup', '[clean] No Inventory After Pickup', '[clean] Complete Clean Sequence In One Go', '[clean] Direct Placement After Clean', '[clean] Avoid Bathroom Furniture', '[clean] Direct Sequence: Pick-Clean-Place', '[clean] Countertop Exhaustion Before Containers', '[heat] Secure Exact Target First', '[heat] Systematic One-Pass Search', '[heat] Open Then Heat', '[heat] No Appliance Before Object', '[heat] Direct Post-Heat Placement', '[cool] Systematic Object Hunt', '[cool] Confirm Object Match', '[cool] Prep Cooling Appliance', '[cool] Enforce Cooling Before Placement', '[cool] Direct Post-Cooling Delivery', '[cool] Avoid Fridge as Cool Source', '[examine] Pair Objects Early', '[examine] Grab Target First', '[examine] Shortcut To Tool', '[examine] Single Toggle Rule', '[examine] Explore New Surfaces', '[examine] Lock In Observed Items']
+
+WRITING STYLE — keep skills SHORT and SIMPLE so a small 4B model can follow them.
+Match the concise format of the existing hand-written seed skills.
+
+Return ONLY a JSON array. Each skill MUST have EXACTLY these fields (no extra fields):
+  - "skill_id":      one of "dyn_156", "dyn_157", "dyn_158"
+  - "title":         3-5 word title
+  - "scope":         "general" or "task_specific"
+  - "task_type":     one of ["clean", "cool", "heat", "look_at_obj_in_light", "pick_and_place", "pick_two_obj_and_place"] when task_specific, or "" if general. Never use "ALL".
+  - "principle":     ONE or TWO plain sentences stating the rule. Keep it under 30 words. No JSON, no lists.
+  - "when_to_apply": ONE short sentence naming the situation that triggers this skill. Under 20 words.
+
+Example:
+[{"skill_id": "dyn_156", "title": "Open Before Search", "scope": "task_specific", "task_type": "clean", "principle": "If the target may be inside a closed container, open each closed container before searching its contents.", "when_to_apply": "When the goal object is not visible and closed containers remain."}]
+
+Return ONLY the JSON array, no other text.

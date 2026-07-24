@@ -1,0 +1,142 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v51 (level=3, tree_depth=3, 8 nodes) ===
+action: refine
+critique: The agent largely ignored the systematic search and immediate-pickup-action rules from the current skill tree, leading to premature stops and missed objects. The tree's wording was not misleading but the instructions were split across sections, making the overall flow less salient; the agent failed to apply the post-placement search to the initial search as well.
+changelog: Added a unified 'Overall Procedure' section that covers both initial and post-placement systematic searches, reinforced the rule that a pick must be followed immediately by going to the target receptacle, and moved the counter logic into the procedure steps to prevent skipping.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 7  n_failure this round: 5
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] Agent stopped searching after checking only cabinets, failing to find any toiletpaper. | evidence: After opening cabinet 1 and seeing candle and soapbar, it goes to toiletpaperhanger 1 without picking anything. | fix: Continue searching all receptacles until both target objects are found. | skill_tree_gap: Missing systematic exhaustive search strategy and task completion verification. | patch_location: new top-level section
+- [premature_stop] After placing one toiletpaper, agent did not exhaustively search other receptacles and stopped, missing the second toiletpaper. | evidence: After moving first toiletpaper, it wanders between bathtubbasin, drawer, sinkbasin, and back to toiletpaperhanger without finding another. | fix: After placing first object, systematically search all remaining receptacles for the second object. | skill_tree_gap: Missing systematic post-placement search routine. | patch_location: new top-level section
+- [premature_stop] Agent stopped after picking up one spraybottle without placing it or searching for a second. | evidence: Last action is 'take spraybottle 1 from countertop 1' and then no further actions. | fix: After picking an object, immediately place it in the target receptacle, then continue searching for the second. | skill_tree_gap: Missing post-pickup placement and task continuation routine. | patch_location: new top-level section
+- [premature_stop] Agent stopped after picking up one candle without placing it or searching for a second. | evidence: Last action is 'pick up the candle 1 from the shelf 1'. | fix: After picking an object, immediately place it in the target receptacle, then continue searching for the second. | skill_tree_gap: Missing post-pickup placement and task continuation routine. | patch_location: new top-level section
+- [premature_stop] After placing one plate, agent failed to search other locations for the second plate and stopped. | evidence: After moving plate, it examines coffeetable and diningtable repeatedly, then goes to drawer 1 without opening it. | fix: After placing first object, systematically search all remaining receptacles for the second object. | skill_tree_gap: Missing systematic post-placement search routine. | patch_location: new top-level section
+
+--- Node tree (per-node lifecycle, this version=v51) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=50 calls=1089 success=840 rate=77.1%
+[MODIFIED            ] pick-two-obj-and-place/failure-prevention level=2 stable_versions=0 calls=63 success=51 rate=81.0%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=3 calls=1089 success=840 rate=77.1%
+[MODIFIED            ] pick-two-obj-and-place/immediate-rules-must-follow level=2 stable_versions=0 calls=63 success=51 rate=81.0%
+[NEW                 ] pick-two-obj-and-place/overall-procedure level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/overall-procedure/initial-search-before-any-placement level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/overall-procedure/post-placement-search-after-placing-first-object level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/stop-condition    level=2 stable_versions=0 calls=63 success=51 rate=81.0%
+
+--- Line diff vs previous version (v50 -> v51) ---
+--- v50
++++ v51
+@@ -3,43 +3,43 @@
+ ## Goal
+ Place exactly two instances of a specific object type into a specified target receptacle. Stop only when counter == 2 or after two exhaustive passes without finding a second object.
+ 
+-## Verify object type before picking
+-- Before taking any object, read its full name from the observation. Compare it exactly to the required object type (e.g., if the task says "soapbottle", you must pick only objects named "soapbottle X").
+-- If the object name does NOT match exactly, do not take it. Ignore it and continue searching.
+-- If you accidentally take a non-matching object, drop it immediately (use `drop`) and resume search from where you left off.
++## Overall Procedure
+ 
+-## Ensure two objects are placed (counter enforcement)
+-- **Counter:** Start at 0. After each successful placement, increment by 1. If counter == 1, continue searching. If counter == 2, task complete.
+-- After picking up a matching object, your very next action MUST be `go to [target receptacle]`. Do not open, look, or move anywhere else first. Then open the receptacle if closed, and place the object.
+-- Do not stop after placing only one object. Immediately begin systematic search for the second object.
+-
+-### After placing the first object: systematic search for second object
+-1. **Re-read the initial observation** (the furniture list from the start of the task).
+-2. **Mentally list every furniture item** in the exact order they appeared. Include all surfaces (countertop, table, bed, sofa, shelf, sidetable, etc.) and all containers (cabinet, drawer, fridge, dresser, garbagecan, etc.). Do not skip any type.
++### Initial Search (before any placement)
++1. **Re-read the initial observation** – the furniture list from the start of the task.
++2. **Mentally list every furniture item** in the exact order they appeared. Include all surfaces and containers. Do not skip any type.
+ 3. **Visit each item in that order exactly once.** For each:
+    - If closed, open it.
+    - Examine contents (surfaces: just look; containers: look inside).
+-   - If you see an object whose exact name matches the required type, verify the type, take it immediately, then go directly to the target receptacle, open if needed, and place it. Increment counter.
+-   - If counter becomes 2, stop.
+-   - If no match, move to the next item. Do not revisit any item in this pass.
+-4. **If you have visited all items and counter is still 1, perform a second full pass** – repeat step 3, again visiting every item in the same order.
+-5. **After the second pass:** if counter is still 1, the task is impossible. Stop.
++   - If you see an object whose exact name matches the required type, **verify the type**, then **take it immediately**.
++   - **After taking a matching object, your very next action MUST be `go to [target receptacle]`.** Do not open, look, or move anywhere else first.
++   - Then open the receptacle if closed, and place the object (`move` or `put` action).
++   - Increment counter by 1.
++   - If counter == 2, stop – task complete.
++   - Otherwise, **immediately begin the Post-Placement Search** below (do not finish the current pass).
++4. If you finish the list and counter is still 0, perform a **second full pass** – repeat step 3, again visiting every item in the same order.
++5. After two full passes, if counter == 0, the task is impossible – stop.
++
++### Post-Placement Search (after placing first object)
++- **Reset your mental list** – re-read the initial observation and rebuild the list in the same order.
++- **Perform step 3 exactly as above**, starting from the first item and visiting each exactly once.
++- If you find a second matching object, take it, go directly to target, place it, increment counter to 2, and stop.
++- If you finish the list and counter == 1, perform a **second full pass** (repeat the list again).
++- After two full passes with counter still 1, the task is impossible – stop.
+ 
+ ## Immediate Rules (Must Follow)
+-- **Counter:** Start at 0. After each successful placement, increment by 1. If counter == 1, continue searching. If counter == 2, task complete.
+-- **After picking up an object that matches the target type, your very next action MUST be `go to [target receptacle]`.** Do not open, look, or move anywhere else first. Then open the receptacle if closed, and place the object.
+-- **Do not stop after placing only one object.** Immediately begin the systematic search described above.
+-
+-### Multi-object completion
+-- You must place exactly two matching objects. Placing one does **not** complete the task. After placing the first, you must continue searching and placing until the second is placed. Only after two full passes (following the first placement) with counter still 1 may you conclude the task is impossible.
++- **Counter:** Start at 0. After each successful placement, increment by 1. If counter == 1, continue. If counter == 2, stop.
++- **After picking up a matching object, your very next action MUST be `go to [target receptacle]`.** No exceptions.
++- **Do not stop after placing only one object.** Immediately begin the Post-Placement Search.
++- **If you accidentally take a non-matching object, drop it immediately** and resume the search from where you left off.
+ 
+ ## Failure Prevention
+ - **Stopping early:** If you catch yourself not searching after placing one object, re-read the initial observation and restart the systematic search from the first furniture item.
+ - **Looping:** If you revisit the same few locations without taking a target object, stop, re-read the observation, rebuild the mental list, and restart from the first item.
+ - **Skipping furniture types:** The target object may be on any surface or inside any container. Follow the mental list order; do not only check drawers or only shelves.
+ - **Opening target receptacle:** When placing, if the target is closed, open it first.
+-- **Taking wrong object:** If you accidentally take a non-matching object, drop it (use `drop`) and resume search.
+ 
+ ## Stop Condition
+ - counter == 2 -> success
+ - counter == 1 after two full passes following first placement -> impossible, stop.
++- counter == 0 after two full passes in initial search -> impossible, stop.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specific object type into a specified target receptacle. Stop only when counter == 2 or after two exhaustive passes without finding a second object.
+
+## Overall Procedure
+
+### Initial Search (before any placement)
+1. **Re-read the initial observation** – the furniture list from the start of the task.
+2. **Mentally list every furniture item** in the exact order they appeared. Include all surfaces and containers. Do not skip any type.
+3. **Visit each item in that order exactly once.** For each:
+   - If closed, open it.
+   - Examine contents (surfaces: just look; containers: look inside).
+   - If you see an object whose exact name matches the required type, **verify the type**, then **take it immediately**.
+   - **After taking a matching object, your very next action MUST be `go to [target receptacle]`.** Do not open, look, or move anywhere else first.
+   - Then open the receptacle if closed, and place the object (`move` or `put` action).
+   - Increment counter by 1.
+   - If counter == 2, stop – task complete.
+   - Otherwise, **immediately begin the Post-Placement Search** below (do not finish the current pass).
+4. If you finish the list and counter is still 0, perform a **second full pass** – repeat step 3, again visiting every item in the same order.
+5. After two full passes, if counter == 0, the task is impossible – stop.
+
+### Post-Placement Search (after placing first object)
+- **Reset your mental list** – re-read the initial observation and rebuild the list in the same order.
+- **Perform step 3 exactly as above**, starting from the first item and visiting each exactly once.
+- If you find a second matching object, take it, go directly to target, place it, increment counter to 2, and stop.
+- If you finish the list and counter == 1, perform a **second full pass** (repeat the list again).
+- After two full passes with counter still 1, the task is impossible – stop.
+
+## Immediate Rules (Must Follow)
+- **Counter:** Start at 0. After each successful placement, increment by 1. If counter == 1, continue. If counter == 2, stop.
+- **After picking up a matching object, your very next action MUST be `go to [target receptacle]`.** No exceptions.
+- **Do not stop after placing only one object.** Immediately begin the Post-Placement Search.
+- **If you accidentally take a non-matching object, drop it immediately** and resume the search from where you left off.
+
+## Failure Prevention
+- **Stopping early:** If you catch yourself not searching after placing one object, re-read the initial observation and restart the systematic search from the first furniture item.
+- **Looping:** If you revisit the same few locations without taking a target object, stop, re-read the observation, rebuild the mental list, and restart from the first item.
+- **Skipping furniture types:** The target object may be on any surface or inside any container. Follow the mental list order; do not only check drawers or only shelves.
+- **Opening target receptacle:** When placing, if the target is closed, open it first.
+
+## Stop Condition
+- counter == 2 -> success
+- counter == 1 after two full passes following first placement -> impossible, stop.
+- counter == 0 after two full passes in initial search -> impossible, stop.

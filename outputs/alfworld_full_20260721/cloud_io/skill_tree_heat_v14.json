@@ -1,0 +1,175 @@
+{
+  "content": "# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location from the task description.\n- The heating appliance is the microwave.\n\n## 2. Locate the object\n### 2.1 Initial check: fridge and countertops\n- Start at the fridge (already opened) – look inside. If target object present, take it and proceed to heating.\n- If not, go to each countertop you can see and examine its contents. Take the object if found.\n\n### 2.2 Flat surfaces (diningtable, sidetables, shelves)\n- If still not found, visit every flat surface the room description mentions: diningtable, sidetables, shelves, etc. Go to each, look at it, and take the object if present. Do not skip any.\n\n### 2.3 Openable containers (cabinets, drawers, sinkbasin, garbagecan, microwave, coffeemaker)\n- **Mandatory**: You must open and look inside each of the following, in any order, until the object is found:\n  - All cabinets (open each one, look inside)\n  - All drawers (open each one, look inside)\n  - Sinkbasin (open, look inside)\n  - Garbagecan (open, look inside)\n  - Microwave (open, look inside) – even though it is the heating appliance, it can hold objects.\n  - Any other openable container (e.g., coffeemaker) – open and look.\n- **Do not stop** after checking only cabinets or only drawers. You must open all the above before concluding the object is missing.\n\n### 2.4 Persistence and retry\n- After completing the full list, if the object is still not found, perform a `look` action to refresh the room description. If new receptacles appear, repeat the entire search from step 2.1.\n- Otherwise, re-read the task to confirm the object type. If needed, go to a different room (if available) and repeat the search.\n\n## 3. Heat the object\n### 3.1 Efficient heating method (direct from inventory)\n- Once the object is in your inventory, go to the microwave.\n- Use action `heat <object> with microwave` while holding it. This works reliably.\n- If direct heat fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.\n- After heating, the object is ready. Do not return it to the microwave.\n\n### 3.2 Prerequisite: Object must be in inventory\n- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the exhaustive search again.\n\n## 4. Place the heated object\n- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).\n- The destination must be different from the source where the object originally came from.\n- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.\n- Put the object into/onto the receptacle: `move <object> to <receptacle>`.\n- **Critical**: Do not take the object back after placing it. Stop.\n\n## 5. Completion check and termination\n- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.\n- If the object is there, the task is complete. Do not perform any further actions.\n- **Termination rule**: Once placed at the target, stop all actions immediately.",
+  "level": 3,
+  "version": 14,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "The agent partially followed the skill tree's search order but failed to complete all required steps (e.g., skipping sinkbasin, garbagecan, microwave, and some drawers). The skill tree's explicit instructions were clear, but the agent's execution was incomplete; refining the structure into hierarchical checkpoints should improve adherence.",
+  "changelog": "Restructured section 2 'Locate the object' into numbered sub-sections (2.1–2.4) to make the search sequence more explicit and harder to skip, and added mandatory language for openable containers.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent failed to find an apple; it searched many countertops and cabinets but never located an apple, possibly missing a diningtable or other area.",
+      "skill_tree_gap": "Search scope in heat tasks is too narrow, focusing only on countertops and cabinets.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent never found a potato; it searched many locations (countertops, shelves, cabinets, drawers) but missed the potato location.",
+      "skill_tree_gap": "Same as heat#0, incomplete search pattern.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_2520",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 13,
+      "call_count": 289,
+      "success_when_used": 224,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "ba00fe4c40c0",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 6,
+      "call_count": 289,
+      "success_when_used": 224,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 7,
+      "call_count": 289,
+      "success_when_used": 224,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-1-initial-check-fridge-and-countertops": {
+      "title": "2.1 Initial check: fridge and countertops",
+      "level": 3,
+      "body_hash": "aa6d3087332b",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-2-flat-surfaces-diningtable-sidetables-shelves": {
+      "title": "2.2 Flat surfaces (diningtable, sidetables, shelves)",
+      "level": 3,
+      "body_hash": "8ec61034e3ce",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-3-openable-containers-cabinets-drawers-sinkbasin-garbagecan-microwave-coffeemaker": {
+      "title": "2.3 Openable containers (cabinets, drawers, sinkbasin, garbagecan, microwave, coffeemaker)",
+      "level": 3,
+      "body_hash": "259f3d80da88",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-4-persistence-and-retry": {
+      "title": "2.4 Persistence and retry",
+      "level": 3,
+      "body_hash": "94394c34b0f0",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 6,
+      "call_count": 289,
+      "success_when_used": 224,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory": {
+      "title": "3.1 Efficient heating method (direct from inventory)",
+      "level": 3,
+      "body_hash": "ac950c9f3b19",
+      "created_version": 8,
+      "last_changed_version": 13,
+      "stable_versions": 1,
+      "call_count": 179,
+      "success_when_used": 156,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory": {
+      "title": "3.2 Prerequisite: Object must be in inventory",
+      "level": 3,
+      "body_hash": "1563464be1bb",
+      "created_version": 10,
+      "last_changed_version": 14,
+      "stable_versions": 0,
+      "call_count": 151,
+      "success_when_used": 132,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object": {
+      "title": "4. Place the heated object",
+      "level": 2,
+      "body_hash": "542d52a875ac",
+      "created_version": 8,
+      "last_changed_version": 13,
+      "stable_versions": 1,
+      "call_count": 179,
+      "success_when_used": 156,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check-and-termination": {
+      "title": "5. Completion check and termination",
+      "level": 2,
+      "body_hash": "be79c377af83",
+      "created_version": 2,
+      "last_changed_version": 13,
+      "stable_versions": 1,
+      "call_count": 282,
+      "success_when_used": 222,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

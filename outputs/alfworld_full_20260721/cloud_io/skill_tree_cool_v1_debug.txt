@@ -1,0 +1,62 @@
+=== Skill Tree Debug — scope=cool  v1 (level=3, tree_depth=3, 7 nodes) ===
+action: rewrite
+critique: 
+changelog: Written first skill tree for cool tasks, focusing on systematic exploration of all receptacles to find the target object before cooling.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 7
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent never found a mug; it only looked in fridge and a few cabinets, missing countertops and drawers. | evidence: No mug observed anywhere; last observation shows cabinet 5 with bowl, no mug. | fix: Search all receptacles thoroughly, including countertops and drawers. | skill_tree_gap: Insufficient search coverage for cool tasks. | patch_location: Under 'cool', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never located a pot; it only opened cabinets and saw bowls and dishsponge, but no pot. | evidence: After opening cabinet 8, no pot seen; agent stopped. | fix: Also check countertops, fridge, and sinkbasin for the pot. | skill_tree_gap: No exhaustive search pattern. | patch_location: Under 'cool', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never found lettuce; it opened fridge (only bread) and cabinets, but no lettuce. | evidence: After cabinet 5, no lettuce observed; agent did not check other places like sinkbasin or drawers. | fix: Search all receptacles including countertops and drawers for lettuce. | skill_tree_gap: Limited exploration strategy. | patch_location: Under 'cool', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never found a pot; it only opened cabinets and saw mugs and bowls, not a pot. | evidence: After cabinet 6, no pot; agent stopped. | fix: Search countertops and fridge as well for the pot. | skill_tree_gap: Insufficient search coverage. | patch_location: Under 'cool', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never found a winebottle; it examined cabinets and saw only plates, no winebottle. | evidence: After cabinet 8, no winebottle; agent stopped. | fix: Search all receptacles including countertops and fridge. | skill_tree_gap: Lack of thorough search. | patch_location: Under 'cool', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never found bread; it searched cabinets and countertop 1 but countertop 1 had winebottle, not bread. | evidence: Countertop 1 observation shows winebottle, no bread; agent did not check fridge or other countertops. | fix: Check fridge and other countertops for bread. | skill_tree_gap: Incomplete search scope. | patch_location: Under 'cool', add a new subsection '### systematic search of all receptacles'.
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/search-priority level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-3-cool-the-object-using-the-fridge level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-4-move-the-cooled-object-to-the-target-location level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Sub-goal 1: Find the object to cool.
+- The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.
+- Do NOT focus only on cabinets; also check countertops, fridge, sinkbasin, drawers, and any other openable containers or surfaces.
+- Start by observing the room description for all receptacle names, then systematically visit each one.
+- For each receptacle, first go to it, then if it is closed, open it. Look at its contents.
+- If the receptacle is open or does not open, simply look at what is on/in it.
+- Continue until you find the target object.
+
+### Search priority:
+- If you see the target object on a surface (countertop, diningtable, sidetable, etc.), go there and take it.
+- If you see a closed fridge, open it and check inside; the fridge often holds food items that need cooling.
+- Drawers and cabinets are also common storage; open them one by one.
+- Do not waste time re-examining empty receptacles; move on.
+
+## Sub-goal 2: Take the object.
+- Once you see the object, use `take <object> from <location>` (e.g., `take bread 2 from countertop 2`).
+- Confirm you are holding it (the action response will say "You pick up the ...").
+
+## Sub-goal 3: Cool the object using the fridge.
+- Go to the fridge (if not already there).
+- If the fridge is closed, open it.
+- Then use `cool <object> with fridge` (e.g., `cool bread 2 with fridge 1`).
+- The response will confirm the object has been cooled.
+
+## Sub-goal 4: Move the cooled object to the target location.
+- Go to the target location named in the task (e.g., diningtable, cabinet, microwave, countertop).
+- Use `move <object> to <target>` (e.g., `move bread 2 to diningtable 1`).
+- The response will confirm the object is placed.
+
+## Completion check:
+- The task is complete when the object has been cooled and placed at the target location.
+- If you have done all steps, the environment may not give explicit success feedback; trust the sequence.

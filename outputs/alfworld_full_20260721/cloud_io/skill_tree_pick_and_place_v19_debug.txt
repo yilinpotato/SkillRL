@@ -1,0 +1,119 @@
+=== Skill Tree Debug — scope=pick_and_place  v19 (level=4, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent did not follow the skill tree's systematic search instructions – it only visited a few receptacles (countertop, sinkbasin, bathtubbasin, some drawers) and skipped open surfaces like handtowelholder, toilet, towelholder, etc. The skill tree wording was not misleading; the failure stems from the agent not executing the listed steps (no checklist, no full pass).
+changelog: Restructured the Exploration section into a clearer step-by-step numbered list, emphasized visiting every receptacle from first observation, and added explicit 'do not skip' rule to prevent the partial-search failure seen in the unsuccessful trajectory.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 17  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never found a spraybottle because it only examined sinkbasin, bathtubbasin, and a few drawers, ignoring other possible locations. | evidence: After going to sinkbasin 1 and opening drawer 4, the agent returns to countertop and sinkbasin without ever picking up a spraybottle. | fix: Search all receptacles (cabinets, drawers, shelves, etc.) in the current room; if the object is not found, consider other rooms. | skill_tree_gap: Lack of a comprehensive exploration strategy for locating a target object. | patch_location: ## pick_and_place / ### object search strategy
+
+--- Node tree (per-node lifecycle, this version=v19) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=18 calls=577 success=524 rate=90.8%
+[STABLE              ] pick-and-place-skill-tree/exploration-systematic-object-search level=2 stable_versions=3 calls=86 success=80 rate=93.0%
+[NEW                 ] pick-and-place-skill-tree/exploration-systematic-object-search/common-mistakes level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/exploration-systematic-object-search/if-not-found-after-first-pass level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/exploration-systematic-object-search/object-verification level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/exploration-systematic-object-search/rule-visit-every-receptacle-no-skipping level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/exploration-systematic-object-search/step-by-step-search-order level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-and-place-skill-tree/goal           level=2 stable_versions=0 calls=577 success=524 rate=90.8%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=3 calls=577 success=524 rate=90.8%
+
+--- Line diff vs previous version (v18 -> v19) ---
+--- v18
++++ v19
+@@ -1,7 +1,7 @@
+ # pick_and_place skill tree
+ 
+ ## Goal
+-Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the object and the target receptacle.
++Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
+ 
+ ## Sub-Goal Flow
+ 1. **Parse the task** – identify the target object and target receptacle exactly as written.
+@@ -11,26 +11,25 @@
+ 5. **Terminate** after placement.
+ 
+ ## Exploration: Systematic Object Search
+-### Prioritize Surface Search over Container Search
+-Before opening any closed container, you must have visited every open surface (tables, countertops, shelves, sidetables, etc.). If you arrive at a closed container, do not open it yet – go to an open surface first. Only after all open surfaces have been checked should you start opening closed containers.
++### Rule: Visit Every Receptacle – No Skipping
++From the **first room observation** (after `look` or upon arrival), list every receptacle name exactly as it appears. Include ALL furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, fridges, microwaves, ovens, dishwashers – any container that could hold objects. Do not skip any, even if they seem unlikely.
+ 
+-### 1. Create a checklist
+-From the **first room observation** (after `look` or upon arrival), list every receptacle name exactly as it appears. Write them down. Include ALL furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, **fridges, microwaves, ovens, dishwashers** – any closed container that could hold objects. Do not skip any.
++### Step-by-step search order
++1. **Start at the target receptacle** (the object might already be there).
++2. Then visit **all open surfaces** (tables, shelves, countertops, sidetables, etc.) – these are quick to check and often contain the object.
++3. After exhausting open surfaces, **open and inspect every closed container** (drawers, cabinets, fridges, etc.).
++4. For each receptacle:
++   - Use `go to <receptacle>`. The observation appears automatically.
++   - If the receptacle is closed, `open <receptacle>` first.
++   - Read the observation. If you see the target object, `take <object> from <receptacle>` and proceed to step 3 of the sub-goal flow.
++   - If not found, mentally check it off and go to the next.
+ 
+-### 2. Visit receptacles in order
+-Start with the **target receptacle** (the object might already be there). Then visit **all open surfaces** (tables, shelves, countertops, etc.) before moving to closed containers. For each receptacle:
+-- Use `go to <receptacle>`. The observation appears automatically.
+-- If the receptacle is closed, `open <receptacle>` first.
+-- Read the observation. If you see the target object, `take <object> from <receptacle>` and proceed to step 3.
+-- If not found, mentally check it off and go to the next.
++### If not found after first pass
++- **Immediately repeat the entire sequence** – do not assume the object is absent. Pay special attention to receptacles you might have overlooked.
++- After two full passes, **check all closed containers again**, especially fridges, microwaves, ovens, dishwashers, and any cabinet/drawer not yet opened. These are common hiding spots.
++- Re-read your initial observation to ensure you did not miss any receptacle name. If still missing, start a third pass – **do not give up early**.
+ 
+-### 3. After completing the list
+-If you have visited every receptacle and not found the object, **repeat the entire sequence** once more. Pay special attention to items you might have overlooked. Only give up after two full passes.
+-
+-### 4. If object still missing after full pass
+-Check all closed containers that you might have skipped, especially **fridge, microwave, oven, dishwasher**, and any cabinet or drawer not yet opened. These are common hiding spots. Re-read your initial observation to ensure you did not miss any receptacle name. If you still cannot find it, start a third pass – do not give up early.
+-
+-## Common Mistakes
++### Common Mistakes
+ - **Skipping any receptacle** – all must be checked, even if unlikely.
+ - **Using wrong action** – never `examine` or `look` to move; use `go to`.
+ - **Taking wrong object** – confirm exact name (e.g., "handtowel" ≠ "cloth").
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
+
+## Sub-Goal Flow
+1. **Parse the task** – identify the target object and target receptacle exactly as written.
+2. **Locate the target object** – search every visible receptacle systematically.
+3. **Verify and take** – only take the object if its name matches exactly.
+4. **Navigate to target receptacle** and move the object there.
+5. **Terminate** after placement.
+
+## Exploration: Systematic Object Search
+### Rule: Visit Every Receptacle – No Skipping
+From the **first room observation** (after `look` or upon arrival), list every receptacle name exactly as it appears. Include ALL furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, fridges, microwaves, ovens, dishwashers – any container that could hold objects. Do not skip any, even if they seem unlikely.
+
+### Step-by-step search order
+1. **Start at the target receptacle** (the object might already be there).
+2. Then visit **all open surfaces** (tables, shelves, countertops, sidetables, etc.) – these are quick to check and often contain the object.
+3. After exhausting open surfaces, **open and inspect every closed container** (drawers, cabinets, fridges, etc.).
+4. For each receptacle:
+   - Use `go to <receptacle>`. The observation appears automatically.
+   - If the receptacle is closed, `open <receptacle>` first.
+   - Read the observation. If you see the target object, `take <object> from <receptacle>` and proceed to step 3 of the sub-goal flow.
+   - If not found, mentally check it off and go to the next.
+
+### If not found after first pass
+- **Immediately repeat the entire sequence** – do not assume the object is absent. Pay special attention to receptacles you might have overlooked.
+- After two full passes, **check all closed containers again**, especially fridges, microwaves, ovens, dishwashers, and any cabinet/drawer not yet opened. These are common hiding spots.
+- Re-read your initial observation to ensure you did not miss any receptacle name. If still missing, start a third pass – **do not give up early**.
+
+### Common Mistakes
+- **Skipping any receptacle** – all must be checked, even if unlikely.
+- **Using wrong action** – never `examine` or `look` to move; use `go to`.
+- **Taking wrong object** – confirm exact name (e.g., "handtowel" ≠ "cloth").
+- **Failing to open** closed containers before reading contents.
+- **Forgetting to place** – after taking, go to target and `move <object> to <receptacle>` immediately.
+- **Wasting time** – do not close containers or perform extra actions.
+
+### Object Verification
+Before using `take`, always verify that the object's name matches the target exactly. Read the observation carefully. If the name is even slightly different (e.g., target is "spraybottle" but you see "tissuebox"), **do not take it**. Picking up the wrong object wastes time and may make the task impossible. If you accidentally pick the wrong object, you cannot place it as required; you must drop it or continue searching – but prevention is far better.

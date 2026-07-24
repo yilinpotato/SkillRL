@@ -1,0 +1,193 @@
+{
+  "batch_id": "5072d774-afaf-41ca-8c7e-cbb05cead8d2",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a kettle because it only searched cabinets and one countertop, missing other possible locations like the sink or drawers.",
+        "evidence": "After opening cabinet 6: 'You open the cabinet 6. The cabinet 6 is open. In it, you see nothing.' and no kettle was ever seen or picked up.",
+        "corrective_rule": "Search all receptacles (cabinets, drawers, countertops, sink, fridge) for the target object before concluding it is absent.",
+        "skill_tree_gap": "Lacks a systematic exploration routine that covers all container types within the room.",
+        "patch_location": "Under '## clean' task type, add a new '### Systematic Object Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not locate a pan; it only checked cabinets and countertops but never looked in the fridge or drawers where a pan might be stored.",
+        "evidence": "After returning to countertop 1: 'You arrive at countertop 1. On the countertop 1, you see a butterknife 1, a dishsponge 3, a dishsponge 1, a egg 1, a fork 1, a mug 1, a potato 1, a tomato 2, and a tomato 1.' No pan present, and the agent stopped without further search.",
+        "corrective_rule": "Extend the search to include the fridge, drawers, and all countertops when the target object is not immediately visible.",
+        "skill_tree_gap": "No exploration coverage for all possible storage containers in the 'cool' room layout.",
+        "patch_location": "Under '## cool' task type, add a new '### Object Retrieval Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent saw the pan on countertop 1 but did not take it; instead it searched cabinets and returned without ever picking up the pan.",
+        "evidence": "First observation at countertop 1: 'On the countertop 1, you see ... a pan 1.' The agent later returns to the same location without having taken the pan.",
+        "corrective_rule": "When the target object is observed in the current location, take it immediately before moving elsewhere.",
+        "skill_tree_gap": "Missing a rule that prioritises picking up a visible target object over exploring other locations.",
+        "patch_location": "Under '## cool' task type, add a new '### Prioritize Pickup of Visible Target' subsection as a deeper refinement.",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found an apple because it only searched cabinets and one countertop, missing the fridge where apples are typically stored.",
+        "evidence": "The agent opened cabinets 1 through 6 and visited countertop 1, but never checked the fridge; the final cabinet contained nothing, and the task was not completed.",
+        "corrective_rule": "Always check the fridge for food items like apples, as they are often stored there.",
+        "skill_tree_gap": "No task-specific knowledge that certain objects (e.g., produce) are commonly found in the fridge.",
+        "patch_location": "Under '## heat' task type, add a new '### Food Object Search (check fridge)' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located an apple; it searched cabinets and countertops but did not visit the fridge or other surfaces.",
+        "evidence": "After opening cabinet 6: 'You open the cabinet 6. The cabinet 6 is open. In it, you see a pan 1.' No apple was ever seen, and the agent stopped.",
+        "corrective_rule": "Ensure that all potential storage locations, especially the fridge, are inspected for food items.",
+        "skill_tree_gap": "Lack of comprehensive exploration covering all container types in the 'heat' room.",
+        "patch_location": "Under '## heat' task type, add a new '### Complete Room Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#2",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not find an egg; it checked the fridge (which had apples and lettuce) and several cabinets, but never examined the countertops or drawers for the egg.",
+        "evidence": "The fridge observation: 'In it, you see a apple 3, a apple 2, and a lettuce 1.' No egg, and the agent never looked elsewhere.",
+        "corrective_rule": "Expand the search to include countertops, drawers, and other surfaces that may hold eggs.",
+        "skill_tree_gap": "Exploration routine does not cover all common object locations (eggs can be on countertops).",
+        "patch_location": "Under '## heat' task type, add a new '### Search All Surfaces' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#3",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a cup; it examined countertop 1 (which had no cup) and opened multiple cabinets, but did not check the fridge or other countertops.",
+        "evidence": "Countertop 1 observation: 'On the countertop 1, you see a butterknife 1, ... a winebottle 1.' No cup, and the agent stopped after opening cabinet 6 with nothing.",
+        "corrective_rule": "Search the fridge and all countertops when the target cup is not on the first surface.",
+        "skill_tree_gap": "No systematic search pattern that includes both cold and room-temperature storage.",
+        "patch_location": "Under '## heat' task type, add a new '### Extended Object Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#4",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not locate a cup; it opened many cabinets but never checked the fridge, countertops, or other common locations.",
+        "evidence": "After opening cabinet 6: 'You open the cabinet 6. The cabinet 6 is open. In it, you see a soapbottle 3.' No cup was ever mentioned.",
+        "corrective_rule": "Check the fridge and all countertops in addition to cabinets when searching for a cup.",
+        "skill_tree_gap": "Object search strategy is limited to cabinets only, missing other receptacle types.",
+        "patch_location": "Under '## heat' task type, add a new '### Multi-Receptacle Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not find the book; it searched the sidetable (no book) and drawers, but missed the bed and dresser where books might be placed.",
+        "evidence": "After turning on the desklamp: 'You turn on the desklamp 1.' Then the agent went to dresser and saw no book, and later opened drawers with no book, eventually stopping.",
+        "corrective_rule": "Search all furniture surfaces (bed, dresser, sidetable, shelf) for the target object before giving up.",
+        "skill_tree_gap": "No exploration coverage for all common furniture types in the room (bed, dresser).",
+        "patch_location": "Under '## look_at_obj_in_light' task type, add a new '### Full Furniture Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a peppershaker; it opened many cabinets and visited one countertop, but did not check other countertops, drawers, or the fridge.",
+        "evidence": "After opening cabinet 5: 'You open the cabinet 5. The cabinet 5 is open. In it, you see nothing.' Then it went to countertop 1 and saw no peppershaker, then opened drawer 1 (nothing) and stopped.",
+        "corrective_rule": "Search all countertops, drawers, and cabinets systematically until the peppershaker is found.",
+        "skill_tree_gap": "Lacks a complete inventory of all possible object locations in the 'pick_and_place' environment.",
+        "patch_location": "Under '## pick_and_place' task type, add a new '### Systematic Object Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not find a laptop; it examined the coffeetable and several drawers, but never checked the ottoman or other surfaces like the sidetable.",
+        "evidence": "The coffeetable had no laptop, and after opening drawers it found only a pencil, then stopped without checking the ottoman or other furniture.",
+        "corrective_rule": "Search all furniture pieces (coffeetable, sofa, ottoman, sidetable) for the laptop, not just drawers.",
+        "skill_tree_gap": "Object search is too narrow; does not cover all relevant furniture types in the room.",
+        "patch_location": "Under '## pick_and_place' task type, add a new '### Furniture Coverage Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a remotecontrol; it searched drawers and cabinets, but did not check the coffeetable, sidetable, or sofa where remotecontrols are often located.",
+        "evidence": "After opening cabinet 2: 'You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.' The agent stopped without ever visiting the coffeetable.",
+        "corrective_rule": "Always check the coffeetable, sidetable, and sofa for remotecontrols before searching drawers.",
+        "skill_tree_gap": "No prioritization of likely object locations for remotecontrols.",
+        "patch_location": "Under '## pick_and_place' task type, add a new '### Target-Specific Search (remotecontrol)' subsection as a deeper refinement.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not find any creditcards; it searched coffeetables and shelves, but neglected the diningtable and other surfaces where creditcards might be.",
+        "evidence": "After going to coffeetable 2 and seeing only newspaper and plate, the agent then explored shelves and cabinets, never finding a creditcard and stopping.",
+        "corrective_rule": "Extend the search to all tables (diningtable, coffeetable) and drawers when looking for creditcards.",
+        "skill_tree_gap": "Exploration does not cover all furniture types that may hold small objects like creditcards.",
+        "patch_location": "Under '## pick_two_obj_and_place' task type, add a new '### Comprehensive Surface Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not find any candles; it searched the countertop and drawers, but did not check other surfaces like the sinkbasin or shelves.",
+        "evidence": "The countertop had no candles, and after opening several drawers it found only cloth and dishsponge, then stopped without further search.",
+        "corrective_rule": "Search all surfaces including sinkbasin, shelves, and cabinets for candles, not just drawers.",
+        "skill_tree_gap": "Object search is limited to countertop and drawers, missing other potential locations.",
+        "patch_location": "Under '## pick_two_obj_and_place' task type, add a new '### All Possible Receptacles Search' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not find any books; it searched shelves and drawers, but never looked on the bed or dresser where books are often placed.",
+        "evidence": "After examining shelves 1-7 and seeing only alarmclocks and mugs, the agent opened drawers finding only a creditcard, and stopped without checking the bed.",
+        "corrective_rule": "Check the bed and dresser surfaces in addition to shelves when searching for books.",
+        "skill_tree_gap": "No coverage of bed and dresser as possible book locations.",
+        "patch_location": "Under '## pick_two_obj_and_place' task type, add a new '### Furniture-Specific Search (bed, dresser)' subsection as a deeper refinement.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one candle in a cabinet and then stopped, failing to search for a second candle required by the task.",
+        "evidence": "After moving candle 1 to cabinet 1, the agent explored other cabinets and returned to countertop 1, but never attempted to find or take a second candle.",
+        "corrective_rule": "After placing one object, immediately resume searching for the second required object until the task count is satisfied.",
+        "skill_tree_gap": "No loop or check to ensure both target objects are collected before terminating the task.",
+        "patch_location": "Under '## pick_two_obj_and_place' task type, add a new '### Multi-Object Completion Check' subsection as a deeper refinement.",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

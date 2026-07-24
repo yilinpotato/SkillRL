@@ -1,0 +1,101 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to search cabinets or drawers where the apple could be located, instead only visiting visible surfaces.",
+    "evidence": "After initial look, visited countertop1, countertop2, sinkbasin, stoves, and opened fridge, but never opened any cabinet or drawer; apple not found.",
+    "corrective_rule": "Always open all cabinets and drawers in the room when the target object is not on visible surfaces.",
+    "skill_tree_gap": "Lacks a systematic search strategy that includes opening containers.",
+    "patch_location": "Under 'Object Search' -> 'Systematic Exploration' as a deeper refinement (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to search all cabinets; only opened two cabinets and missed the apple likely in another cabinet.",
+    "evidence": "Opened cabinet1 and cabinet2, but did not open cabinet3 or cabinet4; apple never found.",
+    "corrective_rule": "After checking visible surfaces, open all cabinets in sequence until the object is found.",
+    "skill_tree_gap": "Incomplete exploration of all containers in the room.",
+    "patch_location": "Under 'Object Search' -> 'Container Opening' as a new subsection (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent opened only three cabinets and missed the spraybottle possibly in cabinet4 or other containers.",
+    "evidence": "Opened cabinet1,2,3 but not cabinet4; also never checked sinkbasin or towelholder; spraybottle never found.",
+    "corrective_rule": "Exhaustively open every container (cabinets, drawers, etc.) in the room before concluding object is absent.",
+    "skill_tree_gap": "No exhaustive search routine for all receptacles.",
+    "patch_location": "Under 'Object Search' -> 'Systematic Exploration' as a deeper refinement (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent only opened cabinets and ignored shelves, coffeetables, and other furniture where vases might be.",
+    "evidence": "Initial view includes armchair, coffeetable, shelf, etc., but agent only opened cabinets from 8 down to 3.",
+    "corrective_rule": "For multi-object tasks, search all furniture types (shelves, tables, etc.) not just cabinets.",
+    "skill_tree_gap": "Lacks strategy to search multiple furniture types when target objects not in first searched type.",
+    "patch_location": "Under 'Object Search' -> 'Search All Furniture Types' as a new subsection (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one spraybottle in drawer and then stopped searching for the second, entering a loop.",
+    "evidence": "After moving spraybottle2 to drawer, agent went to bathtubbasin and then repeatedly looked instead of searching for second spraybottle.",
+    "corrective_rule": "After placing one object, immediately continue searching for the second object in all remaining locations.",
+    "skill_tree_gap": "No explicit step to continue searching after first placement in multi-object tasks.",
+    "patch_location": "Under 'Multi-Object Tasks' -> 'Sequential Placement' as a deeper refinement (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one laptop in bed and then stopped searching for the second laptop.",
+    "evidence": "After moving laptop2 to bed, agent went to armchair2 and looped looking, never returning to find second laptop.",
+    "corrective_rule": "After placing one object, actively search for the remaining object until all are placed.",
+    "skill_tree_gap": "Lacks loop to ensure all required objects are placed before ending.",
+    "patch_location": "Under 'Multi-Object Tasks' -> 'Sequential Placement' as a deeper refinement (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent only opened drawers and did not check shelves where CDs might be located.",
+    "evidence": "Initial view includes shelves 1-9, but agent only opened drawers 10 through 6, never visited shelves.",
+    "corrective_rule": "When searching for objects, check all furniture categories (shelves, drawers, etc.) systematically.",
+    "skill_tree_gap": "No cross-furniture search plan.",
+    "patch_location": "Under 'Object Search' -> 'Search All Furniture Types' as a new subsection (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "misread_state",
+    "root_cause": "Agent saw a second remotecontrol (remotecontrol2) on coffeetable2 but did not take it after placing the first one.",
+    "evidence": "Coffeetable2 contained remotecontrol2 and remotecontrol1; agent took only remotecontrol1 and then looped without returning.",
+    "corrective_rule": "After picking up one object, note and return for any additional identical objects in the same location.",
+    "skill_tree_gap": "Lacks memory or attention to pick multiple objects from the same source.",
+    "patch_location": "Under 'Object Manipulation' -> 'Picking and Placing' as a deeper refinement (###).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent placed one soapbar but did not search cabinet1 for the second soapbar; instead looped at cabinet3.",
+    "evidence": "Opened cabinet3 (candle1) and cabinet2 (soapbar3, spraybottle2), but never opened cabinet1 which could contain another soapbar.",
+    "corrective_rule": "After finding one object, continue opening all remaining unexplored containers for the second object.",
+    "skill_tree_gap": "Incomplete container exploration after first find.",
+    "patch_location": "Under 'Object Search' -> 'Exhaustive Container Search' as a new subsection (###).",
+    "confidence": 0.95
+  }
+]

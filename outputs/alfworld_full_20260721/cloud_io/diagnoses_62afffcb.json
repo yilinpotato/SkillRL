@@ -1,0 +1,191 @@
+{
+  "batch_id": "62afffcb-9f15-41fd-b89f-352a53e93226",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent stopped searching after checking only six cabinets, missing the knife which might be in other cabinets, drawers, or on the countertop.",
+        "evidence": "After opening cabinet 6 (empty), the trajectory ends with no further actions.",
+        "corrective_rule": "Search all cabinets, drawers, countertops, and other receptacles before concluding the object is absent.",
+        "skill_tree_gap": "Missing systematic exploration of all receptacles for the target object.",
+        "patch_location": "## clean -> ### Systematic exploration of all receptacles",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to locate the soapbar because it did not search sinkbasins, bathtubbasin, or towelholders.",
+        "evidence": "After opening cabinet 4 and going to countertop 1 and shelf 1, no soapbar is found, and the agent stops.",
+        "corrective_rule": "Search all receptacles including sinkbasins, bathtubbasin, and towelholders for the target object.",
+        "skill_tree_gap": "Missing coverage of bathroom-style receptacles in search pattern.",
+        "patch_location": "## clean -> ### Systematic exploration of all receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#2",
+        "task_type": "clean",
+        "failure_type": "loop",
+        "root_cause": "The agent looped back to cabinets 1 and 2 after searching only a subset of cabinets, never finding the ladle.",
+        "evidence": "After opening cabinet 6, the agent goes to cabinet 1 then cabinet 2 again, with no ladle found.",
+        "corrective_rule": "Avoid revisiting already-searched receptacles; systematically expand search to unseen cabinets and drawers.",
+        "skill_tree_gap": "No mechanism to track visited locations and avoid loops.",
+        "patch_location": "## clean -> ### Avoid looping; systematic exploration",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#3",
+        "task_type": "clean",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent stopped after finding a fork in drawer 1, instead of continuing to search for the spatula.",
+        "evidence": "After opening drawer 1 and seeing a fork, the trajectory ends with no further actions.",
+        "corrective_rule": "Continue searching all possible receptacles until the exact target object is found.",
+        "skill_tree_gap": "Lack of persistence to continue search after encountering a non-target object.",
+        "patch_location": "## clean -> ### Continued search until target found",
+        "confidence": 0.95
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only countertop 1 and cabinets, missing countertop 2 and diningtable where a cup might be located.",
+        "evidence": "After opening cabinet 4, the agent returns to fridge 1 and then opens drawer 1, never visiting countertop 2 or diningtable.",
+        "corrective_rule": "Search all countertops, tables, and other flat surfaces before concluding.",
+        "skill_tree_gap": "Missing exploration of all visible flat surfaces.",
+        "patch_location": "## cool -> ### Explore all flat surfaces",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets and countertop 1, missing countertop 2 and other surfaces where a potato might be.",
+        "evidence": "After returning to fridge 1 and then countertop 1, the agent stops without checking other surfaces.",
+        "corrective_rule": "Search all countertops, tables, shelves, and drawers for the target object.",
+        "skill_tree_gap": "Incomplete search scope across the environment.",
+        "patch_location": "## cool -> ### Systematic search of all surfaces",
+        "confidence": 0.85
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not search all possible locations for a cup, such as the diningtable or other countertops, and stopped after opening an empty drawer.",
+        "evidence": "After opening drawer 1 (empty), the trajectory ends; a cup was never found.",
+        "corrective_rule": "Search all countertops, diningtable, and all receptacles for the target object.",
+        "skill_tree_gap": "Lack of exhaustive search for objects that may be on tables or in other rooms.",
+        "patch_location": "## heat -> ### Search for target object across all receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched counters and shelves but missed the diningtable and drawers where an egg could be located.",
+        "evidence": "After revisiting countertop 2, the agent stops; no egg was ever found.",
+        "corrective_rule": "Search diningtable and drawers when egg is not on counters.",
+        "skill_tree_gap": "Missing exploration of dining area and drawers for egg-like objects.",
+        "patch_location": "## heat -> ### Expand search to dining area and drawers",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "heat#2",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent moved the mug into the microwave and retrieved it, but never performed the 'heat' action before moving to the cabinet.",
+        "evidence": "After taking mug from microwave, the next action is 'go to cabinet 1' without a heat action.",
+        "corrective_rule": "After retrieving an object from the microwave, always perform 'heat X with microwave' before placing it elsewhere.",
+        "skill_tree_gap": "Missing explicit step to apply heat after microwave retrieval.",
+        "patch_location": "## heat -> ### Perform heat action after retrieval from microwave",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "heat#3",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent moved the potato into the microwave and back to the fridge multiple times without ever heating it.",
+        "evidence": "After taking potato from microwave, the agent goes to fridge and moves it in, then back to microwave again, never using 'heat'.",
+        "corrective_rule": "After moving an object into the microwave and closing it, use 'heat' action on that object before retrieving it.",
+        "skill_tree_gap": "Missing the heat action in the sequence for heating objects.",
+        "patch_location": "## heat -> ### Perform heat action after microwave closure",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "heat#4",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent moved the plate into the microwave, retrieved it, and moved it to countertop 2 without ever heating it.",
+        "evidence": "After taking plate from microwave, the next action is 'go to countertop 2' without a heat action.",
+        "corrective_rule": "After retrieving an object from the microwave, always apply 'heat' before final placement.",
+        "skill_tree_gap": "Missing the heat action in the microwave workflow.",
+        "patch_location": "## heat -> ### Perform heat action after retrieval from microwave",
+        "confidence": 1.0
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent picked a handtowel instead of a cloth, failing to match the exact object name.",
+        "evidence": "Action 'take handtowel 1 from handtowelholder 2' while the task requires a cloth.",
+        "corrective_rule": "Before picking, verify that the object name exactly matches the target; if not, continue searching.",
+        "skill_tree_gap": "No check for exact object name match before picking.",
+        "patch_location": "## pick_and_place -> ### Object identification: ensure exact match before picking",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched many shelves and furniture but missed the sidetable and other drawers where a box might be located.",
+        "evidence": "After going to sofa and then back to shelf 1, no box is found; the agent never checked sidetable directly.",
+        "corrective_rule": "Exhaust all receptacles including sidetables, drawers, and every piece of furniture before concluding.",
+        "skill_tree_gap": "Incomplete furniture exploration list.",
+        "patch_location": "## pick_and_place -> ### Complete search of all containers",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only opened drawers 1-4 and two shelves, missing other furniture like dresser or bed where a keychain might be.",
+        "evidence": "After opening drawer 4 (empty), the agent stops; keychain not found.",
+        "corrective_rule": "Search all furniture types (dresser, bed, sidetable, etc.) and all numbered receptacles.",
+        "skill_tree_gap": "No exhaustive search over all possible furniture categories.",
+        "patch_location": "## pick_and_place -> ### Expand search to all furniture",
+        "confidence": 0.85
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one cup and then stopped, without searching for a second cup.",
+        "evidence": "After moving cup1 to cabinet1, the agent visits countertop2 and cabinet2,3,4 but never picks up a second cup.",
+        "corrective_rule": "After placing the first object, resume searching for the second object across all receptacles.",
+        "skill_tree_gap": "No loop or continuation to find the second required object.",
+        "patch_location": "## pick_two_obj_and_place -> ### Ensure two objects are found: after placing first, resume search",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one cd and then stopped searching for the second cd, moving to shelf7 and shelf8 without taking any object.",
+        "evidence": "After moving cd2 to dresser, the agent goes to shelf7 and shelf8 with no further pick actions.",
+        "corrective_rule": "After placing the first cd, continue exploring all shelves and receptacles for another cd.",
+        "skill_tree_gap": "No mechanism to persist in searching for the second object after placing the first.",
+        "patch_location": "## pick_two_obj_and_place -> ### Ensure two objects are found: after placing first, resume search",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

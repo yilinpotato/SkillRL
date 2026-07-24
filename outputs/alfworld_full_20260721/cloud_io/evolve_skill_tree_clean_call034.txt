@@ -1,0 +1,238 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "clean" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Object Manipulation / Pick Object
+- **Before taking any object, confirm its name matches the task target exactly.** Do not pick up similar objects (e.g., towel vs cloth, pan vs pot). Only the exact match can be cleaned and placed.
+- Once verified, take the object (e.g., `take [object] from [receptacle]`).
+- If you are already holding an object and it is not the target, put it down before searching for the correct one.
+
+### Object Type Check
+- Compare the object name as shown in the observation (e.g., "cloth", "knife", "kettle") against the target object from the task.
+- If they are identical, proceed to take it. If they differ — even slightly — do not take it. Continue searching.
+- Do not rely on functional similarity; only exact string match is acceptable.
+
+## Exploration / Search Strategy
+### Locate Object (Critical Phase)
+- **You are in the search phase until you are holding the correct target object.** Do not go to sinkbasin or any cleaning source during this phase.
+- **First, check every open receptacle** (countertops, diningtables, shelves, etc.) listed in the initial description. Visit each one and inspect its contents. Do not skip any.
+- If the target is not on any open surface, **systematically search every closed container** in this order: all cabinets → all drawers → fridge → microwave. Open each, inspect, and close after if needed. Do not skip any container type.
+- **Do not revisit open surfaces or go to the sinkbasin until you have exhausted all containers.**
+- Use common-sense location hints (e.g., utensils in drawers, pots on stoveburners) as guides, but always check all surfaces and containers if the object is not in the expected spot.
+
+### Open Surface Priority
+- **Before opening any closed container, you must have visited every open surface present in the environment.** Open surfaces are any receptacle not described as "closed" — they include: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, toilets, garbage cans, carts, handtowel holders, towel holders, and any other receptacle seen in the initial description.
+- From the initial room description, mentally list every such receptacle. Visit each one in turn and inspect its contents. Do not skip any.
+- Only after you have checked ALL open surfaces and the target object is not found, proceed to closed containers.
+- **If the environment has no closed containers at all, you must still have visited every open receptacle listed. If after checking all of them the object is missing, re-read the initial description to ensure you did not overlook any receptacle.**
+
+### Object-Specific Location Priors
+- Use common sense about where objects typically appear:
+  - **Pots, pans, kettles, and cookware** are often on stoveburners, but also on countertops or in cabinets.
+  - **Food items** (lettuce, tomato, apple, potato, etc.) frequently appear on diningtables, countertops, or in the fridge.
+  - **Utensils** (knife, fork, spoon, ladle) are commonly on countertops, diningtables, or in drawers.
+  - **Cleaning items** (soapbar, sponge, dishsponge) may be near sinkbasins, on countertops, on shelves, or in cabinets.
+  - **Dishes and bowls** can be in cabinets or on open surfaces.
+- These are hints, not constraints; always check all surfaces if the target is not in the expected spot.
+
+### Search Strategy for Missing Objects
+- After checking all open surfaces, you must systematically check **every closed container you observed in the initial description.** Do not skip any type. The recommended order:
+  1. All cabinets – go to each, open, inspect.
+  2. All drawers – go to each, open, inspect.
+  3. Fridge (if present) – go to it, open, inspect.
+  4. Microwave (if present) – go to it, open, inspect.
+- **Do not return to open surfaces or any other location until you have examined every closed container.** Only after exhausting all of them should you consider re-checking open surfaces or giving up.
+- **Critical: Do not go to sinkbasin or any cleaning source until you are holding the target object.** If you are not holding any object, you have not yet found it – continue searching.
+
+## Phase 2: Clean the Object
+- **Before walking to the cleaning source, confirm you are holding exactly the target object.** If you are empty-handed, you are in the wrong phase – go back to searching.
+- While holding [object], go to [cleaning_source] (sinkbasin or bathtubbasin).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- If the destination is a closed container (e.g., microwave, fridge), open it first, then place the object inside.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): go to countertop 1
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: put a clean spoon in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a butterknife 1, a egg 1, a houseplant 1, a lettuce 2, and a spraybottle 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a ladle 1, a mug 2, a pen 2, a pen 1, a peppershaker 1, a pot 2, a sink 1, a spatula 2, a spraybottle 2, and a tomato 1.
+  action: take spoon 1 from countertop 3  | obs: You arrive at countertop 3. On the countertop 3, you see a bread 1, a dishsponge 1, a egg 2, a fork 2, a fork 1, a kettle 1, and a spoon 1.
+  action: go to sinkbasin 1  | obs: You pick up the spoon 1 from the countertop 3.
+  action: clean spoon 1 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to countertop 4  | obs: You clean the spoon 1 using the sinkbasin 1.
+  action: move spoon 1 to countertop 4  | obs: You arrive at countertop 4. On the countertop 4, you see a ladle 3, a ladle 2, a peppershaker 3, a peppershaker 2, and a spatula 3.
+
+Trajectory 2 [success] task: clean some butterknife and put it in drawer.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a apple 1, a bread 1, a houseplant 1, and a spoon 1.
+  action: take butterknife 1 from countertop 2  | obs: You arrive at countertop 2. On the countertop 2, you see a bread 2, a butterknife 1, a cellphone 1, a fork 1, a knife 1, a lettuce 1, a peppershaker 1, a soapbottle 2, and a spatula 2.
+  action: go to sinkbasin 1  | obs: You pick up the butterknife 1 from the countertop 2.
+  action: clean butterknife 1 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a glassbottle 1, and a spatula 1.
+  action: go to drawer 1  | obs: You clean the butterknife 1 using the sinkbasin 1.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: move butterknife 1 to drawer 1  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a saltshaker 1.
+
+Trajectory 3 [success] task: put a clean butterknife in diningtable.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: take butterknife 1 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a butterknife 1, a soapbottle 2, and a soapbottle 1.
+  action: go to sinkbasin 1  | obs: You pick up the butterknife 1 from the countertop 1.
+  action: clean butterknife 1 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to diningtable 1  | obs: You clean the butterknife 1 using the sinkbasin 1.
+  action: move butterknife 1 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a bread 2, a butterknife 2, a cup 1, a knife 2, a ladle 3, a lettuce 1, a peppershaker 2, a potato 1, a saltshaker 2, a spoon 2, and a tomato 2.
+
+Trajectory 4 [success] task: clean some tomato and put it in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: take tomato 3 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 2, a butterknife 1, a cup 1, a knife 2, a mug 2, a pan 1, a peppershaker 3, a plate 1, a potato 3, a saltshaker 3, a saltshaker 2, a saltshaker 1, a spatula 2, a spatula 1, a spoon 1, a tomato 3, and a tomato 2.
+  action: go to sinkbasin 1  | obs: You pick up the tomato 3 from the countertop 1.
+  action: clean tomato 3 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a lettuce 1.
+  action: go to countertop 1  | obs: You clean the tomato 3 using the sinkbasin 1.
+  action: move tomato 3 to countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 2, a butterknife 1, a cup 1, a knife 2, a mug 2, a pan 1, a peppershaker 3, a plate 1, a potato 3, a saltshaker 3, a saltshaker 2, a saltshaker 1, a spatula 2, a spatula 1, a spoon 1, and a tomato 2.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: put a clean plate in microwave.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a winebottle 1.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a book 1, a butterknife 2, a fork 3, a knife 1, a mug 1, a sink 1, a statue 3, a tomato 1, and a vase 2.
+  action: go to shelf 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a bowl 2, a bread 2, a bread 1, a butterknife 1, a fork 1, a houseplant 1, a kettle 2, a knife 2, a lettuce 1, a peppershaker 2, a peppershaker 1, a saltshaker 2, a soapbottle 1, a spatula 1, and a spoon 1.
+  action: go to cabinet 1  | obs: You arrive at shelf 1. On the shelf 1, you see nothing.
+  action: go to shelf 2  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to shelf 3  | obs: You arrive at shelf 2. On the shelf 2, you see a cup 1, a statue 2, and a statue 1.
+  action: go to stoveburner 1  | obs: You arrive at shelf 3. On the shelf 3, you see nothing.
+  action: go to stoveburner 2  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see a pot 1.
+  action: go to cabinet 1  | obs: You arrive at stoveburner 2. On the stoveburner 2, you see a kettle 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: go to diningtable 1  | obs: You arrive at countertop 1. On the countertop 1, you see a winebottle 1.
+
+Trajectory 2 [failure] task: put a clean pot in shelf.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a creditcard 1, a dishsponge 2, a mug 1, a pan 1, a saltshaker 1, and a spoon 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 3, a bowl 2, a egg 2, a houseplant 1, a papertowelroll 1, a spoon 3, a spoon 2, and a vase 2.
+  action: go to stoveburner 1  | obs: You arrive at countertop 3. On the countertop 3, you see a book 1, a bread 2, a bread 1, a glassbottle 2, a knife 1, a lettuce 3, a lettuce 2, a lettuce 1, a peppershaker 2, a potato 3, a potato 1, a soapbottle 1, a spatula 1, and a winebottle 1.
+  action: look  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see a kettle 2.
+  action: go to shelf 1  | obs: You are facing the stoveburner 2, and stoveburner 1. Next to it, you see nothing.
+  action: go to shelf 2  | obs: You arrive at shelf 1. On the shelf 1, you see nothing.
+  action: go to shelf 3  | obs: You arrive at shelf 2. On the shelf 2, you see a vase 1.
+  action: go to cabinet 1  | obs: You arrive at shelf 3. On the shelf 3, you see a statue 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a cup 1.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a kettle 1.
+
+Trajectory 3 [failure] task: clean some spoon and put it in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a houseplant 1, a lettuce 1, a soapbottle 2, and a soapbottle 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a butterknife 2, a dishsponge 1, a knife 1, a mug 2, a pan 3, a plate 1, a sink 1, and a spatula 1.
+  action: go to countertop 4  | obs: You arrive at countertop 3. On the countertop 3, you see a apple 2, a bread 3, a butterknife 1, a dishsponge 2, a knife 2, a ladle 1, a pen 3, a potato 1, and a tomato 3.
+  action: look  | obs: You arrive at countertop 4. On the countertop 4, you see a egg 3, a fork 1, a glassbottle 2, and a soapbottle 3.
+  action: go to cabinet 1  | obs: You are facing the countertop 4. Next to it, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a cup 1, and a kettle 1.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a bowl 2, and a saltshaker 1.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a houseplant 1, a lettuce 1, a soapbottle 2, and a soapbottle 1.
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+- [inefficient_exploration] The agent wandered through many locations without locating the plate or performing the cleaning and placement actions. | evidence: After prefix, they visited countertop1, countertop2, diningtable, shelves, burners, etc., but never took a plate or went to sink. | fix: Systematically search all countertops and common surfaces for the target object before exploring other locations. | skill_tree_gap: Lack of a structured object search strategy. | patch_location: ## clean -> new subsection ### Systematic Countertop Search
+- [inefficient_exploration] The agent failed to find the pot despite visiting several countertops and cabinets. | evidence: They visited countertop1,2,3 and opened cabinets but no pot was seen. | fix: Exhaustively search all countertops and storage for the target object. | skill_tree_gap: Lack of exhaustive search strategy for target object. | patch_location: ## clean -> new subsection ### Exhaustive Object Search
+- [inefficient_exploration] The agent visited multiple countertops and cabinets but never located a spoon. | evidence: They went to countertop1,2,3,4 and opened cabinets, but no spoon was observed. | fix: Ensure the target object is located by checking all countertops and common receptacles. | skill_tree_gap: Lack of systematic object search. | patch_location: ## clean -> new subsection ### Object Search
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

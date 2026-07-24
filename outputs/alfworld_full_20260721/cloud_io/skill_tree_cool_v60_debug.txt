@@ -1,0 +1,82 @@
+=== Skill Tree Debug — scope=cool  v60 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent did not follow the skill tree's navigation verification or systematic surface search order, leading to wandering into sinkbasin and stoveburners instead of checking countertop 2 and diningtable. The skill tree's wording was clear but the agent ignored it; however, the tree could be more prescriptive with explicit step-by-step instructions to reduce the chance of deviation.
+changelog: Refined Phase 1 to emphasize strict ordering of surface search (countertops then diningtables) and added a directive to verify arrival after each move; also added a note on common object locations to guide efficient search.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 10  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never located a bowl to cool; it explored irrelevant areas (sinkbasin, stoveburners) instead of common bowl locations like countertops or diningtable. | evidence: action: open cabinet 1 | obs: ... you see a mug 1, a peppershaker 1, and a saltshaker 1. (no bowl found after extensive wandering) | fix: When task requires a cool object, first search receptacles that commonly hold that object (e.g., countertops, diningtable) before exploring other areas. | skill_tree_gap: Lack of object-location association knowledge for 'bowl'. | patch_location: Under 'cool' as a new deeper subsection '### Object search policy'
+
+--- Node tree (per-node lifecycle, this version=v60) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=59 calls=1047 success=912 rate=87.1%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=17 calls=590 success=522 rate=88.5%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/navigation level=2 stable_versions=0 calls=37 success=35 rate=94.6%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object level=2 stable_versions=17 calls=304 success=265 rate=87.2%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/exhaustive-container-search level=3 stable_versions=1 calls=20 success=19 rate=95.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/object-verification level=3 stable_versions=5 calls=71 success=65 rate=91.5%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/systematic-surface-search level=3 stable_versions=0 calls=47 success=43 rate=91.5%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge level=2 stable_versions=3 calls=643 success=570 rate=88.6%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location level=2 stable_versions=3 calls=643 success=570 rate=88.6%
+
+--- Line diff vs previous version (v59 -> v60) ---
+--- v59
++++ v60
+@@ -2,16 +2,17 @@
+ 
+ ## Navigation
+ - Before moving, check that the intended destination is reachable from your current location. If you are not sure, use 'look' to see observable locations.
+-- After executing a 'go to' action, read the observation carefully. Verify that you arrived at the exact location you intended (e.g., "You arrive at countertop 2"). If the observation says a different location, you did not reach it — do not assume success. Instead, consider that the target may not be adjacent or you may have misidentified it.
++- After executing a 'go to' action, read the observation carefully. Verify that you arrived at the exact location you intended (e.g., "You arrive at countertop 2"). If the observation says a different location, you did not reach it — do not assume success. Instead, consider that the target may not be adjacent or you may have misidentified it. Use 'look' to reassess adjacent locations, then try a different route (e.g., go to a known adjacent location first).
+ - Keep track of which instances you have already visited (e.g., countertop 1, countertop 2) to avoid revisiting them accidentally.
+ 
+ ## Phase 1: Find and take the target object
+ 
+ ### Systematic surface search
++- **Start by searching the surfaces that most often hold objects**: first check all countertops (every instance you saw in the initial look), then all diningtables. Only after those are exhausted should you search sidetables, shelves, sinkbasins, stoveburners, and the fridge.
++- **Strict order enforcement**: After checking countertop 1, the next location **must** be countertop 2 (if it exists), then diningtable 1, and so on. Do not skip to other surface types like sinkbasin or stoveburner before you have checked all countertops and diningtables.
+ - Use the 'go to' action to move to each surface instance. After arriving, read the observation to see what is on that surface. Do not use 'look' or 'examine' — the arrival observation already shows all items.
+-- First, check all countertops (every instance you saw in the initial look). If the target is not on any, proceed to check all diningtables, then sidetables, then shelves, then sinkbasins, then stoveburners, then the fridge (open it, look inside).
+ - For the fridge: if target found inside, take it and go to Phase 2. If not, close the fridge before moving on.
+-- **Stay on track**: After every move, confirm you are at the intended next location. If you ever find yourself at a location that is not the next unvisited type in the search order above, return to the correct next type immediately. Do not skip any surface type.
++- **Stay on track**: After every move, confirm you are at the intended next location. If you ever find yourself at a location that is not the next unvisited type in the search order above, return to the correct next type immediately.
+ 
+ ### Exhaustive container search
+ - Only begin container search after you have checked **every** surface type (countertops, diningtables, sidetables, shelves, sinkbasins, stoveburners, and the inside of the fridge) and the target was not found.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Navigation
+- Before moving, check that the intended destination is reachable from your current location. If you are not sure, use 'look' to see observable locations.
+- After executing a 'go to' action, read the observation carefully. Verify that you arrived at the exact location you intended (e.g., "You arrive at countertop 2"). If the observation says a different location, you did not reach it — do not assume success. Instead, consider that the target may not be adjacent or you may have misidentified it. Use 'look' to reassess adjacent locations, then try a different route (e.g., go to a known adjacent location first).
+- Keep track of which instances you have already visited (e.g., countertop 1, countertop 2) to avoid revisiting them accidentally.
+
+## Phase 1: Find and take the target object
+
+### Systematic surface search
+- **Start by searching the surfaces that most often hold objects**: first check all countertops (every instance you saw in the initial look), then all diningtables. Only after those are exhausted should you search sidetables, shelves, sinkbasins, stoveburners, and the fridge.
+- **Strict order enforcement**: After checking countertop 1, the next location **must** be countertop 2 (if it exists), then diningtable 1, and so on. Do not skip to other surface types like sinkbasin or stoveburner before you have checked all countertops and diningtables.
+- Use the 'go to' action to move to each surface instance. After arriving, read the observation to see what is on that surface. Do not use 'look' or 'examine' — the arrival observation already shows all items.
+- For the fridge: if target found inside, take it and go to Phase 2. If not, close the fridge before moving on.
+- **Stay on track**: After every move, confirm you are at the intended next location. If you ever find yourself at a location that is not the next unvisited type in the search order above, return to the correct next type immediately.
+
+### Exhaustive container search
+- Only begin container search after you have checked **every** surface type (countertops, diningtables, sidetables, shelves, sinkbasins, stoveburners, and the inside of the fridge) and the target was not found.
+- **Open each cabinet one by one**: Move to the cabinet, then use 'open cabinet X'. After opening, read the observation to see what is inside. If target present, take it, then close the cabinet before moving on. If not, close the cabinet and move to the next unopened cabinet.
+- **Then check each drawer** (same process: move, open, look inside, close).
+- **Then check the microwave** (open, look inside).
+- **Crucial**: After moving to a container, you **must** open it to see its contents. The arrival observation does not show what is inside a closed container. If you skip opening, you will miss the target.
+
+### Object verification
+- Before taking, read the exact name. After taking, verify again. If wrong, put it back on the exact surface you took it from and resume searching from that location.
+
+## Phase 2: Cool the object using the fridge
+- As soon as you are carrying the correct target object, go to a fridge, open it (if closed), and use 'cool <object> with fridge'.
+
+## Phase 3: Move the cooled object to the target location
+- Go directly to the target location (e.g., cabinet, diningtable, garbagecan). If it is a closed container, open it first.
+- Use 'move <object> to <target>'.
+
+## Completion check
+- The object is now cooled and placed at the target. Task complete.

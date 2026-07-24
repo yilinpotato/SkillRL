@@ -1,0 +1,90 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate the potato because it randomly visited locations without systematically searching all receptacles.",
+    "evidence": "After initial countertop 1, it went to countertop 2, 3, shelves, stoveburners, and cabinet, but never encountered a potato; no potato was ever taken.",
+    "corrective_rule": "When target object is not in the initial location, systematically explore all receptacles (cabinets, shelves, etc.) without repeating locations.",
+    "skill_tree_gap": "Missing systematic object search routine for 'clean' tasks.",
+    "patch_location": "Under '## task_type: clean', add a new subsection '### locate missing object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate the egg due to inefficient exploration.",
+    "evidence": "Visited countertop2, cabinets, stoveburners, but never saw an egg; no egg was taken.",
+    "corrective_rule": "When target object is not in the initial location, systematically explore all receptacles (cabinets, shelves, etc.) without repeating locations.",
+    "skill_tree_gap": "Missing systematic object search routine for 'clean' tasks.",
+    "patch_location": "Under '## task_type: clean', add a new subsection '### locate missing object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate the winebottle because it wandered without a focused search strategy.",
+    "evidence": "After initial countertop 1, it visited countertop 2, diningtable, sinkbasin, stoveburners, fridge, cabinets, but never took any winebottle.",
+    "corrective_rule": "When target object is not in the initial location, systematically explore all receptacles (fridge, cabinets, etc.) without repeating.",
+    "skill_tree_gap": "Missing systematic object search routine for 'cool' tasks.",
+    "patch_location": "Under '## task_type: cool', add a new subsection '### locate missing object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent prematurely stopped after opening several drawers without finding any cellphone, failing to explore other areas like shelves or dresser.",
+    "evidence": "After opening drawer 6 (which contained a pencil), no further actions were taken; never checked bed, shelves, or dresser.",
+    "corrective_rule": "Continue searching all receptacles (bed, shelves, dresser, etc.) until both target objects are found.",
+    "skill_tree_gap": "Lack of persistent exhaustive search and early termination handling.",
+    "patch_location": "Under '## task_type: pick_two_obj_and_place', add a new subsection '### exhaustive search for objects'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent got stuck in a loop between armchair and beds, never exploring other locations to find the second keychain.",
+    "evidence": "Repeated actions: go to armchair 1, go to bed 2, go to bed 1, then back to armchair 1, with no new object sightings.",
+    "corrective_rule": "After placing the first object, systematically search all remaining receptacles and avoid revisiting the same location without progress.",
+    "skill_tree_gap": "Lack of loop prevention and diversified search after partial success.",
+    "patch_location": "Under '## task_type: pick_two_obj_and_place', add a new subsection '### loop prevention & search after first object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent found only one dishsponge and then inefficiently revisited the same locations without finding the second.",
+    "evidence": "After placing first dishsponge, it cycled between bathtubbasin and cart, then checked shelf 1 and 2 but no second dishsponge found.",
+    "corrective_rule": "After placing the first object, systematically search all other possible locations (e.g., towelholder, sinkbasin) without repeating already-searched areas.",
+    "skill_tree_gap": "Incomplete search plan for multiple objects.",
+    "patch_location": "Under '## task_type: pick_two_obj_and_place', add a new subsection '### systematic search for second object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent prematurely stopped after exploring cabinets and coffeetable, failing to find any creditcard.",
+    "evidence": "After opening all cabinets and going to coffeetable (which contained keychain and statue), no creditcard was taken, and no further actions occurred.",
+    "corrective_rule": "Continue searching drawers, dresser, and other receptacles until creditcards are found.",
+    "skill_tree_gap": "Lack of exhaustive search and early termination handling.",
+    "patch_location": "Under '## task_type: pick_two_obj_and_place', add a new subsection '### exhaustive search for objects'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent got stuck in a loop between bed and drawers after placing one cellphone, never searching for the second.",
+    "evidence": "Repeated actions: go to bed 1, go to drawer 10, go to bed 1, go to drawer 1, with no second cellphone found.",
+    "corrective_rule": "After placing the first object, systematically search all other receptacles (shelves, other drawers, dresser) and avoid looping.",
+    "skill_tree_gap": "Lack of loop prevention and diversified search after partial success.",
+    "patch_location": "Under '## task_type: pick_two_obj_and_place', add a new subsection '### loop prevention & search after first object'.",
+    "confidence": 0.9
+  }
+]

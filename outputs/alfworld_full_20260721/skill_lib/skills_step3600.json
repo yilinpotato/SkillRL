@@ -1,0 +1,4666 @@
+{
+  "general_skills": [
+    {
+      "skill_id": "gen_001",
+      "title": "Systematic Exploration",
+      "principle": "Search every plausible surface or container exactly once before revisiting; prioritize unopened or unseen locations to cover the whole room methodically.",
+      "when_to_apply": "Anytime the goal object count is not yet met and unexplored locations remain.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 216,
+        "success_when_used": 155,
+        "success_rate": 0.7175925925925926,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "pick_two_obj_and_place",
+          "cool",
+          "look_at_obj_in_light",
+          "clean",
+          "heat"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_002",
+      "title": "Immediate Acquisition",
+      "principle": "As soon as a required object becomes visible and reachable, take it before moving elsewhere to avoid losing track or re-searching.",
+      "when_to_apply": "Upon first visual confirmation of a goal-relevant object.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 216,
+        "success_when_used": 155,
+        "success_rate": 0.7175925925925926,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "pick_two_obj_and_place",
+          "cool",
+          "look_at_obj_in_light",
+          "clean",
+          "heat"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_003",
+      "title": "Destination First Policy",
+      "principle": "After picking up a goal object, navigate directly to the known target receptacle and place it before resuming further search.",
+      "when_to_apply": "Holding any goal object while its target location has been identified.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 144,
+        "success_when_used": 104,
+        "success_rate": 0.7222222222222222,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "pick_two_obj_and_place",
+          "cool",
+          "look_at_obj_in_light",
+          "clean",
+          "heat"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_004",
+      "title": "Track Counts & Progress",
+      "principle": "Maintain an internal counter of how many goal objects are still needed; stop searching or terminate episode only when the counter reaches zero.",
+      "when_to_apply": "Throughout multi-instance tasks (e.g., \u201cput two X\u2026\u201d).",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 144,
+        "success_when_used": 104,
+        "success_rate": 0.7222222222222222,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "pick_two_obj_and_place",
+          "cool",
+          "look_at_obj_in_light",
+          "clean",
+          "heat"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_005",
+      "title": "Use State-Changing Tools Early",
+      "principle": "For tasks requiring heated/cooled/clean objects, acquire the object, then immediately use the nearest suitable appliance to change its state before any placement.",
+      "when_to_apply": "After picking up an object that must change temperature or cleanliness.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 144,
+        "success_when_used": 104,
+        "success_rate": 0.7222222222222222,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "pick_two_obj_and_place",
+          "cool",
+          "look_at_obj_in_light",
+          "clean",
+          "heat"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_006",
+      "title": "Establish Spatial Relations",
+      "principle": "When a goal specifies a relation (under/inside/on), first locate the reference object, adjust its state if needed (e.g., turn lamp on), then search the specified spatial region for the target object or place it there.",
+      "when_to_apply": "Tasks containing spatial prepositions like under, inside, on, in_front_of.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 72,
+        "success_when_used": 48,
+        "success_rate": 0.6666666666666666,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "pick_two_obj_and_place",
+          "cool",
+          "look_at_obj_in_light",
+          "clean",
+          "heat"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_007",
+      "title": "Open Before Judging Empty",
+      "principle": "Treat any closed container as unexplored; open it and inspect contents before deciding that the goal object is absent.",
+      "when_to_apply": "Encountering a closed drawer, cabinet, fridge, microwave, etc.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_008",
+      "title": "Avoid Redundant Rechecks",
+      "principle": "Record which locations and containers have been fully inspected; do not revisit them unless new evidence suggests their contents changed.",
+      "when_to_apply": "After the first full pass of a location or when considering next search target.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_009",
+      "title": "Plan with Landmarks",
+      "principle": "Continuously update and reference a map of known object and container locations to choose shortest paths and prevent aimless wandering.",
+      "when_to_apply": "Each time a new furniture piece, container, or goal object is observed.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_010",
+      "title": "Progressive Goal Decomposition",
+      "principle": "Break tasks into ordered sub-goals: (1) locate object, (2) obtain or transform it, (3) locate destination/reference object, (4) satisfy spatial relation/placement, completing each sub-goal before moving to the next.",
+      "when_to_apply": "At the start of every episode and whenever the environment state invalidates the current sub-goal.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_011",
+      "title": "Efficient Relation Search",
+      "principle": "When the goal pairs two objects (A under/on/inside B), restrict search for A to locations near B and vice-versa, instead of treating them independently.",
+      "when_to_apply": "On goals that mention both a target object and a reference object.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "gen_012",
+      "title": "Terminate Only On Success",
+      "principle": "Issue the 'done' action exclusively after validating that all goal conditions are met; otherwise continue searching or correcting object states.",
+      "when_to_apply": "Before ending an episode or when the agent believes the task is complete.",
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 0,
+        "stable_cycles": 46,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_002",
+      "title": "Station Action Execution",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When at the required transformation station and holding the object, perform the action immediately.",
+      "when_to_apply": "When at a sinkbasin, fridge, microwave, etc. with appropriate object.",
+      "evidence": {
+        "from_success": 48,
+        "from_failure": 24
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 45,
+        "call_count": 3528,
+        "success_when_used": 2994,
+        "success_rate": 0.8486394557823129,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_two_obj_and_place",
+          "pick_and_place",
+          "look_at_obj_in_light",
+          "heat",
+          "cool",
+          "clean"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_004",
+      "title": "Common Sense Object Location",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Begin search at the furniture type where the object is normally stored (e.g., soapbar on shelf, spoon in drawer).",
+      "when_to_apply": "When starting a task that requires finding a specific household object.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 44,
+        "call_count": 3456,
+        "success_when_used": 2938,
+        "success_rate": 0.8501157407407407,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "heat",
+          "clean",
+          "pick_two_obj_and_place",
+          "look_at_obj_in_light",
+          "cool"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_005",
+      "title": "Examine Open Surfaces First",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Before opening closed containers, examine all open surfaces (countertops, tables, shelves) for the target object.",
+      "when_to_apply": "When searching for an object and open surfaces are nearby.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 44,
+        "call_count": 3456,
+        "success_when_used": 2938,
+        "success_rate": 0.8501157407407407,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "heat",
+          "clean",
+          "pick_two_obj_and_place",
+          "look_at_obj_in_light",
+          "cool"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_006",
+      "title": "Direct Transformation Then Placement",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After cleaning, heating, or cooling the object, go immediately to the target location and place it without wandering.",
+      "when_to_apply": "When you have just transformed the object and the destination is known.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 44,
+        "call_count": 3456,
+        "success_when_used": 2938,
+        "success_rate": 0.8501157407407407,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_and_place",
+          "heat",
+          "clean",
+          "pick_two_obj_and_place",
+          "look_at_obj_in_light",
+          "cool"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_007",
+      "title": "Sequential Container Opening",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Open containers in increasing numerical order without skipping to ensure systematic search.",
+      "when_to_apply": "When searching for a target object and multiple closed containers exist.",
+      "evidence": {
+        "from_success": 51,
+        "from_failure": 21
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 43,
+        "call_count": 3384,
+        "success_when_used": 2887,
+        "success_rate": 0.8531323877068558,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_two_obj_and_place",
+          "look_at_obj_in_light",
+          "heat",
+          "clean",
+          "cool",
+          "pick_and_place"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_008",
+      "title": "Transform Immediately After Pickup",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After picking up an object that requires cleaning, cooling, or heating, go directly to the appropriate station and perform the transformation.",
+      "when_to_apply": "After picking up an object that needs transformation before placement.",
+      "evidence": {
+        "from_success": 51,
+        "from_failure": 21
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 43,
+        "call_count": 3384,
+        "success_when_used": 2887,
+        "success_rate": 0.8531323877068558,
+        "internalized": false,
+        "task_types_seen": [
+          "pick_two_obj_and_place",
+          "look_at_obj_in_light",
+          "heat",
+          "clean",
+          "cool",
+          "pick_and_place"
+        ],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_009",
+      "title": "No Examine on Held Object",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not examine or look at an object you are holding; instead proceed to the next required action.",
+      "when_to_apply": "When holding an object that needs to be transformed or placed.",
+      "evidence": {
+        "from_success": 51,
+        "from_failure": 21
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 43,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_010",
+      "title": "Open Destination Before Placement",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Before placing an object into a container, ensure the container is open.",
+      "when_to_apply": "When about to place an object into a closed container.",
+      "evidence": {
+        "from_success": 50,
+        "from_failure": 22
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 42,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_011",
+      "title": "Hold Object Through Transformation",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Once you pick up the target object, do not drop it until after the required transformation and final placement.",
+      "when_to_apply": "When holding an object that needs cleaning, cooling, or heating.",
+      "evidence": {
+        "from_success": 50,
+        "from_failure": 22
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 42,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_012",
+      "title": "Search Containers Before Surfaces",
+      "scope": "general",
+      "task_type": "",
+      "principle": "First open all closed containers systematically, then check open surfaces (countertops, tables, etc.) for the target.",
+      "when_to_apply": "When the target object is not immediately visible and the task requires locating it.",
+      "evidence": {
+        "from_success": 50,
+        "from_failure": 22
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 42,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_013",
+      "title": "Switch Search Domain After Empties",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After opening two empty containers of the same type, move to a different location type, e.g., from cabinets to countertops.",
+      "when_to_apply": "When searching for a target object and encountering consecutive empty containers.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 41,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_014",
+      "title": "Cover All Container Types Once",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Before revisiting any container type, check at least one of each other type: cabinets, drawers, shelves, fridge.",
+      "when_to_apply": "When the target is not found after initial searches and multiple container types exist.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 41,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_015",
+      "title": "Proceed Directly After Acquisition",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Once you hold the target object, immediately go to the next required location without extra exploration.",
+      "when_to_apply": "After picking up the object needed for the task.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 41,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_016",
+      "title": "Surface Check Before Open",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Move to each container to check its top before opening it.",
+      "when_to_apply": "When searching for an object and closed containers are present.",
+      "evidence": {
+        "from_success": 52,
+        "from_failure": 20
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 40,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_017",
+      "title": "Switch Type After Two Empties",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After opening two containers of the same type and finding nothing, switch to a different container type.",
+      "when_to_apply": "When two consecutive same-type containers are empty.",
+      "evidence": {
+        "from_success": 52,
+        "from_failure": 20
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 40,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_018",
+      "title": "Exhaust Open Surfaces First",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Search all open surfaces like countertops and cabinet tops before opening any closed container.",
+      "when_to_apply": "When you enter a room and need to locate an object.",
+      "evidence": {
+        "from_success": 52,
+        "from_failure": 20
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 40,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_019",
+      "title": "Cease Search on Target",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When the target object is inside an open container, take it immediately and stop all further exploration.",
+      "when_to_apply": "After opening a container and seeing the goal object inside.",
+      "evidence": {
+        "from_success": 107,
+        "from_failure": 37
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 39,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_020",
+      "title": "Scan All Open Surfaces",
+      "scope": "general",
+      "task_type": "",
+      "principle": "At the start, read the initial room description and visit every open surface listed there to check for the target.",
+      "when_to_apply": "When the target object is not directly visible upon entering the room.",
+      "evidence": {
+        "from_success": 107,
+        "from_failure": 37
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 39,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_021",
+      "title": "Switch After Two Misses",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If you open two containers of the same type and neither holds the target, switch to a different container type.",
+      "when_to_apply": "When two consecutive containers of one type are opened without finding the goal object.",
+      "evidence": {
+        "from_success": 107,
+        "from_failure": 37
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 39,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_022",
+      "title": "Three Empties Switch",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After opening three containers of the same type and finding them empty, switch to a different location type like open surfaces or drawers.",
+      "when_to_apply": "When three consecutive identical container opens yield nothing.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 38,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_024",
+      "title": "Open Before Moving",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When you arrive at a closed container, open it immediately before moving to any other container.",
+      "when_to_apply": "When exploring containers to find a target object.",
+      "evidence": {
+        "from_success": 62,
+        "from_failure": 10
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 37,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_026",
+      "title": "Categorical Target Grab",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If the seen object belongs to the same category as the target (e.g., any knife for 'knife'), take it immediately.",
+      "when_to_apply": "When an object is visible and its type matches the target category.",
+      "evidence": {
+        "from_success": 57,
+        "from_failure": 15
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 36,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_027",
+      "title": "Switch After Non-Target Find",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After opening a container that contains a non-target object, switch to a different container type immediately.",
+      "when_to_apply": "When you open a container and see an object that is not the target.",
+      "evidence": {
+        "from_success": 57,
+        "from_failure": 15
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 36,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_029",
+      "title": "Begin at Countertop",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Always start your search by going to a countertop, as target objects are frequently found on open surfaces.",
+      "when_to_apply": "At the start of any task when the target object's location is unknown.",
+      "evidence": {
+        "from_success": 63,
+        "from_failure": 9
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 35,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_030",
+      "title": "Sequential Container Search",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After the countertop, systematically open each container in order without skipping any.",
+      "when_to_apply": "When the target is not on open surfaces and containers are present.",
+      "evidence": {
+        "from_success": 63,
+        "from_failure": 9
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 35,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_031",
+      "title": "Exhaust All Furniture",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If the target is still missing after checking all containers, examine other furniture like sinks, bathtubs, and shelves.",
+      "when_to_apply": "When containers have been exhausted and target not found.",
+      "evidence": {
+        "from_success": 63,
+        "from_failure": 9
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 35,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_032",
+      "title": "Open Upon Arrival",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When you arrive at a closed container, open it before moving to another location.",
+      "when_to_apply": "When you reach a closed cabinet, drawer, or fridge.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 34,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_035",
+      "title": "Avoid Premature Pickup",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not take an object unless you have a plan to transform and place it immediately.",
+      "when_to_apply": "When an object matching the target type is seen.",
+      "evidence": {
+        "from_success": 124,
+        "from_failure": 20
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 0,
+        "last_modified_cycle": 1,
+        "stable_cycles": 33,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_036",
+      "title": "Start at Countertop",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Begin your search by going to the countertop, as it is the most common open surface with target objects.",
+      "when_to_apply": "At the start of a task before exploring containers.",
+      "evidence": {
+        "from_success": 58,
+        "from_failure": 14
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 32,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_037",
+      "title": "Avoid Re-Opening Containers",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If you have already opened a container and seen its contents, do not open it again. Move on to the next.",
+      "when_to_apply": "When you encounter a previously opened container.",
+      "evidence": {
+        "from_success": 58,
+        "from_failure": 14
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 32,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_038",
+      "title": "No Detours After Pickup",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After picking up the target object, do not wander; go straight to the transformation appliance or destination.",
+      "when_to_apply": "When you have just picked up an object that needs cleaning, cooling, or heating.",
+      "evidence": {
+        "from_success": 58,
+        "from_failure": 14
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 32,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_039",
+      "title": "Open Then Take",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Always open a container before trying to take an object from it.",
+      "when_to_apply": "When you need to retrieve an object from a closed container.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 31,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_040",
+      "title": "Close Empty Containers",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After finding no target in an open container, close it to avoid confusion.",
+      "when_to_apply": "When a container is open and empty.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 31,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_041",
+      "title": "Same-Type Exhaustion",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Search all containers of the same type before switching to a different type.",
+      "when_to_apply": "When you have started searching a particular container type.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 31,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_042",
+      "title": "Examine Open Surfaces Only",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not use examine on closed containers; use open to reveal contents. Examine only on open surfaces.",
+      "when_to_apply": "When you need to check a container's contents.",
+      "evidence": {
+        "from_success": 59,
+        "from_failure": 13
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 30,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_043",
+      "title": "Begin Search on Countertops",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Start your search on countertops and other open surfaces before opening containers.",
+      "when_to_apply": "When starting a new task and objects may be on surfaces.",
+      "evidence": {
+        "from_success": 59,
+        "from_failure": 13
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 30,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_044",
+      "title": "Exhaust Cabinets Before Drawers",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Open all cabinets of the same type before switching to drawers or other containers.",
+      "when_to_apply": "When searching for an object and cabinets remain unopened.",
+      "evidence": {
+        "from_success": 59,
+        "from_failure": 13
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 3,
+        "last_modified_cycle": 4,
+        "stable_cycles": 30,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_045",
+      "title": "Open Before Examine",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Always use open on a closed container to see its contents instead of examine.",
+      "when_to_apply": "When facing a closed container that may hold the target object.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 29,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_046",
+      "title": "Switch Type After One Empty",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If a container is empty, switch to a different type of container immediately rather than opening another of the same type.",
+      "when_to_apply": "After opening a container and finding it empty.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 29,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_047",
+      "title": "Take Seen Target Without Delay",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When you open a container and see the target object, pick it up immediately without further search.",
+      "when_to_apply": "After opening a container and the target is visible inside.",
+      "evidence": {
+        "from_success": 56,
+        "from_failure": 16
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 29,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_048",
+      "title": "Exact Name Match",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Only pick up an object if its displayed name exactly matches the target object in the task description.",
+      "when_to_apply": "When you see an object that might be the target.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 5,
+        "last_modified_cycle": 6,
+        "stable_cycles": 28,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_049",
+      "title": "Return to Start After Search",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If you have searched multiple locations without finding the target, return to your starting surface and re-examine it.",
+      "when_to_apply": "When you have exhausted several areas and still lack the target.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 5,
+        "last_modified_cycle": 6,
+        "stable_cycles": 28,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_050",
+      "title": "Resume Search After Placement",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After placing an object, check if the task requires more of the same object; if so, resume searching for the next one.",
+      "when_to_apply": "When you have just placed an object in a multi-object task.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 5,
+        "last_modified_cycle": 6,
+        "stable_cycles": 28,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_051",
+      "title": "All Open Surfaces Before Containers",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Before opening any closed container, inspect all open surfaces like countertops and tables for the target object.",
+      "when_to_apply": "When the target object is not immediately visible and open surfaces remain.",
+      "evidence": {
+        "from_success": 65,
+        "from_failure": 7
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 6,
+        "last_modified_cycle": 7,
+        "stable_cycles": 27,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_053",
+      "title": "Open Destination Before Placing",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If the destination is a closed container, open it before attempting to place the object inside.",
+      "when_to_apply": "When placing an object into a closed drawer, cabinet, or similar container.",
+      "evidence": {
+        "from_success": 65,
+        "from_failure": 7
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 6,
+        "last_modified_cycle": 7,
+        "stable_cycles": 27,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_054",
+      "title": "Prioritize Task-Relevant Furniture",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Only visit furniture likely to contain the target or required for the task; avoid irrelevant ones like towel holders unless the target is a cloth.",
+      "when_to_apply": "When starting a new task and deciding where to go first.",
+      "evidence": {
+        "from_success": 62,
+        "from_failure": 10
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 7,
+        "last_modified_cycle": 8,
+        "stable_cycles": 26,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_055",
+      "title": "Take Target After Container Open",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Once a container is opened and contains the target, take it immediately without any intervening examine or other actions.",
+      "when_to_apply": "When you have just opened a container and see the target object inside.",
+      "evidence": {
+        "from_success": 62,
+        "from_failure": 10
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 7,
+        "last_modified_cycle": 8,
+        "stable_cycles": 26,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_060",
+      "title": "Avoid Early Sink Visits",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not go to a sinkbasin or other appliance before you have picked up the object that needs cleaning or transformation.",
+      "when_to_apply": "When the task requires cleaning or transformation and you have not yet acquired the object.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 15,
+        "last_modified_cycle": 16,
+        "stable_cycles": 18,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_061",
+      "title": "Grab on First Encounter",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When you see the target object on an open surface, take it immediately before moving to any other location.",
+      "when_to_apply": "When the target object is visible on an open surface and you are not already holding it.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 15,
+        "last_modified_cycle": 16,
+        "stable_cycles": 18,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_062",
+      "title": "One Empty Container Rule",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If a container is opened and empty, do not open another of same type; check open surfaces or different types first.",
+      "when_to_apply": "When you open a container and find no target object inside.",
+      "evidence": {
+        "from_success": 59,
+        "from_failure": 13
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 16,
+        "last_modified_cycle": 17,
+        "stable_cycles": 17,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_063",
+      "title": "Scan All Items on Arrival",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Upon reaching a new location, read the list of visible objects to identify the target before deciding next action.",
+      "when_to_apply": "When you move to any new surface or furniture.",
+      "evidence": {
+        "from_success": 59,
+        "from_failure": 13
+      },
+      "lifecycle": {
+        "layer": "L2",
+        "created_cycle": 16,
+        "last_modified_cycle": 17,
+        "stable_cycles": 17,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": true
+      }
+    },
+    {
+      "skill_id": "dyn_069",
+      "title": "Direct to Transformation",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After picking up the target, go straight to the transformation appliance without detours or intermediate actions.",
+      "when_to_apply": "Immediately after acquiring the target object for cleaning, cooling, or heating.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 15,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_070",
+      "title": "No Intermediate Placement",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not set down the target object on any surface except the transformation appliance or final destination.",
+      "when_to_apply": "While holding the target object before it is transformed or placed.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 1,
+        "last_modified_cycle": 2,
+        "stable_cycles": 15,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_071",
+      "title": "Pick Visible Target First",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If the target object is visible on an open surface, take it immediately without opening containers.",
+      "when_to_apply": "When searching for a known object and it appears in the observation.",
+      "evidence": {
+        "from_success": 65,
+        "from_failure": 7
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 14,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_073",
+      "title": "Open Only If Needed",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not open closed containers unless the target object is not visible on any open surface.",
+      "when_to_apply": "When the target is not yet found and open surfaces have been checked.",
+      "evidence": {
+        "from_success": 65,
+        "from_failure": 7
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 2,
+        "last_modified_cycle": 3,
+        "stable_cycles": 14,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_074",
+      "title": "Sequential Open Surface Scan",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When searching, visit all open surfaces (countertops, tables) in numerical order before opening any containers.",
+      "when_to_apply": "When the target object is not visible and multiple open surfaces exist.",
+      "evidence": {
+        "from_success": 59,
+        "from_failure": 13
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 12,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_075",
+      "title": "Avoid Transformation Site Without Object",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Never go to sinkbasin, fridge, microwave, or stoveburner unless holding an object that needs that transformation.",
+      "when_to_apply": "When exploring for a target object to manipulate.",
+      "evidence": {
+        "from_success": 59,
+        "from_failure": 13
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 4,
+        "last_modified_cycle": 5,
+        "stable_cycles": 12,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_081",
+      "title": "Avoid Redundant Information Actions",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not use 'look' or 'inventory' actions during task; they waste steps and reveal no new object locations.",
+      "when_to_apply": "Anytime during object search or manipulation.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 6,
+        "last_modified_cycle": 7,
+        "stable_cycles": 10,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_083",
+      "title": "Monotonic Surface Sweep",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Visit open surfaces in a fixed order (e.g., countertop1..N, then diningtable) without backtracking until all checked.",
+      "when_to_apply": "When searching for a target object on open surfaces.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 7,
+        "last_modified_cycle": 8,
+        "stable_cycles": 9,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_084",
+      "title": "Immediate Grab on Sight",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If the target object is seen on an open surface, take it immediately before exploring further.",
+      "when_to_apply": "When the target object is visible and not yet held.",
+      "evidence": {
+        "from_success": 61,
+        "from_failure": 11
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 7,
+        "last_modified_cycle": 8,
+        "stable_cycles": 9,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_089",
+      "title": "Scan Adjacent Countertops First",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When the target is not found, check nearby countertops before moving to other furniture types.",
+      "when_to_apply": "When searching for an object and the current surface lacks it.",
+      "evidence": {
+        "from_success": 65,
+        "from_failure": 7
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 9,
+        "last_modified_cycle": 10,
+        "stable_cycles": 7,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_090",
+      "title": "Return to Safe Start After Fail",
+      "scope": "general",
+      "task_type": "",
+      "principle": "If multiple containers yield no target, return to a known open surface like countertop to reorient.",
+      "when_to_apply": "After opening several containers without finding the target.",
+      "evidence": {
+        "from_success": 65,
+        "from_failure": 7
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 9,
+        "last_modified_cycle": 10,
+        "stable_cycles": 7,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_095",
+      "title": "Start at Countertop One",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Begin every task by navigating to countertop 1 to initiate a systematic search of open surfaces.",
+      "when_to_apply": "At the start of a new task when location of target is unknown.",
+      "evidence": {
+        "from_success": 62,
+        "from_failure": 10
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 11,
+        "last_modified_cycle": 12,
+        "stable_cycles": 5,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_096",
+      "title": "Immediate Transformation After Pickup",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After picking up the target object, go directly to the appropriate transformation appliance and use it.",
+      "when_to_apply": "Immediately after acquiring the target object, before any other actions.",
+      "evidence": {
+        "from_success": 62,
+        "from_failure": 10
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 11,
+        "last_modified_cycle": 12,
+        "stable_cycles": 5,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_097",
+      "title": "Direct Placement After Transformation",
+      "scope": "general",
+      "task_type": "",
+      "principle": "After transforming the object, go directly to the destination and place it without any detours.",
+      "when_to_apply": "After completing the transformation step and before any other exploration.",
+      "evidence": {
+        "from_success": 62,
+        "from_failure": 10
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 11,
+        "last_modified_cycle": 12,
+        "stable_cycles": 5,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_098",
+      "title": "Initial Look Action",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Always start a new task by using the look action to observe the entire room.",
+      "when_to_apply": "Immediately after the task description is given.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 12,
+        "last_modified_cycle": 13,
+        "stable_cycles": 4,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_100",
+      "title": "Limit Container Openings",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Search open surfaces thoroughly before opening any containers; if not found, open containers one by one without backtracking.",
+      "when_to_apply": "When the target object is not immediately visible.",
+      "evidence": {
+        "from_success": 64,
+        "from_failure": 8
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 12,
+        "last_modified_cycle": 13,
+        "stable_cycles": 4,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_102",
+      "title": "Check Destination Surface First",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When the goal object may be on the destination surface, examine that surface before searching containers.",
+      "when_to_apply": "When the destination is an open surface like a sofa or countertop.",
+      "evidence": {
+        "from_success": 66,
+        "from_failure": 6
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 13,
+        "last_modified_cycle": 14,
+        "stable_cycles": 3,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_103",
+      "title": "Finish One Furniture Type",
+      "scope": "general",
+      "task_type": "",
+      "principle": "When searching for a target, examine all containers of one type (e.g., all cabinets) before switching to another type.",
+      "when_to_apply": "When the target is not found on open surfaces.",
+      "evidence": {
+        "from_success": 66,
+        "from_failure": 6
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 13,
+        "last_modified_cycle": 14,
+        "stable_cycles": 3,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_109",
+      "title": "Sequential Surface Sweep",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Search all open surfaces of the same type (e.g., dining tables) consecutively before moving to a different furniture type.",
+      "when_to_apply": "When searching for a target object on open surfaces and the first surface of a type is empty.",
+      "evidence": {
+        "from_success": 62,
+        "from_failure": 10
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 15,
+        "last_modified_cycle": 16,
+        "stable_cycles": 1,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    },
+    {
+      "skill_id": "dyn_111",
+      "title": "Avoid Premature Container Opening",
+      "scope": "general",
+      "task_type": "",
+      "principle": "Do not open containers until all open surfaces in the current area have been examined.",
+      "when_to_apply": "When target object is not immediately visible on arrival.",
+      "evidence": {
+        "from_success": 68,
+        "from_failure": 4
+      },
+      "lifecycle": {
+        "layer": "L0",
+        "created_cycle": 16,
+        "last_modified_cycle": 17,
+        "stable_cycles": 0,
+        "call_count": 0,
+        "success_when_used": 0,
+        "success_rate": null,
+        "internalized": false,
+        "task_types_seen": [],
+        "protected": false
+      }
+    }
+  ],
+  "task_specific_skills": {
+    "pick_and_place": [
+      {
+        "skill_id": "pic_001",
+        "title": "Systematic First-Pass Search",
+        "principle": "Maintain a checklist of all visible and closed containers/surfaces; open or inspect each unseen candidate exactly once before revisiting any location.",
+        "when_to_apply": "After reading the goal and before acquiring every required object.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 801,
+          "success_when_used": 727,
+          "success_rate": 0.9076154806491885,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_and_place"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "pic_002",
+        "title": "Grab When Seen",
+        "principle": "Whenever a needed object is visible and reachable, immediately take it before moving elsewhere\u2014do not leave targets uncollected.",
+        "when_to_apply": "Upon first sight of an unheld object that matches the goal specification.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 801,
+          "success_when_used": 727,
+          "success_rate": 0.9076154806491885,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_and_place"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "pic_003",
+        "title": "Transform Before Transport",
+        "principle": "If the goal specifies a state change (e.g., heated, cooled, cleaned), perform the transformation at the nearest appropriate appliance before heading to the final destination.",
+        "when_to_apply": "Right after acquiring an object that must change state.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 801,
+          "success_when_used": 727,
+          "success_rate": 0.9076154806491885,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_and_place"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "pic_004",
+        "title": "Place Before More Search",
+        "principle": "When holding any goal object and the target location is known and reachable, navigate there and place it immediately, then resume searching if more items are needed.",
+        "when_to_apply": "While carrying a required object and the destination has been identified.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 801,
+          "success_when_used": 727,
+          "success_rate": 0.9076154806491885,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_and_place"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "pic_005",
+        "title": "Track Counts for Multiples",
+        "principle": "Maintain a tally of how many target objects are required, held, and already placed; stop searching only after the placed count meets the goal.",
+        "when_to_apply": "Throughout tasks demanding two or more instances of the same object.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 801,
+          "success_when_used": 727,
+          "success_rate": 0.9076154806491885,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_and_place"
+          ],
+          "protected": true
+        }
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "skill_id": "pt2_001",
+        "title": "Two Objects Means Two Placements",
+        "principle": "The goal requires two identical objects; placing the first one does NOT complete the task. After each placement, immediately resume searching for the next required object until two are placed.",
+        "when_to_apply": "Whenever the goal contains \"two\"; especially right after putting the first object into the receptacle.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 829,
+          "success_when_used": 659,
+          "success_rate": 0.7949336550060314,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_two_obj_and_place"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "pt2_002",
+        "title": "Remember the Second Location During First Search",
+        "principle": "While searching for the first object, note any duplicate of the target seen elsewhere. After placing the first, go straight to that remembered location instead of re-searching the whole room.",
+        "when_to_apply": "During the initial search phase of a two-object task, when a second matching object is spotted.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 829,
+          "success_when_used": 659,
+          "success_rate": 0.7949336550060314,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_two_obj_and_place"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "pt2_003",
+        "title": "Carry-Place-Return Loop",
+        "principle": "Carry one object at a time: pick up object A, take it to the receptacle, put it, then return to fetch object B and put it. Do not declare success until both objects are confirmed in the receptacle.",
+        "when_to_apply": "For pick_two tasks where only one object can be held at a time.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 829,
+          "success_when_used": 659,
+          "success_rate": 0.7949336550060314,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_two_obj_and_place"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_076",
+        "title": "Multi-Object: Return to Open Surfaces",
+        "scope": "task_specific",
+        "task_type": "pick_two_obj_and_place",
+        "principle": "After placing one object for a multi-object task, immediately restart the search on all open surfaces.",
+        "when_to_apply": "When the task requires placing more than one object and the first has been placed.",
+        "evidence": {
+          "from_success": 59,
+          "from_failure": 13
+        },
+        "lifecycle": {
+          "layer": "L1",
+          "created_cycle": 4,
+          "last_modified_cycle": 5,
+          "stable_cycles": 12,
+          "call_count": 196,
+          "success_when_used": 164,
+          "success_rate": 0.8367346938775511,
+          "internalized": false,
+          "task_types_seen": [
+            "pick_two_obj_and_place"
+          ],
+          "protected": false
+        }
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "skill_id": "loo_001",
+        "title": "Seek Lamp Surfaces First",
+        "principle": "Head straight to furniture that commonly hosts a desklamp (desk, sidetable, nightstand) because the target must end up under that light.",
+        "when_to_apply": "Right after parsing a look-at-object-under-desklamp goal.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 310,
+          "success_when_used": 292,
+          "success_rate": 0.9419354838709677,
+          "internalized": false,
+          "task_types_seen": [
+            "look_at_obj_in_light"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "loo_002",
+        "title": "Switch Lamp On",
+        "principle": "Issue 'use desklamp' as soon as you reach it so the light condition is satisfied before or immediately after handling the target object.",
+        "when_to_apply": "Upon arriving at a desklamp that is currently off.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 310,
+          "success_when_used": 292,
+          "success_rate": 0.9419354838709677,
+          "internalized": false,
+          "task_types_seen": [
+            "look_at_obj_in_light"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "loo_003",
+        "title": "Acquire Or Fetch Target",
+        "principle": "If the target is on the lit surface, 'take' it; if found elsewhere, pick it up and carry it back to the lit lamp area.",
+        "when_to_apply": "Whenever the target object becomes visible, whether under the lamp or not.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 310,
+          "success_when_used": 292,
+          "success_rate": 0.9419354838709677,
+          "internalized": false,
+          "task_types_seen": [
+            "look_at_obj_in_light"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "loo_004",
+        "title": "Systematic Surface Search",
+        "principle": "On each candidate lamp surface, look, open nearby containers/drawers once, then move on\u2014ensuring all plausible lamp locations are covered.",
+        "when_to_apply": "After the lamp at the current surface is on and the target hasn\u2019t been found.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 310,
+          "success_when_used": 292,
+          "success_rate": 0.9419354838709677,
+          "internalized": false,
+          "task_types_seen": [
+            "look_at_obj_in_light"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "loo_005",
+        "title": "Prevent Action Loops",
+        "principle": "Avoid toggling the same lamp or re-examining the same empty spot; if no progress after one full check, relocate to a new plausible lamp location.",
+        "when_to_apply": "When repeated identical actions yield no new observations or objects.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 310,
+          "success_when_used": 292,
+          "success_rate": 0.9419354838709677,
+          "internalized": false,
+          "task_types_seen": [
+            "look_at_obj_in_light"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_099",
+        "title": "Stay at Light Source",
+        "scope": "task_specific",
+        "task_type": "look_at_obj_in_light",
+        "principle": "After switching on a lamp, examine the surface directly under it before moving to other areas.",
+        "when_to_apply": "After turning on a light source in a look_at_obj_in_light task.",
+        "evidence": {
+          "from_success": 64,
+          "from_failure": 8
+        },
+        "lifecycle": {
+          "layer": "L1",
+          "created_cycle": 12,
+          "last_modified_cycle": 13,
+          "stable_cycles": 4,
+          "call_count": 22,
+          "success_when_used": 17,
+          "success_rate": 0.7727272727272727,
+          "internalized": false,
+          "task_types_seen": [
+            "look_at_obj_in_light"
+          ],
+          "protected": false
+        }
+      }
+    ],
+    "clean": [
+      {
+        "skill_id": "cle_001",
+        "title": "Phase-Ordered Plan",
+        "principle": "Always execute clean tasks in the fixed sequence: 1) locate & acquire target object, 2) bring it to an available water source/sink to clean, 3) navigate to final location, 4) place object.",
+        "when_to_apply": "As soon as the goal specifies the object must be clean before placement.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 657,
+          "success_when_used": 526,
+          "success_rate": 0.8006088280060882,
+          "internalized": false,
+          "task_types_seen": [
+            "clean"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "cle_002",
+        "title": "Pick Before You Wander",
+        "principle": "If the target object is visible or discovered, take it immediately; never leave it behind to explore other places, as possession enables direct cleaning and prevents redundant searches.",
+        "when_to_apply": "After visually confirming the presence of the target object on any surface or inside an opened container.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 657,
+          "success_when_used": 526,
+          "success_rate": 0.8006088280060882,
+          "internalized": false,
+          "task_types_seen": [
+            "clean"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "cle_003",
+        "title": "Sink First for Cleaning",
+        "principle": "Upon holding the target object, go straight to the nearest sink, basin, or faucet and issue the clean/use command before any placement attempts.",
+        "when_to_apply": "Once the target object is in hand and its required state is \u2018clean\u2019.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 657,
+          "success_when_used": 526,
+          "success_rate": 0.8006088280060882,
+          "internalized": false,
+          "task_types_seen": [
+            "clean"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "cle_004",
+        "title": "Systematic Container Sweep",
+        "principle": "When the object isn\u2019t found on open surfaces, iterate through all unopened or unexamined containers in the room before revisiting already-checked spots to avoid search loops.",
+        "when_to_apply": "After initial obvious surfaces are empty and the target object remains unfound.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 657,
+          "success_when_used": 526,
+          "success_rate": 0.8006088280060882,
+          "internalized": false,
+          "task_types_seen": [
+            "clean"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "cle_005",
+        "title": "State Verification Before Drop",
+        "principle": "Always inspect or infer the object\u2019s state after cleaning; if still not confirmed clean, re-clean before final placement to satisfy goal conditions.",
+        "when_to_apply": "Immediately after a cleaning action and before placing the object at its target location.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 657,
+          "success_when_used": 526,
+          "success_rate": 0.8006088280060882,
+          "internalized": false,
+          "task_types_seen": [
+            "clean"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "cle_006",
+        "title": "Use Location Priors",
+        "principle": "Begin search at the most probable category-specific surfaces (e.g., kitchenware on countertop/stove, food on dining table) to minimize exploration steps and avoid aimless roaming.",
+        "when_to_apply": "At the very start of the task to choose the first search destination for the target object.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 657,
+          "success_when_used": 526,
+          "success_rate": 0.8006088280060882,
+          "internalized": false,
+          "task_types_seen": [
+            "clean"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_001",
+        "title": "Clean After Pickup",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After picking up a dirty object, go directly to a sinkbasin and clean it.",
+        "when_to_apply": "When holding a dirty object that requires cleaning.",
+        "evidence": {
+          "from_success": 48,
+          "from_failure": 24
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 1,
+          "stable_cycles": 45,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_003",
+        "title": "Place After Clean",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After cleaning an object, go directly to the target receptacle and move the object there.",
+        "when_to_apply": "After successfully cleaning an object.",
+        "evidence": {
+          "from_success": 48,
+          "from_failure": 24
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 1,
+          "stable_cycles": 45,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_023",
+        "title": "Fridge First for Food",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "When cleaning food items, begin search by going to the fridge before exploring other containers.",
+        "when_to_apply": "When the task involves cleaning a food item (egg, pan, etc.).",
+        "evidence": {
+          "from_success": 56,
+          "from_failure": 16
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 1,
+          "last_modified_cycle": 2,
+          "stable_cycles": 38,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_025",
+        "title": "Cabinets First for Clean",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "For cleaning tasks, always search cabinets first as they are the most common location for items like soapbars, plates, and bowls.",
+        "when_to_apply": "At the start of a clean task when the target object's location is unknown.",
+        "evidence": {
+          "from_success": 62,
+          "from_failure": 10
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 2,
+          "last_modified_cycle": 3,
+          "stable_cycles": 37,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_028",
+        "title": "Clean Then Place Directly",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After cleaning the object, go directly to the destination without any intermediate actions.",
+        "when_to_apply": "When you have just cleaned the target object and need to place it.",
+        "evidence": {
+          "from_success": 57,
+          "from_failure": 15
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 3,
+          "last_modified_cycle": 4,
+          "stable_cycles": 36,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_033",
+        "title": "Drawer First for Clean",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Start search by checking drawers then open surfaces before opening cabinets.",
+        "when_to_apply": "At the beginning of a clean task when the object location is unknown.",
+        "evidence": {
+          "from_success": 124,
+          "from_failure": 20
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 1,
+          "stable_cycles": 33,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_034",
+        "title": "Countertop Before Cabinets",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "If drawer search fails, examine all countertops and sinkbasins next before opening cabinets.",
+        "when_to_apply": "After checking drawers without finding the target object.",
+        "evidence": {
+          "from_success": 124,
+          "from_failure": 20
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 1,
+          "stable_cycles": 33,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_052",
+        "title": "Transform Then Transport",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After picking up the object, go directly to the transformation appliance (e.g., sink) before moving to the destination.",
+        "when_to_apply": "When the task requires cleaning the object before placement.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 6,
+          "last_modified_cycle": 7,
+          "stable_cycles": 27,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_056",
+        "title": "Clean Before Moving to Destination",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Ensure the object is cleaned while at the sink before transporting it to the final destination.",
+        "when_to_apply": "When holding a dirty object and planning to place it after cleaning.",
+        "evidence": {
+          "from_success": 62,
+          "from_failure": 10
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 7,
+          "last_modified_cycle": 8,
+          "stable_cycles": 26,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_057",
+        "title": "Acquire Before Cleaning",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Always pick up the target object before moving to the sink. Do not go to the sink without holding the object.",
+        "when_to_apply": "When you intend to clean an object and you are not yet holding it.",
+        "evidence": {
+          "from_success": 64,
+          "from_failure": 8
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 14,
+          "last_modified_cycle": 15,
+          "stable_cycles": 19,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_058",
+        "title": "Dining Table After Countertops",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "If target not on initial countertop, proceed to dining tables before opening containers.",
+        "when_to_apply": "When the target is not visible on the first countertop.",
+        "evidence": {
+          "from_success": 64,
+          "from_failure": 8
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 14,
+          "last_modified_cycle": 15,
+          "stable_cycles": 19,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_059",
+        "title": "Prefer Sinkbasin for Cleaning",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "When cleaning an object, use the sinkbasin rather than bathtubbasin or other basins.",
+        "when_to_apply": "When you need to clean an object and a sinkbasin is available.",
+        "evidence": {
+          "from_success": 64,
+          "from_failure": 8
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 14,
+          "last_modified_cycle": 15,
+          "stable_cycles": 19,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_064",
+        "title": "No Sink Without Object",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Do not go to the sinkbasin unless you are already holding the object that needs cleaning.",
+        "when_to_apply": "When the task requires cleaning and you are not yet holding the target object.",
+        "evidence": {
+          "from_success": 59,
+          "from_failure": 13
+        },
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 16,
+          "last_modified_cycle": 17,
+          "stable_cycles": 17,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_065",
+        "title": "Open Destination Before Placing",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "If the destination container is closed, open it before placing the cleaned object inside.",
+        "when_to_apply": "When holding a cleaned object and the destination is a closed container.",
+        "evidence": {
+          "from_success": 121,
+          "from_failure": 23
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 0,
+          "last_modified_cycle": 1,
+          "stable_cycles": 16,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_066",
+        "title": "No Detour After Clean",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After cleaning the object, proceed directly to the destination and place it without exploring other locations.",
+        "when_to_apply": "After cleaning an object and the destination is known.",
+        "evidence": {
+          "from_success": 121,
+          "from_failure": 23
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 0,
+          "last_modified_cycle": 1,
+          "stable_cycles": 16,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_067",
+        "title": "Clean Immediately After Pickup",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After picking up the target object, go directly to the sinkbasin to clean it without delay.",
+        "when_to_apply": "After picking up an object that needs cleaning.",
+        "evidence": {
+          "from_success": 121,
+          "from_failure": 23
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 0,
+          "last_modified_cycle": 1,
+          "stable_cycles": 16,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_068",
+        "title": "Containers After Open Surfaces",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Search all open surfaces (countertops, dining tables) before opening any closed container.",
+        "when_to_apply": "When the cleaning target is not immediately visible on arrival.",
+        "evidence": {
+          "from_success": 61,
+          "from_failure": 11
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 1,
+          "last_modified_cycle": 2,
+          "stable_cycles": 15,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_072",
+        "title": "Clean Then Direct Place",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After cleaning the object at a sinkbasin, go straight to the destination and place it.",
+        "when_to_apply": "When holding a cleaned object and the destination is known.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 2,
+          "last_modified_cycle": 3,
+          "stable_cycles": 14,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_077",
+        "title": "Clean Objects From Trash",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "If target not on open surfaces, check garbage cans\u2014they may contain the object.",
+        "when_to_apply": "When the target is not on countertops, tables, or shelves.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 5,
+          "last_modified_cycle": 6,
+          "stable_cycles": 11,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_078",
+        "title": "Direct Path After Clean",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After cleaning the object, go straight to the destination and place it without detours.",
+        "when_to_apply": "Immediately after the clean action succeeds.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 5,
+          "last_modified_cycle": 6,
+          "stable_cycles": 11,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_079",
+        "title": "Clean on Sink Only",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Always use the sinkbasin to clean objects; no other surface or tool suffices.",
+        "when_to_apply": "When the task involves cleaning an object.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 5,
+          "last_modified_cycle": 6,
+          "stable_cycles": 11,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_080",
+        "title": "Countertop Priority Scan",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Search all countertops in order before moving to other furniture types.",
+        "when_to_apply": "When the target object is not visible on initial countertop.",
+        "evidence": {
+          "from_success": 64,
+          "from_failure": 8
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 6,
+          "last_modified_cycle": 7,
+          "stable_cycles": 10,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_082",
+        "title": "Hold Object Directly to Sink",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After picking up the target object, go immediately to the sinkbasin without opening any containers.",
+        "when_to_apply": "When holding an object that needs cleaning.",
+        "evidence": {
+          "from_success": 64,
+          "from_failure": 8
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 6,
+          "last_modified_cycle": 7,
+          "stable_cycles": 10,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_085",
+        "title": "Avoid Initial Sink Visit",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Do not go to the sink or transformation site before acquiring the object to clean.",
+        "when_to_apply": "When starting a cleaning task and the target is not yet held.",
+        "evidence": {
+          "from_success": 61,
+          "from_failure": 11
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 7,
+          "last_modified_cycle": 8,
+          "stable_cycles": 9,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_086",
+        "title": "Systematic Countertop Survey",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Visit all countertops to find the target object before searching other furniture.",
+        "when_to_apply": "When the target object is not visible on the initial countertop.",
+        "evidence": {
+          "from_success": 68,
+          "from_failure": 4
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 8,
+          "last_modified_cycle": 9,
+          "stable_cycles": 8,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_087",
+        "title": "Immediate Destination Preparation",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Open the destination container immediately upon arrival before placing the cleaned object.",
+        "when_to_apply": "When you have a cleaned object and are at the destination container.",
+        "evidence": {
+          "from_success": 68,
+          "from_failure": 4
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 8,
+          "last_modified_cycle": 9,
+          "stable_cycles": 8,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_088",
+        "title": "No Post-Cleaning Detours",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After cleaning, go directly to the destination without any intermediate stops or actions.",
+        "when_to_apply": "When you have just cleaned an object and need to place it.",
+        "evidence": {
+          "from_success": 68,
+          "from_failure": 4
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 8,
+          "last_modified_cycle": 9,
+          "stable_cycles": 8,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_091",
+        "title": "Complete Clean Before New Search",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After placing a cleaned object, do not begin searching for another until the current task is fully done.",
+        "when_to_apply": "When the cleaning task involves a single object and placement is confirmed.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 9,
+          "last_modified_cycle": 10,
+          "stable_cycles": 7,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_092",
+        "title": "Sequential Countertop Search",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Visit countertops in numerical order (1,2,3,...) before checking other surfaces.",
+        "when_to_apply": "When target object not visible and countertops remain unchecked.",
+        "evidence": {
+          "from_success": 67,
+          "from_failure": 5
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 10,
+          "last_modified_cycle": 11,
+          "stable_cycles": 6,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_093",
+        "title": "Return Cleaned Object to Source",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "If destination is a generic cabinet or drawer, place the cleaned object back into the same container it was taken from.",
+        "when_to_apply": "When task destination is a generic furniture type and object came from one.",
+        "evidence": {
+          "from_success": 67,
+          "from_failure": 5
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 10,
+          "last_modified_cycle": 11,
+          "stable_cycles": 6,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_094",
+        "title": "Avoid Fridge for Clean Tasks",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Do not open or visit fridge or microwave when searching for an object to clean; they are not cleaning sources.",
+        "when_to_apply": "When the task type is clean and you need to find an object.",
+        "evidence": {
+          "from_success": 67,
+          "from_failure": 5
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 10,
+          "last_modified_cycle": 11,
+          "stable_cycles": 6,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_101",
+        "title": "Sink After Pickup",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After picking up a dirty object, go directly to the sinkbasin for cleaning without intermediate actions.",
+        "when_to_apply": "When holding an object that requires cleaning.",
+        "evidence": {
+          "from_success": 66,
+          "from_failure": 6
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 13,
+          "last_modified_cycle": 14,
+          "stable_cycles": 3,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_104",
+        "title": "Hold Object Before Sink",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Only go to the sink if you are already holding the object to be cleaned.",
+        "when_to_apply": "When the task requires cleaning an object.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 14,
+          "last_modified_cycle": 15,
+          "stable_cycles": 2,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_105",
+        "title": "Clean Then Place Directly",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After cleaning, go directly to the destination and place the object without any detours.",
+        "when_to_apply": "After cleaning an object.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 14,
+          "last_modified_cycle": 15,
+          "stable_cycles": 2,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_106",
+        "title": "Start Countertop for Clean",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "When searching for an object to clean, first check all countertops and open surfaces.",
+        "when_to_apply": "At the beginning of a clean task.",
+        "evidence": {
+          "from_success": 65,
+          "from_failure": 7
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 14,
+          "last_modified_cycle": 15,
+          "stable_cycles": 2,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_107",
+        "title": "Dining Table Search After Countertop",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "If the target is not on countertops, systematically search all dining tables before opening containers.",
+        "when_to_apply": "When starting a clean task and the target is not visible on the initial countertop.",
+        "evidence": {
+          "from_success": 62,
+          "from_failure": 10
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 15,
+          "last_modified_cycle": 16,
+          "stable_cycles": 1,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_110",
+        "title": "Ordered Search for Cleaning",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "Scan all open surfaces first, then check fridge for food items, then open cabinets for other objects.",
+        "when_to_apply": "When searching for a cleanable object and open surfaces are exhausted.",
+        "evidence": {
+          "from_success": 68,
+          "from_failure": 4
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 16,
+          "last_modified_cycle": 17,
+          "stable_cycles": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      },
+      {
+        "skill_id": "dyn_112",
+        "title": "Direct Sink After Pickup",
+        "scope": "task_specific",
+        "task_type": "clean",
+        "principle": "After picking up a dirty object, go directly to the sink without detouring.",
+        "when_to_apply": "When holding an object that needs cleaning.",
+        "evidence": {
+          "from_success": 68,
+          "from_failure": 4
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 16,
+          "last_modified_cycle": 17,
+          "stable_cycles": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": false
+        }
+      }
+    ],
+    "heat": [
+      {
+        "skill_id": "hea_001",
+        "title": "Secure Exact Target First",
+        "principle": "Always identify and pick up the exact object type named in the goal before interacting with the microwave or destination, ignoring look-alikes (e.g., don\u2019t substitute a mug for a cup).",
+        "when_to_apply": "After spotting any candidate object or during initial search phase; before opening/using appliances.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 466,
+          "success_when_used": 383,
+          "success_rate": 0.8218884120171673,
+          "internalized": false,
+          "task_types_seen": [
+            "heat"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "hea_002",
+        "title": "Systematic One-Pass Search",
+        "principle": "Search each plausible surface or closed container once by opening it and inspecting contents; mark searched spots mentally to avoid redundant revisits.",
+        "when_to_apply": "While locating the target object and you have not yet found it.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 466,
+          "success_when_used": 383,
+          "success_rate": 0.8218884120171673,
+          "internalized": false,
+          "task_types_seen": [
+            "heat"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "hea_003",
+        "title": "Open Then Heat",
+        "principle": "Upon reaching the microwave with the target in hand, always open the door, place the object inside, and execute the heat action before leaving.",
+        "when_to_apply": "Immediately after navigating to the microwave with the target object held.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 466,
+          "success_when_used": 383,
+          "success_rate": 0.8218884120171673,
+          "internalized": false,
+          "task_types_seen": [
+            "heat"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "hea_004",
+        "title": "No Appliance Before Object",
+        "principle": "Do not move to or interact with the microwave or final placement location until the target object is picked up, preventing wasted navigation steps.",
+        "when_to_apply": "Whenever you are tempted to head to microwave/destination without holding the required object.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 466,
+          "success_when_used": 383,
+          "success_rate": 0.8218884120171673,
+          "internalized": false,
+          "task_types_seen": [
+            "heat"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "hea_005",
+        "title": "Direct Post-Heat Placement",
+        "principle": "After heating, navigate straight to the specified destination and place the object once, avoiding extra exploration or detours.",
+        "when_to_apply": "Right after the heating action completes and the object is in hand.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 466,
+          "success_when_used": 383,
+          "success_rate": 0.8218884120171673,
+          "internalized": false,
+          "task_types_seen": [
+            "heat"
+          ],
+          "protected": true
+        }
+      }
+    ],
+    "cool": [
+      {
+        "skill_id": "coo_001",
+        "title": "Systematic Object Hunt",
+        "principle": "Sweep every unvisited surface and open each closed container until the exact required object is found; never loop over already-checked empty spots.",
+        "when_to_apply": "Immediately after receiving a cool-task and before any object is held.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 537,
+          "success_when_used": 455,
+          "success_rate": 0.8472998137802608,
+          "internalized": false,
+          "task_types_seen": [
+            "cool"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "coo_002",
+        "title": "Confirm Object Match",
+        "principle": "After picking up an item, verify it matches the requested type; if not, drop it and resume the search.",
+        "when_to_apply": "Whenever you acquire an object but the goal object is still unmet.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 537,
+          "success_when_used": 455,
+          "success_rate": 0.8472998137802608,
+          "internalized": false,
+          "task_types_seen": [
+            "cool"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "coo_003",
+        "title": "Prep Cooling Appliance",
+        "principle": "Locate the fridge first and open it so it\u2019s ready for use before or immediately after grabbing the target object.",
+        "when_to_apply": "As soon as the fridge comes into view or right after acquiring the target object.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 537,
+          "success_when_used": 455,
+          "success_rate": 0.8472998137802608,
+          "internalized": false,
+          "task_types_seen": [
+            "cool"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "coo_004",
+        "title": "Enforce Cooling Before Placement",
+        "principle": "Do not place the target object in its final location until you have successfully executed a cooling action with the fridge.",
+        "when_to_apply": "When holding the correct object and before any placement action is attempted.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 537,
+          "success_when_used": 455,
+          "success_rate": 0.8472998137802608,
+          "internalized": false,
+          "task_types_seen": [
+            "cool"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "coo_005",
+        "title": "Direct Post-Cooling Delivery",
+        "principle": "Once the object is cooled, navigate straight to the destination and place it without extraneous detours or re-searching.",
+        "when_to_apply": "Right after the cooling action succeeds.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 537,
+          "success_when_used": 455,
+          "success_rate": 0.8472998137802608,
+          "internalized": false,
+          "task_types_seen": [
+            "cool"
+          ],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "dyn_108",
+        "title": "Avoid Fridge as Cool Source",
+        "scope": "task_specific",
+        "task_type": "cool",
+        "principle": "Do not search the fridge for the object to cool; look on open surfaces like countertops and dining tables.",
+        "when_to_apply": "At the start of a cool task, before searching for the object.",
+        "evidence": {
+          "from_success": 62,
+          "from_failure": 10
+        },
+        "lifecycle": {
+          "layer": "L0",
+          "created_cycle": 15,
+          "last_modified_cycle": 16,
+          "stable_cycles": 1,
+          "call_count": 7,
+          "success_when_used": 7,
+          "success_rate": 1.0,
+          "internalized": false,
+          "task_types_seen": [
+            "cool"
+          ],
+          "protected": false
+        }
+      }
+    ],
+    "examine": [
+      {
+        "skill_id": "exa_001",
+        "title": "Pair Objects Early",
+        "principle": "When both the target and desklamp are seen on the same surface, immediately pick up (or leave) the target there and use the desklamp without moving elsewhere.",
+        "when_to_apply": "Upon first observation that [Target_Object] and desklamp share the current location.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "exa_002",
+        "title": "Grab Target First",
+        "principle": "If you see the target but not the desklamp yet, take the target immediately so you can carry it to wherever the desklamp is found.",
+        "when_to_apply": "Target object is visible and not yet held, while desklamp\u2019s location is unknown.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "exa_003",
+        "title": "Shortcut To Tool",
+        "principle": "Once holding the target, navigate straight to the nearest known desklamp and issue a single USE command\u2014no intervening searches or detours.",
+        "when_to_apply": "Target object is in inventory and at least one desklamp location is known.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "exa_004",
+        "title": "Single Toggle Rule",
+        "principle": "Use (toggle) the desklamp only after the target is in hand or co-located; avoid repeated or premature toggles that waste steps.",
+        "when_to_apply": "About to interact with a desklamp during an examine task.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "exa_005",
+        "title": "Explore New Surfaces",
+        "principle": "If either the target or the desklamp hasn\u2019t been found, systematically check unvisited surfaces/containers instead of re-inspecting places already confirmed empty.",
+        "when_to_apply": "Location of required object remains unknown after current area is exhausted.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      },
+      {
+        "skill_id": "exa_006",
+        "title": "Lock In Observed Items",
+        "principle": "After spotting either required object, do not leave without acting\u2014pick it up (if target) or note its location (if desklamp) to prevent costly backtracking loops.",
+        "when_to_apply": "Just observed a required object during scanning of a surface or room.",
+        "lifecycle": {
+          "layer": "L2",
+          "created_cycle": 0,
+          "last_modified_cycle": 0,
+          "stable_cycles": 46,
+          "call_count": 0,
+          "success_when_used": 0,
+          "success_rate": null,
+          "internalized": false,
+          "task_types_seen": [],
+          "protected": true
+        }
+      }
+    ]
+  },
+  "common_mistakes": [
+    {
+      "mistake_id": "err_001",
+      "description": "Agent repeatedly revisits the same already-searched locations or containers instead of exploring new ones.",
+      "why_it_happens": "The agent lacks an explicit memory or policy for tracking explored areas, so its search strategy degenerates into local loops.",
+      "how_to_avoid": "Maintain an exploration map that records which rooms/containers have been fully inspected and prioritize unvisited or unopened candidates until all reasonable options are exhausted."
+    },
+    {
+      "mistake_id": "err_002",
+      "description": "Agent decides a closed container is empty without opening it, causing missed discoveries of target objects.",
+      "why_it_happens": "Heuristic shortcuts or cost-sensitive policies misjudge the effort of opening containers versus the value of inspecting them.",
+      "how_to_avoid": "Always open and inspect every plausible closed container at least once before ruling it out, using a checklist of unopened containers in the current room."
+    },
+    {
+      "mistake_id": "err_003",
+      "description": "Agent ignores or walks away from target objects that are already visible and reachable.",
+      "why_it_happens": "Perception-action coupling is weak, so detected objects are not tightly linked to action plans that acquire them.",
+      "how_to_avoid": "Embed a perception buffer that immediately queues pick-up actions for visible goal objects and interrupts any ongoing exploratory loop."
+    },
+    {
+      "mistake_id": "err_004",
+      "description": "Agent keeps searching after acquiring enough items because it loses track of how many targets have been collected.",
+      "why_it_happens": "Internal counters for goal progress are missing or not updated reliably when objects are picked up or placed.",
+      "how_to_avoid": "Maintain explicit numerical goals and increment/decrement them on every successful pickup or placement, triggering transition to the next sub-goal when counts are satisfied."
+    },
+    {
+      "mistake_id": "err_005",
+      "description": "Agent fails to deliver a held target object to the known destination, instead continuing to wander.",
+      "why_it_happens": "Planning separates acquisition and delivery but lacks a mechanism to reprioritize delivery once an item is in hand.",
+      "how_to_avoid": "Adopt a hierarchical policy that, upon holding a goal object, immediately switches to a high-priority \u2018deliver-to-goal\u2019 subtask before resuming further search."
+    },
+    {
+      "mistake_id": "err_006",
+      "description": "Agent completes spatial placement while skipping required state changes (e.g., cleaning, heating).",
+      "why_it_happens": "The agent conflates object presence with goal satisfaction and omits checking or planning for property predicates like cleanliness or temperature.",
+      "how_to_avoid": "Integrate state precondition checks into the planner so that placement actions are only considered valid after verifying and, if necessary, executing the requisite state-changing operations."
+    },
+    {
+      "mistake_id": "err_007",
+      "description": "Agent repeatedly toggles or examines objects that yield no new information or progress.",
+      "why_it_happens": "Exploration heuristics do not penalize redundant actions, leading to low-utility action loops when uncertain.",
+      "how_to_avoid": "Implement novelty or information gain metrics that discourage repeating identical actions unless the environment state has changed since the last attempt."
+    },
+    {
+      "mistake_id": "err_008",
+      "description": "Agent mishandles spatial relations (e.g., \u2018under\u2019, \u2018inside\u2019, \u2018behind\u2019) by inspecting only obvious surfaces and ignoring less visible sub-locations.",
+      "why_it_happens": "Parsing of relational language is not coupled with a comprehensive enumeration of environment affordances that can realize those relations.",
+      "how_to_avoid": "During task parsing, generate explicit search targets for all sub-locations associated with the reference object (drawers, shelves, underside) and iterate through them systematically."
+    },
+    {
+      "mistake_id": "err_009",
+      "description": "Agent forgets which object it is holding, leading to unnecessary pickups, drops, or misplacements.",
+      "why_it_happens": "The internal state does not persistently encode the identity and status of the carried object across time steps.",
+      "how_to_avoid": "Maintain a dedicated \u2018hand inventory\u2019 structure updated after every pickup/drop, and consult it before issuing navigation or interaction commands."
+    },
+    {
+      "mistake_id": "err_010",
+      "description": "Agent executes inefficient action sequences by searching for each required object serially rather than batching placements or leveraging proximity.",
+      "why_it_happens": "Lack of multi-goal planning causes the agent to treat each instance independently, resulting in unnecessary travel and toggling.",
+      "how_to_avoid": "Use planning algorithms that group similar subtasks, allowing the agent to collect all required objects in one pass before performing consolidated delivery or transformation steps."
+    },
+    {
+      "mistake_id": "err_011",
+      "description": "Agent prematurely terminates or stalls without having observed any candidate objects that satisfy the goal.",
+      "why_it_happens": "Termination criteria rely on step limits or subjective confidence rather than verified goal completion signals.",
+      "how_to_avoid": "Only allow \u2018done\u2019 actions when explicit goal predicates are met; otherwise, continue targeted exploration of remaining unvisited rooms and containers."
+    }
+  ],
+  "metadata": {
+    "source": "generated from ALFWorld trajectories using o3",
+    "total_memories_analyzed": 223,
+    "task_distribution": {
+      "pick_and_place": {
+        "success": 41,
+        "failure": 35
+      },
+      "look_at_obj_in_light": {
+        "success": 12,
+        "failure": 9
+      },
+      "clean": {
+        "success": 17,
+        "failure": 19
+      },
+      "heat": {
+        "success": 14,
+        "failure": 18
+      },
+      "cool": {
+        "success": 19,
+        "failure": 16
+      },
+      "examine": {
+        "success": 10,
+        "failure": 13
+      }
+    }
+  },
+  "skill_trees": {
+    "clean": {
+      "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- [cleaning_source] is a sinkbasin or bathtubbasin (typically sinkbasin 1).\n\n## Phase 1: Search and Acquire the Target Object\n- **This phase ends only when you are holding exactly the target object.** Do not attempt to clean or place until then.\n- If you are already holding something that is not the target, put it down immediately (e.g., `put [object] on/into [receptacle]`).\n\n### Object Name Matching\n- Compare the object name from the task with names in your observations. Only an exact string match counts.\n- Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.\n#### Before Picking, Verify:\n   1. State the task object (e.g., \"kettle\") to yourself.\n   2. Look at the object you intend to take (e.g., \"pot 2\").\n   3. If the names do not match exactly, do NOT pick it up. Continue searching.\n   4. Even if the object is in an open container, take only the exact named object.\n\n### Systematic Search Procedure\n**Step 1 \u2013 Open Surfaces (mandatory first)**\n- From the initial room description, list all open receptacles: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, toilets, garbage cans, carts, handtowel holders, towel holders, and any other receptacle that is not explicitly closed.\n- **Go to each individual instance listed** (e.g., countertop 1, countertop 2, \u2026). At each, `examine` or simply observe its contents. Do not skip any instance because you think it might be empty.\n- Continue visiting every open receptacle until you have seen them all. If you find the target, pick it up and proceed to Phase 2.\n\n**Step 2 \u2013 Closed Containers (only after all open surfaces checked)**\n- If you have not found the target after visiting every open receptacle, proceed to closed containers in this exact order:\n  1. All cabinets \u2013 go to each, open, inspect contents.\n  2. All drawers \u2013 go to each, open, inspect contents.\n  3. Fridge (if present) \u2013 go to it, open, inspect.\n  4. Microwave (if present) \u2013 go to it, open, inspect.\n- Do **not** return to open surfaces or any other location until every closed container has been examined.\n\n**Step 3 \u2013 If still not found**\n- Re-read the initial room description to ensure you did not miss any receptacle (e.g., a shelf or sidetable you overlooked).\n- If still missing, you may have skipped a location \u2013 repeat Step 1 and Step 2 more systematically.\n\n### Self-Check to Avoid Skipping\n- If you ever find yourself moving between receptacles without a clear order, stop. List all receptacles you have seen and check off which ones you have visited. Do not proceed until you have a plan.\n- The most common failure is jumping to cabinets before checking all open surfaces. Always finish open surfaces first.\n\n## Phase 2: Clean the Object\n- **Prerequisite: You must be holding the target object.** If you are empty-handed, return to Phase 1.\n- Go to [cleaning_source] (sinkbasin or bathtubbasin).\n- Use `clean [object] with [cleaning_source]`.\n- Confirm the observation says you cleaned it.\n\n## Phase 3: Place the Clean Object at Destination\n- Go to the [destination] specified in the task.\n- If the destination is a closed container (e.g., microwave, fridge, drawer, cabinet), open it first.\n- Use `move [object] to [destination]` to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends as soon as you have placed the clean object. Stop all other actions.\n- Do not continue searching or moving other objects.",
+      "level": 3,
+      "version": 30,
+      "kind": "task_skill_tree",
+      "task_type": "clean",
+      "history": [],
+      "critique": "The agent did not follow the 'open surfaces first then closed containers' order described in the skill tree; in both failures it skipped open surfaces or jumped between receptacles. The skill tree's location hints may have inadvertently encouraged premature ad-hoc searching, so they were removed. The revised search procedure is now more explicit with a numbered checklist and self-check to prevent skipping.",
+      "changelog": "Revised Phase 1 to replace the separate Open Surface Search, Closed Container Search, and Location Hints with a unified Systematic Search Procedure (numbered steps) and added a Self-Check subsection to prevent skipping receptacles; removed location hints to avoid misleading the agent.",
+      "round_failures": [
+        {
+          "failure_type": "gave_up",
+          "root_cause": "The agent never located a pan to clean and place, wandering through cabinets and returning to countertop without acquiring the pan.",
+          "skill_tree_gap": "Lacks a systematic object search subroutine for locating target items.",
+          "task_type": "clean"
+        },
+        {
+          "failure_type": "gave_up",
+          "root_cause": "The agent never found a soapbar; it searched only sinkbasin, handtowelholders, and a few drawers, missing other possible locations.",
+          "skill_tree_gap": "Incomplete exploration strategy; does not consider all receptacle types.",
+          "task_type": "clean"
+        }
+      ],
+      "task_scope": "clean",
+      "updated_at": "step_3600",
+      "target_depth": null,
+      "actual_depth": null,
+      "depth_repair_attempts": 0,
+      "nodes": {
+        "clean-task-skill-tree": {
+          "title": "Clean Task Skill Tree",
+          "level": 1,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 1,
+          "last_changed_version": 1,
+          "stable_versions": 29,
+          "call_count": 644,
+          "success_when_used": 517,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/goal-identification": {
+          "title": "Goal Identification",
+          "level": 2,
+          "body_hash": "358fbf681120",
+          "created_version": 1,
+          "last_changed_version": 28,
+          "stable_versions": 2,
+          "call_count": 644,
+          "success_when_used": 517,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object": {
+          "title": "Phase 1: Search and Acquire the Target Object",
+          "level": 2,
+          "body_hash": "54df88ebe4e0",
+          "created_version": 28,
+          "last_changed_version": 28,
+          "stable_versions": 2,
+          "call_count": 37,
+          "success_when_used": 34,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-name-matching": {
+          "title": "Object Name Matching",
+          "level": 3,
+          "body_hash": "a3fda20825e0",
+          "created_version": 28,
+          "last_changed_version": 29,
+          "stable_versions": 1,
+          "call_count": 37,
+          "success_when_used": 34,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-name-matching/before-picking-verify": {
+          "title": "Before Picking, Verify:",
+          "level": 4,
+          "body_hash": "8c61facb2fb2",
+          "created_version": 29,
+          "last_changed_version": 29,
+          "stable_versions": 1,
+          "call_count": 15,
+          "success_when_used": 13,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure": {
+          "title": "Systematic Search Procedure",
+          "level": 3,
+          "body_hash": "6ccc72e09ce3",
+          "created_version": 30,
+          "last_changed_version": 30,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/self-check-to-avoid-skipping": {
+          "title": "Self-Check to Avoid Skipping",
+          "level": 3,
+          "body_hash": "1563a5646e0c",
+          "created_version": 30,
+          "last_changed_version": 30,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/phase-2-clean-the-object": {
+          "title": "Phase 2: Clean the Object",
+          "level": 2,
+          "body_hash": "97229e35027e",
+          "created_version": 1,
+          "last_changed_version": 28,
+          "stable_versions": 2,
+          "call_count": 644,
+          "success_when_used": 517,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+          "title": "Phase 3: Place the Clean Object at Destination",
+          "level": 2,
+          "body_hash": "e71596893b96",
+          "created_version": 1,
+          "last_changed_version": 28,
+          "stable_versions": 2,
+          "call_count": 644,
+          "success_when_used": 517,
+          "deprecated": false,
+          "internalized": false
+        },
+        "clean-task-skill-tree/completion": {
+          "title": "Completion",
+          "level": 2,
+          "body_hash": "1dee0da99b36",
+          "created_version": 1,
+          "last_changed_version": 28,
+          "stable_versions": 2,
+          "call_count": 644,
+          "success_when_used": 517,
+          "deprecated": false,
+          "internalized": false
+        }
+      }
+    },
+    "cool": {
+      "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Object Search and Retrieval\n\n### Surface Search\n- Start at **countertop** instances. Visit **every single countertop** one by one (do not skip any). For each, go to it and look at the objects listed. If the target object is present, take it and proceed to Phase 2.\n- After **all** countertops have been checked, move to **diningtable** instances \u2013 visit every one.\n- Then **sidetable** instances \u2013 every one.\n- Then **shelf** instances \u2013 every one.\n- Then **sinkbasin** instances \u2013 every one.\n- Finally **stoveburner** instances \u2013 every one.\n- **Strict order:** You must exhaust each surface type completely before moving to the next. Do not skip to a later type or to closed containers until all surface types have been fully searched. **Common failure: skipping a surface type (e.g., diningtable or sidetable) causes the agent to miss the object.**\n- If you finish all surfaces and still have not found the object, proceed to Closed Container Search.\n\n### Closed Container Search\n- Only start this phase AFTER you have inspected every single instance of every surface type listed above and the object was not found.\n- Search closed receptacles in this order:\n  1. **fridge** (all instances)\n  2. **cabinet** (all instances)\n  3. **drawer** (all instances)\n  4. **microwave** (all instances)\n- For each category, visit **every single instance** without exception.\n- For each instance: go to it, open it if closed, then look inside. If the target object is present, take it and proceed to Phase 2.\n- Do not stop prematurely \u2013 continue until all categories and all instances have been checked.\n\n### Object Verification before Picking\n- Before taking any object, **read its exact name** from the observation and compare it with the task's target object (e.g., if task says \"apple\", only take an object named \"apple 1\" or similar \u2013 not \"kettle\" or \"mug\").\n- If the object's type does not match the target, do not take it. Continue searching.\n- This prevents picking the wrong item, which would waste time and fail the task.\n\n## Phase 2: Cool the object using the fridge\n- After picking up the object, go directly to the fridge.\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Phase 3: Move the cooled object to the target location\n- Go to the target location.\n- If the target receptacle is closed, open it first.\n- Use `move <object> to <target>`.\n\n## Completion check\n- Object is cooled and placed at the target location \u2013 task complete.",
+      "level": 3,
+      "version": 31,
+      "kind": "task_skill_tree",
+      "task_type": "cool",
+      "history": [],
+      "critique": "The agent did not follow the strict surface search order in the current skill tree, skipping diningtable and sidetable, and also picked a wrong object without verifying its name. The tree's wording was not misleading, but adding explicit object verification and reinforcing the search order could prevent these failures.",
+      "changelog": "Added '### Object Verification before Picking' under 'Object Search and Retrieval' to prevent picking the wrong object; strengthened the strict order reminder in 'Surface Search' to emphasize that skipping a surface type is a common failure mode.",
+      "round_failures": [
+        {
+          "failure_type": "inefficient_exploration",
+          "root_cause": "Agent failed to locate an apple because it did not systematically search all receptacles after failing to find it on initial countertops.",
+          "skill_tree_gap": "There is no structured exploration strategy that covers all common object locations.",
+          "task_type": "cool"
+        },
+        {
+          "failure_type": "wrong_target",
+          "root_cause": "Agent picked up a kettle instead of an apple, failing to verify that the object matches the task requirement.",
+          "skill_tree_gap": "Object verification against the task goal is missing.",
+          "task_type": "cool"
+        }
+      ],
+      "task_scope": "cool",
+      "updated_at": "step_3528",
+      "target_depth": null,
+      "actual_depth": null,
+      "depth_repair_attempts": 0,
+      "nodes": {
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+          "title": "Goal: Cool an object and move it to a specified target location.",
+          "level": 1,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 1,
+          "last_changed_version": 1,
+          "stable_versions": 30,
+          "call_count": 524,
+          "success_when_used": 449,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval": {
+          "title": "Object Search and Retrieval",
+          "level": 2,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 27,
+          "last_changed_version": 27,
+          "stable_versions": 4,
+          "call_count": 67,
+          "success_when_used": 59,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/surface-search": {
+          "title": "Surface Search",
+          "level": 3,
+          "body_hash": "ba28cc16b14a",
+          "created_version": 29,
+          "last_changed_version": 31,
+          "stable_versions": 0,
+          "call_count": 43,
+          "success_when_used": 40,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/closed-container-search": {
+          "title": "Closed Container Search",
+          "level": 3,
+          "body_hash": "0e568d4e0d93",
+          "created_version": 29,
+          "last_changed_version": 30,
+          "stable_versions": 1,
+          "call_count": 43,
+          "success_when_used": 40,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/object-verification-before-picking": {
+          "title": "Object Verification before Picking",
+          "level": 3,
+          "body_hash": "262ec6a48981",
+          "created_version": 31,
+          "last_changed_version": 31,
+          "stable_versions": 0,
+          "call_count": 7,
+          "success_when_used": 7,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+          "title": "Phase 2: Cool the object using the fridge",
+          "level": 2,
+          "body_hash": "de516de96541",
+          "created_version": 24,
+          "last_changed_version": 27,
+          "stable_versions": 4,
+          "call_count": 120,
+          "success_when_used": 107,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+          "title": "Phase 3: Move the cooled object to the target location",
+          "level": 2,
+          "body_hash": "ee2daf0b8a33",
+          "created_version": 24,
+          "last_changed_version": 24,
+          "stable_versions": 7,
+          "call_count": 120,
+          "success_when_used": 107,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+          "title": "Completion check",
+          "level": 2,
+          "body_hash": "68f9629c26b4",
+          "created_version": 27,
+          "last_changed_version": 27,
+          "stable_versions": 4,
+          "call_count": 67,
+          "success_when_used": 59,
+          "deprecated": false,
+          "internalized": false
+        }
+      }
+    },
+    "look_at_obj_in_light": {
+      "content": "# Goal: Examine or look at a target object using a light source (e.g., desklamp)\n\n## Phase 1: Find and turn on the desklamp\n- Search the surfaces you can see at your current location for a desklamp. If you see one, note its location and move there if necessary.\n- If no desklamp is visible, move to another surface receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) and check its contents. Continue moving among receptacles until you find a desklamp.\n- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.\n- Important: You may encounter the target object before finding the lamp. If that happens, remember where it is and continue searching for the lamp. Do **not** take the object until the lamp is on.\n\n## Phase 2: Locate and take the target object\n- After the lamp is on, your next task is to find the target object. Do **not** waste actions on 'look' or exploring without moving \u2013 instead, systematically visit every receptacle you know about.\n\n### Object name verification before picking\n- When you read the observation at a receptacle, look carefully for the exact name of the target object (e.g., \"box\" not \"tissuebox\", \"book\" not \"newspaper\"). Do **not** take an object unless its name matches the task exactly. If you are unsure, re-read the task description. A mistake here means you will examine the wrong object and fail.\n\n### Systematic Search Procedure\n1. **List all receptacles** from the initial room description (e.g., desk, sidetable, bed, dresser, shelf, drawer, cabinet, etc.). The order among receptacles does not matter as long as you visit each one.\n2. **Start with the receptacle that holds the desklamp** \u2013 the target may be there.\n3. **Visit every other surface receptacle** (open surfaces like desk, sidetable, bed, dresser, shelf, etc.) one by one. At each:\n   - Read the observation. If the target object's exact name appears among the surface items, take it (action: take <object> from <receptacle>).\n   - If the target is not on the surface, check for any containers (drawers, cabinets) on that receptacle. For each container, use the 'open' action. Then read the observation again for items inside. If the target is inside, take it.\n4. **If the target is still not found, proceed to containers** (drawers, cabinets) that you have not yet opened, even if they are on a receptacle you already visited. Open every drawer and cabinet you have not yet examined. Do not skip any.\n5. **Do not repeat receptacles** \u2013 once you have visited a receptacle (and opened any containers on it), move on. If you had already spotted the target object earlier (e.g., during lamp search), go directly to its location and take it.\n\n### Exhaustive object search for examination tasks\n- If you have visited all receptacles and opened all containers and the target is still missing, you may have missed a container or a receptacle that was not initially listed. Re-read the initial room description and check if any furniture was overlooked (e.g., a safe, a cabinet, a drawer on a dresser). Then go back and open every container you haven't opened, even if you think it's empty. Persistence is key \u2013 do not stop until the target is found.\n\n## Phase 3: Task completion\n- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.\n  (If you wish, you may use the examine action on the object, but it is not necessary for success.)",
+      "level": 3,
+      "version": 13,
+      "kind": "task_skill_tree",
+      "task_type": "look_at_obj_in_light",
+      "history": [],
+      "critique": "The agent generally followed the skill tree's phases, but the failures show two issues: (1) the agent mistook a tissuebox for a box because the skill tree did not emphasize exact name matching; (2) the agent stopped searching too early and did not open all drawers, despite the systematic search procedure\u2014possibly because the procedure did not clearly separate surface search from container search. The skill tree's wording \"if the target object is present\" was ambiguous enough to cause the wrong-object error, and the exhaustive container search instruction was not prominent enough to prevent early termination.",
+      "changelog": "Added '### Object name verification before picking' to require exact name match before taking, and refined '### Systematic Search Procedure' to explicitly separate surface and container search and enforce opening every drawer/cabinet even if skipped, plus added '### Exhaustive object search for examination tasks' to emphasize persistence and covering hidden receptacles.",
+      "round_failures": [
+        {
+          "failure_type": "wrong_target",
+          "root_cause": "Agent picked up a tissuebox instead of the required box, failing to verify the object name before taking it.",
+          "skill_tree_gap": "Object name verification is missing from the examination skill.",
+          "task_type": "look_at_obj_in_light"
+        },
+        {
+          "failure_type": "gave_up",
+          "root_cause": "Agent failed to locate a book and stopped searching after opening a single drawer, never checking all possible receptacles.",
+          "skill_tree_gap": "There is no exhaustive search procedure for examination tasks.",
+          "task_type": "look_at_obj_in_light"
+        },
+        {
+          "failure_type": "gave_up",
+          "root_cause": "Agent never found a laptop and abandoned the search after opening two drawers and checking a few surfaces.",
+          "skill_tree_gap": "Persistence and full coverage of the environment are missing.",
+          "task_type": "look_at_obj_in_light"
+        }
+      ],
+      "task_scope": "look_at_obj_in_light",
+      "updated_at": "step_3528",
+      "target_depth": null,
+      "actual_depth": null,
+      "depth_repair_attempts": 0,
+      "nodes": {
+        "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp": {
+          "title": "Goal: Examine or look at a target object using a light source (e.g., desklamp)",
+          "level": 1,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 10,
+          "last_changed_version": 10,
+          "stable_versions": 3,
+          "call_count": 51,
+          "success_when_used": 45,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp": {
+          "title": "Phase 1: Find and turn on the desklamp",
+          "level": 2,
+          "body_hash": "1eed99f3a847",
+          "created_version": 10,
+          "last_changed_version": 10,
+          "stable_versions": 3,
+          "call_count": 51,
+          "success_when_used": 45,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object": {
+          "title": "Phase 2: Locate and take the target object",
+          "level": 2,
+          "body_hash": "c462486cfb49",
+          "created_version": 10,
+          "last_changed_version": 12,
+          "stable_versions": 1,
+          "call_count": 51,
+          "success_when_used": 45,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/object-name-verification-before-picking": {
+          "title": "Object name verification before picking",
+          "level": 3,
+          "body_hash": "6d9557642669",
+          "created_version": 13,
+          "last_changed_version": 13,
+          "stable_versions": 0,
+          "call_count": 3,
+          "success_when_used": 3,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/systematic-search-procedure": {
+          "title": "Systematic Search Procedure",
+          "level": 3,
+          "body_hash": "bb5016df6cb4",
+          "created_version": 12,
+          "last_changed_version": 13,
+          "stable_versions": 0,
+          "call_count": 12,
+          "success_when_used": 9,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/exhaustive-object-search-for-examination-tasks": {
+          "title": "Exhaustive object search for examination tasks",
+          "level": 3,
+          "body_hash": "0fe3110f7130",
+          "created_version": 13,
+          "last_changed_version": 13,
+          "stable_versions": 0,
+          "call_count": 3,
+          "success_when_used": 3,
+          "deprecated": false,
+          "internalized": false
+        },
+        "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-3-task-completion": {
+          "title": "Phase 3: Task completion",
+          "level": 2,
+          "body_hash": "f2f311097fe0",
+          "created_version": 10,
+          "last_changed_version": 10,
+          "stable_versions": 3,
+          "call_count": 51,
+          "success_when_used": 45,
+          "deprecated": false,
+          "internalized": false
+        }
+      }
+    },
+    "pick_and_place": {
+      "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specific object and place it into or onto a specified receptacle (e.g., \"put a book in sofa\"). The task names both the target object and the target receptacle.\n\n## Sub-Goal Flow\n1. **Parse the task** \u2013 identify the target object and target receptacle exactly as written.\n2. **Locate the target object** \u2013 search every visible receptacle systematically.\n3. **Verify and take** \u2013 only take the object if its type matches the task (ignore numerals).\n4. **Navigate to target receptacle** and move the object there.\n5. **Terminate** after placement.\n\n## Object Search \u2013 Mandatory Systematic Inspection\n### Step-by-Step Procedure\n1. **Before moving**, reread the initial observation and mentally list **every receptacle name** exactly as it appears (all furniture, containers, surfaces). This is your master checklist.\n2. **Visit each receptacle in turn.** You may choose any order, but you must visit each one exactly once before concluding. For each receptacle on your list:\n   - `go to <receptacle>`\n   - If it is closed (e.g., drawer, cabinet, safe, fridge, microwave, oven, dishwasher), first `open <receptacle>`, then read contents.\n   - If the target object is present, immediately `take <object> from <receptacle>`. Do not perform any other action first.\n   - Tick it off your mental list.\n3. **After you have visited every receptacle on your list** and did not find the object, **repeat the entire list again** \u2013 start from the first receptacle once more. The object is always somewhere; keep searching until you find it.\n\n### Drawer Search Protocol\n- When you encounter a drawer (e.g., drawer 1, drawer 2, etc.), always open it and check its contents before moving to the next receptacle. Do not skip or leave a drawer unopened.\n- Drawers are common hiding places for small objects; treat them as critical inspection points.\n- After opening a drawer, if the target object is not inside, close it (optional but tidy) and proceed to the next receptacle on your list.\n\n### Common Mistakes to Avoid\n- **Skipping any receptacle** \u2013 all must be inspected, including tables, chairs, shelves, drawers, cabinets, sinks, bathtubs, toilets, sofas, dressers, countertops, etc. Do not assume only containers hold objects.\n- **Focusing only on one type** \u2013 e.g., only shelves or only closed containers. You must check every type.\n- **Using wrong action** \u2013 never `examine` or `look` to move; use `go to`.\n- **Taking wrong object** \u2013 verify the object's type matches the task exactly (ignore numerals).\n- **Forgetting to open closed containers** before reading their contents.\n- **Stopping early** \u2013 only stop after you have checked every receptacle (and repeated if necessary) and still not found the object. But in this environment the object will be found; keep searching until you find it.\n\n## Object Acquisition\nOnce you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.\n\n### Object Type Verification\n- Before taking, compare the object's name (as shown in the observation) with the target object type from the task. They must match at the base noun level (e.g., \"glassbottle\" vs. \"winebottle\" are different types; \"soapbottle\" vs. \"soapbottle\" is a match).\n- Ignore numerals (e.g., \"book 2\" matches the target \"book\").\n- If you are unsure, re-read the task and the observed object name carefully. Picking the wrong object wastes time and fails the task.\n\n## Placement\nAfter taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.",
+      "level": 3,
+      "version": 28,
+      "kind": "task_skill_tree",
+      "task_type": "pick_and_place",
+      "history": [],
+      "critique": "The agent failed to follow the systematic inspection procedure and the object type verification rule present in the skill tree, leading to incomplete exploration and taking the wrong object. The skill tree wording was not misleading; the agent simply did not apply the rules.",
+      "changelog": "Added 'Drawer Search Protocol' subsection under Object Search and 'Object Type Verification' subsection under Object Acquisition to provide more explicit guidance based on failure diagnoses.",
+      "round_failures": [
+        {
+          "failure_type": "inefficient_exploration",
+          "root_cause": "The agent stopped searching for creditcard after only checking a few drawers without opening all drawers or exploring other surfaces like sidetables.",
+          "skill_tree_gap": "Incomplete drawer exploration routine in 'pick_and_place' tasks.",
+          "task_type": "pick_and_place"
+        },
+        {
+          "failure_type": "wrong_target",
+          "root_cause": "The agent picked a winebottle instead of a glassbottle because it did not correctly identify the required object type.",
+          "skill_tree_gap": "Lack of precise object identification or filtering when picking.",
+          "task_type": "pick_and_place"
+        }
+      ],
+      "task_scope": "pick_and_place",
+      "updated_at": "step_3456",
+      "target_depth": null,
+      "actual_depth": null,
+      "depth_repair_attempts": 0,
+      "nodes": {
+        "pick-and-place-skill-tree": {
+          "title": "pick_and_place skill tree",
+          "level": 1,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 1,
+          "last_changed_version": 1,
+          "stable_versions": 27,
+          "call_count": 787,
+          "success_when_used": 716,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/goal": {
+          "title": "Goal",
+          "level": 2,
+          "body_hash": "cd5aaa6edf3a",
+          "created_version": 1,
+          "last_changed_version": 19,
+          "stable_versions": 9,
+          "call_count": 787,
+          "success_when_used": 716,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/sub-goal-flow": {
+          "title": "Sub-Goal Flow",
+          "level": 2,
+          "body_hash": "530059e5d759",
+          "created_version": 1,
+          "last_changed_version": 26,
+          "stable_versions": 2,
+          "call_count": 787,
+          "success_when_used": 716,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection": {
+          "title": "Object Search \u2013 Mandatory Systematic Inspection",
+          "level": 2,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 26,
+          "last_changed_version": 26,
+          "stable_versions": 2,
+          "call_count": 68,
+          "success_when_used": 63,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/step-by-step-procedure": {
+          "title": "Step-by-Step Procedure",
+          "level": 3,
+          "body_hash": "2efea52aa46d",
+          "created_version": 27,
+          "last_changed_version": 27,
+          "stable_versions": 1,
+          "call_count": 50,
+          "success_when_used": 48,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/drawer-search-protocol": {
+          "title": "Drawer Search Protocol",
+          "level": 3,
+          "body_hash": "a51e03e2d206",
+          "created_version": 28,
+          "last_changed_version": 28,
+          "stable_versions": 0,
+          "call_count": 30,
+          "success_when_used": 30,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/common-mistakes-to-avoid": {
+          "title": "Common Mistakes to Avoid",
+          "level": 3,
+          "body_hash": "ac1a981e9a26",
+          "created_version": 27,
+          "last_changed_version": 27,
+          "stable_versions": 1,
+          "call_count": 50,
+          "success_when_used": 48,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/object-acquisition": {
+          "title": "Object Acquisition",
+          "level": 2,
+          "body_hash": "8902640fb9d5",
+          "created_version": 26,
+          "last_changed_version": 26,
+          "stable_versions": 2,
+          "call_count": 68,
+          "success_when_used": 63,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/object-acquisition/object-type-verification": {
+          "title": "Object Type Verification",
+          "level": 3,
+          "body_hash": "caff1bf3bbde",
+          "created_version": 28,
+          "last_changed_version": 28,
+          "stable_versions": 0,
+          "call_count": 30,
+          "success_when_used": 30,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-and-place-skill-tree/placement": {
+          "title": "Placement",
+          "level": 2,
+          "body_hash": "ce5383d42eef",
+          "created_version": 26,
+          "last_changed_version": 26,
+          "stable_versions": 2,
+          "call_count": 68,
+          "success_when_used": 63,
+          "deprecated": false,
+          "internalized": false
+        }
+      }
+    },
+    "pick_two_obj_and_place": {
+      "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specific object type into a specified target receptacle. **Do not stop until both are placed.**\n\n## Critical Rules (Overrides All Others)\n- **After taking any matching object, immediately go to the target and place it. Do not take any other action (including searching for the second object) until this placement is complete.**\n- **When you arrive at the target receptacle, if it is closed (e.g., drawer, cabinet, fridge), open it first, then place the object.**\n- **After placing the first object, do not stop or explore unrelated items. Immediately begin searching for the second object.**\n- **Whenever you see a matching object during any search, take it immediately before anything else (except if you are already carrying an object that must be placed first).**\n\n## Count Tracking\n- Keep a mental counter of objects placed: start at 0. After each successful placement, increment by 1.\n- **Never stop until counter == 2.** If counter == 1, you must immediately search for and place the second object.\n- If after two complete passes through all furniture you still have only 1 placed, the task may be impossible \u2014 but only then may you stop.\n\n## Object Type Verification\n- Before taking any object, compare its exact name to the required type. Only take exact matches.\n- Do **not** assume similar objects (e.g., mug vs cup, soapbottle vs soapbar) are acceptable. If the name differs, skip it and continue the search.\n- If you accidentally take a non-matching object, do not waste actions moving it; use `inventory` to check, then drop it or leave it and resume search immediately.\n\n## Systematic Object Search (for the first object)\n1. **Create Master List**: After the initial room description, write down every furniture item exactly as listed. This includes all surfaces (countertops, tables, sidetables, etc.) and containers (drawers, cabinets, fridge, etc.). Do not miss any item.\n2. **Visit Each Furniture Item Systematically**: Pick any unvisited item from your master list. Go to it. If closed, open it. Examine its contents (inside if container, on top if surface). If you see an object whose exact name matches the required type, **take it immediately**. Check off that item as visited. Repeat for every item on the list.\n\n## Multi-Object Tracking and Completion\n### Mental Counter Check\n- Immediately after placing the first object, mentally note that counter = 1.\n- **Do not assume the task is done. Continue searching.**\n\n### Repeat Until Quantity Satisfied\n- After placing the first object, your one and only goal is to place the second. **You must not stop until counter == 2.**\n- Immediately resume searching: if you know a location with a second matching object (e.g., you saw two together earlier), go there directly. Otherwise, begin the systematic second pass below.\n- After placing the second object, counter becomes 2. Then you may stop and consider the task complete.\n\n### Systematic Second Pass Search\n1. **Fresh Master List**: Re-read the initial room observation (or recall from memory) and write down every furniture item again. Do not assume you remember them all.\n2. **Visit every item in order**: Take the list and go to each furniture item one by one. Do not skip any, even if you already checked it in the first pass. For each item:\n   - If closed, open it.\n   - Examine contents.\n   - If you see a matching object, **take it immediately** (then go place it).\n   - Check off the item as visited.\n3. **If you saw a second matching object during the first search (e.g., two objects together)**, return directly to that location and take it. Do not waste time searching elsewhere if you know where it is.\n4. **Continue until the list is exhausted** or you have taken the second object. If you take the second object, place it and stop.\n5. **If you have visited all items and did not find a second object**, you may conclude the task is impossible after completing two full passes (original pass + this second pass). But do not stop after only one pass.\n\n### Common Failure Patterns (Avoid These)\n- **Premature stop after taking first object without placing it**: You must place it immediately before doing anything else.\n- **Stopping after first placement**: Immediately restart the search loop. Do not wander or explore unrelated items.\n- **Incomplete master list**: Omitting any furniture item leads to missing objects. Ensure you list every item from the initial observation.\n- **Not reopening containers during second pass**: New objects may appear inside.\n- **Stopping early due to frustration**: Complete at least two full passes before concluding impossibility.\n- **Picking wrong object**: Verify exact name before taking (see Object Type Verification).\n- **Skipping surfaces (countertops, sidetables, etc.)**: Visit every furniture item in the master list, including surfaces. Do not assume an object is only inside containers.\n- **Not opening the target receptacle before placing**: If the target is a closed container, you must open it before moving the object in.\n- **Only searching near the target after first placement**: After placing the first object, you must systematically search all furniture, not just those close to the target.\n\n**Reinforcement**: After placing the first object, your only task is to find the second. Do not explore, examine, or interact with any non-target objects until both are placed.",
+      "level": 3,
+      "version": 36,
+      "kind": "task_skill_tree",
+      "task_type": "pick_two_obj_and_place",
+      "history": [],
+      "critique": "The agent stopped after placing the first object, ignoring the skill tree's explicit rule to continue searching until counter==2. The tree was not misleading, but its critical rule may have been less prominent; the refinement adds a dedicated subsection and reorders the critical rules to appear immediately after the goal for better visibility.",
+      "changelog": "Added a new '### Repeat Until Quantity Satisfied' subsection under 'Multi-Object Tracking and Completion' to reinforce the loop, and moved Critical Rules directly after the Goal for emphasis.",
+      "round_failures": [
+        {
+          "failure_type": "premature_stop",
+          "root_cause": "The agent placed only one soapbar in the cabinet and stopped, failing to retrieve and place the second soapbar.",
+          "skill_tree_gap": "The agent's plan lacks a loop or counter to ensure both objects are placed.",
+          "task_type": "pick_two_obj_and_place"
+        }
+      ],
+      "task_scope": "pick_two_obj_and_place",
+      "updated_at": "step_3600",
+      "target_depth": null,
+      "actual_depth": null,
+      "depth_repair_attempts": 0,
+      "nodes": {
+        "pick-two-obj-and-place": {
+          "title": "pick_two_obj_and_place",
+          "level": 1,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 1,
+          "last_changed_version": 1,
+          "stable_versions": 35,
+          "call_count": 810,
+          "success_when_used": 648,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/goal": {
+          "title": "Goal",
+          "level": 2,
+          "body_hash": "09f4da0af46b",
+          "created_version": 1,
+          "last_changed_version": 32,
+          "stable_versions": 4,
+          "call_count": 810,
+          "success_when_used": 648,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/critical-rules-overrides-all-others": {
+          "title": "Critical Rules (Overrides All Others)",
+          "level": 2,
+          "body_hash": "6bb324432e03",
+          "created_version": 35,
+          "last_changed_version": 35,
+          "stable_versions": 1,
+          "call_count": 19,
+          "success_when_used": 18,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/count-tracking": {
+          "title": "Count Tracking",
+          "level": 2,
+          "body_hash": "ca929b5dcc98",
+          "created_version": 35,
+          "last_changed_version": 35,
+          "stable_versions": 1,
+          "call_count": 19,
+          "success_when_used": 18,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/object-type-verification": {
+          "title": "Object Type Verification",
+          "level": 2,
+          "body_hash": "3e2e60be0609",
+          "created_version": 35,
+          "last_changed_version": 35,
+          "stable_versions": 1,
+          "call_count": 19,
+          "success_when_used": 18,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/systematic-object-search-for-the-first-object": {
+          "title": "Systematic Object Search (for the first object)",
+          "level": 2,
+          "body_hash": "ef997d9ac6e4",
+          "created_version": 35,
+          "last_changed_version": 35,
+          "stable_versions": 1,
+          "call_count": 19,
+          "success_when_used": 18,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/multi-object-tracking-and-completion": {
+          "title": "Multi-Object Tracking and Completion",
+          "level": 2,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 36,
+          "last_changed_version": 36,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/multi-object-tracking-and-completion/mental-counter-check": {
+          "title": "Mental Counter Check",
+          "level": 3,
+          "body_hash": "f40a38d9af9f",
+          "created_version": 36,
+          "last_changed_version": 36,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/multi-object-tracking-and-completion/repeat-until-quantity-satisfied": {
+          "title": "Repeat Until Quantity Satisfied",
+          "level": 3,
+          "body_hash": "9802c715ae60",
+          "created_version": 36,
+          "last_changed_version": 36,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/multi-object-tracking-and-completion/systematic-second-pass-search": {
+          "title": "Systematic Second Pass Search",
+          "level": 3,
+          "body_hash": "af9efed0fd2e",
+          "created_version": 36,
+          "last_changed_version": 36,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        },
+        "pick-two-obj-and-place/multi-object-tracking-and-completion/common-failure-patterns-avoid-these": {
+          "title": "Common Failure Patterns (Avoid These)",
+          "level": 3,
+          "body_hash": "3016fd355b96",
+          "created_version": 36,
+          "last_changed_version": 36,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        }
+      }
+    },
+    "heat": {
+      "content": "# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location.\n- The heating appliance is the microwave.\n\n## 2. Locate the object\n- Start at the fridge (already open). If the target object is inside, take it and go directly to Section 3 (heating).\n- If the object is NOT in the fridge, proceed to the **post-fridge search routine** below.\n\n### Post-fridge search routine\nFollow this strict order. **You must check every single item in the list. Stopping early will cause failure.**\n\n1. **Countertops** \u2013 go to every countertop you can see. At each, `look` and `take` if the object is present.\n2. **Flat surfaces** \u2013 from a central location, perform a `look`. You will see all flat surfaces (diningtable, sidetables, shelves, desk, coffee table, etc.). **Visit every one of them** \u2013 `look` and `take` if found. Do NOT proceed until every flat surface has been examined.\n3. **Openable containers** \u2013 again, from a central location, perform a `look` to see all openable containers. Then open and look inside each, in this exact order:\n   - Cabinets (all of them)\n   - Drawers (all of them)\n   - Sinkbasin\n   - Garbagecan\n   - Microwave (even though it is the heating appliance)\n   - Any other openable container (e.g., coffeemaker, toaster)\n\n   **Critical**: For each container, you **must open it** (if closed) before you can see its contents. If you arrive at a cabinet and see \"nothing\" on its surface, that does **not** mean it is empty \u2013 you must still use `open`. Then check the interior. If the target object is not inside, immediately proceed to the next container on the list. **Do not stop after only a few containers.** Continue until either the object is found or **every container in the list has been checked**.\n\n4. **After the full list** \u2013 if you have checked every countertop, every flat surface, and every container in the exact order above and still not found the object, only then proceed to \"Persistence and retry\" below.\n\n### Persistence and retry\n- **Verify you have truly finished the exhaustive list**: mentally confirm you opened every cabinet, drawer, sink, garbage, microwave, and any other openable container. If you skipped any, go back and open it.\n- If the object is nowhere in the room after the full search, perform a `look` again. If new receptacles appear, repeat the entire search from step 1 (countertops).\n- Otherwise, re-read the task to confirm object type. If another room is available, go there and repeat the search.\n- **Never return to the fridge or give up until you have exhausted every possible receptacle.**\n\n## 3. Heat the object\n### 3.1 Efficient heating method (direct from inventory)\n- Once the object is in your inventory, go to the microwave.\n- Use action `heat <object> with microwave` while holding it. This works reliably.\n- If direct heat fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.\n- After heating, the object is ready. Do not return it to the microwave.\n\n### 3.2 Prerequisite: Object must be in inventory\n- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the exhaustive search again.\n\n### 3.3 Critical: Do not drop or place the object before heating\n- Once you have picked up the target object, you must go directly to the microwave and heat it. Do NOT move the object to any other location (countertop, shelf, etc.) before heating. Dropping it back onto a surface or placing it elsewhere will cause a loop and waste steps. The heating action must be performed while the object is in your inventory and you are at the microwave.\n\n## 4. Place the heated object\n- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).\n- The destination must be different from the source where the object originally came from.\n- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.\n- Put the object into/onto the receptacle: `move <object> to <receptacle>`.\n- **Critical**: Do not take the object back after placing it. Stop.\n\n## 5. Completion check and termination\n- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.\n- If the object is there, the task is complete. Do not perform any further actions.\n- **Termination rule**: Once placed at the target, stop all actions immediately.",
+      "level": 3,
+      "version": 24,
+      "kind": "task_skill_tree",
+      "task_type": "heat",
+      "history": [],
+      "critique": "The agent followed the skill tree to check the fridge and then began searching countertops and shelves, but stopped after cabinets without proceeding to drawers, sink, garbagecan, or microwave. The skill tree's exhaustive list was detailed, but the agent may have misinterpreted 'all of them' as only the containers it had already seen, and it did not perform the central `look` that would reveal all receptacles. The failure was due to incomplete execution, not contradictory wording, but the tree can be more explicit about the mandatory `look` and step-by-step traversal.",
+      "changelog": "Refined section 2's 'Exhaustive search order' into a 'Post-fridge search routine' with explicit `look` commands before flat surfaces and openable containers, and strengthened 'Persistence and retry' to enforce a full checklist before giving up.",
+      "round_failures": [
+        {
+          "failure_type": "gave_up",
+          "root_cause": "After opening fridge and finding no egg, the agent searched only a subset of countertops and shelves, never locating an egg elsewhere.",
+          "skill_tree_gap": "Missing a post-fridge search routine for objects not in fridge.",
+          "task_type": "heat"
+        }
+      ],
+      "task_scope": "heat",
+      "updated_at": "step_3600",
+      "target_depth": null,
+      "actual_depth": null,
+      "depth_repair_attempts": 0,
+      "nodes": {
+        "heat": {
+          "title": "heat",
+          "level": 1,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 1,
+          "last_changed_version": 1,
+          "stable_versions": 23,
+          "call_count": 453,
+          "success_when_used": 377,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/1-interpret-the-task": {
+          "title": "1. Interpret the task",
+          "level": 2,
+          "body_hash": "5a3ea0d36d2d",
+          "created_version": 1,
+          "last_changed_version": 17,
+          "stable_versions": 7,
+          "call_count": 453,
+          "success_when_used": 377,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/2-locate-the-object": {
+          "title": "2. Locate the object",
+          "level": 2,
+          "body_hash": "b69b0b7b975d",
+          "created_version": 1,
+          "last_changed_version": 24,
+          "stable_versions": 0,
+          "call_count": 453,
+          "success_when_used": 377,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/2-locate-the-object/post-fridge-search-routine": {
+          "title": "Post-fridge search routine",
+          "level": 3,
+          "body_hash": "677ddc41722d",
+          "created_version": 24,
+          "last_changed_version": 24,
+          "stable_versions": 0,
+          "call_count": 0,
+          "success_when_used": 0,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/2-locate-the-object/persistence-and-retry": {
+          "title": "Persistence and retry",
+          "level": 3,
+          "body_hash": "79ed57386c7e",
+          "created_version": 17,
+          "last_changed_version": 24,
+          "stable_versions": 0,
+          "call_count": 101,
+          "success_when_used": 93,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/3-heat-the-object": {
+          "title": "3. Heat the object",
+          "level": 2,
+          "body_hash": "d41d8cd98f00",
+          "created_version": 1,
+          "last_changed_version": 8,
+          "stable_versions": 16,
+          "call_count": 453,
+          "success_when_used": 377,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory": {
+          "title": "3.1 Efficient heating method (direct from inventory)",
+          "level": 3,
+          "body_hash": "ac950c9f3b19",
+          "created_version": 8,
+          "last_changed_version": 13,
+          "stable_versions": 11,
+          "call_count": 343,
+          "success_when_used": 309,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory": {
+          "title": "3.2 Prerequisite: Object must be in inventory",
+          "level": 3,
+          "body_hash": "1563464be1bb",
+          "created_version": 10,
+          "last_changed_version": 14,
+          "stable_versions": 10,
+          "call_count": 315,
+          "success_when_used": 285,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/3-heat-the-object/3-3-critical-do-not-drop-or-place-the-object-before-heating": {
+          "title": "3.3 Critical: Do not drop or place the object before heating",
+          "level": 3,
+          "body_hash": "b2cd0a005bd8",
+          "created_version": 19,
+          "last_changed_version": 19,
+          "stable_versions": 5,
+          "call_count": 83,
+          "success_when_used": 78,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/4-place-the-heated-object": {
+          "title": "4. Place the heated object",
+          "level": 2,
+          "body_hash": "542d52a875ac",
+          "created_version": 8,
+          "last_changed_version": 13,
+          "stable_versions": 11,
+          "call_count": 343,
+          "success_when_used": 309,
+          "deprecated": false,
+          "internalized": false
+        },
+        "heat/5-completion-check-and-termination": {
+          "title": "5. Completion check and termination",
+          "level": 2,
+          "body_hash": "be79c377af83",
+          "created_version": 2,
+          "last_changed_version": 13,
+          "stable_versions": 11,
+          "call_count": 446,
+          "success_when_used": 375,
+          "deprecated": false,
+          "internalized": false
+        }
+      }
+    }
+  }
+}

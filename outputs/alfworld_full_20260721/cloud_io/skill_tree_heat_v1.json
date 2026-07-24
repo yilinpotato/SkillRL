@@ -1,0 +1,121 @@
+{
+  "content": "# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location from the task description.\n- The heating appliance is typically the microwave.\n\n## 2. Locate the object\n- Search systematically across all receptacles. The object may be in the fridge, on countertops, in cabinets, or in drawers.\n- **Prioritize likely locations based on object type**:\n  - Food items (e.g., tomato, egg, apple, lettuce, bread) are often stored in the fridge.\n  - Non-food items (e.g., cup, mug, bowl, plate) may be in cabinets, drawers, or on countertops.\n- ### Search all receptacles\n  - Start with the fridge. Go to fridge, open it, check contents. If the object is inside, take it.\n  - If not found, check every countertop (go to each, look at its contents).\n  - If still not found, check cabinets and drawers (go to each, open, look inside).\n  - Do not skip any receptacle; use 'look' if you lose track of surroundings.\n\n## 3. Heat the object\n- Once you have the object in inventory, go to the microwave.\n- Open the microwave.\n- Move the object from inventory into the microwave (action: 'move <object> to microwave').\n- Close the microwave to start heating.\n- Open the microwave again; the object is now heated.\n- Take the heated object from the microwave (action: 'take <object> from microwave').\n\n## 4. Place the heated object in the target location\n- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf).\n- If the receptacle is a container (cabinet, fridge, drawer), open it first.\n- Put the object into/onto the receptacle (action: 'move <object> to <receptacle>').\n- Task is complete when the heated object is in the target location.\n\n## 5. Completion check\n- After placing, stop. Do not continue searching or heating.",
+  "level": 3,
+  "version": 1,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "",
+  "changelog": "First version of skill tree for heat family, focusing on systematic object search and microwave heating process.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found an apple because it only searched cabinets and one countertop, missing the fridge where apples are typically stored.",
+      "skill_tree_gap": "No task-specific knowledge that certain objects (e.g., produce) are commonly found in the fridge.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never located an apple; it searched cabinets and countertops but did not visit the fridge or other surfaces.",
+      "skill_tree_gap": "Lack of comprehensive exploration covering all container types in the 'heat' room.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not find an egg; it checked the fridge (which had apples and lettuce) and several cabinets, but never examined the countertops or drawers for the egg.",
+      "skill_tree_gap": "Exploration routine does not cover all common object locations (eggs can be on countertops).",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found a cup; it examined countertop 1 (which had no cup) and opened multiple cabinets, but did not check the fridge or other countertops.",
+      "skill_tree_gap": "No systematic search pattern that includes both cold and room-temperature storage.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not locate a cup; it opened many cabinets but never checked the fridge, countertops, or other common locations.",
+      "skill_tree_gap": "Object search strategy is limited to cabinets only, missing other receptacle types.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_144",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "00273d90cecd",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "cbec473bd924",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "11a4a8310d57",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object-in-the-target-location": {
+      "title": "4. Place the heated object in the target location",
+      "level": 2,
+      "body_hash": "ad92e4abd083",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check": {
+      "title": "5. Completion check",
+      "level": 2,
+      "body_hash": "364b8e6ff3a5",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

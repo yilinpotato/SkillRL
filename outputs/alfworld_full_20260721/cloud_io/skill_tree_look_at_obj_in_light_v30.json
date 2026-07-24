@@ -1,0 +1,102 @@
+{
+  "content": "# Goal: Examine or look at a target object using a light source (e.g., desklamp)\n\n## Critical rules (read first)\n- **After you take the correct target object, stop immediately. No further actions of any kind.** The task completes the moment the lamp is on and the object is in your inventory. Do not examine, move, look, or travel after taking.\n- **You must visit every single receptacle from your initial mental list.** Do not skip any, even if you think the target is unlikely there. If you find the target before visiting all, stop. Otherwise, persist until every receptacle has been checked.\n\n## Phase 1: Find and turn on the desklamp\n- As soon as you see the initial room description, **mentally list every furniture item** (each numbered entity). You will need this list later to search every location.\n- Start by moving to a surface receptacle (e.g., desk, dresser, sidetable) to see its contents. Check for a desklamp.\n- If you do not see a desklamp, move to another surface receptacle from your list and check its contents. Continue until you find a desklamp.\n- Once you are at the same receptacle as the desklamp, use it (`use desklamp <number>`). The observation will confirm the lamp is on.\n- **If you encounter the target object before finding the lamp**, note its location but do not take it yet. Continue searching for the lamp first.\n\n## Phase 2: Locate the target object (systematic search after lamp is on)\n- **You must visit every single receptacle from your initial list – no exceptions.** Use `look` to refresh the list if unsure.\n- For each receptacle in your list:\n  1. Go to that receptacle (`go to <receptacle>`).\n  2. Read the arrival observation. If the target object's exact name appears on the surface (or inside if open), **take it immediately** (`take <object> from <receptacle>`) and **stop** – the task is done.\n  3. If the receptacle is a container (e.g., drawer, cabinet) and it is closed, open it (`open <receptacle>`). Then check its contents. If the target object is inside, take it and stop.\n- **Do not move away from a receptacle that contains the target object** without taking it. If you see it, take it at that moment.\n- After visiting all receptacles and still not finding the target, re-read the initial description to confirm you didn't miss any. Persist until you have visited every receptacle.\n\n### Target object search (detailed steps)\n- Use only the actions: `go`, `look`, `open`, `close`, `take`, `inventory`, and `use`. **Do not use** `examine` – the arrival observation already shows what is on the receptacle. Repeating `look` also gives the same information if you need to refresh.\n- After turning on the lamp, systematically go to each receptacle from your initial list. If a receptacle is a closed container, open it before checking its contents. Do not skip any receptacle type (e.g., drawers, cabinets, shelves, coffeetables, etc.).\n- If the container is open, simply read the observation. Do not waste actions examining or looking repeatedly at the same receptacle.\n\n### Object verification\n- Before taking any object, verify that its **exact name** matches the target object named in the task. For example, if the task says \"look at box\", only take an object whose name is \"box\" – do not take \"statue\" or \"newspaper\".\n- If you see multiple objects, focus only on the target name. Ignore and do not pick up other objects, even if they appear interesting.\n- After taking the correct object, the task is complete. **Do not perform any further actions.**\n\n## Phase 3: Task completion (stop immediately)\n- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required – no examine, move, look, or travel.\n- **Key rule:** Once you take the target object, stop immediately. Any subsequent action (e.g., moving the object, examining it again, going elsewhere) may undo the success or waste steps. **Do not perform any additional actions.**",
+  "level": 3,
+  "version": 30,
+  "kind": "task_skill_tree",
+  "task_type": "look_at_obj_in_light",
+  "history": [],
+  "critique": "The agent generally followed the first phase to find and turn on the desklamp, but failed to systematically visit all receptacles (trajectory 1) and did not stop immediately after taking the target object (trajectories 2 and 4). The skill tree itself is clear on both points, so the failures are due to misreading or ignoring the rules – no misleading wording identified.",
+  "changelog": "Reinforced the systematic search rule in Phase 2 and the stop rule in Phase 3 with stronger emphasis and a warning against extra actions; added a top-level 'Critical rules' section to highlight these two non-negotiable rules.",
+  "round_failures": [],
+  "task_scope": "look_at_obj_in_light",
+  "updated_at": "step_7128",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp": {
+      "title": "Goal: Examine or look at a target object using a light source (e.g., desklamp)",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 10,
+      "last_changed_version": 10,
+      "stable_versions": 20,
+      "call_count": 361,
+      "success_when_used": 330,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/critical-rules-read-first": {
+      "title": "Critical rules (read first)",
+      "level": 2,
+      "body_hash": "0a4b5eabb778",
+      "created_version": 30,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp": {
+      "title": "Phase 1: Find and turn on the desklamp",
+      "level": 2,
+      "body_hash": "b65005b76212",
+      "created_version": 10,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 361,
+      "success_when_used": 330,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-the-target-object-systematic-search-after-lamp-is-on": {
+      "title": "Phase 2: Locate the target object (systematic search after lamp is on)",
+      "level": 2,
+      "body_hash": "4dc873a10f98",
+      "created_version": 28,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 35,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-the-target-object-systematic-search-after-lamp-is-on/target-object-search-detailed-steps": {
+      "title": "Target object search (detailed steps)",
+      "level": 3,
+      "body_hash": "706d81eb9170",
+      "created_version": 29,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 20,
+      "success_when_used": 19,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-the-target-object-systematic-search-after-lamp-is-on/object-verification": {
+      "title": "Object verification",
+      "level": 3,
+      "body_hash": "435267ed3c6a",
+      "created_version": 29,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 20,
+      "success_when_used": 19,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-3-task-completion-stop-immediately": {
+      "title": "Phase 3: Task completion (stop immediately)",
+      "level": 2,
+      "body_hash": "483506176ef4",
+      "created_version": 30,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

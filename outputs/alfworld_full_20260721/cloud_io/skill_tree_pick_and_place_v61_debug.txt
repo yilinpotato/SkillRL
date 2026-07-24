@@ -1,0 +1,116 @@
+=== Skill Tree Debug — scope=pick_and_place  v61 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent had the systematic search and object matching rules in the original tree, but failed to apply them (e.g., wrong object taken, skipped containers, early stop). The tree's wording was clear, but the agent likely skimmed or did not prioritize the critical steps; the refined tree consolidates these rules into separate sections and adds explicit verification before pickup to reduce ambiguity.
+changelog: Added 'Object Verification' section to enforce exact name matching before any take action; reorganized 'Systematic Search' common mistakes to include container opening and skipping; kept placement and stop rule unchanged.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 12  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [wrong_target] The agent took a soapbar instead of the required soapbottle. | evidence: action: take soapbar 1 from drawer 1 → then move soapbar 1 to toilet 1. | fix: Before taking an object, verify that its name exactly matches the target object name. | skill_tree_gap: No object-name verification before pickup. | patch_location: Under 'pick_and_place' as a new subsection '### Object Verification'
+- [inefficient_exploration] The agent searched only a few drawers and a shelf, missing the cellphone that could be in other locations. | evidence: After opening several drawers without finding a cellphone, the agent went to shelf 1 and stopped. | fix: Exhaustively search all accessible surfaces, containers, and locations before concluding the object is absent. | skill_tree_gap: Lacks a comprehensive breadth-first search strategy for objects. | patch_location: Under 'pick_and_place' as a new subsection '### Search Strategy'
+- [inefficient_exploration] The agent only visited the toiletpaperhanger and towelholder, then looped, never searching other areas for toiletpaper. | evidence: After going to towelholder 1, the agent repeatedly used 'look' without exploring elsewhere. | fix: If the target is not found at the first few locations, systematically check all other receptacles and surfaces. | skill_tree_gap: Missing a systematic exploration policy that covers all candidate locations. | patch_location: Under 'pick_and_place' as a new subsection '### Search Strategy'
+- [premature_stop] The agent reached the fridge but did not open it, leaving a possible container unchecked. | evidence: Last action: go to fridge 1 (no observation of opening), then trajectory ends. | fix: After moving to a container, always open it to check its contents before moving on. | skill_tree_gap: Missing the habit of opening containers after arriving at them. | patch_location: Under 'pick_and_place' as a new subsection '### Container Opening'
+
+--- Node tree (per-node lifecycle, this version=v61) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=60 calls=1480 success=1326 rate=89.6%
+[NEW                 ] pick-and-place-skill-tree/final-reminder level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=27 calls=1480 success=1326 rate=89.6%
+[MODIFIED            ] pick-and-place-skill-tree/object-acquisition level=2 stable_versions=0 calls=761 success=673 rate=88.4%
+[NEW                 ] pick-and-place-skill-tree/object-verification level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-and-place-skill-tree/placement      level=2 stable_versions=0 calls=761 success=673 rate=88.4%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=1 calls=1480 success=1326 rate=89.6%
+[STABLE              ] pick-and-place-skill-tree/systematic-search-mandatory level=2 stable_versions=1 calls=16 success=12 rate=75.0%
+[NEW                 ] pick-and-place-skill-tree/systematic-search-mandatory/common-mistakes level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/systematic-search-mandatory/step-1-extract-the-full-list-of-all-receptacles level=3 stable_versions=1 calls=16 success=12 rate=75.0%
+[MODIFIED            ] pick-and-place-skill-tree/systematic-search-mandatory/step-2-exhaustively-visit-every-receptacle-on-that-list-one-by-one-without-skipping-or-revisiting level=3 stable_versions=0 calls=16 success=12 rate=75.0%
+
+--- Line diff vs previous version (v60 -> v61) ---
+--- v60
++++ v61
+@@ -24,19 +24,28 @@
+   - Read the observation. If the target object is present, take it (`take <object> from <receptacle>`) and go to Placement.
+   - If not present, **immediately** proceed to the next receptacle. Do not `examine` or `close` anything.
+ - **Continue until you have visited every single receptacle on the list.** Do not stop earlier, even if you think the object might be elsewhere.
+-- After opening a container, if the target is not there, move on. Do not use any extra actions.
+ 
+-### Common mistakes leading to failure
++### Common Mistakes
+ - **Stopping early** – you must finish the entire list. The object could be on a shelf, desk, or in a drawer you haven't checked.
+ - **Skipping certain types** – small objects can be on any surface (countertops, armchairs, sofas, handtowelholders, etc.). Include them all.
+ - **Revisiting** – once visited, done. Do not go back.
+-- **Not opening closed containers** – you must open to see inside; `examine` does not reveal contents.
++- **Not opening closed containers** – you must open to see inside; `examine` does not reveal contents. Open immediately on arrival.
+ - **Using `look` or `inventory` during search** – it wastes actions and may confuse you. Only allowed one `look` at the start if truncated.
+ 
++## Object Verification
++Before taking any object, **verify that the base noun matches exactly** the target object from the task description.
++- Example: target "soapbottle" is not "soapbar". Target "pillow" is not "cushion".
++- If the name does not match, do **not** take it. Continue searching.
++- This check must be done for every pickup attempt, even if the object looks plausible.
++
+ ## Object Acquisition
+-- Take only if the exact base noun matches the target (e.g., "knife" is not "butterknife").
+-- Action: `take <object> from <receptacle>`.
++- Action: `take <object> from <receptacle>` only after verification passes.
++- If the object name is ambiguous (e.g., "spraybottle" vs "bottle"), use the exact words from the observation.
+ 
+ ## Placement
+ - Go to the target receptacle. If closed, open it. Then `move <object> to <receptacle>`.
+ - **Stop immediately** after the move action. Do not perform any further actions.
++
++## Final Reminder
++- The agent must **follow the systematic search exactly** – do not deviate, do not skip, do not stop early.
++- Object verification prevents placing the wrong object. Always check the name before taking.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specified object and place it into or onto a specified receptacle.
+
+## Sub-Goal Flow
+1. Identify the target object and target receptacle from the task description.
+2. Systematically search all receptacles (starting with the target) until the object is found.
+3. Take the object and place it in/on the target receptacle.
+4. Stop immediately after the move action.
+
+## Systematic Search (mandatory)
+
+### Step 1: Extract the full list of all receptacles
+- From the initial observation (before any movement), note every noun+number furniture item (e.g., bed 1, drawer 2, cabinet 3, sinkbasin 1, handtowelholder 1).
+- If the observation is truncated (ends abruptly), use `look` once to get the full list. Otherwise, do **not** use `look` again.
+- Create a mental list in the order they appear.
+
+### Step 2: Exhaustively visit every receptacle on that list, one by one, without skipping or revisiting
+- **Start with the target receptacle.** Go to it. If it is closed, open it immediately (next action must be `open`). Read the observation to see if the target object is there. If yes, take it and go to Placement.
+- If not, move to the **next receptacle on your list** (the order you extracted). Do not skip any.
+- For each receptacle:
+  - If closed, `open` it **immediately** upon arrival. Do not `examine`, `look`, or `inventory` first.
+  - Read the observation. If the target object is present, take it (`take <object> from <receptacle>`) and go to Placement.
+  - If not present, **immediately** proceed to the next receptacle. Do not `examine` or `close` anything.
+- **Continue until you have visited every single receptacle on the list.** Do not stop earlier, even if you think the object might be elsewhere.
+
+### Common Mistakes
+- **Stopping early** – you must finish the entire list. The object could be on a shelf, desk, or in a drawer you haven't checked.
+- **Skipping certain types** – small objects can be on any surface (countertops, armchairs, sofas, handtowelholders, etc.). Include them all.
+- **Revisiting** – once visited, done. Do not go back.
+- **Not opening closed containers** – you must open to see inside; `examine` does not reveal contents. Open immediately on arrival.
+- **Using `look` or `inventory` during search** – it wastes actions and may confuse you. Only allowed one `look` at the start if truncated.
+
+## Object Verification
+Before taking any object, **verify that the base noun matches exactly** the target object from the task description.
+- Example: target "soapbottle" is not "soapbar". Target "pillow" is not "cushion".
+- If the name does not match, do **not** take it. Continue searching.
+- This check must be done for every pickup attempt, even if the object looks plausible.
+
+## Object Acquisition
+- Action: `take <object> from <receptacle>` only after verification passes.
+- If the object name is ambiguous (e.g., "spraybottle" vs "bottle"), use the exact words from the observation.
+
+## Placement
+- Go to the target receptacle. If closed, open it. Then `move <object> to <receptacle>`.
+- **Stop immediately** after the move action. Do not perform any further actions.
+
+## Final Reminder
+- The agent must **follow the systematic search exactly** – do not deviate, do not skip, do not stop early.
+- Object verification prevents placing the wrong object. Always check the name before taking.

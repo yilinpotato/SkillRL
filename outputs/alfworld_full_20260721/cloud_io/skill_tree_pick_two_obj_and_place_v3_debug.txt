@@ -1,0 +1,123 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v3 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent partially followed the tree's search strategy but failed to persist after the first placement, misidentified object types (mug vs cup, handtowel vs cloth), and did not immediately place the second object. The tree's own wording lacked explicit guidance on exact object matching and on the imperative to place the second object immediately, which contributed to the failures.
+changelog: Added a requirement in 'Goal' to match object type exactly; inserted 'Exhaustive coverage' subsection under 'Search Strategy' to emphasize checking all furniture types; added 'Persistence after first placement' and 'Collect and place the second object' subsections under 'Placement Process' to enforce immediate search and placement after the first object.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 17  n_failure this round: 7
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] After placing one soapbottle in cart, the agent searched remaining drawers without finding a second soapbottle and then stopped, failing to collect two. | evidence: Only one soapbottle taken (soapbottle1); after placing, explored drawers but never took a second. | fix: Continue searching until two objects of the required type are collected and placed. | skill_tree_gap: Lack of persistent search and count tracking for multi-object tasks. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### track required count and persist'.
+- [wrong_order] The agent placed only one cloth (handtowel) in drawer and then, after taking a towel, failed to place it, entering a loop instead. | evidence: After taking towel1, goes to drawer but then returns to towelholder without moving towel to drawer. | fix: After collecting the second object, immediately go to the target and place it. | skill_tree_gap: Sequential transport of multiple objects is broken; the agent gets distracted. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### place second object immediately'.
+- [inefficient_exploration] The agent searched only countertops and a few drawers for spraybottles, never checking handtowelholder, shelf, or other containers. | evidence: Never takes any spraybottle; after drawer4, goes to countertop and sink, then ends. | fix: Expand search to all receptacles including handtowelholder, shelf, and sinkbasin. | skill_tree_gap: Exploration not comprehensive for finding spraybottles. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### explore all possible locations'.
+- [inefficient_exploration] The agent searched only sidetables, drawers, and one cabinet for keychains, never checking the dresser or bed where keychains often appear. | evidence: After opening cabinet1, returns to sidetables without finding a keychain. | fix: Explore all furniture including dresser, bed, and other surfaces when searching for keychains. | skill_tree_gap: Exploration missing common keychain locations. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### include dresser and bed in search'.
+- [wrong_target] The agent took two mugs instead of cups, misidentifying the object type. | evidence: Actions: 'take mug 2 from countertop 1' and 'take mug 3 from countertop 2' when task requires cup. | fix: Only take objects that exactly match the target type 'cup'. | skill_tree_gap: Object selection does not distinguish between mug and cup. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### match exact object type'.
+- [wrong_order] The agent placed one handtowel in toilet but after taking a towel, it failed to place it and entered a loop of looking and examining. | evidence: After taking towel1, goes to toilet but does not move it; instead performs look, examine, inventory. | fix: After collecting the second object, immediately place it at the target without delay. | skill_tree_gap: Sequential placement of multiple objects not properly executed. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### place second object immediately'.
+
+--- Node tree (per-node lifecycle, this version=v3) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=2 calls=45 success=34 rate=75.6%
+[STABLE              ] pick-two-obj-and-place/completion-detection level=2 stable_versions=1 calls=45 success=34 rate=75.6%
+[STABLE              ] pick-two-obj-and-place/completion-detection/confirm-both-objects-placed level=3 stable_versions=1 calls=24 success=17 rate=70.8%
+[MODIFIED            ] pick-two-obj-and-place/goal              level=2 stable_versions=0 calls=45 success=34 rate=75.6%
+[STABLE              ] pick-two-obj-and-place/placement-process level=2 stable_versions=2 calls=45 success=34 rate=75.6%
+[STABLE              ] pick-two-obj-and-place/placement-process/collect-and-place-the-first-object level=3 stable_versions=2 calls=45 success=34 rate=75.6%
+[NEW                 ] pick-two-obj-and-place/placement-process/collect-and-place-the-second-object level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/placement-process/persistence-after-first-placement level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/search-strategy   level=2 stable_versions=2 calls=45 success=34 rate=75.6%
+[NEW                 ] pick-two-obj-and-place/search-strategy/exhaustive-coverage-of-all-furniture-types level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/search-strategy/systematic-search-of-all-receptacles level=3 stable_versions=2 calls=45 success=34 rate=75.6%
+
+--- Line diff vs previous version (v2 -> v3) ---
+--- v2
++++ v3
+@@ -2,6 +2,7 @@
+ 
+ ## Goal
+ - Your task is to put exactly two instances of a specific object (e.g., book, soapbottle, handtowel) into a specified target receptacle (e.g., bed, garbagecan, countertop).
++- **Object type must match exactly.** For example, 'cup' is not the same as 'mug', 'cloth' is not the same as 'handtowel'. Do not pick up an object unless its type name matches the task exactly.
+ - You must collect and move **both** items. Do not stop after placing only one.
+ 
+ ## Search Strategy
+@@ -12,14 +13,10 @@
+ - Move on to the next receptacle if the object is not found; do not repeatedly check the same place.
+ - If you still haven't found two objects after checking everything, re-examine the room description and try receptacles you might have overlooked (e.g., ottoman, sidetable, fridge).
+ 
+-### Exhaustive check of all furniture types
+-- Do **not** limit your search to only a few furniture types (e.g., only coffeetable and shelves). Every furniture item listed in the room description is a potential location.
+-- For example, small objects like creditcards, pens, candles often appear on dining tables, side tables, beds, dressers, and in drawers. Check each furniture type systematically.
+-- After checking an open surface, if you have not yet found two objects, proceed to closed containers (drawers, cabinets) and open them one by one.
+-
+-### Re-check unexamined surfaces after initial sweep
+-- If you complete a first pass of all receptacles and still lack two objects, scan the room description again for any furniture you missed (e.g., a bed, a tvstand, a sinkbasin).
+-- Some objects may be hidden inside closed containers that you skipped. Revisit any container you did not open.
++### Exhaustive coverage of all furniture types
++- **Check every furniture item listed in the room description**, especially those that commonly hold small objects: dresser, bed, desk, shelf, cabinet, drawer, handtowelholder, towelholder, sinkbasin, bathtubbasin, countertop, sidetable, coffeetable, diningtable, cart, etc. Do not restrict your search to a subset.
++- After checking open surfaces, proceed to closed containers and open them one by one.
++- If you complete a first pass and still lack two objects, perform a **second full sweep**—some objects may become visible after moving others, or you may have missed a container.
+ 
+ ## Placement Process
+ ### Collect and place the first object
+@@ -28,14 +25,14 @@
+ - Then go to the target receptacle (`go to <target>`).
+ - Move the object to the target (`move <object> to <target>`).
+ 
+-### Collect and place the second object (iteration)
+-- After placing the first object, **immediately** begin a new exhaustive search for the second instance. Do not get sidetracked by opening containers that are not part of the search.
+-- Repeat the take → go → move sequence for the second object.
++### Persistence after first placement
++- After placing the first object, **immediately begin a new exhaustive search for the second instance.** Do not stop, do not get sidetracked by unrelated containers. The only valid next action is to resume searching.
++- If you have placed one object but the environment has not declared success, you must still be holding zero objects and need to search again. Perform a second pass through all receptacles if necessary.
++
++### Collect and place the second object
++- Find the second object using the same search strategy.
++- **Once you pick up the second object, your next actions must be:** go to target receptacle, then move the object to the target. Do not perform any other actions (e.g., opening containers, taking other objects) in between.
+ - Treat the task as incomplete until two objects have been moved to the target.
+-
+-### Avoid stopping after first object
+-- Do **not** stop to examine other containers or explore unrelated areas after placing the first object. The only valid next action is to resume searching for the second object.
+-- If you have moved one object but the environment has not declared success, you must still be holding zero objects and need to search again.
+ 
+ ## Completion Detection
+ ### Confirm both objects placed
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+- Your task is to put exactly two instances of a specific object (e.g., book, soapbottle, handtowel) into a specified target receptacle (e.g., bed, garbagecan, countertop).
+- **Object type must match exactly.** For example, 'cup' is not the same as 'mug', 'cloth' is not the same as 'handtowel'. Do not pick up an object unless its type name matches the task exactly.
+- You must collect and move **both** items. Do not stop after placing only one.
+
+## Search Strategy
+### Systematic search of all receptacles
+- Start by reading the room description: list every furniture item (table, shelf, drawer, cabinet, holder, etc.) that could contain the object.
+- First check open surfaces (shelf, desk, countertop, coffeetable, handtowelholder, etc.) — objects there are visible immediately.
+- For closed containers (drawer, cabinet, dresser), go to each one and open it to see its contents. Do not skip any.
+- Move on to the next receptacle if the object is not found; do not repeatedly check the same place.
+- If you still haven't found two objects after checking everything, re-examine the room description and try receptacles you might have overlooked (e.g., ottoman, sidetable, fridge).
+
+### Exhaustive coverage of all furniture types
+- **Check every furniture item listed in the room description**, especially those that commonly hold small objects: dresser, bed, desk, shelf, cabinet, drawer, handtowelholder, towelholder, sinkbasin, bathtubbasin, countertop, sidetable, coffeetable, diningtable, cart, etc. Do not restrict your search to a subset.
+- After checking open surfaces, proceed to closed containers and open them one by one.
+- If you complete a first pass and still lack two objects, perform a **second full sweep**—some objects may become visible after moving others, or you may have missed a container.
+
+## Placement Process
+### Collect and place the first object
+- When you see an object of the required type, take it: `take <object> from <source>`.
+- If the source is closed, open it first.
+- Then go to the target receptacle (`go to <target>`).
+- Move the object to the target (`move <object> to <target>`).
+
+### Persistence after first placement
+- After placing the first object, **immediately begin a new exhaustive search for the second instance.** Do not stop, do not get sidetracked by unrelated containers. The only valid next action is to resume searching.
+- If you have placed one object but the environment has not declared success, you must still be holding zero objects and need to search again. Perform a second pass through all receptacles if necessary.
+
+### Collect and place the second object
+- Find the second object using the same search strategy.
+- **Once you pick up the second object, your next actions must be:** go to target receptacle, then move the object to the target. Do not perform any other actions (e.g., opening containers, taking other objects) in between.
+- Treat the task as incomplete until two objects have been moved to the target.
+
+## Completion Detection
+### Confirm both objects placed
+- After moving the second object, the environment will indicate task success. If unsure, you can check your last observation.
+- If you have moved two objects but the task is not marked complete, search again — you may have missed one (e.g., two different instances of the same object type).
+- **Do not assume success after one placement.** Keep searching until you have placed two.

@@ -1,0 +1,136 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate a pan; it only searched cabinets which were empty and did not explore other receptacles like sinkbasin or fridge.",
+    "evidence": "After opening multiple cabinets and finding nothing, it returned to countertop1 and countertop2 without ever picking up a pan.",
+    "corrective_rule": "When target object not found in immediate area, systematically search all receptacles including sinkbasin, fridge, stoveburner, and drawers.",
+    "skill_tree_gap": "Lacks a systematic search strategy for locating objects in clean tasks.",
+    "patch_location": "Under '## clean', add a new subsection '### locate object' with rules for efficient exploration.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate a pan; it only visited countertops and cabinets, ignoring other containers.",
+    "evidence": "After opening cabinets that were empty, it returned to countertop1 and countertop2 without picking up any pan.",
+    "corrective_rule": "When target object not found, systematically search all receptacles including sinkbasin, fridge, stoveburner, and drawers.",
+    "skill_tree_gap": "Lacks a systematic search strategy for locating objects in clean tasks.",
+    "patch_location": "Under '## clean', add a new subsection '### locate object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not find a mug; it visited several locations but missed the mug, possibly only a cup was on sidetable, and gave up.",
+    "evidence": "After visiting diningtable, fridge, sidetable, sinkbasin, stoveburner, it ended at diningtable1 without picking up any mug.",
+    "corrective_rule": "When target object not found, expand search to all receptacles including cabinets, drawers, and shelves.",
+    "skill_tree_gap": "Lacks systematic search for objects in cool tasks.",
+    "patch_location": "Under '## cool', add a new subsection '### locate object'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent picked up glassbottle but did not cool it with fridge; it stopped immediately after pickup.",
+    "evidence": "Action sequence: go to countertop1, then take glassbottle1 from countertop1, with no further actions.",
+    "corrective_rule": "After picking up the target object, immediately proceed to cool it using the appropriate appliance before placing.",
+    "skill_tree_gap": "Task plan enforcement after object pickup is missing; agent executed pickup but forgot subsequent steps.",
+    "patch_location": "Under '## cool', add a new subsection '### execute cooling plan' ensuring the sequence pick->cool->place.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not locate a pen; it searched only desk, shelf, drawers, bed, and cabinets, but pen was not found.",
+    "evidence": "After searching various receptacles, it returned to desk1 without ever picking up a pen.",
+    "corrective_rule": "Systematically search all receptacles including drawers, shelves, and other furniture for the target object.",
+    "skill_tree_gap": "Lacks thorough search strategy for pick_and_place tasks.",
+    "patch_location": "Under '## pick_and_place', add a new subsection '### locate object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not find a tissuebox; it searched dresser, shelves, drawers but no tissuebox encountered.",
+    "evidence": "After examining shelves and opening drawer, it did not pick up any tissuebox and ended with look actions.",
+    "corrective_rule": "Systematically search all receptacles including drawers, shelves, and other furniture for the target object.",
+    "skill_tree_gap": "Lacks thorough search strategy for pick_and_place tasks.",
+    "patch_location": "Under '## pick_and_place', add a new subsection '### locate object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent found and placed one toiletpaper but could not find a second one; it then entered a loop without searching further.",
+    "evidence": "After moving toiletpaper1 to cabinet1, the trajectory shows 'dropped 4 looping actions'.",
+    "corrective_rule": "After placing one object, continue searching systematically for the second object in all remaining receptacles.",
+    "skill_tree_gap": "Handling multi-object tasks: agent fails to continue search after placing the first object.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a deeper subsection '### multi-object handling' with rules for sequential search.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not find any keychain; it searched bed, desks, shelves, garbagecan but missed keychains.",
+    "evidence": "Never picked up any keychain; trajectory ends with look at desk1.",
+    "corrective_rule": "Systematically search all receptacles including desks, shelves, and drawers for keychains.",
+    "skill_tree_gap": "Lacks targeted search for objects in multi-object tasks.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### locate object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not find any creditcard; it only searched cabinets which were empty and gave up.",
+    "evidence": "After opening many cabinets and finding nothing, it issued look actions without picking anything.",
+    "corrective_rule": "Broaden search to include other receptacles such as shelves, drawers, and tables.",
+    "skill_tree_gap": "Lacks targeted search for objects in multi-object tasks.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### locate object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent found and placed one ladle but could not find a second ladle; it then entered a loop.",
+    "evidence": "After moving ladle1 to drawer1, trajectory shows 'dropped 4 looping actions'.",
+    "corrective_rule": "After placing first object, continue systematic search for second object.",
+    "skill_tree_gap": "Multi-object handling: missing logic to search for remaining objects.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a deeper subsection '### multi-object handling'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent found and placed one pencil but could not find a second pencil; it then entered a loop.",
+    "evidence": "After moving pencil2 to drawer1, trajectory shows repeated look and go to desk1 actions.",
+    "corrective_rule": "After placing first object, continue searching for second object in all other locations.",
+    "skill_tree_gap": "Multi-object handling: lack of post-placement search.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a deeper subsection '### multi-object handling'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "Agent found and placed one newspaper but could not find a second newspaper; it then entered a loop.",
+    "evidence": "After moving newspaper2 to sofa1, it returns to armchair (empty) and issues repeated look actions.",
+    "corrective_rule": "After placing first object, search all other receptacles (e.g., coffeetable, sidetable) for the second.",
+    "skill_tree_gap": "Multi-object handling: missing search after placement.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a deeper subsection '### multi-object handling'.",
+    "confidence": 0.95
+  }
+]
+```

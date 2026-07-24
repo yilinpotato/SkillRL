@@ -1,0 +1,146 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v55 (level=3, tree_depth=3, 13 nodes) ===
+action: refine
+critique: The agent did not consistently follow the skill tree: it took a non-matching object (soapbottle instead of candle) and failed to restart a full systematic search after placing the first object, instead revisiting only a few locations. The tree's wording on exact name matching and restart was clear but the agent ignored it; we have now added stronger emphasis and reordered the critical rules to the top.
+changelog: Added 'Critical Rules' section at the top for emphasis, clarified 'Exhaustive Search' to include fridge and all types, added 'Object Count Tracking' subsection, and tightened the exact match instructions.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 2  n_failure this round: 5
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent placed only one pen and could not find a second pen; it did not search adequately for the second object. | evidence: After moving pen3 to drawer1, agent went to bed1, desk1 (only pencil3), and drawer2 but no pen. | fix: Before placing the first object, ensure you have both required objects or locate the second one first. | skill_tree_gap: Agent does not track the required quantity or search for missing items after placing one. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### quantity tracking and completion'
+- [wrong_target] Agent took a soapbottle instead of a candle, deviating from the task object. | evidence: action: take soapbottle 2 from cabinet 6 (task: find two candle and put them in cabinet). | fix: Only pick objects that exactly match the task description (candle). | skill_tree_gap: Agent does not verify object type against the goal. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### object‑type verification'
+- [inefficient_exploration] Agent placed only one spraybottle and did not find a second one; it returned to bathtubbasin (no spraybottles) and looped. | evidence: Only one spraybottle taken (from cabinet4); after placing, agent went to bathtubbasin with only cloths. | fix: Search other cabinets and shelves for the second spraybottle before placing the first. | skill_tree_gap: Agent lacks a plan to collect both objects before executing placement. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### multiple object acquisition'
+- [inefficient_exploration] Agent never found any lettuce; it opened many cabinets but only found cups, bowls, etc., and never checked the fridge or countertops thoroughly. | evidence: Opened cabinets 12,11,10,9 and countertop1: no lettuce. | fix: Check the fridge, all counters, and dining tables for lettuce. | skill_tree_gap: Agent does not search all possible receptacles (e.g., fridge). | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### comprehensive search'
+- [inefficient_exploration] Agent placed only one spraybottle and could not find a second one; it only searched shelves and missed cabinets. | evidence: Only spraybottle1 found on shelf1; after placing, agent looked at bathtubbasin and looped. | fix: Check all cabinets and drawers for additional spraybottles before or after placing the first. | skill_tree_gap: Agent does not systematically search all storage locations. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### quantity assurance with full search'
+
+--- Node tree (per-node lifecycle, this version=v55) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=54 calls=1165 success=882 rate=75.7%
+[MODIFIED            ] pick-two-obj-and-place/critical-rules-must-follow level=2 stable_versions=0 calls=23 success=9 rate=39.1%
+[STABLE              ] pick-two-obj-and-place/failure-prevention level=2 stable_versions=2 calls=139 success=93 rate=66.9%
+[MODIFIED            ] pick-two-obj-and-place/failure-prevention/exhaustive-search level=3 stable_versions=0 calls=23 success=9 rate=39.1%
+[STABLE              ] pick-two-obj-and-place/failure-prevention/multi-object-count-completion level=3 stable_versions=2 calls=23 success=9 rate=39.1%
+[NEW                 ] pick-two-obj-and-place/failure-prevention/object-count-tracking level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/failure-prevention/object-type-verification level=3 stable_versions=0 calls=23 success=9 rate=39.1%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=1 calls=1165 success=882 rate=75.7%
+[STABLE              ] pick-two-obj-and-place/phase-1-first-object-search level=2 stable_versions=2 calls=23 success=9 rate=39.1%
+[MODIFIED            ] pick-two-obj-and-place/phase-1-first-object-search/procedure level=3 stable_versions=0 calls=23 success=9 rate=39.1%
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-search-after-first-placement level=2 stable_versions=2 calls=23 success=9 rate=39.1%
+[MODIFIED            ] pick-two-obj-and-place/phase-2-second-object-search-after-first-placement/must-restart-full-search level=3 stable_versions=0 calls=23 success=9 rate=39.1%
+[STABLE              ] pick-two-obj-and-place/stop-condition    level=2 stable_versions=2 calls=139 success=93 rate=66.9%
+
+--- Line diff vs previous version (v54 -> v55) ---
+--- v54
++++ v55
+@@ -3,9 +3,15 @@
+ ## Goal
+ Place exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2, or after two exhaustive full passes without finding a second instance.
+ 
++## Critical Rules (Must Follow)
++- **Object name must match exactly.** Compare the observed object name character by character with the target type. If they differ (e.g., 'soapbottle' vs 'soapbar' or 'candle'), do NOT take it.
++- **After taking a matching object, next action must be `go to [target receptacle]`.** No exceptions.
++- **After placing an object, restart search from the first furniture item in the observation.** Do not continue searching from your current location.
++- **Counter:** Start at 0. Increment by 1 after each successful placement. Stop when counter == 2.
++
+ ## Phase 1: First Object Search
+ ### Procedure
+-1. Re‑read the initial observation and list every furniture item in order (use `look` if needed).
++1. Re‑read the initial observation and list every furniture item in order (use `look` if needed). Include all types: cabinets, drawers, shelves, counters, tables, fridge, sinkbasin, etc. Do not skip any.
+ 2. Visit each item exactly once, in that order. If closed, open it. Examine contents (surface or interior).
+ 3. For each object seen, check if its exact name matches the required type. If yes, take it.
+ 4. After taking, immediate next action: `go to [target receptacle]`. Open if closed, then place the object. Increment counter by 1.
+@@ -14,29 +20,32 @@
+ 
+ ## Phase 2: Second Object Search (After First Placement)
+ ### Must Restart Full Search
+-- Immediately after placing the first object, re‑read the observation (use `look`) and list every furniture item again.
++- Immediately after placing the first object, use `look` to get the current observation and list every furniture item again. Include all types.
+ - Visit every item in that list, exactly as in Phase 1, in order. Do not rely on memory of where you found the first object.
+ - Continue until counter reaches 2, or until you have completed two full passes after the first placement with no second object.
+ - If you catch yourself revisiting the same few locations without finding a second object, stop, re‑read the observation, restart the systematic search from the first item.
+ 
+-## Critical Rules (Must Follow)
+-- **Object name must match exactly.** E.g., if target is "soapbottle" and you see "soapbar", do NOT take it.
+-- **After taking a matching object, next action must be `go to [target receptacle]`.** No exceptions.
+-- **After placing an object, restart search from the first furniture item in the observation.** Do not continue searching from your current location.
+-- **Counter:** Start at 0. Increment by 1 after each successful placement. Stop when counter == 2.
+-
+ ## Failure Prevention
+ ### Exhaustive Search
+ - Before any search (first or second object), list all furniture items from the current observation. Then visit each in order, one by one.
+-- Open all closed receptacles (drawers, cabinets, etc.) when you visit them. Do not skip any.
+-- Check every furniture type listed – surfaces, containers, shelves, etc. Do not focus only on one type.
++- Open all closed receptacles (drawers, cabinets, fridge, etc.) when you visit them. Do not skip any.
++- Check every furniture type listed – surfaces, containers, shelves, tables, basins, etc. Do not focus only on one type.
+ - If you have visited all items and found nothing, do a second full pass before giving up.
++
+ ### Object Type Verification
+ - Before taking any object, read its exact name. Compare it to the task's target type character by character. Only take if they match exactly.
+ - If you take a non‑matching object by mistake, drop it immediately (`drop [object]`) and resume searching from the same furniture item.
++
+ ### Multi‑Object Count Completion
+ - After placing one object, you must find a second. Do not stop until counter == 2, or until two full searches after the first placement yield nothing.
+ - If you have placed one object and then complete two full passes without finding a second, the task is impossible – stop.
++
++### Object Count Tracking
++- Keep a mental counter. Start at 0.
++- Increment by 1 after each successful placement.
++- Stop when counter == 2 – task complete.
++- If counter == 0 after two full passes, stop (impossible).
++- If counter == 1 after two full passes following first placement, stop (impossible).
+ 
+ ## Stop Condition
+ - counter == 2 → success (task complete).
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2, or after two exhaustive full passes without finding a second instance.
+
+## Critical Rules (Must Follow)
+- **Object name must match exactly.** Compare the observed object name character by character with the target type. If they differ (e.g., 'soapbottle' vs 'soapbar' or 'candle'), do NOT take it.
+- **After taking a matching object, next action must be `go to [target receptacle]`.** No exceptions.
+- **After placing an object, restart search from the first furniture item in the observation.** Do not continue searching from your current location.
+- **Counter:** Start at 0. Increment by 1 after each successful placement. Stop when counter == 2.
+
+## Phase 1: First Object Search
+### Procedure
+1. Re‑read the initial observation and list every furniture item in order (use `look` if needed). Include all types: cabinets, drawers, shelves, counters, tables, fridge, sinkbasin, etc. Do not skip any.
+2. Visit each item exactly once, in that order. If closed, open it. Examine contents (surface or interior).
+3. For each object seen, check if its exact name matches the required type. If yes, take it.
+4. After taking, immediate next action: `go to [target receptacle]`. Open if closed, then place the object. Increment counter by 1.
+5. If you accidentally take a non‑matching object, drop it immediately and resume search from the current furniture item.
+6. If you finish the list without taking any object, perform a second full pass (repeat step 2 from first item). After two full passes and counter still 0, task impossible – stop.
+
+## Phase 2: Second Object Search (After First Placement)
+### Must Restart Full Search
+- Immediately after placing the first object, use `look` to get the current observation and list every furniture item again. Include all types.
+- Visit every item in that list, exactly as in Phase 1, in order. Do not rely on memory of where you found the first object.
+- Continue until counter reaches 2, or until you have completed two full passes after the first placement with no second object.
+- If you catch yourself revisiting the same few locations without finding a second object, stop, re‑read the observation, restart the systematic search from the first item.
+
+## Failure Prevention
+### Exhaustive Search
+- Before any search (first or second object), list all furniture items from the current observation. Then visit each in order, one by one.
+- Open all closed receptacles (drawers, cabinets, fridge, etc.) when you visit them. Do not skip any.
+- Check every furniture type listed – surfaces, containers, shelves, tables, basins, etc. Do not focus only on one type.
+- If you have visited all items and found nothing, do a second full pass before giving up.
+
+### Object Type Verification
+- Before taking any object, read its exact name. Compare it to the task's target type character by character. Only take if they match exactly.
+- If you take a non‑matching object by mistake, drop it immediately (`drop [object]`) and resume searching from the same furniture item.
+
+### Multi‑Object Count Completion
+- After placing one object, you must find a second. Do not stop until counter == 2, or until two full searches after the first placement yield nothing.
+- If you have placed one object and then complete two full passes without finding a second, the task is impossible – stop.
+
+### Object Count Tracking
+- Keep a mental counter. Start at 0.
+- Increment by 1 after each successful placement.
+- Stop when counter == 2 – task complete.
+- If counter == 0 after two full passes, stop (impossible).
+- If counter == 1 after two full passes following first placement, stop (impossible).
+
+## Stop Condition
+- counter == 2 → success (task complete).
+- counter == 1 after two full passes following first placement → impossible (stop).
+- counter == 0 after two full passes in initial search → impossible (stop).

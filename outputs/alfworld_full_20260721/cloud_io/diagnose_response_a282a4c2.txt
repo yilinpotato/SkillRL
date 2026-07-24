@@ -1,0 +1,114 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "misread_state",
+    "root_cause": "The agent misinterpreted the observation 'On the cabinet 4, you see nothing' as meaning the cabinet was empty and moved on without opening it, missing the bowl inside.",
+    "evidence": "After 'go to cabinet 4', observation says 'On the cabinet 4, you see nothing' and the next action is 'go to cabinet 5' instead of 'open cabinet 4'.",
+    "corrective_rule": "Always open a cabinet after arriving to check its contents, do not rely on surface observation.",
+    "skill_tree_gap": "Missing a rule that surface observations do not indicate container contents; need to explicitly open.",
+    "patch_location": "Under '## Container Interaction', add a new subsection '### Open before inspecting'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched drawers and never checked cabinets, which are the typical location for soapbars, thus failing to find one.",
+    "evidence": "Agent opened drawers 1 through 6, finding only soapbottle, toiletpaper, cloth, but no soapbar; never visited a cabinet.",
+    "corrective_rule": "Search both cabinets and drawers when looking for an object; do not restrict to one container type.",
+    "skill_tree_gap": "Exploration strategy lacks diversification across container types.",
+    "patch_location": "Under '## Object Search', add a new subsection '### Diversify container types'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and ignored drawers and other receptacles where a knife might be located.",
+    "evidence": "Opened cabinets 2-7, saw only a kettle on cabinet 6 surface, found no knife; never opened a drawer.",
+    "corrective_rule": "When searching for an object, systematically check all container types (cabinets, drawers, countertops, etc.).",
+    "skill_tree_gap": "Missing a systematic search procedure that covers all possible container categories.",
+    "patch_location": "Under '## Object Search', add a new subsection '### Systematic container search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#3",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent's search was limited to a few cabinets and did not cover all containers (e.g., drawers, fridge) leading to missing the plate.",
+    "evidence": "Opened cabinets 3,4,6,7, found only a peppershaker; never explored other locations like drawers or fridge.",
+    "corrective_rule": "Systematically explore all available containers and surfaces before concluding an object is absent.",
+    "skill_tree_gap": "Lacks a complete exploration routine that visits every container in the room.",
+    "patch_location": "Under '## Object Search', add a new subsection '### Exhaustive exploration'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent visited only a few locations (countertop2, diningtable, sinkbasin, stoveburners, cabinets 1-2) and never found a pan, likely because it did not search other countertops or drawers.",
+    "evidence": "After examining cabinet2, the trajectory stops; no pan was taken or cooled.",
+    "corrective_rule": "Thoroughly search all surfaces (countertops, dining tables, etc.) and containers before moving on.",
+    "skill_tree_gap": "Object search routine for 'pan' is incomplete; needs to cover more locations.",
+    "patch_location": "Under '## Object Search', add a new subsection '### Surface and container coverage'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Same as cool#0: agent visited limited locations and failed to locate a pan.",
+    "evidence": "Visited countertop1, countertop2, diningtable1, sinkbasin1, stoveburners, cabinets 1-2; no pan found.",
+    "corrective_rule": "Thoroughly search all surfaces and containers for the pan.",
+    "skill_tree_gap": "Same as cool#0: insufficient exploration scope.",
+    "patch_location": "Under '## Object Search', add a new subsection '### Surface and container coverage'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one creditcard, the agent searched only a few shelves and then stopped without checking other potential locations (e.g., armchair1, tvstand) for the second creditcard.",
+    "evidence": "Agent went to coffeetable2, shelves 1-5, examined shelf5, then went to armchair2 and stopped; never found second creditcard.",
+    "corrective_rule": "After placing the first object, continue searching all remaining locations exhaustively for the second object.",
+    "skill_tree_gap": "Multi-object handling lacks a 'continue search after first placement' routine.",
+    "patch_location": "Under '## Multi-Object Tasks', add a new subsection '### Post-placement search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only sinkbasin, handtowelholder, countertop, and drawers, missing cabinets and shelves where spraybottles could be, and found no spraybottle.",
+    "evidence": "After opening drawer4, agent returns to sinkbasin1 and stops; never looked in cabinets or shelves.",
+    "corrective_rule": "When searching for spraybottles, check all container types including cabinets and shelves.",
+    "skill_tree_gap": "Search strategy for 'spraybottle' is too narrow; misses common storage locations.",
+    "patch_location": "Under '## Object Search', add a new subsection '### Known object locations'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one spraybottle, the agent searched only a few cabinets and then stopped without checking remaining cabinets or other containers for the second spraybottle.",
+    "evidence": "Agent searched cabinets 1-3, saw soapbar2, toiletpaper1, soapbottle1; then attempted cabinet4 but did not open it (observation misalignment) and stopped.",
+    "corrective_rule": "After placing the first spraybottle, systematically open and check every container in the room for the second.",
+    "skill_tree_gap": "Multi-object handling lacks a thorough post-placement search procedure.",
+    "patch_location": "Under '## Multi-Object Tasks', add a new subsection '### Post-placement search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one candle, the agent searched only cabinets 1-3, found no second candle, then attempted cabinet4 but did not open it and stopped.",
+    "evidence": "Agent opened cabinets 1-3, saw cloth, soapbottle1, soapbar2, toiletpaper2; then action 'open cabinet 4' shows 'The cabinet 4 is closed' and trajectory ends.",
+    "corrective_rule": "After placing the first candle, continue searching all containers (including drawers and shelves) until the second is found.",
+    "skill_tree_gap": "Multi-object handling lacks a complete post-placement search routine.",
+    "patch_location": "Under '## Multi-Object Tasks', add a new subsection '### Post-placement search'.",
+    "confidence": 0.9
+  }
+]
+```

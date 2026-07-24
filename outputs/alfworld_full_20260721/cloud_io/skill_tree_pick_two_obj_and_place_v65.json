@@ -1,0 +1,187 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specified object type into a target receptacle. Stop when counter == 2.\n\n## Counter\n- Start at 0.\n- Increment after each successful placement.\n- If counter == 2, task complete – stop.\n- If counter < 2, you **must** search for the next object.\n\n## Core Search Plan\n1. **Always start with `look`** (even if already at a location) to get the full list of all furniture items in the room. Write down this order – it is your **search list**.\n2. Visit each item **in that exact order**. Do not skip any – cabinets, drawers, counters, shelves, tables, etc.\n3. At each item:\n   - If closed, **open** it.\n   - Examine contents. If you see the **exact target object name**, **take it immediately**. Do NOT pick up any other object.\n   - If you accidentally take a wrong object, `drop` it and continue.\n4. If you complete the list without taking anything, **repeat the list once more**. After two complete passes with no target found, the object is absent – task impossible, stop.\n\n## Phase 1 – First Object (counter = 0)\n- Execute `look` to form the search list.\n- Follow the core search plan until you find and take the first target object.\n- Then **immediately** `go to target receptacle`, open if closed, `place` the object. Increment counter to 1.\n\n## Phase 2 – Second Object (counter = 1)\n### Immediate Decision\n- **If you saw multiple copies of the target at the location where you took the first object**, go back to that same location, take the next one, go place it. Counter becomes 2. Stop.\n- **Otherwise**, perform a **Full Restart**:\n  1. Execute `look` (fresh observation).\n  2. Follow the core search plan exactly.\n  3. When you find a second target, take it, go place it. Stop.\n- If you complete two full passes without finding a second target, task impossible – stop.\n\n## Avoid Taking Non-Target Objects\n- **Only touch objects whose name exactly matches the target type.** Do not pick up cloth, soapbar, or anything else – they waste actions and disorient you.\n- If you already hold an irrelevant object, `drop` it immediately and resume the search plan.\n\n## Loop Detection & Recovery\n- **If you ever perform three consecutive actions of the same type** (e.g., `look`, `look`, `look` or `open`, `open`, `open` without moving), you are in a loop.\n- **Force a change**: execute `go to [the next furniture item on your search list]` that you have not yet visited. If you have no list, do a fresh `look` and start from the first item.\n- Never repeat the same action more than twice in a row unless you are opening a container you just arrived at.\n\n## Exhaustive Container & Surface Search\n- Your search list includes **all** furniture types – containers (cabinets, drawers, shelves) **and** surfaces (countertops, tables, desks, beds, etc.).\n- After opening several containers of one type (e.g., cabinets) and finding nothing, do **not** keep opening more of that type; move to the next furniture type on the list.\n- **Always check surfaces** – objects are often placed on countertops, desks, or beds, not just inside closed containers.\n- If the target is an object typically found in a specific fixture (e.g., toiletpaper on toiletpaperhanger, soap in sinkbasin), search that fixture too – it is part of the furniture list.\n\n## Critical Action Rules\n- After taking an object, **next action must be `go to target receptacle`** – no exceptions.\n- After placing the first object, **immediately decide** whether to return to the same location (multiple copies) or perform a Full Restart. Do not delay.\n- If you ever find yourself stuck or unsure, execute `look` and restart the search list from the beginning.",
+  "level": 3,
+  "version": 65,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent in the failures often ignored the explicit search plan and looped, and the current tree's loop detection section was buried and not enforced. The agent also picked irrelevant objects despite the rule against it. The refined tree makes loop detection concrete (3 same-type actions) and prioritizes the search plan at every phase.",
+  "changelog": "Restructured tree with clear Phase 1 and Phase 2, added 'Avoid Taking Non-Target Objects' as a standalone heading, replaced verbose loop rules with a simple heuristic, and reinforced that the search list must include all furniture types (containers and surfaces).",
+  "round_failures": [
+    {
+      "failure_type": "loop",
+      "root_cause": "The agent picked up an irrelevant object (cloth) and then entered a loop of repeated 'look' actions without progressing toward the task.",
+      "skill_tree_gap": "No mechanism to detect and break out of repetitive action loops.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent opened only two drawers (found no mugs) and then moved to a shelf, after which it started looping without completing a thorough search.",
+      "skill_tree_gap": "Search is cut short after a few empty containers, leading to a loop.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent opened many cabinets but never checked the countertops or other surfaces for spatulas, then started looping.",
+      "skill_tree_gap": "Search strategy ignores non-container surfaces.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only searched cabinets and missed the toiletpaperhanger and sinkbasin where toiletpaper might be located.",
+      "skill_tree_gap": "Search does not include object-specific locations hinted by the environment.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent opened only two drawers (empty) and did not search shelves or other drawers for pencils, then looped.",
+      "skill_tree_gap": "Lack of exhaustive search across all container types.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent opened three drawers (all empty) but did not open drawer 1 or check sidetables for pencils, then looped.",
+      "skill_tree_gap": "Search stops too early after a few empty containers.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_6120",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 64,
+      "call_count": 1374,
+      "success_when_used": 949,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "a5187acce7da",
+      "created_version": 1,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 1374,
+      "success_when_used": 949,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counter": {
+      "title": "Counter",
+      "level": 2,
+      "body_hash": "f4047aa8818f",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/core-search-plan": {
+      "title": "Core Search Plan",
+      "level": 2,
+      "body_hash": "6ab23b0210a0",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-counter-0": {
+      "title": "Phase 1 – First Object (counter = 0)",
+      "level": 2,
+      "body_hash": "4c5b12d49265",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1": {
+      "title": "Phase 2 – Second Object (counter = 1)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/immediate-decision": {
+      "title": "Immediate Decision",
+      "level": 3,
+      "body_hash": "f78051d7432c",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/avoid-taking-non-target-objects": {
+      "title": "Avoid Taking Non-Target Objects",
+      "level": 2,
+      "body_hash": "e4c4cbd4e8b1",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/loop-detection-recovery": {
+      "title": "Loop Detection & Recovery",
+      "level": 2,
+      "body_hash": "26caba4fe443",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/exhaustive-container-surface-search": {
+      "title": "Exhaustive Container & Surface Search",
+      "level": 2,
+      "body_hash": "e3cb71c0e925",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-action-rules": {
+      "title": "Critical Action Rules",
+      "level": 2,
+      "body_hash": "5cb3f32f7530",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

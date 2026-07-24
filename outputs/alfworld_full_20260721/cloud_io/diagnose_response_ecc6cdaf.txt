@@ -1,0 +1,79 @@
+[
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent fails to locate the mug, spending many steps wandering through stoves and sinkbasin instead of searching cabinets or fridge where mugs are commonly found.",
+    "evidence": "After many steps, it still hasn't picked up any mug; it only sees a cup on countertop 2 but ignores it.",
+    "corrective_rule": "If the target object is not visible in the initial area, systematically search all storage locations (cabinets, fridge, drawers) before exploring non-storage areas.",
+    "skill_tree_gap": "Lacks a prioritized search strategy for target objects.",
+    "patch_location": "Object Search (new top-level section)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent fails to find the candle, searching only shelves and towel holders while ignoring cabinets and drawers where candles may be located.",
+    "evidence": "After exploring all shelves and towel holders, it returns to cart without ever finding a candle.",
+    "corrective_rule": "When the target object is not found in expected areas, expand search to all closed containers (cabinets, drawers).",
+    "skill_tree_gap": "Missing a complete search algorithm for missing objects.",
+    "patch_location": "## Pick and Place Tasks (add ### Object Search)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one soapbottle, the agent fails to continue searching for the second soapbottle and moves to other cabinets without acquiring it.",
+    "evidence": "The agent moves soapbottle 4 to countertop then looks, then opens cabinet 1, then goes to cabinet 2, but never takes another soapbottle.",
+    "corrective_rule": "After placing the first object, the agent should continue searching for the second object until both are placed.",
+    "skill_tree_gap": "In the pick_two_obj_and_place skill tree, it lacks a persistent search loop until both objects are placed.",
+    "patch_location": "## Pick Two Obj and Place (add ### Persistent Search Loop)",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing the first dishsponge, the agent returns to an already searched cabinet instead of searching for the second dishsponge in other receptacles.",
+    "evidence": "After moving dishsponge 3 to toilet, the agent goes to cabinet 1 (already opened, no dishsponge) and stops.",
+    "corrective_rule": "After placing one object, systematically search all unsearched receptacles for the second object.",
+    "skill_tree_gap": "Missing a mechanism to track which receptacles have been searched and continue until count is met.",
+    "patch_location": "## Pick Two Obj and Place (add ### Search Completion Condition)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent takes a candle but then ends the trajectory without placing it in the cabinet and without searching for the second candle.",
+    "evidence": "The last action is 'take candle 1 from shelf 1', and then trajectory ends.",
+    "corrective_rule": "After picking up an object, immediately navigate to the target receptacle and place it, then continue searching for the second.",
+    "skill_tree_gap": "The skill tree likely has a step for placing after picking, but the agent's policy terminated prematurely after picking.",
+    "patch_location": "## Pick Two Obj and Place (add ### Post-Pick Placement and Continue)",
+    "confidence": 0.8
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one glassbottle, the agent searches only a few cabinets and then terminates without finding the second glassbottle.",
+    "evidence": "The agent opens cabinets 1,9,2, then goes to countertop 3 and stops, never finding a second glassbottle.",
+    "corrective_rule": "Search all available receptacles (including drawers, fridge, sinkbasin) until the second object is found.",
+    "skill_tree_gap": "The search space for multiple objects is incomplete; the agent doesn't explore all container types.",
+    "patch_location": "## Pick Two Obj and Place (add ### Comprehensive Search for Second Object)",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing the first cellphone, the agent searches three cabinets but fails to find the second cellphone and then stops without checking other locations like drawers or dressers.",
+    "evidence": "The agent goes to sidetable 1 and ends, without searching drawers or other furniture.",
+    "corrective_rule": "Expand search to all receptacles, including drawers and dressers, and persist until both objects are placed.",
+    "skill_tree_gap": "The search strategy does not cover all possible object locations for multiple-object tasks.",
+    "patch_location": "## Pick Two Obj and Place (add ### Exhaustive Search for Second Object)",
+    "confidence": 0.9
+  }
+]

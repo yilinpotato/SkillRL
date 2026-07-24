@@ -1,0 +1,139 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Phase 1: Find and take the target object\n\n### Surface Search Order – strictly follow this sequence\n1. **Countertops** – check every countertop instance (e.g., countertop 1, 2, 3, ...) before moving to the next type.\n2. **Diningtables** – check every diningtable.\n3. **Sidetables** – check every sidetable.\n4. **Shelves** – check every shelf.\n5. **Sinkbasins** – check every sinkbasin.\n6. **Stoveburners** – check every stoveburner.\n\n- **At each location**, read the observation. If the target object is present, **take it immediately** and go to Phase 2.\n- **Never skip a surface type.** If you have not visited every surface type above, you are NOT done. Do NOT move to containers until all surface types are exhausted.\n- **Keep a mental list** of every location you have visited (e.g., countertop 1, countertop 2, ...). Do NOT revisit a location unless you are backtracking later.\n- **If you find yourself at a container before finishing surfaces, that is a mistake.** Immediately return to the next unvisited surface type.\n\n### Closed Container Search – only after all surfaces are exhausted\nAfter checking every surface type above and still not finding the object, search inside containers in this exact order. For each type, check every instance:\n1. **Fridge** – for each fridge instance:\n   - If the fridge is closed, **must open it** (use `open fridge <instance>`).\n   - Look inside. If the target object is present, **take it** and go to Phase 2.\n   - If not present, **close the fridge** and move to the next container type.\n2. **Cabinet** – for each cabinet instance: open, look, if target present take it; if not, close and move to next cabinet.\n3. **Drawer** – same process.\n4. **Microwave** – same process.\n\n- **Critical: You must open every container to see its contents.** Simply arriving at a container and using `look` does NOT reveal what is inside if it is closed. Always open first.\n- After finishing all containers and still not finding the object, **backtrack through the surface list again** – you may have missed a location earlier.\n\n### Object Verification Rule\n- Before taking any object, **carefully read its exact name** from the observation (e.g., \"potato 2\", not just \"potato\"). Only take an object whose name matches the target object type exactly. If you see a similar object with a different name, leave it and continue searching.\n- **If you are already carrying an object that does not match the task**, put it down immediately (use `put <object> on <surface>`) and resume searching. Do not proceed to cooling with a wrong object.\n\n## Phase 2: Cool the object using the fridge\n\n### Immediate Cooling Action\n- As soon as you have taken the target object, your next action **MUST** be to go to a fridge, open it (if closed), and use `cool <object> with fridge`.\n- **Do NOT examine the object, move anywhere else, or perform any other action in between.** Any detour (e.g., looking, moving to another room) is a failure.\n- If you are not carrying the object, go back to Phase 1.\n\n## Phase 3: Move the cooled object to the target location\n- Go directly to the target location (e.g., cabinet, diningtable, microwave).\n- If the target is a closed container (like a microwave or cabinet), open it first.\n- Use `move <object> to <target>`.\n\n## Completion check\n- The object is now cooled and placed at the target. Task complete.",
+  "level": 3,
+  "version": 47,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent did not follow the existing skill tree's container opening instructions (it used `look` at the fridge instead of `open`) and skipped surface instances (e.g., countertop 3, sidetables) in the failures, indicating the tree's wording was not sufficiently explicit about the mandatory open action and the need to check every instance before moving on.",
+  "changelog": "Refined the 'Surface Search Order' and 'Closed Container Search' sections to explicitly require opening containers (including a critical note about not using `look` as a substitute) and to emphasize checking every instance per surface type, in order to prevent the observed exploration failures.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found an egg because it did not open the fridge or check other containers; it only visited surfaces and stopped after a loop.",
+      "skill_tree_gap": "Lacks a strategy for searching inside containers, especially the fridge for cool tasks.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to find a pan because it did not visit all accessible surfaces (e.g., countertop 3) and gave up after opening empty cabinets.",
+      "skill_tree_gap": "Incomplete surface exploration; the agent skipped some potential locations.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_5472",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 46,
+      "call_count": 826,
+      "success_when_used": 720,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object": {
+      "title": "Phase 1: Find and take the target object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 43,
+      "last_changed_version": 43,
+      "stable_versions": 4,
+      "call_count": 83,
+      "success_when_used": 73,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/surface-search-order-strictly-follow-this-sequence": {
+      "title": "Surface Search Order – strictly follow this sequence",
+      "level": 3,
+      "body_hash": "4a0fd27ece65",
+      "created_version": 47,
+      "last_changed_version": 47,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/closed-container-search-only-after-all-surfaces-are-exhausted": {
+      "title": "Closed Container Search – only after all surfaces are exhausted",
+      "level": 3,
+      "body_hash": "1d651b83f061",
+      "created_version": 44,
+      "last_changed_version": 47,
+      "stable_versions": 0,
+      "call_count": 68,
+      "success_when_used": 61,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/object-verification-rule": {
+      "title": "Object Verification Rule",
+      "level": 3,
+      "body_hash": "12f058bad37e",
+      "created_version": 45,
+      "last_changed_version": 47,
+      "stable_versions": 0,
+      "call_count": 41,
+      "success_when_used": 37,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 24,
+      "last_changed_version": 45,
+      "stable_versions": 2,
+      "call_count": 422,
+      "success_when_used": 378,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge/immediate-cooling-action": {
+      "title": "Immediate Cooling Action",
+      "level": 3,
+      "body_hash": "55226624365b",
+      "created_version": 45,
+      "last_changed_version": 47,
+      "stable_versions": 0,
+      "call_count": 41,
+      "success_when_used": 37,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location",
+      "level": 2,
+      "body_hash": "ec895a9bf66a",
+      "created_version": 24,
+      "last_changed_version": 45,
+      "stable_versions": 2,
+      "call_count": 422,
+      "success_when_used": 378,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check",
+      "level": 2,
+      "body_hash": "af963720c4cf",
+      "created_version": 27,
+      "last_changed_version": 43,
+      "stable_versions": 4,
+      "call_count": 369,
+      "success_when_used": 330,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

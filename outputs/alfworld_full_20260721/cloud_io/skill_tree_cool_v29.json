@@ -1,0 +1,109 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Object Search and Retrieval\n\n### Surface Search\n- First, check all **countertop** instances (any order). For each, go to it and look at the objects listed. If the target object is present, take it and proceed to Phase 2.\n- After all countertops, visit **diningtable** instances (all), then **sidetable** instances, then **shelf** instances, then **sinkbasin**, then **stoveburner** instances. For each surface type, check every instance.\n- Do not skip any instance; if you accidentally miss one, you can go back later. The goal is to inspect every surface completely.\n- If the target object is found, take it and go to Phase 2.\n\n### Closed Container Search\n- If the target object was not found on any surface, search **closed receptacles** in this order:\n  1. **fridge** (all instances)\n  2. **cabinet** (all instances)\n  3. **drawer** (all instances)\n  4. **microwave** (all instances)\n- For each category, visit **every single instance** without exception.\n- For each instance: go to it, open it if closed, then look inside. If the target object is present, take it and proceed to Phase 2.\n- **Do not stop** until you have opened and checked every instance of every category. Even if you have searched many, continue until the list is exhausted. Premature stopping (e.g., after only a few cabinets) will cause failure.\n- You may revisit a category if you realize you skipped an instance, but it is more efficient to check systematically from the start.\n\n## Phase 2: Cool the object using the fridge\n- After picking up the object, go directly to the fridge.\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Phase 3: Move the cooled object to the target location\n- Go to the target location.\n- If the target receptacle is closed, open it first.\n- Use `move <object> to <target>`.\n\n## Completion check\n- Object is cooled and placed at the target location – task complete.",
+  "level": 3,
+  "version": 29,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent attempted to follow the skill tree's surface and container search order but deviated by skipping some countertops and stopping cabinet search early. The tree's rigid ordering and 'do not backtrack' rule likely caused the agent to miss countertop1 and contributed to premature stopping; the wording also lacked sufficient emphasis on exhaustive checking.",
+  "changelog": "Revised Object Search and Retrieval section: replaced rigid ordered exploration with flexible within-category exhaustive checking, removed 'do not backtrack' rule, and added explicit 'do not stop until every instance is checked' to prevent premature failure.",
+  "round_failures": [
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent stopped searching after opening a few cabinets, failing to locate the pan needed for cooling.",
+      "skill_tree_gap": "Lacks a systematic search strategy that exhaustively checks all possible object locations before giving up.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_3312",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 28,
+      "call_count": 481,
+      "success_when_used": 409,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval": {
+      "title": "Object Search and Retrieval",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 2,
+      "call_count": 24,
+      "success_when_used": 19,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/surface-search": {
+      "title": "Surface Search",
+      "level": 3,
+      "body_hash": "efaebcccad70",
+      "created_version": 29,
+      "last_changed_version": 29,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/closed-container-search": {
+      "title": "Closed Container Search",
+      "level": 3,
+      "body_hash": "39742e6cd325",
+      "created_version": 29,
+      "last_changed_version": 29,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge",
+      "level": 2,
+      "body_hash": "de516de96541",
+      "created_version": 24,
+      "last_changed_version": 27,
+      "stable_versions": 2,
+      "call_count": 77,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location",
+      "level": 2,
+      "body_hash": "ee2daf0b8a33",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 5,
+      "call_count": 77,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check",
+      "level": 2,
+      "body_hash": "68f9629c26b4",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 2,
+      "call_count": 24,
+      "success_when_used": 19,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

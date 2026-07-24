@@ -1,0 +1,124 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v13 (level=3, tree_depth=2, 4 nodes) ===
+action: refine
+critique: The agent had the current skill tree but failed to follow its exhaustive search and post-placement instructions; the tree's own wording was clear but not sufficiently prominent. The refined tree restructures the procedure into a numbered algorithm, making the iterative loop and critical warnings more salient.
+changelog: Refined the procedure into a clear step-by-step algorithm, merged duplicate content, and emphasized the iterative loop after placing the first object to prevent premature stop and insufficient search.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 10  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent checked only a few sidetables and a couple of drawers, failing to find any keychain. | evidence: After opening drawer 3 (closed), no further search; no keychain found. | fix: Search all drawers, cabinets, and surfaces in a systematic order until both target objects are found. | skill_tree_gap: Insufficient search coverage for two-object tasks. | patch_location: under '## Pick Two and Place', add a new subsection '### Dual Object Systematic Search'
+- [premature_stop] After placing one pot, the agent stopped searching for the second pot, leaving the task incomplete. | evidence: After moving pot 1 to shelf, next action was go to cabinet 1 with no further placement actions. | fix: After placing the first object, immediately begin searching for the second object until both are placed. | skill_tree_gap: Missing iterative loop for multiple objects; only one object placed. | patch_location: under '## Pick Two and Place', add a new subsection '### Iterative Multi-Object Placement Loop'
+
+--- Node tree (per-node lifecycle, this version=v13) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=12 calls=287 success=230 rate=80.1%
+[NEW                 ] pick-two-obj-and-place/critical-warnings-avoid-these-failures level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/goal              level=2 stable_versions=0 calls=287 success=230 rate=80.1%
+[NEW                 ] pick-two-obj-and-place/procedure-step-by-step-algorithm level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v12 -> v13) ---
+--- v12
++++ v13
+@@ -2,60 +2,24 @@
+ 
+ ## Goal
+ - Place exactly two instances of a specific object into a specified target receptacle.
+-- The task is complete only when both objects are placed. Do not stop after one.
+ 
+-## Initial Steps
+-1. Read the task carefully. Identify the exact object type and target receptacle.
+-2. **Before moving**, read the room description and list every furniture item. Do not skip this step.
+-3. For each furniture item: if it is a closed container (drawer, cabinet, safe, fridge, etc.), open it now. Systematically open all closed containers before searching further.
+-   - Do not assume a container is empty until you have opened and looked inside.
+-
+-## Search Strategy
+-- **Exhaustive first pass**: Visit every furniture item exactly once. Do not revisit any location until you have checked all others.
+-- **Never skip a furniture type**: Even if you think the object is unlikely on a bed or in a drawer, check every type. Common failure: only searching one type (e.g., only drawers or only shelves).
+-- **Use object-specific location priors only to guide order** (e.g., books often on shelves, food in fridge), but **never** to decide whether to check a type. Always check all types.
+-- After opening all containers initially, immediately begin visiting all furniture items in any order. For each:
+-  - Go to it. If closed, open it.
+-  - Look at its contents. If you see an object whose exact name matches the required type, take it (after identity verification – see below).
+-  - If not, move on to the next furniture item.
+-
+-### Exhaustive Search Loop (for both first and second object)
+-1. Mentally list all furniture items from the room description.
+-2. For each item on that list:
++## Procedure (step-by-step algorithm)
++1. **Identify task**: Note the required object type (e.g., newspaper) and the target receptacle (e.g., sofa).
++2. **Initial exploration**: Read the room description and list every furniture item. For each closed container (drawer, cabinet, safe, fridge, etc.), open it immediately. Do not assume any container is empty.
++3. **First object search**: Visit each furniture item from your list exactly once. For each item:
+    - Go to it.
+    - If it is a container and is closed, open it.
+    - Examine its contents (on surfaces or inside).
+-   - If the correct object is present, take it. If you already have one in hand and are looking for the second, remember to drop or place the first before taking the second? (No – you should not be holding the first; you should have placed it already. If you still have it, go place it first.)
+-   - If not, proceed to the next item.
+-3. Do not repeat an item until you have visited every item on the list. If you have visited all and still not found the object, then and only then may you re-check (e.g., objects may have been moved by earlier actions).
++   - If you see an object whose exact name matches the required type, take it. Then go directly to step 4.
++   - If not, move to the next item on the list.
++   - After visiting all items, if you still have not found the object, you may re-visit items (objects may have been moved by earlier actions).
++4. **Place the first object**: Go directly to the target receptacle. Immediately use the action "move <object> to <target>". Do not perform any other actions (look, inventory, move elsewhere) before moving.
++5. **Second object search**: **You are not done.** Reset your mental list of furniture items and repeat step 3 exactly. Do not assume the second object is in the same type of location as the first — check all furniture types.
++6. **Place the second object**: Use the same sequence as step 4. After moving, the environment will indicate success.
+ 
+-## Object Identity Verification
+-- Before taking any object, read its exact name from the observation.
+-- Compare it to the required object type. Do not take if there is any mismatch (e.g., "soapbar" vs "soapbottle", "pen" vs "pencil").
+-- This applies to every object you consider picking up – both the first and second object.
+-- If you accidentally pick up a wrong object, put it back in its original location or drop it somewhere safe, but do not place it in the target.
+-
+-## Placing the First Object
+-- Once you have verified and taken the correct object, go directly to the target receptacle.
+-- Use the action "move <object> to <target>" immediately upon arrival. Do not issue any other commands (not 'look', not 'inventory', not 'go' elsewhere) before moving it.
+-
+-## Immediately After Placing the First Object
+-- **You are not done.** You must find and place the second object.
+-- Begin a fresh exhaustive search following the same **Exhaustive Search Loop** above.
+-- **Crucially, do not assume the second object is in the same type of location as the first.** If you found the first on a countertop, still check drawers, cabinets, shelves, tables, beds, etc. for the second.
+-- **Stopping after one object is the most common failure.** Force yourself to continue until either you have placed two objects or you have checked every furniture item in the room without finding a second.
+-
+-## Placing the Second Object
+-- Use the same search, identity verification, and action sequence as for the first.
+-- When you arrive at the target with the second object in hand, immediately issue the 'move' action. Do not perform any other actions first.
+-
+-## Completion Detection
+-- After moving the second object, the environment will indicate success.
+-- If you do not get a success signal, you may have missed one – continue searching. If you have checked everything and still only have one, re-check the room description for any furniture you may have overlooked.
+-
+-## Common Failure Patterns (Avoid These)
+-- Only searching one container type (e.g., only drawers). **If you notice you are doing this, switch to a different type immediately.**
+-- Stopping after placing one object. Repeat: **the task requires two.**
+-- Not opening a container before looking inside. Always open first.
+-- Picking up the wrong object type. Always verify the exact name.
+-- Taking extra actions (look, inventory, navigate elsewhere) when you already have the correct object in hand and are at the target. Act immediately.
++## Critical warnings (avoid these failures)
++- **Insufficient search**: You must visit every furniture item on your list. Checking only a few items (e.g., only sidetables or only drawers) will cause failure. If you find yourself revisiting the same type repeatedly, stop and check a different type.
++- **Premature stop**: After placing the first object, immediately begin searching for the second. Do not rest or assume the task is done.
++- **Not opening containers**: Always use "open" before looking inside. The action "examine" does not open containers.
++- **Wrong object identity**: Before taking any object, verify its exact name against the required type. Do not take if there is any mismatch.
++- **Intervening actions**: When you are at the target receptacle with the correct object in hand, issue the move action immediately. Any delay (looking, inventory, going elsewhere) wastes steps and leads to failure.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+- Place exactly two instances of a specific object into a specified target receptacle.
+
+## Procedure (step-by-step algorithm)
+1. **Identify task**: Note the required object type (e.g., newspaper) and the target receptacle (e.g., sofa).
+2. **Initial exploration**: Read the room description and list every furniture item. For each closed container (drawer, cabinet, safe, fridge, etc.), open it immediately. Do not assume any container is empty.
+3. **First object search**: Visit each furniture item from your list exactly once. For each item:
+   - Go to it.
+   - If it is a container and is closed, open it.
+   - Examine its contents (on surfaces or inside).
+   - If you see an object whose exact name matches the required type, take it. Then go directly to step 4.
+   - If not, move to the next item on the list.
+   - After visiting all items, if you still have not found the object, you may re-visit items (objects may have been moved by earlier actions).
+4. **Place the first object**: Go directly to the target receptacle. Immediately use the action "move <object> to <target>". Do not perform any other actions (look, inventory, move elsewhere) before moving.
+5. **Second object search**: **You are not done.** Reset your mental list of furniture items and repeat step 3 exactly. Do not assume the second object is in the same type of location as the first — check all furniture types.
+6. **Place the second object**: Use the same sequence as step 4. After moving, the environment will indicate success.
+
+## Critical warnings (avoid these failures)
+- **Insufficient search**: You must visit every furniture item on your list. Checking only a few items (e.g., only sidetables or only drawers) will cause failure. If you find yourself revisiting the same type repeatedly, stop and check a different type.
+- **Premature stop**: After placing the first object, immediately begin searching for the second. Do not rest or assume the task is done.
+- **Not opening containers**: Always use "open" before looking inside. The action "examine" does not open containers.
+- **Wrong object identity**: Before taking any object, verify its exact name against the required type. Do not take if there is any mismatch.
+- **Intervening actions**: When you are at the target receptacle with the correct object in hand, issue the move action immediately. Any delay (looking, inventory, going elsewhere) wastes steps and leads to failure.

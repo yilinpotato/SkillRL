@@ -1,0 +1,145 @@
+[
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent wasted time visiting irrelevant stoveburners and never searched for the apple in common locations like countertops or fridge.",
+    "evidence": "After the consensus prefix, it went to stoveburner 6 repeatedly: 'action: examine stoveburner 6 | obs: On the stoveburner 6, you see nothing.'",
+    "corrective_rule": "When searching for a target object, first check countertops and fridge before exploring other appliances.",
+    "skill_tree_gap": "Lack of a prioritized search strategy for object retrieval.",
+    "patch_location": "## Cool Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched multiple countertops and sinkbasin but never found an egg or attempted to use the fridge.",
+    "evidence": "After countertop1, it went to countertop2,3,4, sinkbasin, then stoveburners, never picking an egg: 'action: go to sinkbasin 1 | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.'",
+    "corrective_rule": "When searching for an egg, check the fridge first as eggs are often stored there.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for eggs.",
+    "patch_location": "## Cool Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#2",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent went to diningtables and sidetables instead of looking for the pan on countertops.",
+    "evidence": "After countertop1, it went straight to diningtable1, then diningtable2, etc., never taking a pan: 'action: go to diningtable 1 | obs: You arrive at diningtable 1. On the diningtable 1, you see nothing.'",
+    "corrective_rule": "When searching for a pan, check countertops first as they are common locations for cookware.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for pans.",
+    "patch_location": "## Cool Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#3",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched diningtables, sidetables, and stoves but never located a mug or used the fridge.",
+    "evidence": "After countertop1, it went to diningtable1,2,3, sidetable, sinkbasin, stoveburners, never picking a mug: 'action: go to diningtable 1 | obs: You arrive at diningtable 1. On the diningtable 1, you see a cup 2, and a spatula 1.'",
+    "corrective_rule": "When searching for a mug, check cabinets, countertops, and the fridge first.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for mugs.",
+    "patch_location": "## Cool Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent opened the fridge, found no apple, then wasted time exploring cabinets instead of checking countertops for apples.",
+    "evidence": "After opening fridge: 'obs: You open the fridge 1. The fridge 1 is open. In it, you see a cup 3, a egg 2, and a tomato 1.' Then it went to cabinets.",
+    "corrective_rule": "When the target object is not in the fridge, systematically check countertops and other common locations before opening random cabinets.",
+    "skill_tree_gap": "Lack of adaptive search after initial negative observation.",
+    "patch_location": "## Heat Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#1",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a plate; it searched fridge, countertops, diningtable, and cabinets without success.",
+    "evidence": "After opening fridge: 'obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 2, a egg 2, a egg 1, a lettuce 2, and a potato 1.' No plate.",
+    "corrective_rule": "When searching for a plate, check cabinets and dining tables first, as plates are rarely in the fridge.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for plates.",
+    "patch_location": "## Heat Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched shelves and empty drawers but never found a cellphone; it overlooked typical locations like beds or side tables.",
+    "evidence": "After dresser1 (empty), went to shelf1 (vases), shelf2 (alarmclock), then opened empty drawers: 'action: open drawer 1 | obs: ... In it, you see nothing.'",
+    "corrective_rule": "When searching for a cellphone, check beds, desks, and side tables first.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for cellphones.",
+    "patch_location": "## Pick and Place Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a soapbottle instead of a spraybottle because it did not verify the object name.",
+    "evidence": "After opening cabinet 2: 'action: take soapbottle 2 from cabinet 2 | obs: You pick up the soapbottle 2 from the cabinet 2.' The target was spraybottle.",
+    "corrective_rule": "Before picking an object, confirm that its exact name matches the target object name in the task.",
+    "skill_tree_gap": "Lack of object name verification step.",
+    "patch_location": "## Pick Two and Place Task (new subsection: ### Object Name Verification)",
+    "confidence": 0.98
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched cabinets and armchairs but never checked drawers or side tables where creditcards are commonly found.",
+    "evidence": "After going to cabinet4 and opening: 'action: open cabinet 4 | obs: The cabinet 4 is open. In it, you see nothing.' It never tried a drawer.",
+    "corrective_rule": "When searching for creditcards, systematically check all drawers and side tables first.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for creditcards.",
+    "patch_location": "## Pick Two and Place Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets for cups, ignoring more common locations like countertops and dining tables.",
+    "evidence": "It opened cabinet20, cabinet19, cabinet18, cabinet17, all empty: 'action: open cabinet 20 | obs: The cabinet 20 is open. In it, you see nothing.'",
+    "corrective_rule": "When searching for cups, check countertops and dining tables before opening many cabinets.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for cups.",
+    "patch_location": "## Pick Two and Place Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "After picking one saltshaker, the agent got stuck in a loop of 'look' actions instead of continuing to find the second saltshaker or placing both.",
+    "evidence": "After taking saltshaker1: 'action: look | obs: You are facing the cabinet 1. Next to it, you see nothing.' Repeated look actions follow.",
+    "corrective_rule": "After picking the first object, immediately search for the second object in other likely locations before placing.",
+    "skill_tree_gap": "Lack of progress tracking for multi-object tasks; missing a step to continue search.",
+    "patch_location": "## Pick Two and Place Task (new subsection: ### Multi-Object Completion Plan)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent visited armchair, coffeetables, diningtable, and one drawer, but never found creditcards because it did not check multiple drawers or side tables.",
+    "evidence": "After opening drawer1: 'action: open drawer 1 | obs: The drawer 1 is open. In it, you see nothing.' Then it looped on look.",
+    "corrective_rule": "When searching for creditcards, systematically check all drawers and side tables, as they are common storage.",
+    "skill_tree_gap": "Lack of systematic exploration of likely container locations.",
+    "patch_location": "## Pick Two and Place Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets for saltshakers, ignoring countertops and dining tables where they are often placed.",
+    "evidence": "It opened cabinet10, cabinet9, cabinet8, all empty or containing soapbottle: 'action: open cabinet 10 | obs: The cabinet 10 is open. In it, you see nothing.'",
+    "corrective_rule": "When searching for saltshakers, check countertops and dining tables first.",
+    "skill_tree_gap": "Lack of object-specific location knowledge for saltshakers.",
+    "patch_location": "## Pick Two and Place Task (new subsection: ### Object Search Heuristic)",
+    "confidence": 0.95
+  }
+]

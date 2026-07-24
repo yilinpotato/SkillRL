@@ -1,0 +1,169 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Sub-goal 1: Find the object to cool.\n\n### Initial assessment\n- **Re-read the room description** from the prompt now. It lists every receptacle by type and number. This list is your definitive guide for where to search. Do not rely on `look` after moving — `look` from a specific spot shows only a localized view, not the full list.\n- If the prompt already provided the room description, do not move until you have mentally noted all surfaces and closed receptacles.\n\n### Strict search sequence — follow exactly, do not skip\n- After arriving at the first location (countertop 1), if the target object is **not** present, do **not** proceed to cooling. You must continue this search sequence until the object is found.\n- The order is: countertops → diningtables → sidetables → shelves → sinkbasin → stoveburners → then closed receptacles (fridge first, then cabinets, drawers, microwave).\n- Within each category, check every numbered instance (1, 2, 3, …) in increasing order.\n- **Do not move to the next category until you have mentally confirmed that you have checked every instance of the current category.**\n- If you realize you have skipped a category, stop and go back to the earliest missed category.\n- Keep a mental checklist: after each instance, note its number. Only when you have visited all numbers for that category (e.g., countertop 1, 2, 3, …) proceed to the first instance of the next category.\n\n### Systematic surface search (flat surfaces — mandatory, do not skip)\n- Check every flat surface listed in the room description **before** opening any closed receptacle.\n- **Strict order – follow exactly this sequence:**\n  1. **All countertops** – check every numbered instance.\n  2. **All diningtables** – check every numbered instance.\n  3. **All sidetables** – check every numbered instance.\n  4. **All shelves** – check every numbered instance.\n  5. **Sinkbasin** – check the single instance.\n  6. **Stoveburners** – check every numbered instance.\n- For each numbered instance:\n  1. Go to it using `go to <location>`.\n  2. Read the observation. If the target object is present, take it immediately using `take <object> from <location>`.\n  3. If not, move to the next instance in the same category, then to the next category (following the strict order above).\n- **Crucial: Keep a mental record of which instances you have already visited.** Do not revisit a location unless you have a specific reason (e.g., you need to use it later for cooling).\n- **Do not open any closed receptacle until all flat surfaces have been checked.** Opening the fridge early is a waste; the object is unlikely inside if not on a surface.\n\n### Systematic container check (closed receptacles — only after flat surfaces exhausted)\n- Search all closed receptacles in this order: fridge, cabinets, drawers, microwave.\n- Start with the fridge (it may contain items that need cooling), but then continue to all other closed receptacles.\n- **Critical: When you arrive at a closed receptacle, the observation will say it is closed. Your next action MUST be `open <receptacle>` to see inside. Do not move away or do anything else before opening.**\n- For each closed receptacle (fridge, cabinets, drawers, microwave):\n  1. Go to the instance (e.g., `go to cabinet 1`).\n  2. If the observation says the receptacle is closed, **immediately open it** (`open <receptacle>`).\n  3. Read the observation after opening. If the target object is present, take it (`take <object> from <receptacle>`).\n  4. If not, move to the next instance of the same type (e.g., cabinet 2).\n- **Important**: Only `open` reveals interior. Do **NOT** use `look` or `examine` on closed receptacles.\n- After checking all instances of one type, proceed to the next type.\n\n### If still not found\n- Re-read the room description from the prompt to ensure you did not overlook any receptacle. Possibly you missed a flat surface or closed receptacle type.\n- **Systematic re-check**: Go through the categories again in the strict order: countertops, diningtables, sidetables, shelves, sinkbasin, stoveburners, then all closed receptacles. This catches any skipped category.\n\n## Sub-goal 2: Take the object.\n- Once you see the object, **verify its name exactly matches the target** (e.g., if target is \"cup\", do not take \"mug\"). Only take if the match is exact.\n- Then take it immediately using `take <object> from <location>`.\n\n### Immediately cool after picking (mandatory)\n- As soon as you have taken the object, go to the fridge and cool it before doing anything else. Do not move to the target location first.\n\n## Sub-goal 3: Cool the object using the fridge.\n- Ensure you are at the fridge.\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Sub-goal 4: Move the cooled object to the target location.\n- Go to the target location (named in the task).\n- If the target receptacle is closed (e.g., microwave, garbagecan), open it first.\n- Use `move <object> to <target>`.\n\n## Completion check:\n- The task is complete when the object has been cooled and placed at the target location.",
+  "level": 3,
+  "version": 22,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent misused the skill tree by not following the strict search sequence; after not finding the apple on countertop 1, it wandered to surfaces out of order and opened the fridge early, violating the tree's instructions. The skill tree's wording was clear but the agent ignored it, so we reinforced the critical rule at the top of the search section.",
+  "changelog": "Refined Sub-goal 1 to emphasize that if the object is not found on the first countertop, the agent must continue the strict search sequence without skipping to cooling or opening closed receptacles early.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent wandered through multiple surfaces and even opened the fridge but never located an apple to cool; it did not check cabinets or drawers.",
+      "skill_tree_gap": "Missing a search phase for the target object before action execution.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_2664",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 21,
+      "call_count": 384,
+      "success_when_used": 326,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool": {
+      "title": "Sub-goal 1: Find the object to cool.",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 14,
+      "stable_versions": 8,
+      "call_count": 384,
+      "success_when_used": 326,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/initial-assessment": {
+      "title": "Initial assessment",
+      "level": 3,
+      "body_hash": "800c5f9c8661",
+      "created_version": 10,
+      "last_changed_version": 19,
+      "stable_versions": 3,
+      "call_count": 273,
+      "success_when_used": 245,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/strict-search-sequence-follow-exactly-do-not-skip": {
+      "title": "Strict search sequence — follow exactly, do not skip",
+      "level": 3,
+      "body_hash": "61974b815f1c",
+      "created_version": 20,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 50,
+      "success_when_used": 46,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-surface-search-flat-surfaces-mandatory-do-not-skip": {
+      "title": "Systematic surface search (flat surfaces — mandatory, do not skip)",
+      "level": 3,
+      "body_hash": "d51eb7ea51c4",
+      "created_version": 20,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 50,
+      "success_when_used": 46,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-container-check-closed-receptacles-only-after-flat-surfaces-exhausted": {
+      "title": "Systematic container check (closed receptacles — only after flat surfaces exhausted)",
+      "level": 3,
+      "body_hash": "8cc78a068a7d",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 2,
+      "call_count": 50,
+      "success_when_used": 46,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/if-still-not-found": {
+      "title": "If still not found",
+      "level": 3,
+      "body_hash": "7eae967db6fd",
+      "created_version": 14,
+      "last_changed_version": 19,
+      "stable_versions": 3,
+      "call_count": 186,
+      "success_when_used": 166,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object": {
+      "title": "Sub-goal 2: Take the object.",
+      "level": 2,
+      "body_hash": "abbca2040758",
+      "created_version": 1,
+      "last_changed_version": 21,
+      "stable_versions": 1,
+      "call_count": 384,
+      "success_when_used": 326,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object/immediately-cool-after-picking-mandatory": {
+      "title": "Immediately cool after picking (mandatory)",
+      "level": 3,
+      "body_hash": "4b0763a78690",
+      "created_version": 6,
+      "last_changed_version": 14,
+      "stable_versions": 8,
+      "call_count": 321,
+      "success_when_used": 280,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-3-cool-the-object-using-the-fridge": {
+      "title": "Sub-goal 3: Cool the object using the fridge.",
+      "level": 2,
+      "body_hash": "98d248633aa7",
+      "created_version": 1,
+      "last_changed_version": 14,
+      "stable_versions": 8,
+      "call_count": 384,
+      "success_when_used": 326,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-4-move-the-cooled-object-to-the-target-location": {
+      "title": "Sub-goal 4: Move the cooled object to the target location.",
+      "level": 2,
+      "body_hash": "e0c9d82a6f6a",
+      "created_version": 1,
+      "last_changed_version": 21,
+      "stable_versions": 1,
+      "call_count": 384,
+      "success_when_used": 326,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check:",
+      "level": 2,
+      "body_hash": "f2cf8f0f2511",
+      "created_version": 1,
+      "last_changed_version": 14,
+      "stable_versions": 8,
+      "call_count": 384,
+      "success_when_used": 326,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

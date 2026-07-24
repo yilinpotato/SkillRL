@@ -1,0 +1,228 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "pick_two_obj_and_place" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# pick_two_obj_and_place
+
+## Goal
+- Place exactly two instances of a specific object into a specified target receptacle.
+
+## Multi-Object Tasks
+
+### Counting and Completion Check
+- Before starting, note that you need to place **two** matching objects. Keep a counter in mind: 0 of 2.
+- After placing the first object, immediately update your counter to 1 of 2. **Do not stop.** You must find and place the second object.
+- Only stop when you have placed the second object (counter becomes 2 of 2). The environment will not signal success until both are placed.
+- If you cannot find a second object, re-check your list of furniture items (see Exploration Strategy) — you may have missed a location.
+
+## Exploration Strategy
+
+### Visit All Furniture Types
+- From the initial room description, list every visible furniture item (e.g., cabinet, drawer, shelf, countertop, dresser, sink, fridge, etc.).
+- **Visit each one exactly once** in your first pass. For each item:
+  - Go to it.
+  - If it is a container (closed drawer, cabinet, etc.), open it first.
+  - Examine its contents (on surfaces or inside).
+- Do not skip any type. Common misses: dressers, garbage cans, bathtub basins, handtowel holders, etc.
+- If after visiting all items you still lack one or both objects, repeat the list but check opened containers again (objects may have been moved).
+
+## Procedure (step-by-step algorithm)
+1. **Identify task**: Note the required object type (e.g., "newspaper") and the target receptacle (e.g., "sofa").
+2. **Initial exploration**: Read the room description and list every furniture item. For each closed container (drawer, cabinet, safe, fridge, etc.), open it immediately. Do not assume any container is empty.
+3. **First object search**: Visit each furniture item from your list exactly once. For each item:
+   - Go to it.
+   - If it is a container and is closed, open it.
+   - Examine its contents (on surfaces or inside).
+   - **If you see an object whose exact name matches the required type, take it.** Then go directly to step 4.
+   - If not, move to the next item on the list.
+   - After visiting all items, if you still have not found the object, you may re-visit items (objects may have been moved by earlier actions).
+
+### Object name verification before pickup
+- **Before picking up any object, read its full name from the observation.** Compare it character by character to the required type from the task description (e.g., "spraybottle" vs "soapbottle", "soapbottle" vs "soapbar"). A single letter difference means it is the wrong object.
+- Do not rely on partial matches or semantic similarity. If the names do not match exactly, do not take it. Continue searching.
+- If you have already picked up an object and later realize it is wrong, drop it immediately (use "put <object> on <surface>" or similar) and resume the search.
+
+4. **Place the first object**: Go directly to the target receptacle. Immediately use the action "move <object> to <target>". Do not perform any other actions (look, inventory, move elsewhere) before moving.
+5. **Second object search**: **You are not done.** Reset your mental list of furniture items (the one from step 2) and repeat step 3 exactly. Do not assume the second object is in the same type of location as the first — check all furniture types. Do not revisit already-searched spots unless you have exhausted every item on the list.
+
+### Continuation after first placement
+- After you have successfully moved the first object to the target, immediately begin a fresh, systematic search for the second object. Do not return to furniture you already checked during the first search unless no new locations remain.
+- Maintain a mental checklist of which items you have visited this round (second search). If you find yourself going back to the same place repeatedly, force yourself to look at a different furniture type.
+- The environment does not signal success until both objects are placed. Do not stop after one placement.
+
+## Common Failure Patterns
+### thorough_search
+- Ensure you have visited *every* furniture item listed in the initial room description. Do not skip any cabinet, drawer, shelf, counter, stove burner, fridge, or any other surface/container.
+- If an item is closed, open it before checking contents. Do not assume it is empty.
+- After checking all items, if you still lack two copies, revisit any you may have missed or recheck opened containers (objects may have been moved).
+- Common oversight: checking only one type of furniture (e.g., only countertops or only cabinets). Spread your search across all categories.
+
+### check_count
+- After placing the first object, immediately reset your mental list and begin the second search. Do not interpret any intermediate success message as task completion.
+- Before concluding the task, confirm that you have placed exactly two objects of the required type into the target receptacle. The environment will not indicate success until both are placed.
+- If you have placed only one, continue searching. Do not stop until you have picked up, moved, and placed the second object.
+
+## Critical warnings (avoid these failures)
+- **Insufficient search**: You must visit every furniture item on your list. Checking only a few items (e.g., only sidetables or only drawers) will cause failure. If you find yourself revisiting the same type repeatedly, stop and check a different type.
+- **Premature stop**: After placing the first object, immediately begin searching for the second. Do not rest or assume the task is done.
+- **Not opening containers**: Always use "open" before looking inside. The action "examine" does not open containers.
+- **Wrong object identity**: Before taking any object, verify its exact name against the required type. Do not take if there is any mismatch.
+- **Intervening actions**: When you are at the target receptacle with the correct object in hand, issue the move action immediately. Any delay (looking, inventory, going elsewhere) wastes steps and leads to failure.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): (none — no shared successful opening yet)
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: put two newspaper in garbagecan.
+  action: go to coffeetable 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a coffeetable 1, a diningtable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 2, a sidetable 1, and a sofa 1.
+
+Your task is to: put two newspaper in garbagecan.
+  action: go to diningtable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a cellphone 3, and a creditcard 2.
+  action: take newspaper 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a creditcard 1, a laptop 1, a newspaper 1, and a plate 2.
+  action: go to garbagecan 1  | obs: You pick up the newspaper 1 from the diningtable 1.
+  action: move newspaper 1 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see nothing.
+  action: go to drawer 4  | obs: You move the newspaper 1 to the garbagecan 1.
+  action: open drawer 4  | obs: You arrive at drawer 4. The drawer 4 is closed.
+  action: look  | obs: You open the drawer 4. The drawer 4 is open. In it, you see nothing.
+  action: go to drawer 3  | obs: You are facing the drawer 4. Next to it, you see nothing.
+  action: open drawer 3  | obs: You arrive at drawer 3. The drawer 3 is closed.
+  action: go to coffeetable 1  | obs: You open the drawer 3. The drawer 3 is open. In it, you see nothing.
+  action: go to dresser 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a cellphone 3, and a creditcard 2.
+
+Trajectory 2 [success] task: find two cellphone and put them in bed.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 1, and a sidetable 1.
+
+Your task is to: find two cellphone and put them in bed.
+  action: go to desk 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: take cellphone 2 from desk 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 2, a book 3, a cellphone 3, a cellphone 2, a desklamp 1, and a pencil 2.
+  action: go to bed 1  | obs: You pick up the cellphone 2 from the desk 1.
+  action: move cellphone 2 to bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a book 1, a laptop 1, a pillow 1, and a teddybear 1.
+  action: go to desk 1  | obs: You move the cellphone 2 to the bed 1.
+  action: take cellphone 3 from desk 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 2, a book 3, a cellphone 3, a desklamp 1, and a pencil 2.
+  action: go to bed 1  | obs: You pick up the cellphone 3 from the desk 1.
+  action: move cellphone 3 to bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a book 1, a cellphone 2, a laptop 1, a pillow 1, and a teddybear 1.
+
+Trajectory 3 [success] task: find two pencil and put them in desk.
+  action: go to drawer 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: find two pencil and put them in desk.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to shelf 2  | obs: You open the drawer 1. The drawer 1 is open. In it, you see nothing.
+  action: take pencil 2 from shelf 2  | obs: You arrive at shelf 2. On the shelf 2, you see a cellphone 1, a creditcard 1, and a pencil 2.
+  action: go to desk 1  | obs: You pick up the pencil 2 from the shelf 2.
+  action: move pencil 2 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 2, a alarmclock 1, a cd 1, a cellphone 2, a laptop 1, a mug 3, a mug 2, a mug 1, a pen 3, a pen 2, a pen 1, and a tissuebox 1.
+  action: go to shelf 1  | obs: You move the pencil 2 to the desk 1.
+  action: take pencil 1 from shelf 1  | obs: You arrive at shelf 1. On the shelf 1, you see a box 1, a houseplant 1, a keychain 3, and a pencil 1.
+  action: move pencil 1 to shelf 1  | obs: You pick up the pencil 1 from the shelf 1.
+  action: take pencil 1 from shelf 1  | obs: You move the pencil 1 to the shelf 1.
+  action: go to desk 1  | obs: You pick up the pencil 1 from the shelf 1.
+  action: move pencil 1 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 2, a alarmclock 1, a cd 1, a cellphone 2, a laptop 1, a mug 3, a mug 2, a mug 1, a pen 3, a pen 2, a pen 1, a pencil 2, and a tissuebox 1.
+
+Trajectory 4 [success] task: find two pencil and put them in desk.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, and a garbagecan 1.
+
+Your task is to: find two pencil and put them in desk.
+  action: go to desk 1  | obs: You arrive at bed 1. On the bed 1, you see a book 3, a laptop 1, and a pillow 1.
+  action: go to drawer 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 1, a book 2, a cd 3, a cd 2, a desklamp 1, a laptop 2, and a pen 1.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to drawer 2  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a keychain 1.
+  action: open drawer 2  | obs: You arrive at drawer 2. The drawer 2 is closed.
+  action: go to drawer 3  | obs: You open the drawer 2. The drawer 2 is open. In it, you see a cd 1, and a creditcard 1.
+  action: open drawer 3  | obs: You arrive at drawer 3. The drawer 3 is closed.
+  action: go to drawer 4  | obs: You open the drawer 3. The drawer 3 is open. In it, you see a cellphone 1.
+  action: open drawer 4  | obs: You arrive at drawer 4. The drawer 4 is closed.
+  action: go to dresser 1  | obs: You open the drawer 4. The drawer 4 is open. In it, you see a keychain 3, and a keychain 2.
+  action: take pencil 1 from dresser 1  | obs: You arrive at dresser 1. On the dresser 1, you see a book 1, a pencil 3, and a pencil 1.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+(none)
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+(none)
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

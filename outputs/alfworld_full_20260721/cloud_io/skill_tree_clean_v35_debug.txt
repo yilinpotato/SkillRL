@@ -1,0 +1,109 @@
+=== Skill Tree Debug — scope=clean  v35 (level=3, tree_depth=4, 11 nodes) ===
+action: refine
+critique: The agent failed to follow the systematic search procedure in the bathroom (skipped consensus prefix and wandered) and in the kitchen (never opened fridge). The skill tree provided correct steps but its 'e.g.' wording may have weakened the imperative, and it lacked explicit guidance for environments without a countertop 1. The tree's depth was sufficient, but the agent did not internalize the closed-container checklist.
+changelog: Added subsection under Phase 1 for adapting search when the environment lacks a countertop 1; reinforced closed container search order by removing 'e.g.' and making the order imperative, and added a checklist reminder for food items and fridge checking.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 9  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent did not systematically search for the soapbar in the bathroom environment; it opened only one drawer and then wandered aimlessly, never checking sinkbasin or bathtubbasin where the soapbar might be. | evidence: After opening drawer 1 (empty), the agent went to toiletpaperhanger, looked repeatedly, then returned to sidetable, starting to loop without ever taking any object. | fix: When searching for an object in a new room, systematically check all surfaces (sinkbasin, bathtubbasin, sidetable, etc.) and then all receptacles. | skill_tree_gap: Missing a subskill for adapting the search strategy to bathroom environments where the consensus prefix (go to countertop 1) does not apply. | patch_location: Under ## clean, add a new subsection ### Bathroom object search strategy
+- [inefficient_exploration] The agent did not locate the egg because it only visited countertops and some cabinets, but never checked the fridge, which is a common location for an egg. | evidence: After visiting countertop 1 (no egg), the agent went to countertop 2, stoveburners, toaster, cabinets, and coffeemachine, but never went to fridge; the egg was never seen. | fix: When the target object is not on visible countertops, systematically check the fridge and all cabinets before moving on. | skill_tree_gap: Missing a subskill for searching in storage receptacles (fridge, cabinets) when object is not in plain sight. | patch_location: Under ## clean, add a new subsection ### Search in fridge and cabinets
+- [inefficient_exploration] The agent opened several cabinets but never checked the fridge, which likely contained the potato. | evidence: Opened cabinets 1, 2, 3 (all empty) and visited multiple countertops and diningtable, but never went to fridge; no potato was ever observed. | fix: After checking all visible surfaces and counters, always inspect the fridge for raw food items like potato. | skill_tree_gap: Missing a decision rule to prioritize fridge when the object is a food item not found on surfaces. | patch_location: Under ## clean, add a new subsection ### Search in fridge and cabinets
+
+--- Node tree (per-node lifecycle, this version=v35) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=34 calls=740 success=598 rate=80.8%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=7 calls=740 success=598 rate=80.8%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=7 calls=740 success=598 rate=80.8%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object level=2 stable_versions=2 calls=133 success=115 rate=86.5%
+[NEW                 ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/adapting-search-when-the-environment-lacks-a-kitchen-countertop-e-g-bathroom level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-name-matching level=3 stable_versions=4 calls=133 success=115 rate=86.5%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure level=3 stable_versions=4 calls=96 success=81 rate=84.4%
+[MODIFIED            ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure/mandatory-order-open-surfaces-first-then-all-closed-containers-no-skipping level=4 stable_versions=0 calls=28 success=23 rate=82.1%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure/self-check-to-avoid-skipping level=4 stable_versions=1 calls=54 success=45 rate=83.3%
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=4 calls=740 success=598 rate=80.8%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=7 calls=740 success=598 rate=80.8%
+
+--- Line diff vs previous version (v34 -> v35) ---
+--- v34
++++ v35
+@@ -14,6 +14,11 @@
+ - Compare the object name from the task with names in your observations. Only an exact string match counts.
+ - Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.
+ 
++### Adapting search when the environment lacks a kitchen countertop (e.g., bathroom)
++- The consensus prefix is "go to countertop 1" – but if the initial room description does NOT contain any countertop 1, **skip the consensus prefix** and start your search directly from the listed receptacles.
++- In such rooms, still follow the same systematic search procedure (open surfaces first, then closed containers) using the receptacles given in the room description.
++- Do NOT wander aimlessly; list all receptacles from the description and check them one by one.
++
+ ### Systematic Search Procedure
+ #### Mandatory order: open surfaces first, then all closed containers (no skipping)
+ - **Step 1 – All Open Surfaces** (e.g., countertops, tables, shelves, sinkbasins, bathtubbasins, stoveburners, etc.)
+@@ -22,8 +27,9 @@
+   - **Do not move to Step 2 until every open receptacle instance has been visited.**
+ - **Step 2 – All Closed Containers** (only after Step 1 is complete)
+   - **You must open every single closed container that was listed in the initial room description.** Do not stop after opening only one or two.
+-  - Go through them in a systematic order (e.g., all cabinets first, then all drawers, then fridge, then microwave).
++  - Open them in this fixed order: all cabinets first, then all drawers, then the fridge, then the microwave, then any other closed container (e.g., oven). **Do not deviate from this order.**
+   - For each container: `open [container]`, then look inside (observation shows contents). If the target is inside, pick it up. If not, move to the next container.
++  - **If the object is a food item (e.g., egg, potato, lettuce, apple, tomato) and you haven't found it on surfaces, the fridge is a high-probability location – force yourself to check it.**
+   - **Do not go back to open surfaces or to the cleaning source until you have checked every closed container.**
+   - If you have checked all closed containers and still haven't found the object, you may repeat the cycle (open surfaces again, then containers) in case the environment changed, but that is rare.
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- [cleaning_source] is a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Search and Acquire the Target Object
+**⚠️ CRITICAL RULE: Do NOT go to any sinkbasin, bathtubbasin, or any cleaning source until you are holding the target object. Beginning search immediately after consensus prefix; ignore sinkbasin until Phase 2.**
+- **This phase ends only when you are holding exactly the target object.** Do not attempt to clean or place until then.
+- If you are already holding something that is not the target, put it down immediately (e.g., `put [object] on/into [receptacle]`).
+
+### Object Name Matching
+- Compare the object name from the task with names in your observations. Only an exact string match counts.
+- Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.
+
+### Adapting search when the environment lacks a kitchen countertop (e.g., bathroom)
+- The consensus prefix is "go to countertop 1" – but if the initial room description does NOT contain any countertop 1, **skip the consensus prefix** and start your search directly from the listed receptacles.
+- In such rooms, still follow the same systematic search procedure (open surfaces first, then closed containers) using the receptacles given in the room description.
+- Do NOT wander aimlessly; list all receptacles from the description and check them one by one.
+
+### Systematic Search Procedure
+#### Mandatory order: open surfaces first, then all closed containers (no skipping)
+- **Step 1 – All Open Surfaces** (e.g., countertops, tables, shelves, sinkbasins, bathtubbasins, stoveburners, etc.)
+  - Visit every individual instance listed in the room description. Do not skip any.
+  - At each, examine its contents. If you find the target, pick it up and proceed to Phase 2.
+  - **Do not move to Step 2 until every open receptacle instance has been visited.**
+- **Step 2 – All Closed Containers** (only after Step 1 is complete)
+  - **You must open every single closed container that was listed in the initial room description.** Do not stop after opening only one or two.
+  - Open them in this fixed order: all cabinets first, then all drawers, then the fridge, then the microwave, then any other closed container (e.g., oven). **Do not deviate from this order.**
+  - For each container: `open [container]`, then look inside (observation shows contents). If the target is inside, pick it up. If not, move to the next container.
+  - **If the object is a food item (e.g., egg, potato, lettuce, apple, tomato) and you haven't found it on surfaces, the fridge is a high-probability location – force yourself to check it.**
+  - **Do not go back to open surfaces or to the cleaning source until you have checked every closed container.**
+  - If you have checked all closed containers and still haven't found the object, you may repeat the cycle (open surfaces again, then containers) in case the environment changed, but that is rare.
+
+#### Self-Check to Avoid Skipping
+- If you ever find yourself moving between receptacles without a clear order, stop. **List all receptacles you have seen in the initial room description and check off which ones you have visited.** Do not proceed until you have a plan.
+- The most common failure is stopping after checking only a few open surfaces or a handful of cabinets. **Force yourself to continue until every single receptacle has been examined.**
+- Another common failure is jumping to closed containers before finishing open surfaces. Always finish Step 1 first.
+- **After the consensus prefix (go to countertop 1), do NOT immediately go to sinkbasin or bathtubbasin. Search open surfaces first.**
+
+## Phase 2: Clean the Object
+- **Prerequisite: You must be holding the target object.** If you are empty-handed, return to Phase 1.
+- **Immediately after picking up the target, do not examine it or check inventory.** Go directly to [cleaning_source] (sinkbasin or bathtubbasin).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- If the destination is a closed container (e.g., microwave, fridge, drawer, cabinet), open it first.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends as soon as you have placed the clean object. Stop all other actions.
+- Do not continue searching or moving other objects.

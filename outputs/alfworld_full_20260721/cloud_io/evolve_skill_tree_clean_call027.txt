@@ -1,0 +1,248 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "clean" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Locate and Take the Target Object
+- You must find and pick up [object] before you can clean it.
+
+### Systematic Search of All Receptacles (Critical)
+- **Start by reading the initial room description carefully.** List every receptacle type present (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, garbagecan, bathtubbasin, towelholder, etc.).
+- **Then search every type systematically, exhausting all instances of one type before moving to the next.** Do not skip any type and do not go back to a previously finished type.
+- **Recommended order (but you may adjust based on description):**
+  1. **Cabinets** – open each numbered cabinet, check contents.
+  2. **Drawers** – open each numbered drawer, check contents.
+  3. **Fridge** – open and check.
+  4. **Countertops** – check each (items visible without opening).
+  5. **Sinkbasin / Bathtubbasin** – check each.
+  6. **Shelves** – check each.
+  7. **Dressers** – check each.
+  8. **Any other receptacle type** (e.g., garbagecan, towelholder, handtowelholder, toiletpaperhanger) – check each instance.
+- **After finishing all instances of a type, immediately move to the next type. Do not stop, do not go back.**
+- **If you become lost, re-read the current room description to see which receptacle types remain.**
+
+### Container Interaction
+- **Always open a container after arriving to inspect its contents.** Do not rely on surface observations – a closed container may have items inside.
+- For open surfaces (countertops, sinkbasins, etc.), you can see what is on them directly without opening.
+
+### Object Name Verification
+- Before taking an object, verify that its name matches the task target **exactly** (e.g., "cup" ≠ "mug"; "apple" ≠ "tomato"). If it matches, take it and proceed to Phase 2. If not, continue searching.
+
+### Persistence – Do Not Stop Early
+- **The search is not complete until you have visited every single instance of every type in the order above.**
+- Stopping before finishing all types is the most common cause of failure. Even if many cabinets or drawers are empty, you must continue until the last type is checked.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (typically sinkbasin 1).
+- Immediately use "clean [object] with [cleaning_source]".
+- Confirm the observation says you cleaned it; if not retry or check you are at the correct source.
+- Do not use "look" or "examine" at the sink – only the clean action works.
+
+## Phase 3: Place the Clean Object at Destination
+- After cleaning, go to the [destination] specified in the task (e.g., cabinet, diningtable, microwave, toilet).
+- Use "move [object] to [destination]" to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): go to cabinet 1
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: clean some cup and put it in shelf.
+  [consensus prefix ✓: go to cabinet 1]  (folded, already mastered)
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a bowl 1.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a mug 1, and a plate 2.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 5  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: open cabinet 5  | obs: You arrive at cabinet 5. The cabinet 5 is closed.
+  action: go to drawer 1  | obs: You open the cabinet 5. The cabinet 5 is open. In it, you see a bowl 2.
+  action: go to fridge 1  | obs: You arrive at drawer 1. On the drawer 1, you see nothing.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+
+Trajectory 2 [success] task: put a clean plate in diningtable.
+  [consensus prefix ✓: go to cabinet 1]  (folded, already mastered)
+  action: examine cabinet 2  | obs: You arrive at cabinet 1. On the cabinet 1, you see nothing.
+  action: go to cabinet 3  | obs: On the cabinet 2, you see a dishsponge 1.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 5  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: go to cabinet 6  | obs: You arrive at cabinet 5. On the cabinet 5, you see nothing.
+  action: open cabinet 6  | obs: You arrive at cabinet 6. The cabinet 6 is closed.
+  action: take plate 2 from cabinet 6  | obs: You open the cabinet 6. The cabinet 6 is open. In it, you see a plate 2.
+  action: go to sinkbasin 1  | obs: You pick up the plate 2 from the cabinet 6.
+  action: clean plate 2 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to diningtable 1  | obs: You clean the plate 2 using the sinkbasin 1.
+
+Trajectory 3 [success] task: put a clean apple in diningtable.
+  [consensus prefix ✓: go to cabinet 1]  (folded, already mastered)
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: open cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a bowl 3, a cup 1, and a saltshaker 2.
+  action: go to drawer 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a mug 1.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to drawer 2  | obs: You open the drawer 1. The drawer 1 is open. In it, you see nothing.
+  action: open drawer 2  | obs: You arrive at drawer 2. The drawer 2 is closed.
+  action: go to drawer 3  | obs: You open the drawer 2. The drawer 2 is open. In it, you see nothing.
+  action: open drawer 3  | obs: You arrive at drawer 3. The drawer 3 is closed.
+  action: go to fridge 1  | obs: You open the drawer 3. The drawer 3 is open. In it, you see a spoon 2.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: take apple 2 from fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 2, a egg 1, a lettuce 1, a pot 2, a pot 1, and a potato 1.
+  action: go to sinkbasin 1  | obs: You pick up the apple 2 from the fridge 1.
+
+Trajectory 4 [success] task: clean some lettuce and put it in diningtable.
+  [consensus prefix ✓: go to cabinet 1]  (folded, already mastered)
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a dishsponge 1, and a winebottle 1.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a peppershaker 3, and a winebottle 2.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 5  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a plate 2.
+  action: open cabinet 5  | obs: You arrive at cabinet 5. The cabinet 5 is closed.
+  action: go to cabinet 6  | obs: You open the cabinet 5. The cabinet 5 is open. In it, you see nothing.
+  action: open cabinet 6  | obs: You arrive at cabinet 6. The cabinet 6 is closed.
+  action: go to cabinet 7  | obs: You open the cabinet 6. The cabinet 6 is open. In it, you see nothing.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: put a clean soapbar in cabinet.
+  [consensus prefix ✓: go to cabinet 1]  (folded, already mastered)
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a toiletpaper 3.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a soapbottle 2.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a cloth 2.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to drawer 1  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: examine drawer 2  | obs: You arrive at drawer 1. On the drawer 1, you see nothing.
+  action: examine drawer 3  | obs: On the drawer 2, you see nothing.
+  action: examine drawer 4  | obs: On the drawer 3, you see a toiletpaper 1.
+  action: go to countertop 1  | obs: On the drawer 4, you see nothing.
+
+Trajectory 2 [failure] task: clean some egg and put it in microwave.
+  [consensus prefix ✓: go to cabinet 1]  (folded, already mastered)
+  action: go to cabinet 2  | obs: You arrive at cabinet 1. On the cabinet 1, you see a cup 2, and a soapbottle 1.
+  action: go to cabinet 3  | obs: You arrive at cabinet 2. On the cabinet 2, you see a plate 1.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a plate 2.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 5  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: open cabinet 5  | obs: You arrive at cabinet 5. The cabinet 5 is closed.
+  action: go to cabinet 6  | obs: You open the cabinet 5. The cabinet 5 is open. In it, you see a soapbottle 2.
+  action: go to cabinet 7  | obs: You arrive at cabinet 6. On the cabinet 6, you see nothing.
+  action: go to cabinet 8  | obs: You arrive at cabinet 7. On the cabinet 7, you see nothing.
+  action: open cabinet 8  | obs: You arrive at cabinet 8. The cabinet 8 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 8. The cabinet 8 is open. In it, you see nothing.
+
+Trajectory 3 [failure] task: put a clean lettuce in garbagecan.
+  [consensus prefix ✓: go to cabinet 1]  (folded, already mastered)
+  action: go to cabinet 2  | obs: You arrive at cabinet 1. On the cabinet 1, you see nothing.
+  action: look  | obs: You arrive at cabinet 2. On the cabinet 2, you see a dishsponge 1.
+  action: examine cabinet 2  | obs: You are facing the cabinet 3, and cabinet 2. Next to it, you see nothing.
+  action: look  | obs: On the cabinet 2, you see a dishsponge 1.
+  action: examine cabinet 3  | obs: You are facing the cabinet 3, and cabinet 2. Next to it, you see nothing.
+  action: go to cabinet 4  | obs: On the cabinet 3, you see nothing.
+  action: go to cabinet 5  | obs: You arrive at cabinet 4. On the cabinet 4, you see nothing.
+  action: open cabinet 5  | obs: You arrive at cabinet 5. The cabinet 5 is closed.
+  action: go to cabinet 6  | obs: You open the cabinet 5. The cabinet 5 is open. In it, you see a glassbottle 1.
+  action: open cabinet 6  | obs: You arrive at cabinet 6. The cabinet 6 is closed.
+  action: go to cabinet 7  | obs: You open the cabinet 6. The cabinet 6 is open. In it, you see a soapbottle 2.
+  action: go to cabinet 8  | obs: You arrive at cabinet 7. On the cabinet 7, you see nothing.
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+- [inefficient_exploration] Agent failed to locate a soapbar because it only examined surfaces of drawers without opening them, and did not search other containers like the fridge. | evidence: Actions: examine drawer 2, examine drawer 3, examine drawer 4 – never opened any drawer. | fix: When searching for an object, open all containers (cabinets, drawers, fridge) rather than just examining their surfaces. | skill_tree_gap: Lacks a systematic container-opening search strategy for finding objects. | patch_location: ## clean → new subsection ### Open containers when searching
+- [inefficient_exploration] Agent restricted search to cabinets only and never attempted to go to the fridge where eggs are typically located. | evidence: After opening several cabinets without finding an egg, they never went to fridge. | fix: For perishable items like eggs, prioritize checking the fridge. | skill_tree_gap: Missing domain knowledge about common object locations (fridge for food). | patch_location: ## clean → new subsection ### Prioritize fridge for food items
+- [inefficient_exploration] Agent did not search the fridge for lettuce, instead only examined cabinets and surfaces. | evidence: They opened cabinets 5 and 6 but never went to fridge. | fix: Always check the fridge for food items like lettuce. | skill_tree_gap: Missing domain knowledge about common object locations (fridge for food). | patch_location: ## clean → new subsection ### Prioritize fridge for food items
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

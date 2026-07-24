@@ -1,0 +1,139 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Sub-goal 1: Find the object to cool.\n- The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.\n\n### Immediately check the fridge for cooling tasks\n- Because the goal involves cooling, the target object is often stored in the fridge. Before searching many cabinets, go to the fridge and check its contents (open it if closed).\n- If the target is not in the fridge, then proceed to systematically check all other receptacles.\n\n### Systematic Inspection Protocol (mandatory steps)\n- List every receptacle from the initial room description. Note that there may be multiple instances of the same type (e.g., countertop 1, countertop 2, diningtable, sidetable, shelf, etc.). Visit each one without skipping any.\n- **Priority order**: First, check all open flat surfaces (countertops, tables, shelves, sidetables) because they are visible and often contain the target. Then check closed receptacles (cabinets, drawers, microwave, etc.) one by one.\n- For each receptacle:\n  1. Go to it.\n  2. If it is closed (e.g., cabinet, drawer, fridge, microwave), immediately open it using `open <receptacle>`.\n  3. After opening (or if already open), look at its contents. The observation will list items on/in it.\n  4. If the target object is present, take it right away using `take <object> from <location>`. Do not move to the next receptacle until you have taken it.\n  5. If the target is not present, move on to the next receptacle without lingering. Do not use extra actions like 'look' or 'examine' – they waste steps.\n- Do not assume the target is missing after checking only a few locations. Continue until you have visited every receptacle.\n\n### Prioritize pickup of visible target\n- When you arrive at any location (countertop, sinkbasin, etc.), immediately check the observation text for the target object's name. If it is present, take it right away before moving elsewhere.\n\n## Sub-goal 2: Take the object.\n- Once you see the object, use `take <object> from <location>` (e.g., `take bread 2 from countertop 2`).\n- Confirm you are holding it (the action response will say \"You pick up the ...\").\n\n## Sub-goal 3: Cool the object using the fridge.\n- Go to the fridge (if not already there).\n- If the fridge is closed, open it.\n- Then use `cool <object> with fridge` (e.g., `cool bread 2 with fridge 1`).\n- The response will confirm the object has been cooled.\n\n## Sub-goal 4: Move the cooled object to the target location.\n- Go to the target location named in the task (e.g., diningtable, cabinet, microwave, countertop).\n- Use `move <object> to <target>` (e.g., `move bread 2 to diningtable 1`).\n- The response will confirm the object is placed.\n\n## Completion check:\n- The task is complete when the object has been cooled and placed at the target location.\n- If you have done all steps, the environment may not give explicit success feedback; trust the sequence.",
+  "level": 3,
+  "version": 5,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent attempted to follow the skill tree but misinterpreted 'receptacles' as only the singular instances of each type (e.g., countertop) rather than multiple instances, and it also prioritized closed receptacles (cabinets) over flat surfaces, contrary to the intended systematic check. The skill tree's wording was ambiguous about multiple instances and did not specify an order, leading to missed locations.",
+  "changelog": "Refined Systematic Inspection Protocol to explicitly prioritize flat surfaces and to visit each distinct instance of receptacle types (e.g., countertop 1, countertop 2), addressing inefficient exploration failures.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only countertop 1 and cabinets, missing countertop 2 and diningtable where a cup might be located.",
+      "skill_tree_gap": "Missing exploration of all visible flat surfaces.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only cabinets and countertop 1, missing countertop 2 and other surfaces where a potato might be.",
+      "skill_tree_gap": "Incomplete search scope across the environment.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_360",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 45,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool": {
+      "title": "Sub-goal 1: Find the object to cool.",
+      "level": 2,
+      "body_hash": "1f7046c49942",
+      "created_version": 1,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 45,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/immediately-check-the-fridge-for-cooling-tasks": {
+      "title": "Immediately check the fridge for cooling tasks",
+      "level": 3,
+      "body_hash": "643f0f4bcc86",
+      "created_version": 3,
+      "last_changed_version": 3,
+      "stable_versions": 2,
+      "call_count": 26,
+      "success_when_used": 18,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-inspection-protocol-mandatory-steps": {
+      "title": "Systematic Inspection Protocol (mandatory steps)",
+      "level": 3,
+      "body_hash": "099b8fcca474",
+      "created_version": 4,
+      "last_changed_version": 5,
+      "stable_versions": 0,
+      "call_count": 14,
+      "success_when_used": 12,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/prioritize-pickup-of-visible-target": {
+      "title": "Prioritize pickup of visible target",
+      "level": 3,
+      "body_hash": "0169b976c1a5",
+      "created_version": 2,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 39,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object": {
+      "title": "Sub-goal 2: Take the object.",
+      "level": 2,
+      "body_hash": "9450b35d1795",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 45,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-3-cool-the-object-using-the-fridge": {
+      "title": "Sub-goal 3: Cool the object using the fridge.",
+      "level": 2,
+      "body_hash": "340878fe5678",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 45,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-4-move-the-cooled-object-to-the-target-location": {
+      "title": "Sub-goal 4: Move the cooled object to the target location.",
+      "level": 2,
+      "body_hash": "184de258e48b",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 45,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check:",
+      "level": 2,
+      "body_hash": "80446a150a7d",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 45,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specific object type into a specified target receptacle. Do not stop until both are placed (counter == 2).\n\n## Core Rules\n- **After taking a matching object, immediately go to the target and place it. Do nothing else until placed.**\n- **If the target receptacle is closed (e.g., drawer, cabinet), open it first, then place.**\n- **Keep a mental counter: start at 0, increment by 1 after each successful placement.**\n- **Never stop while counter < 2.**\n- **Only stop if counter == 2, or after two full passes through all furniture items you have placed exactly 1 and cannot find another matching object anywhere.**\n\n## Object Type Verification\n- Before taking any object, compare its exact name to the required type. Only take exact matches. Do not assume similar objects (e.g., mug vs cup, soapbottle vs soapbar) are acceptable. If the name differs, skip it.\n- If you accidentally take a non-matching object, check inventory, then drop it or leave it; resume search immediately.\n\n## Search Protocol\n### Phase 1: First Object\n1. **Create Master List**: After the initial room description, write down every furniture item exactly as listed (all surfaces and containers). Do not miss any.\n2. **Visit each item systematically**: Pick an unvisited item from your list. Go to it. If closed, open it. Examine its contents. If you see an exact-matching object, **take it immediately** (then go place it). Mark item as visited. Repeat until all items visited.\n\n### Phase 2: Second Object (After placing the first)\n1. **Immediately resume searching. Do not explore unrelated items.**\n2. **Re-read the initial room observation** and write down the same master list again. Do not rely on memory alone.\n3. **Visit every item again in order** – do not skip any, even if you already checked it in Phase 1. For each item:\n   - If closed, open it.\n   - Examine contents.\n   - If you see a matching object, **take it immediately** (then go place it).\n   - Mark item as visited.\n4. If you saw a second matching object during Phase 1 (e.g., two together), return directly to that location instead of a full scan.\n5. Continue until list exhausted or second object taken. If taken, place it and stop (counter == 2).\n6. If you have visited all items and found no second object, the task may be impossible – but only after two full passes (Phase 1 + Phase 2).\n\n## Stop Condition Verification\n- After each placement action, immediately check your counter. If counter == 1, you **must** start Phase 2 search. Do not explore or examine anything else until the second object is placed.\n- Do not stop after placing the first object. Do not wander. Do not assume the task is done.\n- The only valid stop signals are: counter == 2, or after two complete passes you have exactly 1 placed and no matching object remains.\n\n## Common Failure Patterns (Avoid These)\n- Premature stop after first placement without beginning Phase 2.\n- Taking a non-matching object or the wrong type.\n- Skipping any furniture item in Phase 2 (surfaces and containers) – visit every item from the master list.\n- Not opening the target receptacle before placing.\n- Stopping after only one pass when counter is still 1.\n\n**Reinforcement**: After placing the first object, your only task is to find the second. Do not stop, explore, or interact with non-target objects until both are placed.",
+  "level": 3,
+  "version": 37,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent had the current skill tree but did not fully follow its instructions, particularly the mandatory second pass and counter check. The tree's wording was clear but possibly too verbose, leading to oversight. The refinements tighten the search and stop logic.",
+  "changelog": "Restructured search protocol into two explicit phases (Phase 1 for first object, Phase 2 for second), added a dedicated Stop Condition subsection to enforce counter check before stopping, and condensed redundant rules to improve clarity and reduce length.",
+  "round_failures": [
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed only one soapbottle and then stopped, failing to find and place the second required object.",
+      "skill_tree_gap": "Lacks a loop or check to ensure both objects are placed before terminating.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed one newspaper and then stopped after a limited search, without finding the second newspaper.",
+      "skill_tree_gap": "Incomplete search algorithm for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_3672",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 36,
+      "call_count": 825,
+      "success_when_used": 661,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "d5fe0935dea3",
+      "created_version": 1,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 825,
+      "success_when_used": 661,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/core-rules": {
+      "title": "Core Rules",
+      "level": 2,
+      "body_hash": "2987f63cdb57",
+      "created_version": 37,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 2,
+      "body_hash": "d7f0bc1537c8",
+      "created_version": 35,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 34,
+      "success_when_used": 31,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-protocol": {
+      "title": "Search Protocol",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 37,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-protocol/phase-1-first-object": {
+      "title": "Phase 1: First Object",
+      "level": 3,
+      "body_hash": "abebe050d16c",
+      "created_version": 37,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-protocol/phase-2-second-object-after-placing-the-first": {
+      "title": "Phase 2: Second Object (After placing the first)",
+      "level": 3,
+      "body_hash": "c6e97146f5b1",
+      "created_version": 37,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/stop-condition-verification": {
+      "title": "Stop Condition Verification",
+      "level": 2,
+      "body_hash": "dcbb5a8f7210",
+      "created_version": 37,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns-avoid-these": {
+      "title": "Common Failure Patterns (Avoid These)",
+      "level": 2,
+      "body_hash": "d02060f6c79c",
+      "created_version": 37,
+      "last_changed_version": 37,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

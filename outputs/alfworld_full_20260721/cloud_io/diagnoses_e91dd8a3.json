@@ -1,0 +1,55 @@
+{
+  "batch_id": "e91dd8a3-9c95-4c62-bd8f-bc9e621435a5",
+  "diagnoses": {
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "gave_up",
+        "root_cause": "The agent wandered through many locations but never found a mug to cool and place; it stopped after opening the fridge without taking any action to complete the task.",
+        "evidence": "After opening the fridge, the agent went to countertop 1 and the trajectory ends; no mug was ever picked up or cooled.",
+        "corrective_rule": "When the task requires a specific object, systematically search all receptacles (cabinets, drawers, fridge, countertops, etc.) and do not stop until the object is found or all locations are exhausted.",
+        "skill_tree_gap": "Missing a robust search subroutine that covers all possible object locations and a termination condition that requires task completion.",
+        "patch_location": "Under '## cool', add a new subsection '### Object search and acquisition' that enforces exhaustive search before giving up.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent overlooked the glassbottle on countertop 1 and never located a winebottle, stopping after searching only a subset of locations.",
+        "evidence": "At the first step after consensus, the agent saw a glassbottle on countertop 1 but did not take it; later it searched other areas but found no winebottle and ended after examining an empty cabinet.",
+        "corrective_rule": "Before moving to a new location, check if any visible object matches the target name exactly; if not, continue searching systematically all receptacles types (cabinets, fridge, drawers).",
+        "skill_tree_gap": "Lack of a systematic exploration order that ensures all containers are checked and that visible objects are correctly matched to the target.",
+        "patch_location": "Under '## cool', refine the '### Object search and acquisition' subsection to include a checklist of all receptacle types and a rule to examine each object name against the target.",
+        "confidence": 0.85
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "loop",
+        "root_cause": "The agent repeatedly picked up and dropped mugs on the countertop without ever heating them or proceeding to the shelf.",
+        "evidence": "Actions: take mug 2, then move mug 2 to countertop 2; then take mug 1, then move mug 1 to countertop 2; no heating action was attempted.",
+        "corrective_rule": "After picking up an object that requires heating, immediately go to the microwave (or stove) and perform the heat action before moving to the destination.",
+        "skill_tree_gap": "Missing a directed workflow that enforces the order: pick -> heat -> place, preventing loops of unproductive pick-and-drop.",
+        "patch_location": "Under '## heat', add a new subsection '### Heat sequence' that explicitly separates the heating step from placement and prevents re-dropping the object.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one soapbottle and then stopped, failing to retrieve and place the second required soapbottle.",
+        "evidence": "After moving soapbottle 1 to countertop 1, the trajectory ends; no further search or placement for a second soapbottle occurs.",
+        "corrective_rule": "Keep a count of objects placed; continue searching for and placing additional copies until the required number (two) is reached.",
+        "skill_tree_gap": "No mechanism to track the number of items placed versus the task requirement, causing premature task termination.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Multi-object tracking' that maintains a counter and loops until the required quantity is placed.",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

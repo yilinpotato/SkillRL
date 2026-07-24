@@ -1,0 +1,301 @@
+Role: You are an expert failure-analysis agent for sequential decision-making agent
+tasks. The current environment is ALFWorld. Reason from the trajectories and the
+environment contract below; do not import assumptions from a different benchmark.
+
+ENVIRONMENT CONTRACT:
+Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+Goal: For each FAILED trajectory, diagnose WHY it failed. Use successful rollouts of the same
+task_type as observed references of successful behaviour, and the environment's success criterion
+as the correctness anchor. They are not oracle demonstrations or ground-truth action plans. Each
+step shows the action taken and the OBSERVATION DELTA
+(+added / -removed lines).
+
+=== task_type: clean ===
+CONSENSUS PREFIX (the edge already masters these opening steps — the failure is NOT here, look at the DIVERGENCE after it): go to countertop 1
+SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):
+
+Trajectory 1 [success] task: put a clean cloth in cart.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: take cloth 2 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a cloth 3, a cloth 2, a soapbottle 3, a spraybottle 3, a tissuebox 1, and a toiletpaper 2.
+  action: go to sinkbasin 1  | obs: You pick up the cloth 2 from the countertop 1.
+  action: clean cloth 2 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a dishsponge 1.
+  action: go to cart 1  | obs: You clean the cloth 2 using the sinkbasin 1.
+  action: move cloth 2 to cart 1  | obs: You arrive at cart 1. On the cart 1, you see a cloth 4, and a spraybottle 2.
+
+Trajectory 2 [success] task: clean some soapbar and put it in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: take soapbar 1 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a soapbar 1.
+  action: go to sinkbasin 1  | obs: You pick up the soapbar 1 from the countertop 1.
+  action: clean soapbar 1 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to countertop 1  | obs: You clean the soapbar 1 using the sinkbasin 1.
+  action: move soapbar 1 to countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see nothing.
+
+Trajectory 3 [success] task: put a clean soapbar in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: take soapbar 2 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 3, a candle 2, a soapbar 4, a soapbar 2, and a spraybottle 1.
+  action: go to sinkbasin 1  | obs: You pick up the soapbar 2 from the countertop 1.
+  action: clean soapbar 2 with sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to countertop 1  | obs: You clean the soapbar 2 using the sinkbasin 1.
+  action: move soapbar 2 to countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 3, a candle 2, a soapbar 4, and a spraybottle 1.
+
+FAILED trajectories to diagnose (each tagged [ref=...]):
+
+[ref=clean#0] task: clean some potato and put it in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a butterknife 2, a butterknife 1, a kettle 1, a knife 2, a knife 1, a ladle 1, a pan 1, a papertowelroll 1, and a spatula 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 2, a bread 2, a fork 2, a fork 1, a ladle 2, a pan 2, a plate 3, a soapbottle 3, a spoon 1, and a tomato 1.
+  action: go to shelf 1  | obs: You arrive at countertop 3. On the countertop 3, you see a houseplant 1, a kettle 3, a peppershaker 3, a plate 2, and a vase 3.
+  action: go to shelf 2  | obs: You arrive at shelf 1. On the shelf 1, you see a peppershaker 1.
+  action: go to shelf 3  | obs: You arrive at shelf 2. On the shelf 2, you see a saltshaker 1, a statue 1, and a vase 1.
+  action: go to stoveburner 1  | obs: You arrive at shelf 3. On the shelf 3, you see nothing.
+  action: go to stoveburner 2  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see a pot 2.
+  action: go to stoveburner 3  | obs: You arrive at stoveburner 2. On the stoveburner 2, you see nothing.
+  action: go to cabinet 1  | obs: You arrive at stoveburner 3. On the stoveburner 3, you see a pot 3, and a pot 2.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a vase 2.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a butterknife 2, a butterknife 1, a kettle 1, a knife 2, a knife 1, a ladle 1, a pan 1, a papertowelroll 1, and a spatula 1.
+
+[ref=clean#1] task: put a clean egg in microwave.
+  [consensus prefix ✓: go to countertop 1]  (folded)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a apple 1, a butterknife 3, a butterknife 2, a butterknife 1, a fork 3, a knife 1, a ladle 1, a lettuce 1, a pan 1, a peppershaker 1, a potato 1, a spatula 1, and a spoon 1.
+  action: go to cabinet 1  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 2, a bread 1, a dishsponge 1, a fork 2, a fork 1, a peppershaker 2, a potato 2, a saltshaker 1, a tomato 3, and a tomato 1.
+  action: go to cabinet 2  | obs: You arrive at cabinet 1. On the cabinet 1, you see a soapbottle 2.
+  action: go to stoveburner 1  | obs: You arrive at cabinet 2. On the cabinet 2, you see a plate 1.
+  action: go to stoveburner 2  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see nothing.
+  action: go to stoveburner 3  | obs: You arrive at stoveburner 2. On the stoveburner 2, you see nothing.
+  action: go to stoveburner 4  | obs: You arrive at stoveburner 3. On the stoveburner 3, you see a pot 1.
+  action: go to cabinet 3  | obs: You arrive at stoveburner 4. On the stoveburner 4, you see a pot 2.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a dishsponge 2.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a apple 1, a butterknife 3, a butterknife 2, a butterknife 1, a fork 3, a knife 1, a ladle 1, a lettuce 1, a pan 1, a peppershaker 1, a potato 1, a spatula 1, and a spoon 1.
+  action: go to cabinet 1  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 2, a bread 1, a dishsponge 1, a fork 2, a fork 1, a peppershaker 2, a potato 2, a saltshaker 1, a tomato 3, and a tomato 1.
+=== task_type: cool ===
+CONSENSUS PREFIX (the edge already masters these opening steps — the failure is NOT here, look at the DIVERGENCE after it): go to countertop 1
+SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):
+
+Trajectory 1 [success] task: cool some cup and put it in microwave.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bowl 1, a butterknife 1, a knife 1, a mug 1, a plate 1, a saltshaker 1, a spraybottle 1, and a winebottle 1.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a butterknife 3, a fork 2, a pan 1, and a soapbottle 1.
+  action: take cup 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a bread 1, a cup 1, a fork 1, a knife 2, a peppershaker 1, a saltshaker 2, a spatula 2, a spatula 1, and a spoon 1.
+  action: go to fridge 1  | obs: You pick up the cup 1 from the diningtable 1.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: cool cup 1 with fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a bowl 3, a bowl 2, a bread 2, a potato 1, and a winebottle 2.
+  action: go to microwave 1  | obs: You cool the cup 1 using the fridge 1.
+  action: open microwave 1  | obs: You arrive at microwave 1. The microwave 1 is closed.
+  action: move cup 1 to microwave 1  | obs: You open the microwave 1. The microwave 1 is open. In it, you see a egg 1.
+
+Trajectory 2 [success] task: cool some pan and put it in cabinet.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a egg 2, and a mug 2.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a bread 1, a dishsponge 2, a egg 1, a knife 3, a mug 1, a potato 1, and a soapbottle 3.
+  action: go to sinkbasin 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a apple 2, a apple 1, a cup 2, a egg 3, a fork 1, a houseplant 1, a kettle 2, a knife 1, a lettuce 1, a peppershaker 2, a peppershaker 1, a potato 3, a potato 2, a saltshaker 2, a soapbottle 2, and a tomato 2.
+  action: go to stoveburner 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a spatula 1, and a tomato 1.
+  action: go to stoveburner 2  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see a kettle 1.
+  action: go to stoveburner 3  | obs: You arrive at stoveburner 2. On the stoveburner 2, you see nothing.
+  action: take pan 1 from stoveburner 3  | obs: You arrive at stoveburner 3. On the stoveburner 3, you see a pan 1.
+  action: go to fridge 1  | obs: You pick up the pan 1 from the stoveburner 3.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: cool pan 1 with fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see nothing.
+  action: go to cabinet 1  | obs: You cool the pan 1 using the fridge 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+
+Trajectory 3 [success] task: cool some plate and put it in diningtable.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to diningtable 1  | obs: You arrive at countertop 1. On the countertop 1, you see a dishsponge 2, a lettuce 1, a pen 3, a pen 2, a peppershaker 1, and a spoon 1.
+  action: take plate 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a butterknife 2, a butterknife 1, a cup 1, a fork 3, a fork 2, a fork 1, a glassbottle 1, a knife 2, a knife 1, a pen 1, a pencil 1, a plate 2, a plate 1, a potato 2, a potato 1, a saltshaker 1, a soapbottle 1, a spatula 2, a spatula 1, a tomato 1, and a winebottle 1.
+  action: go to fridge 1  | obs: You pick up the plate 1 from the diningtable 1.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: cool plate 1 with fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a bowl 1, a bread 1, a egg 1, and a lettuce 2.
+  action: go to diningtable 1  | obs: You cool the plate 1 using the fridge 1.
+  action: move plate 1 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a butterknife 2, a butterknife 1, a cup 1, a fork 3, a fork 2, a fork 1, a glassbottle 1, a knife 2, a knife 1, a pen 1, a pencil 1, a plate 2, a potato 2, a potato 1, a saltshaker 1, a soapbottle 1, a spatula 2, a spatula 1, a tomato 1, and a winebottle 1.
+
+FAILED trajectories to diagnose (each tagged [ref=...]):
+
+[ref=cool#0] task: put a cool winebottle in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a egg 2, a fork 1, a houseplant 2, a houseplant 1, a ladle 1, and a pan 2.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 1, a lettuce 1, a pan 3, a peppershaker 1, and a tomato 1.
+  action: go to sinkbasin 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a bowl 2, a bowl 1, a butterknife 1, a cup 2, a cup 1, a egg 1, a mug 1, a pan 1, a papertowelroll 1, a plate 1, a potato 2, a potato 1, a saltshaker 2, a saltshaker 1, a soapbottle 2, a soapbottle 1, a spatula 2, and a spoon 1.
+  action: go to stoveburner 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a butterknife 2, a cup 3, a glassbottle 3, a mug 2, and a spoon 2.
+  action: go to stoveburner 2  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see nothing.
+  action: go to stoveburner 1  | obs: You arrive at stoveburner 2. On the stoveburner 2, you see nothing.
+  action: go to fridge 1  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see nothing.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: go to cabinet 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 2, a glassbottle 2, a glassbottle 1, and a potato 3.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a egg 2, a fork 1, a houseplant 2, a houseplant 1, a ladle 1, and a pan 2.
+=== task_type: pick_two_obj_and_place ===
+SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):
+
+Trajectory 1 [success] task: put two cellphone in safe.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a safe 1, a shelf 5, a shelf 4, a shelf 3, a shelf 2, a shelf 1, a sidetable 2, and a sidetable 1.
+
+Your task is to: put two cellphone in safe.
+  action: take cellphone 1 from bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a cellphone 1, a laptop 1, a pillow 1, and a teddybear 1.
+  action: go to safe 1  | obs: You pick up the cellphone 1 from the bed 1.
+  action: open safe 1  | obs: You arrive at safe 1. The safe 1 is closed.
+  action: move cellphone 1 to safe 1  | obs: You open the safe 1. The safe 1 is open. In it, you see nothing.
+  action: go to bed 1  | obs: You move the cellphone 1 to the safe 1.
+  action: go to desk 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, a pillow 1, and a teddybear 1.
+  action: take cellphone 2 from desk 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 3, a alarmclock 2, a bowl 1, a cellphone 2, a creditcard 3, a creditcard 2, a keychain 2, a keychain 1, a pen 1, a pencil 3, and a pencil 2.
+  action: go to safe 1  | obs: You pick up the cellphone 2 from the desk 1.
+  action: move cellphone 2 to safe 1  | obs: You arrive at safe 1. The safe 1 is open. In it, you see a cellphone 1.
+
+Trajectory 2 [success] task: put two newspaper in garbagecan.
+  action: go to coffeetable 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a coffeetable 1, a diningtable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 2, a sidetable 1, and a sofa 1.
+
+Your task is to: put two newspaper in garbagecan.
+  action: go to diningtable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a cellphone 3, and a creditcard 2.
+  action: take newspaper 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a creditcard 1, a laptop 1, a newspaper 1, and a plate 2.
+  action: go to garbagecan 1  | obs: You pick up the newspaper 1 from the diningtable 1.
+  action: move newspaper 1 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see nothing.
+  action: go to coffeetable 1  | obs: You move the newspaper 1 to the garbagecan 1.
+  action: examine coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a cellphone 3, and a creditcard 2.
+  action: go to diningtable 1  | obs: On the coffeetable 1, you see a box 2, a cellphone 3, and a creditcard 2.
+  action: go to coffeetable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a creditcard 1, a laptop 1, and a plate 2.
+  action: go to diningtable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a cellphone 3, and a creditcard 2.
+  action: examine diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a creditcard 1, a laptop 1, and a plate 2.
+  action: go to coffeetable 1  | obs: On the diningtable 1, you see a box 1, a creditcard 1, a laptop 1, and a plate 2.
+
+Trajectory 3 [success] task: put two vase in diningtable.
+  action: go to armchair 2  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 2, a armchair 1, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeetable 2, a coffeetable 1, a diningtable 1, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a shelf 13,
+  action: go to armchair 1  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: go to cabinet 8  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: open cabinet 8  | obs: You arrive at cabinet 8. The cabinet 8 is closed.
+  action: take vase 4 from cabinet 8  | obs: You open the cabinet 8. The cabinet 8 is open. In it, you see a vase 4.
+  action: go to cabinet 7  | obs: You pick up the vase 4 from the cabinet 8.
+  action: go to diningtable 1  | obs: You arrive at cabinet 7. The cabinet 7 is closed.
+  action: move vase 4 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a laptop 1, a newspaper 1, a plate 1, a remotecontrol 3, a remotecontrol 2, and a statue 2.
+  action: go to armchair 2  | obs: You move the vase 4 to the diningtable 1.
+  action: examine armchair 2  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: go to armchair 1  | obs: On the armchair 2, you see nothing.
+  action: go to cabinet 8  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+
+FAILED trajectories to diagnose (each tagged [ref=...]):
+
+[ref=pick_two_obj_and_place#0] task: put two cellphone in drawer.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a drawer 10, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a shelf 7, a shelf 6, a shelf 5, a shelf 4, a shelf 3, a shelf 2, and a shelf 1.
+
+Your task is to: put two cellphone in drawer.
+  action: go to drawer 10  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: open drawer 10  | obs: You arrive at drawer 10. The drawer 10 is closed.
+  action: go to drawer 9  | obs: You open the drawer 10. The drawer 10 is open. In it, you see a creditcard 1, and a keychain 2.
+  action: open drawer 9  | obs: You arrive at drawer 9. The drawer 9 is closed.
+  action: go to drawer 8  | obs: You open the drawer 9. The drawer 9 is open. In it, you see nothing.
+  action: open drawer 8  | obs: You arrive at drawer 8. The drawer 8 is closed.
+  action: go to drawer 7  | obs: You open the drawer 8. The drawer 8 is open. In it, you see nothing.
+  action: open drawer 7  | obs: You arrive at drawer 7. The drawer 7 is closed.
+  action: go to drawer 6  | obs: You open the drawer 7. The drawer 7 is open. In it, you see nothing.
+  action: open drawer 6  | obs: You arrive at drawer 6. The drawer 6 is closed.
+  action: go to drawer 5  | obs: You open the drawer 6. The drawer 6 is open. In it, you see a pencil 1.
+
+[ref=pick_two_obj_and_place#1] task: put two keychain in dresser.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a bed 2, a bed 1, a cabinet 1, a desk 2, a desk 1, a drawer 13, a drawer 12, a drawer 11, a drawer 10, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 2, a dresser 1, and a garbagecan 1.
+
+Your task is to: put t
+  action: go to armchair 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: take keychain 1 from armchair 1  | obs: You arrive at armchair 1. On the armchair 1, you see a cd 1, and a keychain 1.
+  action: go to dresser 1  | obs: You pick up the keychain 1 from the armchair 1.
+  action: move keychain 1 to dresser 1  | obs: You arrive at dresser 1. On the dresser 1, you see a book 2.
+  action: go to armchair 1  | obs: You move the keychain 1 to the dresser 1.
+  action: go to bed 2  | obs: You arrive at armchair 1. On the armchair 1, you see a cd 1.
+  action: go to armchair 1  | obs: You arrive at bed 2. On the bed 2, you see a laptop 1, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see a cd 1.
+  action: go to armchair 1  | obs: You arrive at bed 1. On the bed 1, you see a laptop 2, and a pillow 2.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see a cd 1.
+  action: go to bed 2  | obs: You arrive at bed 1. On the bed 1, you see a laptop 2, and a pillow 2.
+
+[ref=pick_two_obj_and_place#2] task: put two dishsponge in cart.
+  action: go to bathtubbasin 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cart 1, a garbagecan 1, a handtowelholder 2, a handtowelholder 1, a shelf 4, a shelf 3, a shelf 2, a shelf 1, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, a towelholder 2, and a towelholder 1.
+
+Your task is to: put two dishsponge in cart.
+  action: take dishsponge 3 from bathtubbasin 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 2, and a dishsponge 3.
+  action: go to cart 1  | obs: You pick up the dishsponge 3 from the bathtubbasin 1.
+  action: move dishsponge 3 to cart 1  | obs: You arrive at cart 1. On the cart 1, you see a cloth 1, and a toiletpaper 1.
+  action: go to bathtubbasin 1  | obs: You move the dishsponge 3 to the cart 1.
+  action: go to cart 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 2.
+  action: go to bathtubbasin 1  | obs: You arrive at cart 1. On the cart 1, you see a cloth 1, a dishsponge 3, and a toiletpaper 1.
+  action: go to cart 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 2.
+  action: go to bathtubbasin 1  | obs: You arrive at cart 1. On the cart 1, you see a cloth 1, a dishsponge 3, and a toiletpaper 1.
+  action: go to shelf 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 2.
+  action: go to shelf 2  | obs: You arrive at shelf 1. On the shelf 1, you see a papertowelroll 1, and a soapbar 2.
+  action: go to cart 1  | obs: You arrive at shelf 2. On the shelf 2, you see nothing.
+
+[ref=pick_two_obj_and_place#3] task: put two creditcard in armchair.
+  action: go to armchair 2  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 2, a armchair 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeetable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 1, and a sofa 1.
+
+Your task is to: put two creditcard in armchair.
+  action: go to armchair 1  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: go to cabinet 4  | obs: You arrive at armchair 1. On the armchair 1, you see a laptop 1.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a box 1.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to coffeetable 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: go to drawer 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a keychain 3, and a statue 2.
+
+[ref=pick_two_obj_and_place#4] task: find two cellphone and put them in drawer.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a drawer 10, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a shelf 7, a shelf 6, a shelf 5, a shelf 4, a shelf 3, a shelf 2, and a shelf 1.
+
+Your task is to: find two cellphone and put them in d
+  action: take cellphone 3 from bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a book 1, a cellphone 3, a laptop 2, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to drawer 1  | obs: You pick up the cellphone 3 from the bed 1.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: move cellphone 3 to drawer 1  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a pencil 2.
+  action: go to bed 1  | obs: You move the cellphone 3 to the drawer 1.
+  action: go to drawer 10  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a book 1, a laptop 2, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at drawer 10. The drawer 10 is closed.
+  action: go to drawer 10  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a book 1, a laptop 2, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at drawer 10. The drawer 10 is closed.
+  action: go to drawer 1  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a book 1, a laptop 2, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at drawer 1. The drawer 1 is open. In it, you see a cellphone 3, and a pencil 2.
+
+DECISION FORKS (where successful and failed runs diverged after a shared prefix):
+After [start]: 'go to countertop 1' (succ=27,fail=3); 'go to fridge 1' (succ=11,fail=0); 'go to desk 1' (succ=6,fail=0); 'go to armchair 1' (succ=1,fail=0); 'go to handtowelholder 1' (succ=1,fail=0)
+After [go to countertop 1]: 'take cloth 2 from countertop 1' (succ=1,fail=0); 'take soapbar 1 from countertop 1' (succ=1,fail=0); 'take soapbar 2 from countertop 1' (succ=1,fail=0); 'go to countertop 2' (succ=11,fail=3); 'take knife 1 from countertop 1' (succ=2,fail=0)
+After [go to countertop 1 -> go to countertop 2]: 'go to diningtable 1' (succ=5,fail=1); 'go to countertop 3' (succ=4,fail=1); 'take apple 4 from countertop 2' (succ=1,fail=0); 'take spoon 1 from countertop 2' (succ=1,fail=0); 'go to cabinet 1' (succ=0,fail=1)
+After [go to countertop 1 -> go to countertop 2 -> go to diningtable 1]: 'go to diningtable 2' (succ=1,fail=0); 'take cup 1 from diningtable 1' (succ=1,fail=0); 'go to sinkbasin 1' (succ=1,fail=1); 'take potato 1 from diningtable 1' (succ=1,fail=0); 'take lettuce 1 from diningtable 1' (succ=1,fail=0)
+After [go to countertop 1 -> go to countertop 2 -> go to diningtable 1 -> go to sinkbasin 1 -> go to stoveburner 1 -> go to stoveburner 2]: 'go to stoveburner 3' (succ=1,fail=0); 'go to stoveburner 1' (succ=0,fail=1)
+After [go to countertop 1 -> go to countertop 2 -> go to countertop 3]: 'go to cabinet 1' (succ=1,fail=0); 'go to shelf 1' (succ=2,fail=1); 'go to diningtable 1' (succ=1,fail=0)
+
+For EACH failed trajectory, identify the single causal failure reason, how it could be avoided, and
+WHERE a corrective patch belongs in the agent's skill tree. The skill tree is a markdown TREE whose
+heading depth is its hierarchy (a deeper heading refines its parent). So point the patch at a location
+by naming the section heading, and say whether the fix belongs directly in it or as a deeper
+refinement nested under it — not just "somewhere in the skill tree".
+Return ONLY a JSON array. One object per failed trajectory, EXACTLY these fields:
+  - "traj_ref":      the [ref=...] tag of the failed trajectory
+  - "task_type":     its task_type
+  - "failure_type":  one of "wrong_target" | "wrong_order" | "inefficient_exploration" | "loop" |
+                     "premature_stop" | "invalid_action" | "misread_state" | "gave_up" | "other"
+  - "root_cause":    ONE sentence, the causal reason it failed.
+  - "evidence":      the step / observation that proves it (quote briefly).
+  - "corrective_rule": ONE short imperative rule that would have prevented it.
+  - "skill_tree_gap": what is missing/weak in the skill tree that let this error through.
+  - "patch_location": WHERE the fix belongs — name the target markdown heading, and whether it should
+                     be a new/deeper subsection ('##'/'###') under it. Use "new top-level section" if
+                     no fitting heading exists yet.
+  - "confidence":    a number 0.0-1.0.
+Return ONLY the JSON array, no other text.

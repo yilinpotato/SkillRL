@@ -1,0 +1,73 @@
+=== Skill Tree Debug — scope=look_at_obj_in_light  v11 (level=3, tree_depth=3, 6 nodes) ===
+action: refine
+critique: The agent followed the skill tree's search strategy exactly, but the tree's absolute statement 'the target is always on an open surface – do not open drawers' directly caused the failure to find a tissuebox that was not on visible surfaces. The tree misled by ruling out container searches entirely.
+changelog: Revised Phase 2 Search Strategy to first check open surfaces, then added a new subsection 'Container Search When Target Not on Surfaces' instructing the agent to open drawers and cabinets, removing the misleading prohibition.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] The agent never found the tissuebox because it only examined visible surfaces and did not open drawers or cabinets. | evidence: After turning on desklamp, the agent went to bed, shelves, and desk but never found tissuebox; last action 'go to shelf 3' saw nothing. | fix: When target object is not on visible surfaces, open all drawers and cabinets in the room. | skill_tree_gap: Missing a step to search inside containers when the target object is not immediately visible. | patch_location: ### Object Search
+### Open Containers if Object Not Visible
+
+--- Node tree (per-node lifecycle, this version=v11) ---
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp level=1 stable_versions=1 calls=29 success=28 rate=96.6%
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp level=2 stable_versions=1 calls=29 success=28 rate=96.6%
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object level=2 stable_versions=1 calls=29 success=28 rate=96.6%
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/container-search-when-target-not-on-surfaces level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/search-strategy-for-target-objects-surfaces-first level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-3-task-completion level=2 stable_versions=1 calls=29 success=28 rate=96.6%
+
+--- Line diff vs previous version (v10 -> v11) ---
+--- v10
++++ v11
+@@ -9,13 +9,16 @@
+ ## Phase 2: Locate and take the target object
+ - After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then systematically move to other likely receptacles.
+ 
+-### Search Strategy for Target Objects
+-- Check receptacles in this priority order: desk, bed, dresser, sidetable, coffeetable, sofa, shelf, and any other surface you haven't visited.
+-- Do **not** open drawers or cabinets; the target is always on an open surface (bed, desk, sofa, etc.). Opening unnecessary containers wastes steps.
+-- When you arrive at a receptacle, read its contents (the observation lists items on it). If you see the target object, take it (action: take <object> from <receptacle>).
+-- If you do not see the target, move to the next receptacle on the list. Continue until the target is found.
+-- If you already knew the target's location from earlier, go directly there and take it.
+-- The object is now in your inventory.
++### Search Strategy for Target Objects – Surfaces First
++- Check open surfaces (bed, desk, dresser, sidetable, coffeetable, sofa, shelf, etc.) in a systematic order. Read the contents of each receptacle.
++- If you see the target object on a surface, take it (action: take <object> from <receptacle>).
++- If you do not see the target on any surface, proceed to container search (below).
++
++### Container Search When Target Not on Surfaces
++- Open drawers and cabinets that are present in the room. The target may be inside a container rather than on an open surface.
++- At each container, use the 'open' action (e.g., open drawer 1). Then check its contents in the observation. If the target is inside, take it.
++- Continue opening all drawers and cabinets until the target is found; do not skip any.
++- If you had already seen the target's location earlier (e.g., through the room description), go directly there and take it.
+ 
+ ## Phase 3: Task completion
+ - With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Examine or look at a target object using a light source (e.g., desklamp)
+
+## Phase 1: Find and turn on the desklamp
+- Search the surfaces you can see at your current location for a desklamp. If you see one, note its location and move there if necessary.
+- If no desklamp is visible, move to another surface receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) and check its contents. Continue moving among receptacles until you find a desklamp.
+- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.
+- Important: You may encounter the target object before finding the lamp. If that happens, remember where it is and continue searching for the lamp. Do **not** take the object until the lamp is on.
+
+## Phase 2: Locate and take the target object
+- After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then systematically move to other likely receptacles.
+
+### Search Strategy for Target Objects – Surfaces First
+- Check open surfaces (bed, desk, dresser, sidetable, coffeetable, sofa, shelf, etc.) in a systematic order. Read the contents of each receptacle.
+- If you see the target object on a surface, take it (action: take <object> from <receptacle>).
+- If you do not see the target on any surface, proceed to container search (below).
+
+### Container Search When Target Not on Surfaces
+- Open drawers and cabinets that are present in the room. The target may be inside a container rather than on an open surface.
+- At each container, use the 'open' action (e.g., open drawer 1). Then check its contents in the observation. If the target is inside, take it.
+- Continue opening all drawers and cabinets until the target is found; do not skip any.
+- If you had already seen the target's location earlier (e.g., through the room description), go directly there and take it.
+
+## Phase 3: Task completion
+- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.
+  (If you wish, you may use the examine action on the object, but it is not necessary for success.)

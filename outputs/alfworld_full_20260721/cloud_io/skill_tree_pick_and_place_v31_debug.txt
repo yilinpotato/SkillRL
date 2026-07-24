@@ -1,0 +1,115 @@
+=== Skill Tree Debug — scope=pick_and_place  v31 (level=3, tree_depth=3, 8 nodes) ===
+action: refine
+critique: The agent used the skill tree's guidance to locate and take objects, but it did not follow the overly rigid exhaustive search procedure (list every receptacle, repeat if not found). The skill tree's own wording was not directly misleading in these successful runs, but the systematic search section was unnecessarily detailed and could be simplified to match the agent's efficient behavior.
+changelog: Simplified the Systematic Search section by removing the mandatory full-list-and-repeat rule and emphasizing flexible search starting from open surfaces; updated Common Mistakes to reflect a less rigid approach.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 20  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v31) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=30 calls=838 success=763 rate=91.1%
+[NEW                 ] pick-and-place-skill-tree/common-mistakes-to-avoid level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-and-place-skill-tree/goal           level=2 stable_versions=0 calls=838 success=763 rate=91.1%
+[STABLE              ] pick-and-place-skill-tree/object-acquisition level=2 stable_versions=5 calls=119 success=110 rate=92.4%
+[MODIFIED            ] pick-and-place-skill-tree/object-acquisition/object-type-verification level=3 stable_versions=0 calls=81 success=77 rate=95.1%
+[STABLE              ] pick-and-place-skill-tree/placement      level=2 stable_versions=5 calls=119 success=110 rate=92.4%
+[MODIFIED            ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=0 calls=838 success=763 rate=91.1%
+[NEW                 ] pick-and-place-skill-tree/systematic-search-for-target-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v30 -> v31) ---
+--- v30
++++ v31
+@@ -1,41 +1,33 @@
+ # pick_and_place skill tree
+ 
+ ## Goal
+-Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
++Pick up a specified object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
+ 
+ ## Sub-Goal Flow
+ 1. **Parse the task** – identify the target object and target receptacle exactly as written.
+-2. **Locate the target object** – search every visible receptacle systematically.
+-3. **Verify and take** – only take the object if its type matches the task (ignore numerals).
+-4. **Navigate to target receptacle** and move the object there.
++2. **Locate the target object** – search receptacles, starting with open surfaces, then closed containers.
++3. **Take the object** – only if its type matches the task (ignore numerals).
++4. **Navigate to target receptacle** and open it if closed, then move the object there.
+ 5. **Terminate** after placement.
+ 
+-## Systematic Search for Target Object (mandatory)
+-### Complete Receptacle Check
+-- From the initial observation, **mentally list every receptacle name exactly as shown** (all furniture, containers, surfaces). This is your master checklist.
+-- Visit each receptacle on your list exactly once before concluding. You may choose any order, but **do not skip any**.
+-- For each receptacle:
+-  - `go to <receptacle>`.
+-  - If it is closed (drawer, cabinet, safe, fridge, microwave, oven, dishwasher, etc.), first `open <receptacle>`, then read its contents.
+-  - If the target object is present, immediately `take <object> from <receptacle>`. Do nothing else first.
+-  - Tick it off your mental list.
+-- After visiting every receptacle on your list and not finding the object, **repeat the entire list again**. The object is always somewhere; keep searching until found.
++## Systematic Search for Target Object
++- From the initial observation, note the available receptacles. You do not need to visit every one if you find the object early.
++- Check open surfaces first (tables, countertops, shelves, armchairs, sofas, dressers, beds, bathtubs, toilets, etc.). Go to each and read its contents.
++- If the target object is present, take it immediately.
++- If not found after checking several open surfaces, proceed to closed containers (drawers, cabinets, fridge, microwave, oven, dishwasher, safe, etc.). For each, `go to <receptacle>`, then `open` it and check its contents.
++- Continue searching until the object is found. Do not waste time on a rigid order — you may choose a logical starting point.
++- If you have checked all receptacles and not found the object, double-check any you may have missed. The object is always somewhere.
+ 
+-### Search Order to Save Time
+-- **Check surfaces first** (tables, countertops, shelves, armchairs, sofas, dressers, beds, bathtubs, toilets, etc.) before opening closed containers.
+-- After all surfaces, open each drawer and cabinet systematically. Then check other closed containers like fridge, microwave, oven, dishwasher.
+-
+-### Common Mistakes to Avoid
+-- **Skipping any receptacle** – all must be inspected, including beds, dressers, desks, countertops, shelving, drawers, cabinets, sinks, bathtubs, toilets, sofas, etc.
++## Common Mistakes to Avoid
++- **Taking wrong object** – verify the object's type matches the task exactly (base noun level; ignore numerals).
+ - **Using wrong actions** – never `examine` or `look`; use `go to` to move, `open`/`close` for containers.
+-- **Taking wrong object** – verify the object's type matches the task exactly (base noun level; ignore numerals).
+-- **Stopping early** – only stop after you have checked every receptacle on your initial list (and repeated if needed) and still not found the object. The object will be found; keep searching.
++- **Stopping early** – only stop after you have placed the object. Keep searching until you find it.
+ 
+ ## Object Acquisition
+ Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+ 
+ ### Object Type Verification
+-- Compare the object's name (as shown in observation) with the target object type from the task. They must match at the base noun level (e.g., "glassbottle" vs. "winebottle" are different). Ignore numerals (e.g., "book 2" matches "book").
++Compare the object's name (as shown in observation) with the target object type from the task. They must match at the base noun level (e.g., "glassbottle" vs. "winebottle" are different). Ignore numerals (e.g., "book 2" matches "book").
+ 
+ ## Placement
+ After taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specified object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
+
+## Sub-Goal Flow
+1. **Parse the task** – identify the target object and target receptacle exactly as written.
+2. **Locate the target object** – search receptacles, starting with open surfaces, then closed containers.
+3. **Take the object** – only if its type matches the task (ignore numerals).
+4. **Navigate to target receptacle** and open it if closed, then move the object there.
+5. **Terminate** after placement.
+
+## Systematic Search for Target Object
+- From the initial observation, note the available receptacles. You do not need to visit every one if you find the object early.
+- Check open surfaces first (tables, countertops, shelves, armchairs, sofas, dressers, beds, bathtubs, toilets, etc.). Go to each and read its contents.
+- If the target object is present, take it immediately.
+- If not found after checking several open surfaces, proceed to closed containers (drawers, cabinets, fridge, microwave, oven, dishwasher, safe, etc.). For each, `go to <receptacle>`, then `open` it and check its contents.
+- Continue searching until the object is found. Do not waste time on a rigid order — you may choose a logical starting point.
+- If you have checked all receptacles and not found the object, double-check any you may have missed. The object is always somewhere.
+
+## Common Mistakes to Avoid
+- **Taking wrong object** – verify the object's type matches the task exactly (base noun level; ignore numerals).
+- **Using wrong actions** – never `examine` or `look`; use `go to` to move, `open`/`close` for containers.
+- **Stopping early** – only stop after you have placed the object. Keep searching until you find it.
+
+## Object Acquisition
+Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+
+### Object Type Verification
+Compare the object's name (as shown in observation) with the target object type from the task. They must match at the base noun level (e.g., "glassbottle" vs. "winebottle" are different). Ignore numerals (e.g., "book 2" matches "book").
+
+## Placement
+After taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.

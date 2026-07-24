@@ -1,0 +1,169 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specified object and place it into or onto a specified receptacle.\n\n## Sub-Goal Flow\n1. Identify the target object and target receptacle from the task description.\n2. Systematically search all receptacles (starting with the target) until the object is found.\n3. Take the object and place it in/on the target receptacle.\n4. Stop immediately after the move action.\n\n## Systematic Search (mandatory)\n\n### Step 1: Extract the full list of all receptacles\n- From the initial observation (before any movement), note every noun+number furniture item (e.g., bed 1, drawer 2, cabinet 3, sinkbasin 1, handtowelholder 1). This includes all flat surfaces (sidetable, countertop, sofa, armchair, etc.) and closed containers (drawer, cabinet, safe, etc.).\n- If the observation is truncated (ends abruptly), use `look` once to get the full list. Otherwise, do **not** use `look` again.\n- Create a mental list in the exact order they appear.\n\n### Step 2: Visit every receptacle on that list, one by one, without skipping or revisiting\n- **Start with the target receptacle.** Go to it. If it is closed, open it immediately (next action must be `open`). Read the observation to see if the target object is there. If yes, take it and go to Placement.\n- If not, **then go to the first receptacle in your list** (the very first item you wrote down). Proceed through the entire list in order, skipping only the target receptacle if it was already visited.\n- For each receptacle:\n  - If closed, `open` it **immediately** upon arrival. Do not `examine`, `look`, or `inventory` first.\n  - Read the observation. If the target object is present, take it (`take <object> from <receptacle>`) and go to Placement.\n  - If not present, **immediately** proceed to the next receptacle. Do not `examine` or `close` anything.\n- **Continue until you have visited every single receptacle on the list.** Do not stop earlier, even if you think the object might be elsewhere.\n- **If you catch yourself repeating the same actions (looping), stop and re-read your list. You must be visiting a new receptacle each time.**\n\n### Critical rules to avoid failure\n- **Do not stop early** – you must finish the entire list. The object could be on a surface or in a container you haven't checked yet. In the failed examples, agents stopped after only a few cabinets or drawers and missed the target.\n- **Include all surface types** – flat surfaces like countertops, sidetables, armchairs, sofas, diningtables, etc. are equally valid receptacles. Do not skip them even if you have already checked many containers.\n- **Include all container types** – open every drawer, cabinet, safe, etc. you encounter. Do not assume the object is only in one kind of furniture.\n- **No `look` or `inventory` during search** – it wastes actions and can cause you to lose track. The only allowed `look` is the single initial one if the observation was truncated.\n\n## Object Verification\nBefore taking any object, **verify that the base noun matches exactly** the target object from the task description.\n- Example: target \"soapbottle\" is not \"soapbar\". Target \"pillow\" is not \"cushion\".\n- If the name does not match, do **not** take it. Continue searching.\n- This check must be done for every pickup attempt, even if the object looks plausible.\n\n## Object Acquisition\n- Action: `take <object> from <receptacle>` only after verification passes.\n- If the object name is ambiguous (e.g., \"spraybottle\" vs \"bottle\"), use the exact words from the observation.\n\n## Placement\n- Go to the target receptacle. If closed, open it. Then `move <object> to <receptacle>`.\n- **Stop immediately** after the move action. Do not perform any further actions.\n\n## Final Reminder\n- The agent must **follow the systematic search exactly** – do not deviate, do not skip, do not stop early.\n- Object verification prevents placing the wrong object. Always check the name before taking.",
+  "level": 3,
+  "version": 63,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent consistently failed to follow the systematic search instructions, stopping early or using 'look' despite the tree's explicit prohibitions. The skill tree's wording was clear and not misleading; the failures stem from non-compliance rather than ambiguous text.",
+  "changelog": "Added a 'Critical rules to avoid failure' subsection under Systematic Search, emphasizing the need to continue through the entire list, include all surface and container types, and avoid look/inventory, based on observed failure patterns where agents stopped after checking only a subset of receptacles.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched only cabinets for soapbottle but missed the soapbottle likely on countertop or elsewhere.",
+      "skill_tree_gap": "Failure to explore all location types.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent only opened one drawer and checked shelves for a box, but did not search other drawers or cabinets.",
+      "skill_tree_gap": "Incomplete container search.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched many drawers but no keychain found; it did not search other furniture like dresser or shelf.",
+      "skill_tree_gap": "Limited search range.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_6912",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 62,
+      "call_count": 1512,
+      "success_when_used": 1352,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "80ee3303fa3c",
+      "created_version": 1,
+      "last_changed_version": 34,
+      "stable_versions": 29,
+      "call_count": 1512,
+      "success_when_used": 1352,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "35635113644f",
+      "created_version": 1,
+      "last_changed_version": 60,
+      "stable_versions": 3,
+      "call_count": 1512,
+      "success_when_used": 1352,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory": {
+      "title": "Systematic Search (mandatory)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 60,
+      "last_changed_version": 60,
+      "stable_versions": 3,
+      "call_count": 48,
+      "success_when_used": 38,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory/step-1-extract-the-full-list-of-all-receptacles": {
+      "title": "Step 1: Extract the full list of all receptacles",
+      "level": 3,
+      "body_hash": "df123a655193",
+      "created_version": 60,
+      "last_changed_version": 62,
+      "stable_versions": 1,
+      "call_count": 48,
+      "success_when_used": 38,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory/step-2-visit-every-receptacle-on-that-list-one-by-one-without-skipping-or-revisiting": {
+      "title": "Step 2: Visit every receptacle on that list, one by one, without skipping or revisiting",
+      "level": 3,
+      "body_hash": "f5cd1a117f51",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 1,
+      "call_count": 13,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory/critical-rules-to-avoid-failure": {
+      "title": "Critical rules to avoid failure",
+      "level": 3,
+      "body_hash": "a921fb54b891",
+      "created_version": 63,
+      "last_changed_version": 63,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-verification": {
+      "title": "Object Verification",
+      "level": 2,
+      "body_hash": "95c809b99ca9",
+      "created_version": 61,
+      "last_changed_version": 61,
+      "stable_versions": 2,
+      "call_count": 32,
+      "success_when_used": 26,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition": {
+      "title": "Object Acquisition",
+      "level": 2,
+      "body_hash": "d0e26e519a0e",
+      "created_version": 26,
+      "last_changed_version": 61,
+      "stable_versions": 2,
+      "call_count": 793,
+      "success_when_used": 699,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "d0a7f91e601a",
+      "created_version": 26,
+      "last_changed_version": 61,
+      "stable_versions": 2,
+      "call_count": 793,
+      "success_when_used": 699,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/final-reminder": {
+      "title": "Final Reminder",
+      "level": 2,
+      "body_hash": "f4542c6eee48",
+      "created_version": 61,
+      "last_changed_version": 61,
+      "stable_versions": 2,
+      "call_count": 32,
+      "success_when_used": 26,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

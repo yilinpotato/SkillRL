@@ -1,0 +1,99 @@
+=== Skill Tree Debug — scope=clean  v2 (level=4, tree_depth=4, 9 nodes) ===
+action: refine
+critique: The agent attempted to follow the skill tree's systematic search but stopped after checking only cabinets and one countertop, failing to check drawers, fridge, or sinkbasin. The existing tree's search section lacked an explicit per-type checklist, which may have allowed premature termination. Refining the section with a concrete exhaustive checklist aims to prevent this.
+changelog: Deepened the '### Systematic Search' subsection under Phase 1 by adding a '#### Exhaustive Container Checklist' with step-by-step instructions for visiting every receptacle type, ensuring no container is missed.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 14  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never found a kettle because it only searched cabinets and one countertop, missing other possible locations like the sink or drawers. | evidence: After opening cabinet 6: 'You open the cabinet 6. The cabinet 6 is open. In it, you see nothing.' and no kettle was ever seen or picked up. | fix: Search all receptacles (cabinets, drawers, countertops, sink, fridge) for the target object before concluding it is absent. | skill_tree_gap: Lacks a systematic exploration routine that covers all container types within the room. | patch_location: Under '## clean' task type, add a new '### Systematic Object Search' subsection as a deeper refinement.
+
+--- Node tree (per-node lifecycle, this version=v2) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=1 calls=15 success=14 rate=93.3%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=1 calls=15 success=14 rate=93.3%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=1 calls=15 success=14 rate=93.3%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object level=2 stable_versions=1 calls=15 success=14 rate=93.3%
+[MODIFIED            ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search level=3 stable_versions=0 calls=15 success=14 rate=93.3%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search/exhaustive-container-checklist level=4 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=1 calls=15 success=14 rate=93.3%
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object/ensure-cleaning-at-sinkbasin level=3 stable_versions=1 calls=15 success=14 rate=93.3%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=1 calls=15 success=14 rate=93.3%
+
+--- Line diff vs previous version (v1 -> v2) ---
+--- v1
++++ v2
+@@ -10,11 +10,22 @@
+ - Do not assume [object] is in any specific receptacle; search systematically.
+ 
+ ### Systematic Search
+-- Start with receptacles you can see (immediately from your position).
+-- Go to each receptacle type in the room: cabinets, drawers, fridge, countertops, sinkbasin, shelf, dresser, etc.
++- Begin by listing all visible receptacle types from the initial observation (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, etc.).
++- For each receptacle type, visit every instance of that type in the room.
+ - For closed receptacles (cabinets, drawers, fridge), use "open [receptacle]" first, then check contents.
+-- If you see [object], use "take [object] from [receptacle]".
+-- Continue searching until you find [object] or you have visited all receptacles. Do not stop after a few checks.
++- If you see [object], use "take [object] from [receptacle]" and proceed to Phase 2.
++- Continue until you have checked every instance of every receptacle type listed.
++- Do not stop after checking only a few cabinets or countertops; the object may be in a drawer, fridge, sinkbasin, or other container.
++
++#### Exhaustive Container Checklist
++1. Check all cabinets (open each and look inside/on top).
++2. Check all drawers (open each and look inside).
++3. Check the fridge (open and look inside).
++4. Check all countertops (look on each).
++5. Check sinkbasin and bathtubbasin (look on/in each).
++6. Check all shelves, dressers, and other furniture listed.
++- Only after completing this full checklist can you conclude the object is absent. Then re-scan the room for any missed receptacle.
++
+ - Once you are carrying [object], proceed to Phase 2.
+ 
+ ## Phase 2: Clean the Object
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]".
+- Remember that [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as the nearest sinkbasin or bathtubbasin (usually sinkbasin).
+
+## Phase 1: Locate and Take the Target Object
+- You need to find and pick up [object] before you can clean it.
+- Do not assume [object] is in any specific receptacle; search systematically.
+
+### Systematic Search
+- Begin by listing all visible receptacle types from the initial observation (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, etc.).
+- For each receptacle type, visit every instance of that type in the room.
+- For closed receptacles (cabinets, drawers, fridge), use "open [receptacle]" first, then check contents.
+- If you see [object], use "take [object] from [receptacle]" and proceed to Phase 2.
+- Continue until you have checked every instance of every receptacle type listed.
+- Do not stop after checking only a few cabinets or countertops; the object may be in a drawer, fridge, sinkbasin, or other container.
+
+#### Exhaustive Container Checklist
+1. Check all cabinets (open each and look inside/on top).
+2. Check all drawers (open each and look inside).
+3. Check the fridge (open and look inside).
+4. Check all countertops (look on each).
+5. Check sinkbasin and bathtubbasin (look on/in each).
+6. Check all shelves, dressers, and other furniture listed.
+- Only after completing this full checklist can you conclude the object is absent. Then re-scan the room for any missed receptacle.
+
+- Once you are carrying [object], proceed to Phase 2.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (e.g., sinkbasin 1).
+- Upon arriving at [cleaning_source], immediately use "clean [object] with [cleaning_source]".
+- Confirm the observation says you cleaned it; otherwise retry or check if you are at the correct source.
+
+### Ensure Cleaning at Sinkbasin
+- Do NOT leave the sinkbasin without cleaning. If you are at sinkbasin and carrying the object, you must clean before moving.
+- If you accidentally move away, return and clean.
+
+## Phase 3: Place the Clean Object at Destination
+- After cleaning, go to [destination] (e.g., diningtable, shelf, stoveburner, etc.).
+- Use "move [object] to [destination]" to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

@@ -1,0 +1,106 @@
+=== Skill Tree Debug — scope=pick_and_place  v7 (level=4, tree_depth=4, 12 nodes) ===
+action: refine
+critique: The agent did not follow the systematic search procedure; it skipped many receptacles (dresser, sinkbasins, etc.) and stopped early. The skill tree already contains detailed instructions for exhaustive search, so the failure is due to the agent not adhering to the tree – no wording issues.
+changelog: Reorganized the 'Locate the target object' section into two explicit subsections ('List all receptacles' and 'Systematically search each receptacle') to reinforce the need to include the target receptacle and to check every single receptacle before giving up.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 10  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent only searched a limited number of drawers and shelves, missing the tissuebox which could be in other containers like cabinets or sidetable. | evidence: after opening drawer 2, trajectory ends; many other drawers and locations not examined. | fix: Systematically open all containers (drawers, cabinets, shelves) and inspect all surfaces before giving up. | skill_tree_gap: No exhaustive container search procedure. | patch_location: ## Exploration -> new subsection '### Exhaustive Container Search'
+- [inefficient_exploration] Agent did not check sink basins, garbage can, or other locations that might contain the spraybottle, only searched drawers and countertop. | evidence: after opening drawer 6, no further exploration; sinkbasin1, sinkbasin2, toilet, etc. not visited. | fix: Inspect all visible receptacles including sinks, garbage can, and towel holders. | skill_tree_gap: Lack of a checklist of all possible object locations. | patch_location: ## Exploration -> new subsection '### Inspect All Receptacles'
+
+--- Node tree (per-node lifecycle, this version=v7) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=6 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/common-mistakes-to-avoid level=2 stable_versions=2 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=6 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=6 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow/1-parse-the-task level=3 stable_versions=6 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow/2-locate-the-target-object level=3 stable_versions=2 calls=184 success=166 rate=90.2%
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/2-locate-the-target-object/2-1-list-all-receptacles level=4 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/sub-goal-flow/2-locate-the-target-object/2-2-systematically-search-each-receptacle level=4 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow/3-verify-and-pick-up level=3 stable_versions=2 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow/4-navigate-to-the-target-receptacle level=3 stable_versions=2 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow/5-place-the-object level=3 stable_versions=6 calls=184 success=166 rate=90.2%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow/6-termination level=3 stable_versions=6 calls=184 success=166 rate=90.2%
+
+--- Line diff vs previous version (v6 -> v7) ---
+--- v6
++++ v7
+@@ -8,15 +8,20 @@
+ Identify two entities: the **target object** (what to pick) and the **target receptacle** (where to place it). Keep these in mind throughout.
+ 
+ ### 2. Locate the target object
+-#### Systematic Search
+-1. **From the initial room observation, mentally list every receptacle name.** Include ALL types: cabinets, drawers, shelves, tables, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubbasins, handtowelholders, towelholders, toilet, toiletpaperhanger, garbagecan, beds, etc. Do not skip any type.
+-2. **Plan to visit each receptacle on your list.** You will go to every single one, in any order. Do not assume the object is only in cabinets or drawers.
+-3. **For each receptacle:**
+-   - Go to it (`go to <receptacle>`).
+-   - If it is closed (cabinet, drawer), open it (`open <receptacle>`) before examining.
+-   - Read the observation: it lists objects inside or on the receptacle.
+-   - Mentally mark that receptacle as checked.
+-4. **Do not stop until you have visited every receptacle on your initial list.** If you find the target object early, you may pick it up and proceed to placement. But if not, continue the exhaustive search. Common overlooked receptacles: desks, dressers, armchairs, beds, sidetables, tvstands, countertops, sinkbasins, bathtubbasins, handtowelholders, toilet, garbagecan. Make sure to go to these as well.
++#### 2.1 List all receptacles
++- From the initial room observation, mentally write down every receptacle name. Include ALL types: cabinets, drawers, shelves, tables, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubbasins, handtowelholders, towelholders, toilet, toiletpaperhanger, garbagecan, beds, and any other furniture mentioned. **Include the target receptacle itself** – the object might already be on it.
++- Common overlooked receptacles: desks, dressers, armchairs, beds, sidetables, tvstands, countertops, sinkbasins, bathtubbasins, handtowelholders, toilet, garbagecan. Make sure you list every one you see.
++
++#### 2.2 Systematically search each receptacle
++- Create a mental queue of all receptacles on your list.
++- For each receptacle (in any order):
++  1. Go to it (`go to <receptacle>`).
++  2. If it is closed (e.g., cabinet, drawer), open it (`open <receptacle>`) before examining.
++  3. Read the observation. It lists objects inside or on the receptacle.
++  4. If you see the target object, use `take <object> from <receptacle>`. Then proceed to placement (step 3).
++  5. If not, mentally mark that receptacle as checked and move to the next.
++- **Do not stop until you have visited every receptacle on your initial list.** Even if you have visited many, continue until all are checked. The target object is guaranteed to be somewhere.
++- If you have checked every single receptacle and still not found the object (unlikely), you may re-examine the room observation to ensure you didn't miss any.
+ 
+ ### 3. Verify and pick up
+ - Before picking up any object, **confirm that its name exactly matches the target object** (e.g., if task says "cloth", do not pick "handtowel"; if task says "spraybottle", do not pick "soapbottle"). If there is any mismatch, do not take it.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+You must pick up a specific object and place it into or onto a specified receptacle. The task description states both the object and the target (e.g., "put a book in sofa").
+
+## Sub-Goal Flow
+### 1. Parse the task
+Identify two entities: the **target object** (what to pick) and the **target receptacle** (where to place it). Keep these in mind throughout.
+
+### 2. Locate the target object
+#### 2.1 List all receptacles
+- From the initial room observation, mentally write down every receptacle name. Include ALL types: cabinets, drawers, shelves, tables, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubbasins, handtowelholders, towelholders, toilet, toiletpaperhanger, garbagecan, beds, and any other furniture mentioned. **Include the target receptacle itself** – the object might already be on it.
+- Common overlooked receptacles: desks, dressers, armchairs, beds, sidetables, tvstands, countertops, sinkbasins, bathtubbasins, handtowelholders, toilet, garbagecan. Make sure you list every one you see.
+
+#### 2.2 Systematically search each receptacle
+- Create a mental queue of all receptacles on your list.
+- For each receptacle (in any order):
+  1. Go to it (`go to <receptacle>`).
+  2. If it is closed (e.g., cabinet, drawer), open it (`open <receptacle>`) before examining.
+  3. Read the observation. It lists objects inside or on the receptacle.
+  4. If you see the target object, use `take <object> from <receptacle>`. Then proceed to placement (step 3).
+  5. If not, mentally mark that receptacle as checked and move to the next.
+- **Do not stop until you have visited every receptacle on your initial list.** Even if you have visited many, continue until all are checked. The target object is guaranteed to be somewhere.
+- If you have checked every single receptacle and still not found the object (unlikely), you may re-examine the room observation to ensure you didn't miss any.
+
+### 3. Verify and pick up
+- Before picking up any object, **confirm that its name exactly matches the target object** (e.g., if task says "cloth", do not pick "handtowel"; if task says "spraybottle", do not pick "soapbottle"). If there is any mismatch, do not take it.
+- **Exact match is required** – synonyms are not acceptable. For example, "handtowel" is not "cloth", "towel" is not "cloth", "soapbar" is not "soapbottle", "winebottle" is not "glassbottle". When in doubt, re-read the task description and the observed object name.
+- Once confirmed, use `take <object> from <receptacle>` to pick it up.
+- If you are already carrying something else and it is not the target, you may drop it (not typical, but avoid carrying wrong items).
+
+### 4. Navigate to the target receptacle
+- After successfully picking up the target object, move to the target receptacle (e.g., "sofa 1", "toilet 1", "garbagecan 1") using `go to <receptacle>`.
+
+### 5. Place the object
+- When you arrive at the target receptacle, immediately execute `move <object> to <receptacle>`.
+- Do **not** perform any other actions (like examining or going away) before placing; placing is the final required action.
+
+### 6. Termination
+- After the `move` action, the task is complete. No further actions are needed.
+
+## Common Mistakes to Avoid
+- **Wrong object pickup:** Always re-verify the object name in the observation before using `take`. Never take an object unless its name is an exact match.
+- **Incomplete search:** Do not skip any receptacle type or instance. The target object may be on any surface, in any drawer, or inside any cabinet. Check all furniture listed in the initial room observation – including desks, dressers, beds, armchairs, and other surfaces often missed.
+- **Giving up too early:** If you have not found the object after checking many receptacles, do not stop until you have visited every single one on your list. Patience is required.
+- **Missing the placement step:** Arriving at the target is not enough; you must explicitly `move` the object.

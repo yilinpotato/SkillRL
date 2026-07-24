@@ -1,0 +1,107 @@
+=== Skill Tree Debug — scope=pick_and_place  v35 (level=3, tree_depth=3, 8 nodes) ===
+action: refine
+critique: The agent largely ignored the systematic search instructions; it skipped many receptacles and used 'examine' (a disallowed action). The skill tree's wording was clear but the agent did not follow it. The failures are not due to ambiguous wording but to non-compliance with the clear procedure.
+changelog: Deepened the 'Systematic Exploration Process' section by adding a '### Detailed Algorithm for Exhaustive Search' subheading with step-by-step instructions to ensure complete coverage and prevent premature stopping.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 16  n_failure this round: 5
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent never found a 'box' object because it only visited a subset of receptacles (coffeetable, shelves, one drawer, sidetable) and missed many other surfaces and containers. | evidence: After visiting shelf1–6 and drawer1, the agent returns to coffeetable and shelf1 without ever encountering a box. | fix: When tasked to find an object, systematically explore all receptacles in the environment, including those not immediately visible in the first room scan. | skill_tree_gap: Lack of a comprehensive exploration policy that covers all rooms and containers. | patch_location: Under '## pick_and_place', add a new subsection '### Systematic Environment Exploration'
+- [inefficient_exploration] Agent searched only countertops and drawers, failing to find the toiletpaper which was likely on a different surface or container not visited. | evidence: After opening drawers 1–4 (no toiletpaper) and seeing only candles/cloth, agent attempts to open drawer5 incorrectly and stops. | fix: When target object is not found in current area, expand search to other rooms and containers (e.g., sinkbasin, toiletpaperhanger, etc.). | skill_tree_gap: Agent lacks a breadth-first or systematic sweep of all room locations. | patch_location: Under '## pick_and_place', add a new subsection '### Area-Sweep Search'
+- [inefficient_exploration] Agent never located a candle because it only opened cabinet1 and cabinet2 (both containing toiletpaper) and did not explore other containers or surfaces. | evidence: After opening cabinet1 (nothing) and cabinet2 (toiletpaper2), agent goes back to countertop1 and then to cabinet3, but never opens further containers or examines other rooms. | fix: When target object is not in the first few containers, continue opening all accessible containers (drawers, cabinets, fridge). | skill_tree_gap: Agent stops after checking only two containers; needs a more persistent container-opening policy. | patch_location: Under '## pick_and_place', add a new subsection '### Persistent Container Search'
+- [inefficient_exploration] Agent saw pencils but no pen, and failed to search other locations where a pen might be (e.g., desk, drawers, cabinets not visited). | evidence: After opening drawer1, drawer2, cabinet1, cabinet2 (all empty), agent returns to shelf1 and desk1 without having found a pen. | fix: If the target object is not found after checking a few containers, continue exploring other unvisited receptacles and rooms. | skill_tree_gap: Agent lacks a complete exploration of all furniture (e.g., bed, dresser, etc.). | patch_location: Under '## pick_and_place', add a new subsection '### Complete Exploration of All Furniture'
+- [inefficient_exploration] Agent never found a CD because it only visited shelf1, shelf2, dresser1, sidetable1, and a few drawers, missing many other locations. | evidence: After opening drawers 1–3 (all empty), agent returns to shelf1 and shelf2 without encountering a CD anywhere. | fix: Before concluding the object is absent, exhaustively scan all rooms and open all containers. | skill_tree_gap: Exploration strategy is too narrow; agent does not consider that the object might be on a different floor or furniture piece. | patch_location: Under '## pick_and_place', add a new subsection '### Exhaustive Room Scan'
+
+--- Node tree (per-node lifecycle, this version=v35) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=34 calls=953 success=867 rate=91.0%
+[MODIFIED            ] pick-and-place-skill-tree/common-mistakes-to-avoid level=2 stable_versions=0 calls=115 success=104 rate=90.4%
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=1 calls=953 success=867 rate=91.0%
+[STABLE              ] pick-and-place-skill-tree/object-acquisition level=2 stable_versions=1 calls=234 success=214 rate=91.5%
+[STABLE              ] pick-and-place-skill-tree/placement      level=2 stable_versions=1 calls=234 success=214 rate=91.5%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=1 calls=953 success=867 rate=91.0%
+[NEW                 ] pick-and-place-skill-tree/systematic-exploration-process level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/systematic-exploration-process/detailed-algorithm-for-exhaustive-search level=3 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v34 -> v35) ---
+--- v34
++++ v35
+@@ -10,11 +10,22 @@
+ 4. **Navigate to target receptacle**, open if closed, then place the object there.
+ 5. **Terminate** after successful placement.
+ 
+-## Systematic Search
+-- From the initial observation, list every receptacle mentioned (e.g., tables, shelves, drawers, cabinets, dresser, etc.). These are your complete search set.
+-- **Open surfaces first**: go to each open receptacle (tables, shelves, sofa, bed, dresser, etc.) and inspect its contents. Do not skip any.
+-- **Then closed containers**: for each drawer, cabinet, etc., go to it, open it, and inspect its contents. Open every single one before concluding the object is not there.
+-- **Important**: If after checking all receptacles you still haven't found the object, re-check the list – you may have missed one. The object is always present.
++## Systematic Exploration Process
++- From the initial observation, **write down every receptacle name** (e.g., tables, shelves, drawers, cabinets, dresser, armchair, sofa, etc.). This is your complete search set – do not rely on memory.
++- **Visit open surfaces first**: for each open receptacle (tables, shelves, sofa, bed, dresser, etc.), go to it and inspect its contents. Inspect every one without skipping.
++- **Then visit closed containers**: for each drawer, cabinet, etc., go to it, open it, inspect its contents, and leave it open (no need to close). Do this for *every* closed container in your list.
++- **If after checking all receptacles you still haven't found the object**, re-check your list – you may have missed one. The object is always present somewhere.
++- **Avoid revisiting** a location you already inspected until you have completed the entire list. Premature backtracking wastes time.
++
++### Detailed Algorithm for Exhaustive Search
++1. From the initial room description, extract all receptacle names (furniture items). Include everything: tables, shelves, drawers, cabinets, armchairs, sofas, dressers, etc.
++2. Sort them into two mental groups:
++   - Open surfaces (things you can see onto without opening).
++   - Closed containers (drawers, cabinets, etc. that require `open`).
++3. Begin with open surfaces: for each, issue `go to <receptacle>`, observe its contents. If the target object is there, take it and proceed to placement.
++4. If not found after all open surfaces, proceed to closed containers: for each, `go to <container>`, then `open <container>`, observe contents. If target found, take it.
++5. After checking all closed containers, if still not found, review your initial list – you likely missed a receptacle. Re-scan the room description and add any missed items.
++6. **Never use `examine`, `look`, or `inventory`** – they are not valid for this task. Only `go to`, `open`, `close`, `take`, `move`.
+ 
+ ## Object Acquisition
+ - When you see an object that *might* be the target, **first verify its name** against the task. The exact type must match (e.g., "soapbottle" vs "soapbar" are different; ignore numerals like "book 1" matches "book").
+@@ -28,4 +39,5 @@
+ ## Common Mistakes to Avoid
+ - **Taking without verifying** – always check object name before taking.
+ - **Stopping search early** – do not assume the object is gone until you have checked every receptacle on the initial list.
+-- **Wrong actions** – use only `go to`, `open`, `close`, `take`, `move`. Never `examine`, `look`, or `inventory` unnecessarily.
++- **Wrong actions** – use only `go to`, `open`, `close`, `take`, `move`. Never `examine`, `look`, or `inventory`.
++- **Skipping open surfaces** – they are quick to check and often contain the target.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specified object and place it into or onto a specified receptacle.
+
+## Sub-Goal Flow
+1. **Identify target object and target receptacle** from the task description.
+2. **Locate the target object** by searching all listed receptacles systematically.
+3. **Take the object only if its name exactly matches** the target (base noun, ignore numerals).
+4. **Navigate to target receptacle**, open if closed, then place the object there.
+5. **Terminate** after successful placement.
+
+## Systematic Exploration Process
+- From the initial observation, **write down every receptacle name** (e.g., tables, shelves, drawers, cabinets, dresser, armchair, sofa, etc.). This is your complete search set – do not rely on memory.
+- **Visit open surfaces first**: for each open receptacle (tables, shelves, sofa, bed, dresser, etc.), go to it and inspect its contents. Inspect every one without skipping.
+- **Then visit closed containers**: for each drawer, cabinet, etc., go to it, open it, inspect its contents, and leave it open (no need to close). Do this for *every* closed container in your list.
+- **If after checking all receptacles you still haven't found the object**, re-check your list – you may have missed one. The object is always present somewhere.
+- **Avoid revisiting** a location you already inspected until you have completed the entire list. Premature backtracking wastes time.
+
+### Detailed Algorithm for Exhaustive Search
+1. From the initial room description, extract all receptacle names (furniture items). Include everything: tables, shelves, drawers, cabinets, armchairs, sofas, dressers, etc.
+2. Sort them into two mental groups:
+   - Open surfaces (things you can see onto without opening).
+   - Closed containers (drawers, cabinets, etc. that require `open`).
+3. Begin with open surfaces: for each, issue `go to <receptacle>`, observe its contents. If the target object is there, take it and proceed to placement.
+4. If not found after all open surfaces, proceed to closed containers: for each, `go to <container>`, then `open <container>`, observe contents. If target found, take it.
+5. After checking all closed containers, if still not found, review your initial list – you likely missed a receptacle. Re-scan the room description and add any missed items.
+6. **Never use `examine`, `look`, or `inventory`** – they are not valid for this task. Only `go to`, `open`, `close`, `take`, `move`.
+
+## Object Acquisition
+- When you see an object that *might* be the target, **first verify its name** against the task. The exact type must match (e.g., "soapbottle" vs "soapbar" are different; ignore numerals like "book 1" matches "book").
+- Only if the name matches, take it with `take <object> from <receptacle>`.
+- If the name does not match, continue searching.
+
+## Placement
+- After taking the correct object, go to the target receptacle. If it is closed, open it first. Then `move <object> to <receptacle>`.
+- Once placed, terminate (the task will be marked complete).
+
+## Common Mistakes to Avoid
+- **Taking without verifying** – always check object name before taking.
+- **Stopping search early** – do not assume the object is gone until you have checked every receptacle on the initial list.
+- **Wrong actions** – use only `go to`, `open`, `close`, `take`, `move`. Never `examine`, `look`, or `inventory`.
+- **Skipping open surfaces** – they are quick to check and often contain the target.

@@ -1,0 +1,99 @@
+{
+  "batch_id": "24ee6745-ea65-4cad-9464-70450af6f4a6",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to locate a bowl because it did not open cabinets or search thoroughly, moving to unrelated areas like stoveburners instead.",
+        "evidence": "After reaching countertop 4, the agent goes to cabinet 1 but immediately leaves to stoveburner 1 without opening cabinet 1 or taking any object.",
+        "corrective_rule": "Before abandoning a location, always open closed containers that could contain the target object.",
+        "skill_tree_gap": "No subskill for searching containers when the object is not in plain sight.",
+        "patch_location": "Under '## Exploration', add a new subsection '### Open and search containers'.",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not search for a tomato on countertops before moving to sinkbasin and stoveburners, and never opened the fridge to cool anything.",
+        "evidence": "After 'go to countertop 2', the agent goes to sinkbasin, then stoveburner, then fridge without examining countertop 3 or 4 where a tomato might be, and ends with empty inventory.",
+        "corrective_rule": "Systematically visit all countertops and open surfaces for the target object before exploring other areas.",
+        "skill_tree_gap": "Lack of a prioritized search order that checks countertops first.",
+        "patch_location": "Under '## Exploration', add a new subsection '### Prioritize countertops and open surfaces'.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent got stuck in a loop of opening cabinets without finding spoons because it never checked other receptacles like countertops or drawers.",
+        "evidence": "Sequence of 'go to cabinet X' and 'open cabinet X' repeated many times without variation, as noted by '(dropped 6 looping actions)'.",
+        "corrective_rule": "After opening a few cabinets without success, change search strategy to other locations.",
+        "skill_tree_gap": "No mechanism to break out of a repetition when not finding the target.",
+        "patch_location": "Under '## Exploration', add a new subsection '### Detect and break loops by switching search areas'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing the first pencil, the agent did not search for the second pencil in other locations and instead repeated looking at the empty desk.",
+        "evidence": "After moving pencil 1 to drawer, it goes to bed, then desk, and looks repeatedly, never venturing to other containers.",
+        "corrective_rule": "When the known source is exhausted, search other receptacles for the remaining object.",
+        "skill_tree_gap": "No logic to search for remaining instances after one is found.",
+        "patch_location": "Under '## Multi-Object Tasks', add a new subsection '### Search for remaining objects in different locations'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched drawers and did not explore other furniture like shelves, cabinets, or the dresser where CDs might be located.",
+        "evidence": "Sequence of opening drawers only, never visiting other receptacles such as shelves or cabinets.",
+        "corrective_rule": "When target object not found in drawers, expand search to other furniture types.",
+        "skill_tree_gap": "Lack of diversity in search locations.",
+        "patch_location": "Under '## Exploration', add a new subsection '### Search all furniture types (shelves, cabinets, dressers, etc.)'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent restricted search to armchairs and cabinets, missing likely locations like the bed or sofa where pillows are commonly found.",
+        "evidence": "After examining armchairs and cabinets, it loops without visiting bed or sofa.",
+        "corrective_rule": "Consider common object locations; pillows are often on beds or sofas.",
+        "skill_tree_gap": "No context-aware search based on object type.",
+        "patch_location": "Under '## Exploration', add a new subsection '### Use object type to prioritize search locations'.",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched drawers and a cabinet, not checking other common places like sidetables or shelves for the remote control.",
+        "evidence": "Repeated drawer openings without success, and never visiting sidetables or shelves.",
+        "corrective_rule": "Expand search to include sidetables, shelves, and other surfaces.",
+        "skill_tree_gap": "Lack of systematic coverage of all receptacle types.",
+        "patch_location": "Under '## Exploration', add a new subsection '### Cover all receptacles systematically before repeating'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets, while peppershakers are often on countertops or tables, which were never visited.",
+        "evidence": "Sequence of opening cabinets only, never going to countertops or dining tables.",
+        "corrective_rule": "Search countertops and tables as primary locations for small items like peppershakers.",
+        "skill_tree_gap": "Lack of consideration for typical object placements.",
+        "patch_location": "Under '## Exploration', add a new subsection '### Prioritize countertops and tables for small objects'.",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate the tomato because it did not search all possible containers (cabinets, drawers, fridge) and returned to the starting location without finding the object.",
+    "evidence": "After exploring countertop1, diningtables, sinkbasin, stoveburners, and cabinet1 (closed), it goes back to countertop1 without ever picking up a tomato.",
+    "corrective_rule": "Before cleaning, systematically search all containers (cabinets, drawers, fridge) for the target object if not visible on countertops.",
+    "skill_tree_gap": "Missing a systematic search strategy for objects not immediately visible in the initial area.",
+    "patch_location": "## clean -> new ### exhaustive object search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not locate the kettle because it only opened two cabinets and then gave up, missing other potential storage locations.",
+    "evidence": "After opening cabinet1 (empty) and cabinet2 (plate1), it returns to countertop1 without having found a kettle.",
+    "corrective_rule": "Search all cabinets and drawers before concluding the object is absent.",
+    "skill_tree_gap": "Incomplete container search routine; the agent stopped after checking only a subset.",
+    "patch_location": "## clean -> new ### complete container search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a plate because it only inspected two cabinets (both empty) and then stopped, ignoring many other cabinets.",
+    "evidence": "After checking cabinet1 (nothing) and cabinet2 (nothing), it returns to countertop1 without having picked up any plate.",
+    "corrective_rule": "Exhaustively open and inspect all cabinets and drawers in the room.",
+    "skill_tree_gap": "The agent lacks a strategy to iterate over all storage containers systematically.",
+    "patch_location": "## clean -> new ### exhaustive cabinet search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#3",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not find a soapbar because it opened only three of the four cabinets, missing cabinet4 which likely contained the soapbar.",
+    "evidence": "After opening cabinet1, cabinet2, cabinet3 (no soapbar), it goes back to countertop1 without checking cabinet4.",
+    "corrective_rule": "Open and search every cabinet and drawer in the room before giving up.",
+    "skill_tree_gap": "No systematic enumeration of all containers; the agent stopped prematurely.",
+    "patch_location": "## clean -> new ### visit all containers",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent could not find a bowl because it never opened any cabinets or drawers and only visited open surfaces.",
+    "evidence": "After roaming countertops, diningtable, sinkbasin, and stoveburners, it returns to countertop1 without ever seeing a bowl.",
+    "corrective_rule": "Search inside cabinets and drawers for objects that are not on open surfaces.",
+    "skill_tree_gap": "The agent's exploration routine does not include opening containers for the cool task.",
+    "patch_location": "## cool -> new ### search inside containers",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#0",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate the tissuebox because it did not search all furniture items (coffeetable, armchair, sofa) and only checked shelves and one drawer.",
+    "evidence": "After checking shelves 1-6 and drawer1 (empty), it returns to sidetable without finding a tissuebox.",
+    "corrective_rule": "Before examining, systematically check all furniture locations (coffeetable, armchair, sofa, etc.) where objects may be placed.",
+    "skill_tree_gap": "Lack of a comprehensive furniture-search strategy for the look_at_obj_in_light task.",
+    "patch_location": "## look_at_obj_in_light -> new ### exhaustive location search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent stopped after picking only one pot and moving to the shelf, without searching for a second pot.",
+    "evidence": "After taking pot1 from countertop1, it immediately goes to shelf1 and the trajectory ends.",
+    "corrective_rule": "Continue searching until two pots have been collected and placed; do not finish after finding only one.",
+    "skill_tree_gap": "Missing a loop or check to ensure the required count of objects is met before completing the task.",
+    "patch_location": "## pick_two_obj_and_place -> new ### count verification",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed only one soapbottle and then stopped searching for the second one after opening cabinet1.",
+    "evidence": "After moving soapbottle4 to countertop1, it searches cabinet4 and then opens cabinet1, but no second soapbottle is picked up and the trajectory ends.",
+    "corrective_rule": "Ensure exactly two soapbottles are collected and placed; do not terminate until the count is satisfied.",
+    "skill_tree_gap": "No enforcement of picking the exact number of objects required by the task.",
+    "patch_location": "## pick_two_obj_and_place -> new ### collect required quantity",
+    "confidence": 0.9
+  }
+]

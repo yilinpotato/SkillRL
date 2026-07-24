@@ -1,0 +1,167 @@
+{
+  "batch_id": "13d7f8a2-2029-4e97-9c6f-53d7d29d354c",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent failed to open closed cabinets to find a cup, instead wandering between visible surfaces.",
+        "evidence": "After arriving at cabinet 1, it only looked but did not open it, then returned to countertop 1.",
+        "corrective_rule": "If target object not visible on open surfaces, systematically open all cabinets and drawers to search.",
+        "skill_tree_gap": "Missing a search sub-policy for exploring closed containers when object not in plain sight.",
+        "patch_location": "Under '# clean' add '## Closed container search' as a new subsection.",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent did not search inside cabinets or drawers for a cup, only visited visible surfaces and fridge.",
+        "evidence": "After opening fridge (empty), it went to countertop 2, sinkbasin, stoveburners, but never opened any cabinet.",
+        "corrective_rule": "Search all closed containers (cabinets, drawers) if object not on open surfaces.",
+        "skill_tree_gap": "Lacks a systematic container search routine for the cool task.",
+        "patch_location": "Under '# cool' add '## Container search' as a new subsection.",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent did not exhaustively search all containers for the bowl; stopped after opening one cabinet.",
+        "evidence": "After opening cabinet 1 and seeing saltshaker, it returned to countertops without checking other cabinets or drawers.",
+        "corrective_rule": "Systematically open all cabinets and drawers until the target object is found.",
+        "skill_tree_gap": "Incomplete container search strategy; should iterate over all containers.",
+        "patch_location": "Under '# cool', refine '## Container search' to include iteration over all containers.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#2",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent failed to find an egg because it only opened one cabinet and then stopped searching.",
+        "evidence": "After opening cabinet 1 (empty), it returned to countertop 1 and did not search further.",
+        "corrective_rule": "Continue searching all containers until egg is found.",
+        "skill_tree_gap": "Search termination condition triggered prematurely after one empty container.",
+        "patch_location": "Under '# cool', add '## Persistent container search' as a refinement.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent did not explore all countertops and containers for the potato; only checked one countertop and a few cabinets.",
+        "evidence": "After checking microwave, it opened cabinets 1,2,3 and countertop1, but never went to countertops 2,3,4 or drawers.",
+        "corrective_rule": "Search all visible surfaces (all countertops) and all containers when object not found.",
+        "skill_tree_gap": "Missing a comprehensive search routine that covers all accessible locations.",
+        "patch_location": "Under '# pick_and_place' add '## Comprehensive search' subsection.",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent limited search to dresser and drawers only, ignoring other furniture like bed and sidetable.",
+        "evidence": "After checking drawers, it repeatedly did inventory and returned to dresser, never going to bed or sidetable.",
+        "corrective_rule": "If target not in dresser/drawers, search all other furniture in the room.",
+        "skill_tree_gap": "Search strategy is too narrow; does not include bed, sidetable, etc.",
+        "patch_location": "Under '# pick_and_place', add '## Broaden search scope' as a subsection.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent only searched a few drawers and desk, missing other potential locations for the keychain.",
+        "evidence": "After opening drawer 4 (empty), it stopped; did not check sidetable, dresser, or other containers.",
+        "corrective_rule": "Systematically search all furniture categories (desk, dresser, sidetable, etc.) until keychain found.",
+        "skill_tree_gap": "Incomplete enumeration of search locations.",
+        "patch_location": "Under '# pick_and_place', refine '## Broaden search scope' to include all furniture types.",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_and_place#3",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent only searched shelves and armchair, ignoring sofa and other furniture where a pillow might be.",
+        "evidence": "After examining armchair (empty), it did not go to sofa or other furniture.",
+        "corrective_rule": "Search all furniture that can contain a pillow (sofa, bed, etc.) before concluding.",
+        "skill_tree_gap": "Search strategy lacks coverage of all furniture types.",
+        "patch_location": "Under '# pick_and_place', add '## Search all furniture' subsection.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent placed one cellphone and then stopped searching for the second, entering a loop.",
+        "evidence": "After moving cellphone 4 to dresser, it performed only look actions and did not seek a second cellphone.",
+        "corrective_rule": "After placing the first object, continue searching for a second instance of the same object type.",
+        "skill_tree_gap": "Missing a loop that ensures the required count is reached before termination.",
+        "patch_location": "Under '# pick_two_obj_and_place', add '## Count-check after placement' as a refinement.",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent only collected one saltshaker and then got stuck in a loop without finding a second.",
+        "evidence": "After taking saltshaker 1, the trajectory shows looping actions (dropped).",
+        "corrective_rule": "After collecting and placing one saltshaker, actively search for another saltshaker.",
+        "skill_tree_gap": "No mechanism to continue searching after first object collection.",
+        "patch_location": "Under '# pick_two_obj_and_place', add '## Continue search for duplicates' subsection.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "Agent mistakenly took a candle instead of a tissuebox, deviating from the goal.",
+        "evidence": "Action 'take candle 2 from drawer 6' instead of searching for tissuebox.",
+        "corrective_rule": "Only take objects that exactly match the target object type; ignore non-target objects.",
+        "skill_tree_gap": "Lacks a constraint to prevent taking objects that are not the target.",
+        "patch_location": "Under '# pick_two_obj_and_place', add '## Target object filtering' subsection.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent did not search all cabinets and containers for toiletpaper; only checked a few and then looped.",
+        "evidence": "After checking cabinet 3 and toiletpaperhanger, it went to countertop and looped, never opening other cabinets.",
+        "corrective_rule": "Systematically open all cabinets and drawers until toiletpaper found.",
+        "skill_tree_gap": "Incomplete container search; needs to iterate over all available containers.",
+        "patch_location": "Under '# pick_two_obj_and_place', add '## Comprehensive container search' subsection.",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent placed only one creditcard and then stopped searching for the second.",
+        "evidence": "After moving creditcard3 to diningtable, it returned to armchair and saw only pillow, then looped.",
+        "corrective_rule": "After placing first creditcard, search for another creditcard until two are placed.",
+        "skill_tree_gap": "No check for required count of placed objects.",
+        "patch_location": "Under '# pick_two_obj_and_place', add '## Verify required count' subsection.",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent placed only one remotecontrol and then entered a loop without searching for a second.",
+        "evidence": "After moving remotecontrol1 to armchair, it performed only look actions (dropped).",
+        "corrective_rule": "After placing one remotecontrol, actively search for another remotecontrol.",
+        "skill_tree_gap": "Missing continuation logic after first placement.",
+        "patch_location": "Under '# pick_two_obj_and_place', add '## Search for second object' subsection.",
+        "confidence": 1.0
+      }
+    ]
+  }
+}

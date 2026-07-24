@@ -1,0 +1,193 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "heat" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location.
+- The heating appliance is the microwave.
+
+## 2. Locate the object
+- Start at the fridge (already open). If the target object is inside, take it and go directly to Section 3 (heating).
+- If the object is NOT in the fridge, proceed to the **post-fridge search routine** below.
+
+### Post-fridge search routine
+Follow this strict order. **You must check every single item in the list. Stopping early will cause failure.**
+
+1. **Countertops** – go to every countertop you can see. At each, `look` and `take` if the object is present.
+2. **Flat surfaces** – from a central location, perform a `look`. You will see all flat surfaces (diningtable, sidetables, shelves, desk, coffee table, etc.). **Visit every one of them** – `look` and `take` if found. Do NOT proceed until every flat surface has been examined.
+3. **Openable containers** – again, from a central location, perform a `look` to see all openable containers. Then open and look inside each, in this exact order:
+   - Cabinets (all of them)
+   - Drawers (all of them)
+   - Sinkbasin
+   - Garbagecan
+   - Microwave (even though it is the heating appliance)
+   - Any other openable container (e.g., coffeemaker, toaster)
+
+   **Critical**: For each container, you **must open it** (if closed) before you can see its contents. If you arrive at a cabinet and see "nothing" on its surface, that does **not** mean it is empty – you must still use `open`. Then check the interior. If the target object is not inside, immediately proceed to the next container on the list. **Do not stop after only a few containers.** Continue until either the object is found or **every container in the list has been checked**.
+
+4. **After the full list** – if you have checked every countertop, every flat surface, and every container in the exact order above and still not found the object, only then proceed to "Persistence and retry" below.
+
+### Persistence and retry
+- **Verify you have truly finished the exhaustive list**: mentally confirm you opened every cabinet, drawer, sink, garbage, microwave, and any other openable container. If you skipped any, go back and open it.
+- If the object is nowhere in the room after the full search, perform a `look` again. If new receptacles appear, repeat the entire search from step 1 (countertops).
+- Otherwise, re-read the task to confirm object type. If another room is available, go there and repeat the search.
+- **Never return to the fridge or give up until you have exhausted every possible receptacle.**
+
+## 3. Heat the object
+### 3.1 Efficient heating method (direct from inventory)
+- Once the object is in your inventory, go to the microwave.
+- Use action `heat <object> with microwave` while holding it. This works reliably.
+- If direct heat fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.
+- After heating, the object is ready. Do not return it to the microwave.
+
+### 3.2 Prerequisite: Object must be in inventory
+- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the exhaustive search again.
+
+### 3.3 Critical: Do not drop or place the object before heating
+- Once you have picked up the target object, you must go directly to the microwave and heat it. Do NOT move the object to any other location (countertop, shelf, etc.) before heating. Dropping it back onto a surface or placing it elsewhere will cause a loop and waste steps. The heating action must be performed while the object is in your inventory and you are at the microwave.
+
+## 4. Place the heated object
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).
+- The destination must be different from the source where the object originally came from.
+- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.
+- Put the object into/onto the receptacle: `move <object> to <receptacle>`.
+- **Critical**: Do not take the object back after placing it. Stop.
+
+## 5. Completion check and termination
+- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.
+- If the object is there, the task is complete. Do not perform any further actions.
+- **Termination rule**: Once placed at the target, stop all actions immediately.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): go to fridge 1 → open fridge 1
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: heat some cup and put it in sidetable.
+  [consensus prefix ✓: go to fridge 1 → open fridge 1]  (folded, already mastered)
+  action: go to countertop 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a bowl 2, a bowl 1, a mug 2, and a potato 1.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a dishsponge 2, a fork 3, a lettuce 3, a plate 2, and a spatula 2.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a fork 2, a fork 1, and a pan 1.
+  action: take cup 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a apple 1, a cup 1, a egg 1, a knife 2, a knife 1, a lettuce 2, a lettuce 1, a peppershaker 1, a plate 1, a saltshaker 3, a saltshaker 2, and a saltshaker 1.
+  action: go to microwave 1  | obs: You pick up the cup 1 from the diningtable 1.
+  action: open microwave 1  | obs: You arrive at microwave 1. The microwave 1 is closed.
+  action: heat cup 1 with microwave 1  | obs: You open the microwave 1. The microwave 1 is open. In it, you see nothing.
+  action: go to sidetable 1  | obs: You heat the cup 1 using the microwave 1.
+  action: move cup 1 to sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see nothing.
+
+Trajectory 2 [success] task: heat some mug and put it in coffeemachine.
+  [consensus prefix ✓: go to fridge 1 → open fridge 1]  (folded, already mastered)
+  action: go to countertop 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 2, a bowl 2, a bread 2, a egg 3, a potato 2, a potato 1, and a tomato 2.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a cup 1, a egg 1, a fork 1, a knife 1, a lettuce 1, a soapbottle 1, a spatula 2, a spatula 1, and a tomato 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a bread 1, a cup 2, a knife 2, a peppershaker 2, a saltshaker 2, and a spoon 2.
+  action: take mug 1 from countertop 3  | obs: You arrive at countertop 3. On the countertop 3, you see a bread 3, a butterknife 1, a fork 3, a fork 2, a knife 3, a mug 1, a papertowelroll 1, and a winebottle 3.
+  action: go to microwave 1  | obs: You pick up the mug 1 from the countertop 3.
+  action: heat mug 1 with microwave 1  | obs: You arrive at microwave 1. The microwave 1 is closed.
+
+Trajectory 3 [success] task: heat some apple and put it in diningtable.
+  [consensus prefix ✓: go to fridge 1 → open fridge 1]  (folded, already mastered)
+  action: go to countertop 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a tomato 2, and a tomato 1.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a fork 3, a fork 2, a fork 1, a spatula 2, and a spatula 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a dishsponge 1, and a papertowelroll 1.
+  action: go to diningtable 1  | obs: You arrive at countertop 3. On the countertop 3, you see a butterknife 1, a knife 1, a pan 1, a saltshaker 1, and a spoon 1.
+  action: take apple 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a apple 2, a apple 1, a butterknife 2, a cup 1, a knife 2, a lettuce 1, a mug 2, a peppershaker 3, a saltshaker 2, and a soapbottle 3.
+  action: go to microwave 1  | obs: You pick up the apple 1 from the diningtable 1.
+  action: heat apple 1 with microwave 1  | obs: You arrive at microwave 1. The microwave 1 is closed.
+  action: go to diningtable 1  | obs: You heat the apple 1 using the microwave 1.
+  action: move apple 1 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a apple 2, a butterknife 2, a cup 1, a knife 2, a lettuce 1, a mug 2, a peppershaker 3, a saltshaker 2, and a soapbottle 3.
+
+Trajectory 4 [success] task: heat some mug and put it in coffeemachine.
+  [consensus prefix ✓: go to fridge 1 → open fridge 1]  (folded, already mastered)
+  action: go to countertop 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 1, a egg 2, a egg 1, a lettuce 1, and a pan 2.
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a knife 1, a potato 1, and a winebottle 1.
+  action: take mug 1 from countertop 2  | obs: You arrive at countertop 2. On the countertop 2, you see a book 2, a bowl 3, a bread 3, a cup 1, a dishsponge 2, a egg 3, a fork 2, a fork 1, a mug 1, a pan 1, a plate 1, a saltshaker 2, a sink 1, and a statue 3.
+  action: inventory  | obs: You pick up the mug 1 from the countertop 2.
+  action: go to microwave 1  | obs: You are carrying: a mug 1.
+  action: open microwave 1  | obs: You arrive at microwave 1. The microwave 1 is closed.
+  action: heat mug 1 with microwave 1  | obs: You open the microwave 1. The microwave 1 is open. In it, you see a potato 2.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+(none)
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+(none)
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

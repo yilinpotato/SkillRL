@@ -1,0 +1,109 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Object Search and Retrieval\n\n### Surface Search\n- Start at **countertop** instances. Visit **every single countertop** one by one (do not skip any). For each, go to it and look at the objects listed. If the target object is present, take it and proceed to Phase 2.\n- After **all** countertops have been checked, move to **diningtable** instances – visit every one.\n- Then **sidetable** instances – every one.\n- Then **shelf** instances – every one.\n- Then **sinkbasin** instances – every one.\n- Finally **stoveburner** instances – every one.\n- **Strict order:** You must exhaust each surface type completely before moving to the next. Do not skip to a later type or to closed containers until all surface types have been fully searched.\n- If you finish all surfaces and still have not found the object, proceed to Closed Container Search.\n\n### Closed Container Search\n- Only start this phase AFTER you have inspected every single instance of every surface type listed above and the object was not found.\n- Search closed receptacles in this order:\n  1. **fridge** (all instances)\n  2. **cabinet** (all instances)\n  3. **drawer** (all instances)\n  4. **microwave** (all instances)\n- For each category, visit **every single instance** without exception.\n- For each instance: go to it, open it if closed, then look inside. If the target object is present, take it and proceed to Phase 2.\n- Do not stop prematurely – continue until all categories and all instances have been checked.\n\n## Phase 2: Cool the object using the fridge\n- After picking up the object, go directly to the fridge.\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Phase 3: Move the cooled object to the target location\n- Go to the target location.\n- If the target receptacle is closed, open it first.\n- Use `move <object> to <target>`.\n\n## Completion check\n- Object is cooled and placed at the target location – task complete.",
+  "level": 3,
+  "version": 30,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent did not follow the skill tree's surface search order; after checking only one countertop it moved to sinkbasin and stoveburner prematurely, which caused it to miss the bowl. The skill tree text was clear but the agent ignored the strict ordering – the refined version adds explicit 'do not skip' warnings and a step-by-step order to prevent this misinterpretation.",
+  "changelog": "Refined the 'Surface Search' subsection under 'Object Search and Retrieval' to explicitly require visiting every countertop before proceeding to diningtable, then sidetable, then shelf, then sinkbasin, then stoveburner, and added a warning not to skip to later types or closed containers prematurely.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to locate the bowl because it searched cabinets and other locations instead of systematically checking countertops where bowls are commonly found.",
+      "skill_tree_gap": "Missing a strategy for locating objects based on typical placement (e.g., objects on countertops, not in cabinets).",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_3456",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 29,
+      "call_count": 499,
+      "success_when_used": 426,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval": {
+      "title": "Object Search and Retrieval",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 3,
+      "call_count": 42,
+      "success_when_used": 36,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/surface-search": {
+      "title": "Surface Search",
+      "level": 3,
+      "body_hash": "a0438f48e6d0",
+      "created_version": 29,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 18,
+      "success_when_used": 17,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/closed-container-search": {
+      "title": "Closed Container Search",
+      "level": 3,
+      "body_hash": "0e568d4e0d93",
+      "created_version": 29,
+      "last_changed_version": 30,
+      "stable_versions": 0,
+      "call_count": 18,
+      "success_when_used": 17,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge",
+      "level": 2,
+      "body_hash": "de516de96541",
+      "created_version": 24,
+      "last_changed_version": 27,
+      "stable_versions": 3,
+      "call_count": 95,
+      "success_when_used": 84,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location",
+      "level": 2,
+      "body_hash": "ee2daf0b8a33",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 6,
+      "call_count": 95,
+      "success_when_used": 84,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check",
+      "level": 2,
+      "body_hash": "68f9629c26b4",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 3,
+      "call_count": 42,
+      "success_when_used": 36,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

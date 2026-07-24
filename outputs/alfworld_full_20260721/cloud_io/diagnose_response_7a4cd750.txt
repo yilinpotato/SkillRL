@@ -1,0 +1,79 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "wrong_order",
+    "root_cause": "The agent picked up the towel and went to the sinkbasin but never executed the 'clean' action before moving to the target.",
+    "evidence": "After 'go to sinkbasin 1', the agent did 'look' instead of 'clean towel 1 with sinkbasin 1'.",
+    "corrective_rule": "After reaching the sinkbasin with a dirty object, always immediately perform 'clean <object> with sinkbasin' before proceeding.",
+    "skill_tree_gap": "The cleaning procedure skips the mandatory clean action after arriving at the sinkbasin.",
+    "patch_location": "Under 'Task Type: clean', add a new deeper subsection '### Cleaning Procedure' that enforces the clean action.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched a few cabinets and countertops, failed to find the plate because it did not explore drawers, fridge, or other receptacles.",
+    "evidence": "After opening cabinet 2 and seeing nothing, the agent loops with 'look' without expanding its search to other receptacle types.",
+    "corrective_rule": "When searching for an object, systematically explore all receptacle types (cabinets, drawers, fridge, countertops, etc.) without repeating the same actions.",
+    "skill_tree_gap": "The object search strategy is not exhaustive; it lacks a breadth-first exploration across all receptacle types.",
+    "patch_location": "Under 'Task Type: clean', add a new subsection '### Object Search' that mandates checking all receptacle categories.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent opened several drawers and visited countertop but never searched for the cloth on likely locations like towelholders or shelves, so it never picked up any cloth.",
+    "evidence": "After opening drawer 4 and seeing nothing, the agent goes to drawer 5 then checks inventory, still carrying nothing; it never goes to towelholder or other containers.",
+    "corrective_rule": "When searching for a cloth, include towelholders, shelves, and other receptacles in the search scope, not only drawers and countertops.",
+    "skill_tree_gap": "The object search for 'pick_and_place' tasks does not include towelholders as a standard search location.",
+    "patch_location": "Under 'Task Type: pick_and_place', add a refinement '### Object Search' that lists all common receptacle types (towelholder, shelf, drawer, etc.) to check.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only opened cabinets and never visited other receptacles like countertops or fridge where tomatoes might be located.",
+    "evidence": "The trajectory shows only cabinet exploration (cabinet 21 down to 14) with looping; no attempt to check fridge, countertop, or drawers.",
+    "corrective_rule": "When searching for an object, explore all receptacle types (fridge, countertop, cabinets, drawers) rather than focusing on one type.",
+    "skill_tree_gap": "The search strategy is too narrow; it misses important receptacle types like fridge and countertop.",
+    "patch_location": "Under 'Task Type: pick_two_obj_and_place', add a subsection '### Object Search' that enforces visiting all major receptacle types.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After placing the first newspaper, the agent returned to the same armchair expecting a second newspaper, but it was gone, and it did not search other locations for the second newspaper.",
+    "evidence": "After moving newspaper to coffeetable, the agent goes back to armchair, sees only creditcard, then does repeated 'look' and never explores other potential spots.",
+    "corrective_rule": "After placing one copy of the required object, continue searching other receptacles (sidetable, sofa, drawers) for the second instance.",
+    "skill_tree_gap": "The agent's multi-object handling lacks a procedure to continue exploration after placing the first object.",
+    "patch_location": "Under 'Task Type: pick_two_obj_and_place', add a new subsection '### Multi-Object Handling' that dictates a systematic search for remaining objects after each placement.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only examined cabinets and never searched the fridge or countertops for the lettuce.",
+    "evidence": "The trajectory shows only cabinet exploration (cabinet 15 down to 10) with looping; no visit to fridge or countertops.",
+    "corrective_rule": "When searching for lettuce, always check the fridge and countertops in addition to cabinets.",
+    "skill_tree_gap": "The object search does not include the fridge as a primary location for perishable items.",
+    "patch_location": "Under 'Task Type: pick_two_obj_and_place', refine '### Object Search' to include a rule that checks the fridge for food items.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After placing the first statue, the agent returned to the coffeetable expecting another statue, but it was not there, and it did not search other locations (armchairs, side tables) for the second statue.",
+    "evidence": "After moving statue to dresser, the agent returns to coffeetable, sees only box and creditcard, then loops with 'look' without exploring other receptacles.",
+    "corrective_rule": "After placing one statue, continue searching other receptacles (armchairs, side tables, drawers) for the second statue.",
+    "skill_tree_gap": "The agent's multi-object handling does not include a search continuation after the first object is placed.",
+    "patch_location": "Under 'Task Type: pick_two_obj_and_place', add a subsection '### Multi-Object Handling' that ensures continued exploration after each placement.",
+    "confidence": 0.95
+  }
+]

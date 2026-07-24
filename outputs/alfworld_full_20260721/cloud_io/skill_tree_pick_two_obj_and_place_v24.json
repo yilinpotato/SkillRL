@@ -1,0 +1,145 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specific object type into a specified target receptacle.\n\n## Systematic Search Procedure (Repeat for Each Object)\n### Master List Creation\n1. Immediately after the initial room description appears, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, handtowelholder 2, sinkbasin 1, etc.). Do not omit any item.\n2. This master list is your checklist for all searches. Keep it in memory throughout the task.\n\n### Visiting Each Item\n1. Pick any item from the master list. Go to it.\n2. If it is closed (drawer, cabinet, fridge, microwave, etc.), **open it**.\n3. **Examine its contents** (inside if a container, on top if a surface).\n4. If you see an object whose exact name matches the required type, **take it** immediately. Do not take non-exact matches (e.g., soapbottle vs soapbar).\n5. **Check off** that item as visited so you know you have not missed any.\n6. Repeat for every item on the list. Do not skip any, even if you already found one object. You need to find all possible sources.\n\n### Exact Type Matching\n- Before taking any object, compare its exact name to the required type. Only take exact matches.\n\n## Placement\n- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. No other actions in between.\n\n## Repeat Until Complete\n- After placing an object, **immediately restart the Systematic Search Procedure** using the same master list. Do not assume any item is empty because you checked it before. Objects may appear from containers that were previously closed or from locations you already visited (e.g., a second identical object can be in the same container).\n- Place a total of two objects. Keep a counter: after first placement, set counter=1; after second, set counter=2 and stop.\n- Do not stop before counter=2, even if you think you have searched everywhere. Only stop after placing the second object or after confirming every item on the list (twice) contains no second match.\n\n## Common Failure Patterns (Avoid These)\n- **Premature stop**: Placing one object and not continuing. Always perform the systematic search again immediately.\n- **Incomplete master list**: Omitting any furniture item from the initial list leads to missing objects. Every item in the initial observation must be included.\n- **Not reopening containers**: After placing the first object, re-open every closed container you previously opened. New objects can be inside.\n- **Stopping early due to frustration**: Even if you have visited all items and found only one, the task may be impossible. But do not give up before two complete passes.",
+  "level": 3,
+  "version": 24,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent had the skill tree but failed to follow the exhaustive list procedure, as seen in all three failure trajectories where many furniture items were skipped. The skill tree's instructions were explicit, so the failure is due to the agent not executing the prescribed systematic search.",
+  "changelog": "Restructured the skill tree to emphasize master list creation and a single repeatable search procedure, combined first and second search into one section, and added a common failure patterns section to reinforce the need for exhaustive search and avoidance of premature stops.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent checked the toiletpaperhanger and a few cabinets but never found any toiletpaper; it did not search drawers or the remaining cabinets.",
+      "skill_tree_gap": "Incomplete search strategy for multi-object tasks; does not cover all receptacles.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only opened cabinets and checked armchairs, but never examined the coffeetable, sidetables, or drawers where creditcards might be found.",
+      "skill_tree_gap": "No prioritization of likely locations based on object type.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent found and placed one keychain but failed to locate a second keychain, stopping after a limited search of a few locations.",
+      "skill_tree_gap": "Missing a persistent multi-object search loop that does not terminate prematurely.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_2664",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 23,
+      "call_count": 596,
+      "success_when_used": 474,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cecaaea52d6c",
+      "created_version": 1,
+      "last_changed_version": 21,
+      "stable_versions": 3,
+      "call_count": 596,
+      "success_when_used": 474,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search-procedure-repeat-for-each-object": {
+      "title": "Systematic Search Procedure (Repeat for Each Object)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search-procedure-repeat-for-each-object/master-list-creation": {
+      "title": "Master List Creation",
+      "level": 3,
+      "body_hash": "bb15fdf19cd5",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search-procedure-repeat-for-each-object/visiting-each-item": {
+      "title": "Visiting Each Item",
+      "level": 3,
+      "body_hash": "a0be75029c62",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search-procedure-repeat-for-each-object/exact-type-matching": {
+      "title": "Exact Type Matching",
+      "level": 3,
+      "body_hash": "a8a582885ff5",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "26cc4d9c6633",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/repeat-until-complete": {
+      "title": "Repeat Until Complete",
+      "level": 2,
+      "body_hash": "e80886714801",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns-avoid-these": {
+      "title": "Common Failure Patterns (Avoid These)",
+      "level": 2,
+      "body_hash": "20ffa325207d",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

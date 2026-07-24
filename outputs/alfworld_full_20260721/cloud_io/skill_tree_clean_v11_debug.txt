@@ -1,0 +1,105 @@
+=== Skill Tree Debug — scope=clean  v11 (level=3, tree_depth=3, 10 nodes) ===
+action: refine
+critique: The agent did not follow the detailed systematic search order in the current skill tree, stopping early before checking all receptacle types. Additionally, the tree contained a misleading assumption ('Immediately after opening cabinet 1...') that did not match the agent's initial state, potentially causing confusion. The refined version removes that assumption and reinforces exhaustive search.
+changelog: Refined Phase 1: Removed misleading assumption about cabinet 1 being already opened; clarified systematic search order to start from initial room description and emphasize exhaustive checking of all receptacle types.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 12  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent failed to locate the soapbar because it did not search the bathtubbasin or other surfaces beyond cabinets and sinkbasin. | evidence: after checking countertop and sinkbasin with nothing found, the agent issued inventory and stopped. | fix: Always search all visible receptacles (including bathtubbasin, garbage can, towel holders) before concluding the object is absent. | skill_tree_gap: Missing a systematic exploration routine that iterates over all object locations. | patch_location: ## Exploration -> new subsection '### Systematic Search of All Receptacles'
+- [inefficient_exploration] Agent stopped after searching only a few cabinets, missing the dishsponge which was likely on a countertop or in a drawer. | evidence: after opening cabinet 7, the trajectory ends without checking countertops or drawers. | fix: Exhaustively check all containers and flat surfaces (countertops, drawers, shelves) when searching for an object. | skill_tree_gap: Lack of a comprehensive search strategy covering all possible object locations. | patch_location: ## Exploration -> new subsection '### Comprehensive Surface and Container Search'
+- [inefficient_exploration] Agent did not search countertops or dining table where the kettle likely was, focusing only on cabinets and drawers. | evidence: never visited countertop1 or countertop2; last action was opening fridge. | fix: Always check all common surfaces (countertops, dining tables, shelves) in addition to containers. | skill_tree_gap: Incomplete coverage of search space for objects. | patch_location: ## Exploration -> new subsection '### Search All Common Surfaces'
+
+--- Node tree (per-node lifecycle, this version=v11) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=10 calls=147 success=101 rate=68.7%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=10 calls=147 success=101 rate=68.7%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=4 calls=147 success=101 rate=68.7%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object level=2 stable_versions=1 calls=147 success=101 rate=68.7%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/container-interaction level=3 stable_versions=1 calls=26 success=17 rate=65.4%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/object-name-verification level=3 stable_versions=1 calls=113 success=74 rate=65.5%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/persistence-do-not-stop-early level=3 stable_versions=1 calls=56 success=36 rate=64.3%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search-of-all-receptacles-critical level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=4 calls=147 success=101 rate=68.7%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=4 calls=147 success=101 rate=68.7%
+
+--- Line diff vs previous version (v10 -> v11) ---
+--- v10
++++ v11
+@@ -8,16 +8,17 @@
+ ## Phase 1: Locate and Take the Target Object
+ - You must find and pick up [object] before you can clean it.
+ 
+-### Systematic Search Order (Critical)
+-- **Immediately after opening cabinet 1 (which is already done), list all receptacle types present in the initial room description (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, garbagecan, etc.).**
+-- **Then search every type in this exact order, without skipping any type and without ever going back to a previously finished type:**
+-  1. **Cabinets** – open every numbered cabinet, check contents. (You have already opened cabinet 1; continue with cabinet 2, 3, ... until all cabinets are checked.)
+-  2. **Drawers** – open every numbered drawer, check contents.
+-  3. **Fridge** – open fridge, check contents.
+-  4. **Countertops** – check each countertop for items (you can see items on open surfaces without opening).
++### Systematic Search of All Receptacles (Critical)
++- **Start by reading the initial room description carefully.** List every receptacle type present (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, garbagecan, bathtubbasin, towelholder, etc.).
++- **Then search every type systematically, exhausting all instances of one type before moving to the next.** Do not skip any type and do not go back to a previously finished type.
++- **Recommended order (but you may adjust based on description):**
++  1. **Cabinets** – open each numbered cabinet, check contents.
++  2. **Drawers** – open each numbered drawer, check contents.
++  3. **Fridge** – open and check.
++  4. **Countertops** – check each (items visible without opening).
+   5. **Sinkbasin / Bathtubbasin** – check each.
+-  6. **Shelves** – check each shelf.
+-  7. **Dressers** – check each dresser.
++  6. **Shelves** – check each.
++  7. **Dressers** – check each.
+   8. **Any other receptacle type** (e.g., garbagecan, towelholder, handtowelholder, toiletpaperhanger) – check each instance.
+ - **After finishing all instances of a type, immediately move to the next type. Do not stop, do not go back.**
+ - **If you become lost, re-read the current room description to see which receptacle types remain.**
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Locate and Take the Target Object
+- You must find and pick up [object] before you can clean it.
+
+### Systematic Search of All Receptacles (Critical)
+- **Start by reading the initial room description carefully.** List every receptacle type present (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, garbagecan, bathtubbasin, towelholder, etc.).
+- **Then search every type systematically, exhausting all instances of one type before moving to the next.** Do not skip any type and do not go back to a previously finished type.
+- **Recommended order (but you may adjust based on description):**
+  1. **Cabinets** – open each numbered cabinet, check contents.
+  2. **Drawers** – open each numbered drawer, check contents.
+  3. **Fridge** – open and check.
+  4. **Countertops** – check each (items visible without opening).
+  5. **Sinkbasin / Bathtubbasin** – check each.
+  6. **Shelves** – check each.
+  7. **Dressers** – check each.
+  8. **Any other receptacle type** (e.g., garbagecan, towelholder, handtowelholder, toiletpaperhanger) – check each instance.
+- **After finishing all instances of a type, immediately move to the next type. Do not stop, do not go back.**
+- **If you become lost, re-read the current room description to see which receptacle types remain.**
+
+### Container Interaction
+- **Always open a container after arriving to inspect its contents.** Do not rely on surface observations – a closed container may have items inside.
+- For open surfaces (countertops, sinkbasins, etc.), you can see what is on them directly without opening.
+
+### Object Name Verification
+- Before taking an object, verify that its name matches the task target **exactly** (e.g., "cup" ≠ "mug"; "apple" ≠ "tomato"). If it matches, take it and proceed to Phase 2. If not, continue searching.
+
+### Persistence – Do Not Stop Early
+- **The search is not complete until you have visited every single instance of every type in the order above.**
+- Stopping before finishing all types is the most common cause of failure. Even if many cabinets or drawers are empty, you must continue until the last type is checked.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (typically sinkbasin 1).
+- Immediately use "clean [object] with [cleaning_source]".
+- Confirm the observation says you cleaned it; if not retry or check you are at the correct source.
+- Do not use "look" or "examine" at the sink – only the clean action works.
+
+## Phase 3: Place the Clean Object at Destination
+- After cleaning, go to the [destination] specified in the task (e.g., cabinet, diningtable, microwave, toilet).
+- Use "move [object] to [destination]" to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

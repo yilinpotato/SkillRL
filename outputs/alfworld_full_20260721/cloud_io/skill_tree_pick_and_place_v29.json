@@ -1,0 +1,163 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specific object and place it into or onto a specified receptacle (e.g., \"put a book in sofa\"). The task names both the target object and the target receptacle.\n\n## Sub-Goal Flow\n1. **Parse the task** – identify the target object and target receptacle exactly as written.\n2. **Locate the target object** – search every visible receptacle systematically.\n3. **Verify and take** – only take the object if its type matches the task (ignore numerals).\n4. **Navigate to target receptacle** and move the object there.\n5. **Terminate** after placement.\n\n## Object Search – Mandatory Systematic Inspection\n### Step-by-Step Procedure\n1. **Before moving**, reread the initial observation and mentally list **every receptacle name** exactly as it appears (all furniture, containers, surfaces). This is your master checklist.\n2. **Visit each receptacle in turn.** You may choose any order, but you must visit each one exactly once before concluding. For each receptacle on your list:\n   - `go to <receptacle>`\n   - If it is closed (e.g., drawer, cabinet, safe, fridge, microwave, oven, dishwasher), first `open <receptacle>`, then read contents.\n   - If the target object is present, immediately `take <object> from <receptacle>`. Do not perform any other action first.\n   - Tick it off your mental list.\n3. **After you have visited every receptacle on your list** and did not find the object, **repeat the entire list again** – start from the first receptacle once more. The object is always somewhere; keep searching until you find it.\n\n**Crucial: Do not stop before you have visited every receptacle on your initial list.** If you stop early, you will miss the object. Only after completing the full list and not finding the object should you repeat.\n\n### Search Surfaces Before Containers\n- When visiting receptacles, prioritize **surfaces** (tables, countertops, shelves, armchairs, sofas, dressers, bathtubs, toilets, etc.) before opening closed containers (drawers, cabinets, fridges, microwaves, etc.). The object is often in plain sight on a surface.\n- Check all surfaces first, then proceed to open drawers and cabinets.\n- This order saves time and avoids unnecessary openings.\n\n### Drawer Search Protocol\n- After checking all surfaces, open each drawer systematically. When you encounter a drawer (e.g., drawer 1, drawer 2, etc.), always open it and check its contents before moving to the next receptacle. Do not skip or leave a drawer unopened.\n- Drawers are common hiding places for small objects; treat them as critical inspection points.\n- After opening a drawer, if the target object is not inside, close it (optional but tidy) and proceed to the next receptacle on your list.\n\n### Common Mistakes to Avoid\n- **Skipping any receptacle** – all must be inspected, including tables, chairs, shelves, drawers, cabinets, sinks, bathtubs, toilets, sofas, dressers, countertops, etc. Do not assume only containers hold objects.\n- **Focusing only on one type** – e.g., only shelves or only closed containers. You must check every type.\n- **Using wrong action** – never `examine` or `look` to move; use `go to`.\n- **Taking wrong object** – verify the object's type matches the task exactly (ignore numerals).\n- **Forgetting to open closed containers** before reading their contents.\n- **Stopping early** – only stop after you have checked every receptacle (and repeated if necessary) and still not found the object. But in this environment the object will be found; keep searching until you find it.\n\n## Object Acquisition\nOnce you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.\n\n### Object Type Verification\n- Before taking, compare the object's name (as shown in the observation) with the target object type from the task. They must match at the base noun level (e.g., \"glassbottle\" vs. \"winebottle\" are different types; \"soapbottle\" vs. \"soapbottle\" is a match).\n- Ignore numerals (e.g., \"book 2\" matches the target \"book\").\n- If you are unsure, re-read the task and the observed object name carefully. Picking the wrong object wastes time and fails the task.\n\n## Placement\nAfter taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.",
+  "level": 3,
+  "version": 29,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent attempted to follow the skill tree's systematic inspection but failed to exhaust all receptacles: in one failure it stopped after checking only a subset of cabinets, and in another it prioritized drawers over surfaces. The skill tree already instructed to visit every receptacle, but the agent did not complete the full list. The new refinement adds explicit priority order and reinforces the requirement to finish the initial list before considering repetition.",
+  "changelog": "Added 'Search Surfaces Before Containers' subsection and reinforced exhaustive search in Step-by-Step Procedure under Object Search, based on failure diagnoses showing premature stopping and lack of surface-first priority.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent stopped searching for the pan after opening only a few cabinets, without exhausting all cabinets and drawers.",
+      "skill_tree_gap": "Exploration is not exhaustive; gives up too early.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent started searching drawers immediately instead of first checking visible surfaces where the keychain might be.",
+      "skill_tree_gap": "No priority order for search locations (surfaces before containers).",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_3672",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 28,
+      "call_count": 803,
+      "success_when_used": 730,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cd5aaa6edf3a",
+      "created_version": 1,
+      "last_changed_version": 19,
+      "stable_versions": 10,
+      "call_count": 803,
+      "success_when_used": 730,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "530059e5d759",
+      "created_version": 1,
+      "last_changed_version": 26,
+      "stable_versions": 3,
+      "call_count": 803,
+      "success_when_used": 730,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection": {
+      "title": "Object Search – Mandatory Systematic Inspection",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 26,
+      "last_changed_version": 26,
+      "stable_versions": 3,
+      "call_count": 84,
+      "success_when_used": 77,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/step-by-step-procedure": {
+      "title": "Step-by-Step Procedure",
+      "level": 3,
+      "body_hash": "209f84294144",
+      "created_version": 27,
+      "last_changed_version": 29,
+      "stable_versions": 0,
+      "call_count": 66,
+      "success_when_used": 62,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/search-surfaces-before-containers": {
+      "title": "Search Surfaces Before Containers",
+      "level": 3,
+      "body_hash": "1acffb9237aa",
+      "created_version": 29,
+      "last_changed_version": 29,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/drawer-search-protocol": {
+      "title": "Drawer Search Protocol",
+      "level": 3,
+      "body_hash": "233df9c6780a",
+      "created_version": 28,
+      "last_changed_version": 29,
+      "stable_versions": 0,
+      "call_count": 46,
+      "success_when_used": 44,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/common-mistakes-to-avoid": {
+      "title": "Common Mistakes to Avoid",
+      "level": 3,
+      "body_hash": "ac1a981e9a26",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 2,
+      "call_count": 66,
+      "success_when_used": 62,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition": {
+      "title": "Object Acquisition",
+      "level": 2,
+      "body_hash": "8902640fb9d5",
+      "created_version": 26,
+      "last_changed_version": 26,
+      "stable_versions": 3,
+      "call_count": 84,
+      "success_when_used": 77,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 3,
+      "body_hash": "caff1bf3bbde",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 1,
+      "call_count": 46,
+      "success_when_used": 44,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "ce5383d42eef",
+      "created_version": 26,
+      "last_changed_version": 26,
+      "stable_versions": 3,
+      "call_count": 84,
+      "success_when_used": 77,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

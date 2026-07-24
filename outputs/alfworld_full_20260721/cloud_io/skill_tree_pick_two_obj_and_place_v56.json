@@ -1,0 +1,211 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2, or after two exhaustive full passes without finding a second instance.\n\n## Critical Rules (Must Follow)\n- **Object name must match exactly.** Compare the observed object name character by character with the target type. If they differ (e.g., 'soapbottle' vs 'soapbar' or 'candle'), do NOT take it.\n- **After taking a matching object, next action must be `go to [target receptacle]`.** No exceptions.\n- **After placing an object, restart search from the first furniture item in the observation.** Do not continue searching from your current location.\n- **Counter:** Start at 0. Increment by 1 after each successful placement. Stop when counter == 2.\n\n## Phase 1: First Object Search\n### Procedure\n1. Re‑read the initial observation and list every furniture item in order (use `look` if needed). Include all types: cabinets, drawers, shelves, counters, tables, fridge, sinkbasin, stoveburners, armchairs, etc. Do not skip any.\n2. Visit each item exactly once, in that order. When you arrive:\n   - If the item is closed (e.g., cabinet, drawer, fridge), open it first.\n   - Examine its contents (surface or interior) for the target object.\n3. For each object seen, check if its exact name matches the required type. If yes, take it.\n4. After taking, immediate next action: `go to [target receptacle]`. Open if closed, then place the object. Increment counter by 1.\n5. If you accidentally take a non‑matching object, drop it immediately and resume search from the current furniture item.\n6. If you finish the list without taking any object, perform a second full pass (repeat step 2 from first item). After two full passes and counter still 0, task impossible – stop.\n\n## Phase 2: Second Object Search (After First Placement)\n### Must Restart Full Search\n- Immediately after placing the first object, use `look` to get the current observation and list every furniture item again. Include all types.\n- Visit every item in that list, exactly as in Phase 1, in order. Do not rely on memory of where you found the first object.\n- Continue until counter reaches 2, or until you have completed two full passes after the first placement with no second object.\n- If you catch yourself revisiting the same few locations without finding a second object, stop, re‑read the observation, restart the systematic search from the first item.\n\n## Failure Prevention\n### Exhaustive Search\n- Before any search (first or second object), list all furniture items from the current observation. Then visit each in order, one by one.\n- Open all closed receptacles (drawers, cabinets, fridge, etc.) when you visit them. Do not skip any.\n- Check every furniture type listed – surfaces, containers, shelves, tables, basins, stoveburners, armchairs, etc. Do not focus only on one type (e.g., cabinets). If you have searched all cabinets and found nothing, you must still continue to the other furniture types in your list.\n- If you have visited all items and found nothing, do a second full pass before giving up. During the second pass, double-check that you included all types (especially fridge, countertops, drawers) that you might have overlooked.\n\n### Object Type Verification\n- Before taking any object, read its exact name. Compare it to the task's target type character by character. Only take if they match exactly.\n- If you take a non‑matching object by mistake, drop it immediately (`drop [object]`) and resume searching from the same furniture item.\n\n### Multi‑Object Count Completion\n- After placing one object, you must find a second. Do not stop until counter == 2, or until two full searches after the first placement yield nothing.\n- If you have placed one object and then complete two full passes without finding a second, the task is impossible – stop.\n\n### Object Count Tracking\n- Keep a mental counter. Start at 0.\n- Increment by 1 after each successful placement.\n- Stop when counter == 2 – task complete.\n- If counter == 0 after two full passes, stop (impossible).\n- If counter == 1 after two full passes following first placement, stop (impossible).\n\n## Stop Condition\n- counter == 2 → success (task complete).\n- counter == 1 after two full passes following first placement → impossible (stop).\n- counter == 0 after two full passes in initial search → impossible (stop).",
+  "level": 3,
+  "version": 56,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent had the current skill tree but did not follow the exhaustive search instructions: it skipped many furniture types (e.g., fridge, countertops, drawers) and only searched cabinets, then looped. The tree's wording was clear but the agent ignored the directive to include all types; the refinement now explicitly warns against fixation on one type and adds a note about double-checking overlooked types during the second pass.",
+  "changelog": "Refined the 'Exhaustive Search' subsection under 'Failure Prevention' to explicitly emphasize diversifying search across all furniture types and avoiding fixation on only cabinets; also strengthened the Phase 1 procedure to reinforce opening all receptacles and including all types.",
+  "round_failures": [
+    {
+      "failure_type": "loop",
+      "root_cause": "Agent failed to find winebottles in cabinets and then repeatedly performed 'look' actions without exploring other areas.",
+      "skill_tree_gap": "No branching exploration strategy when initial container search fails.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "loop",
+      "root_cause": "Agent found no kettles in cabinets and then got stuck in a loop of looking at coffeemachine without expanding search.",
+      "skill_tree_gap": "No transition to alternative search areas after a container sweep.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "gave_up",
+      "root_cause": "Agent walked past many cabinets without opening them and then gave up after going to countertop 1.",
+      "skill_tree_gap": "Lacks discipline to open every cabinet encountered during navigation.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "loop",
+      "root_cause": "Agent found only non-target objects in cabinets and then looped after a look action, never checking fridge or countertops where lettuce is common.",
+      "skill_tree_gap": "No rule to prioritize fridge and countertops for food items.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "loop",
+      "root_cause": "Agent searched only cabinets and armchairs, found no watches, then looped between armchair 1 and 2 without exploring drawers or dressers.",
+      "skill_tree_gap": "No search extension to drawers and dressers for small valuables.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "loop",
+      "root_cause": "Agent found a soapbar but not a soapbottle in cabinets, and then looped after a look action without searching other locations like sinkbasin or countertop.",
+      "skill_tree_gap": "No systematic search of sinkbasin and countertops for bottles.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_5328",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 55,
+      "call_count": 1178,
+      "success_when_used": 886,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "aac7f0141200",
+      "created_version": 1,
+      "last_changed_version": 54,
+      "stable_versions": 2,
+      "call_count": 1178,
+      "success_when_used": 886,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow": {
+      "title": "Critical Rules (Must Follow)",
+      "level": 2,
+      "body_hash": "b99d595674f9",
+      "created_version": 53,
+      "last_changed_version": 55,
+      "stable_versions": 1,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-search": {
+      "title": "Phase 1: First Object Search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 3,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-search/procedure": {
+      "title": "Procedure",
+      "level": 3,
+      "body_hash": "5d21a1fe2599",
+      "created_version": 53,
+      "last_changed_version": 56,
+      "stable_versions": 0,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-after-first-placement": {
+      "title": "Phase 2: Second Object Search (After First Placement)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 3,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-after-first-placement/must-restart-full-search": {
+      "title": "Must Restart Full Search",
+      "level": 3,
+      "body_hash": "f50d3571dcef",
+      "created_version": 53,
+      "last_changed_version": 55,
+      "stable_versions": 1,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention": {
+      "title": "Failure Prevention",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 48,
+      "last_changed_version": 53,
+      "stable_versions": 3,
+      "call_count": 152,
+      "success_when_used": 97,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/exhaustive-search": {
+      "title": "Exhaustive Search",
+      "level": 3,
+      "body_hash": "bf0c9fba4c30",
+      "created_version": 53,
+      "last_changed_version": 56,
+      "stable_versions": 0,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 3,
+      "body_hash": "f487c3360537",
+      "created_version": 53,
+      "last_changed_version": 55,
+      "stable_versions": 1,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/multi-object-count-completion": {
+      "title": "Multi‑Object Count Completion",
+      "level": 3,
+      "body_hash": "1581d0b4be17",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 3,
+      "call_count": 36,
+      "success_when_used": 13,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/object-count-tracking": {
+      "title": "Object Count Tracking",
+      "level": 3,
+      "body_hash": "324e05b8086b",
+      "created_version": 55,
+      "last_changed_version": 55,
+      "stable_versions": 1,
+      "call_count": 13,
+      "success_when_used": 4,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/stop-condition": {
+      "title": "Stop Condition",
+      "level": 2,
+      "body_hash": "b564c42510ec",
+      "created_version": 48,
+      "last_changed_version": 53,
+      "stable_versions": 3,
+      "call_count": 152,
+      "success_when_used": 97,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

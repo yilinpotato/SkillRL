@@ -1,0 +1,211 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of the target object type into the target receptacle. Stop when counter == 2.\n\n## Critical Rules (violating any means failure)\n- **Always start with `look`** to get the full list of furniture in the room. Never move before looking.\n- **At every furniture item**: if it is closed, open it before examining its contents.\n- **After placing the first object, immediately transition to finding the second.** Do not pause.\n- **Never perform the same action twice in a row without moving** – that is a loop. If you notice the same verb twice, force a move to the next item on your current search list.\n- **Follow the search list exactly in order. Do not skip any furniture item.** Even if you think it's unlikely, check every item.\n- **Constantly track your counter (0 or 1).** After each placement, increment counter.\n\n## Multi‑Object Tracking\n- **Counter starts at 0.** After each successful placement, increment counter. If counter == 2, stop. If counter < 2, you **must** continue searching for the next object.\n- **After placing the first object (counter=1), your only goal is to find the second object.** Do not pause, look around, or inspect non-target furniture. Immediately follow one of the two paths in Phase 2.\n\n## Systematic Search\n### Initial List\n- The first `look` gives you an ordered list of all furniture in the room. This is your master search list. Write it down mentally.\n### Search Execution\n1. **Go to the first item** on the list.\n2. **If it is closed, open it.**\n3. **Examine the description** – if you see the target object, take it and go to Phase 1 (first object) or Phase 2 (second object) depending on counter.\n4. **If you do not see the target object**, immediately **go to the next item** on the list. Do not stay, do not repeat the same action, do not `look` again.\n5. Continue this process until you have visited **every item** on the list. If you have visited all and still need the target, start again from the top of the list **(repeat the list once more)**. After two full passes with no target, the object is absent – stop.\n- **Do not skip any furniture.** For example, if the target is a cup, you must check countertops, shelves, tables, drawers, cabinets – every item on the list.\n\n## Confirm Object Identity Before Picking\n- **Re-read the target object name** from the task description before each pick.\n- Only pick up an object whose name **exactly matches** the target type (e.g., \"statue\" not \"peppershaker\").\n- If unsure, use `look` to see the name again.\n- If you accidentally take a wrong object, `drop` it immediately and resume search.\n\n## Phase 1 – First Object (counter = 0)\n- Execute the **Systematic search** to find and take the first target object.\n- After taking it, **go directly to the target receptacle**. Do not place anywhere else.\n- At the target receptacle: open if closed, then use `move` to place the object. Counter becomes 1.\n- **While holding the object, do not drop it, move it elsewhere, or interact with any other object.**\n\n## Phase 2 – Second Object (counter = 1)\n**Immediately after placing the first object, find and place the second. Do not stop.** Choose one of two paths:\n\n### Shortcut – Only If Multiple Copies Were at the Same Source\n- **Condition:** You saw **more than one** instance of the target object at the exact location where you took the first one (e.g., multiple plates on the same table). If only one copy was there, do **not** use this shortcut.\n- **Action:** Go back to that same location, take the next copy, go to the target receptacle, and place it. Counter becomes 2. Stop.\n\n### Mandatory Fresh Look After First Placement (unless Shortcut)\n- **If Shortcut does not apply, your very first action after placing the first object must be `look`.** This gives you a new, ordered list of furniture to search. Do not go to any furniture before this look.\n- After the look, immediately go to the **first item** on that new list. Follow the **Systematic search** exactly to find the second target.\n- When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.\n- If you complete two full passes of the fresh list without finding a second target, task impossible – stop.\n\n## Loop Detection & Recovery (global)\n- **Symptoms of a loop:** Two consecutive actions of the same verb (e.g., `look`, `look` or `open`, `open`) without moving, or repeatedly failing to move to the next item.\n- **Action:** As soon as you detect a loop, **force a change**:\n  - If you have a current search list, go to the next unvisited item on that list.\n  - If no list exists (e.g., you just finished a look), re-read the `look` observation and go to the first item.\n  - Do not repeat the same action more than once without moving.\n- **Prevention:** Before every action, verify that it is different from your previous action. If it is the same, replace it with a `go to` to the next item.",
+  "level": 3,
+  "version": 79,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent frequently ignored the systematic search rule, getting stuck in partial exploration loops, and sometimes picked wrong objects. The existing tree already covered these points, but the agent did not follow them; the wording was clear but the tree lacked a step-by-step search-execution breakdown and a prominent loop-detection section, which may have contributed to the failures.",
+  "changelog": "Added a 'Search Execution' subsection under 'Systematic Search' to detail the step-by-step action flow; moved 'Loop Detection & Recovery' to its own top-level section with explicit prevention advice; kept all prior rules but reorganized for clarity.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only searched drawers for newspapers and got stuck in a loop without finding any.",
+      "skill_tree_gap": "No branching to alternative search areas when primary search fails.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only opened a few drawers for toiletpaper and did not search other common locations like cabinets or toiletpaperhanger.",
+      "skill_tree_gap": "Incomplete domain-specific search knowledge for toiletpaper.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "The agent mistakenly picked up and moved a peppershaker instead of a saltshaker.",
+      "skill_tree_gap": "No object name confirmation before pick/place in multi-step tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent opened many cabinets but none contained peppershaker, and it did not search other containers like countertops or drawers.",
+      "skill_tree_gap": "Lack of a systematic prioritised search order across container types.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed only one candle into the cabinet and then looped, failing to obtain and place the second candle.",
+      "skill_tree_gap": "No counter or completion check for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only searched cabinets for kettles and missed that they are typically on countertops or dining tables.",
+      "skill_tree_gap": "Lack of object-location priors (kettles are rarely inside cabinets).",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_7128",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 78,
+      "call_count": 1612,
+      "success_when_used": 1050,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "446464fbb0f7",
+      "created_version": 1,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 1612,
+      "success_when_used": 1050,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-violating-any-means-failure": {
+      "title": "Critical Rules (violating any means failure)",
+      "level": 2,
+      "body_hash": "04dce93c8183",
+      "created_version": 74,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 95,
+      "success_when_used": 35,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-tracking": {
+      "title": "Multi‑Object Tracking",
+      "level": 2,
+      "body_hash": "8ddf0276083e",
+      "created_version": 78,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 17,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search": {
+      "title": "Systematic Search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 78,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 17,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search/initial-list": {
+      "title": "Initial List",
+      "level": 3,
+      "body_hash": "15d1d84e62cb",
+      "created_version": 79,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search/search-execution": {
+      "title": "Search Execution",
+      "level": 3,
+      "body_hash": "8d52ebf82d4b",
+      "created_version": 79,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/confirm-object-identity-before-picking": {
+      "title": "Confirm Object Identity Before Picking",
+      "level": 2,
+      "body_hash": "8a61cf204015",
+      "created_version": 74,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 95,
+      "success_when_used": 35,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-counter-0": {
+      "title": "Phase 1 – First Object (counter = 0)",
+      "level": 2,
+      "body_hash": "3c2dd6fd8a22",
+      "created_version": 65,
+      "last_changed_version": 77,
+      "stable_versions": 2,
+      "call_count": 238,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1": {
+      "title": "Phase 2 – Second Object (counter = 1)",
+      "level": 2,
+      "body_hash": "b8bad334c422",
+      "created_version": 65,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 238,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/shortcut-only-if-multiple-copies-were-at-the-same-source": {
+      "title": "Shortcut – Only If Multiple Copies Were at the Same Source",
+      "level": 3,
+      "body_hash": "bbae7de5e8dd",
+      "created_version": 70,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 164,
+      "success_when_used": 56,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/mandatory-fresh-look-after-first-placement-unless-shortcut": {
+      "title": "Mandatory Fresh Look After First Placement (unless Shortcut)",
+      "level": 3,
+      "body_hash": "894011f36079",
+      "created_version": 78,
+      "last_changed_version": 78,
+      "stable_versions": 1,
+      "call_count": 17,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/loop-detection-recovery-global": {
+      "title": "Loop Detection & Recovery (global)",
+      "level": 2,
+      "body_hash": "08f4de87c580",
+      "created_version": 79,
+      "last_changed_version": 79,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

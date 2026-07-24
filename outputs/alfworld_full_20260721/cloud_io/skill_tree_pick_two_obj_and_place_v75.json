@@ -1,0 +1,223 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specified object type into a target receptacle. Stop only when counter == 2.\n\n## Counter\n- Start at 0.\n- Increment after each successful placement.\n- If counter == 2, task complete – stop immediately.\n- If counter < 2, you **must** continue searching for the next object.\n\n## Critical Rules (violating any means failure)\n- **Always start a search with `look`** to get a full list of furniture. Never move before looking.\n- **At every item**: if it is closed, open it before examining contents. Do not skip.\n- **After placing the first object, you must immediately search for the second.** Do not stop or loop.\n- **Never perform the same action twice in a row without moving** – that is a loop. Force a move to the next item on your search list.\n\n## Confirm Object Identity Before Picking\n- Re-read the target object name from the task description before each pick.\n- Only pick up an object whose name exactly matches the target type.\n- If unsure, use `look` to see the name.\n- If you accidentally take a wrong object, `drop` it and continue.\n\n## Search Strategy (for finding objects)\n1. **Always begin with `look`** to obtain the ordered list of all furniture in the room. This is your **search list**.\n2. Immediately go to the **first** item on that list. Do not `look` again.\n3. Visit **every** item **in that exact order**. Do not skip any.\n   - Types include: cabinets, drawers, shelves, fridge, dresser, desks, tables, beds, sidetables, sofa, armchair, sinkbasin, bathtubbasin, towelholder, toiletpaperhanger, etc.\n4. At each item:\n   - **If closed, open it** (e.g., `open drawer 1`).\n   - Examine contents. If you see the exact target object, **take it immediately**.\n   - Do not pick up any other object.\n5. If you complete the list without finding the target, repeat the list **once more**. After two full passes with no target, the object is absent – stop.\n\n## Container Handling\n- Whenever you arrive at a closed container (drawer, cabinet, shelf with a door, etc.), you must **open** it before you can see its contents.\n- Use the action `open <container>` (e.g., `open drawer 1`). If it is already open, skip this.\n- After opening, look inside (the observation will list contents). Then take the target if present.\n\n## Phase 1 – First Object (counter = 0)\n- Execute the **Search Strategy** to find and take the first target object.\n- After taking it, **go directly to the target receptacle**. Do not place anywhere else.\n- At the target receptacle: open if closed, then use `move` to place the object. Counter becomes 1.\n- **While holding the object, do not drop it, move it elsewhere, or interact with any other object.**\n\n## Phase 2 – Second Object (counter = 1)\n**Immediately after placing the first object, you must find and place the second. Do not stop.** Choose one of two paths:\n\n### Shortcut – Only If Multiple Copies Were at the Same Source\n- **Condition:** You saw **more than one** instance of the target object at the exact location where you took the first one (e.g., multiple plates on the same table). If you saw only one copy there, do **not** use this shortcut.\n- **Action:** Go back to that same location, take the next copy, go to the target receptacle, and place it. Counter becomes 2. Stop.\n\n### Full Restart (Default Path) – Mandatory If Shortcut Not Applicable\n- **Do not repeat the same `look` multiple times.** Exactly one `look` to get a fresh search list.\n- Immediately go to the **first item** on that new list. Follow the **Search Strategy** exactly to find the second target.\n- When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.\n- If you complete two full passes of the fresh list without finding a second target, task impossible – stop.\n\n### Transition After First Placement – Critical Step\n- **Immediately after placing the first object, decide: was there more than one copy where you found it?** If yes, go to **Shortcut**. If no, go to **Full Restart**.\n- If you ever do more than one `look` without moving after placing, treat it as a loop – force a move to the first item on a fresh `look` list.\n\n## Loop Detection & Recovery\n- Two consecutive actions of the same type (e.g., `look`, `look` or `open`, `open`) without moving = loop.\n- Force a change: go to the next item on your current search list. If no list, do a fresh `look` and go to the first item.\n- Do not repeat the same action more than once without moving.\n\n## Avoid Taking Non-Target Objects\n- Only touch objects whose name exactly matches the target type.\n- If you hold an irrelevant object, drop it immediately and resume search.",
+  "level": 3,
+  "version": 75,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent's failures (premature stop after first placement, incomplete search) indicate it either misread or ignored the 'Critical Rules' and the two-phase structure. The current skill tree's wording is not sufficiently forceful; the agent may have overlooked the 'must continue' rule buried among other rules. Refinement emphasizes the post-placement decision more prominently and separates Phase 2 into a clear imperative.",
+  "changelog": "Added explicit 'Immediately after placing the first object, you must find and place the second' to the Critical Rules and Phase 2 heading; reinforced the decision step with a bold warning; reordered sections for clarity.",
+  "round_failures": [
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent placed one toiletpaper in toilet and then stopped, never searching for the second required toiletpaper.",
+      "skill_tree_gap": "Missing a sub-skill for multi-object tasks that enforces collection of all required items before completion.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent opened only a few cabinets and one drawer, did not find any creditcard, then gave up.",
+      "skill_tree_gap": "Incomplete search coverage for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent found one vase and moved toward sidetable but did not continue searching for the second vase.",
+      "skill_tree_gap": "Missing explicit check that both objects are in inventory before proceeding to placement.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched only two drawers and a countertop, never found any candles, and then dropped into a loop.",
+      "skill_tree_gap": "Narrow search scope; missing systematic sweep of all containers.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent took one cup from countertop1 and then stopped, never searching for a second cup.",
+      "skill_tree_gap": "Missing a step to ensure fulfillment of quantity requirement before transport.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched only cabinets and countertop, never checked the fridge or other likely locations for eggs.",
+      "skill_tree_gap": "Search does not include domain-specific knowledge (e.g., eggs are often in fridge).",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_6840",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 74,
+      "call_count": 1538,
+      "success_when_used": 1022,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "796e12c71418",
+      "created_version": 1,
+      "last_changed_version": 66,
+      "stable_versions": 9,
+      "call_count": 1538,
+      "success_when_used": 1022,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counter": {
+      "title": "Counter",
+      "level": 2,
+      "body_hash": "a971f5b1e2f0",
+      "created_version": 65,
+      "last_changed_version": 75,
+      "stable_versions": 0,
+      "call_count": 164,
+      "success_when_used": 73,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-violating-any-means-failure": {
+      "title": "Critical Rules (violating any means failure)",
+      "level": 2,
+      "body_hash": "0c8d5e9ae12c",
+      "created_version": 74,
+      "last_changed_version": 75,
+      "stable_versions": 0,
+      "call_count": 21,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/confirm-object-identity-before-picking": {
+      "title": "Confirm Object Identity Before Picking",
+      "level": 2,
+      "body_hash": "85522a7be823",
+      "created_version": 74,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 21,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy-for-finding-objects": {
+      "title": "Search Strategy (for finding objects)",
+      "level": 2,
+      "body_hash": "a932fcb016a3",
+      "created_version": 75,
+      "last_changed_version": 75,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/container-handling": {
+      "title": "Container Handling",
+      "level": 2,
+      "body_hash": "eb352223bd8e",
+      "created_version": 74,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 21,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-counter-0": {
+      "title": "Phase 1 – First Object (counter = 0)",
+      "level": 2,
+      "body_hash": "553416b09177",
+      "created_version": 65,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 164,
+      "success_when_used": 73,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1": {
+      "title": "Phase 2 – Second Object (counter = 1)",
+      "level": 2,
+      "body_hash": "57b95f75fa64",
+      "created_version": 65,
+      "last_changed_version": 75,
+      "stable_versions": 0,
+      "call_count": 164,
+      "success_when_used": 73,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/shortcut-only-if-multiple-copies-were-at-the-same-source": {
+      "title": "Shortcut – Only If Multiple Copies Were at the Same Source",
+      "level": 3,
+      "body_hash": "ade0515c8dcf",
+      "created_version": 70,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 90,
+      "success_when_used": 28,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/full-restart-default-path-mandatory-if-shortcut-not-applicable": {
+      "title": "Full Restart (Default Path) – Mandatory If Shortcut Not Applicable",
+      "level": 3,
+      "body_hash": "3258d9785d54",
+      "created_version": 74,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 21,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/transition-after-first-placement-critical-step": {
+      "title": "Transition After First Placement – Critical Step",
+      "level": 3,
+      "body_hash": "dfdbdf9cc1cf",
+      "created_version": 72,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 63,
+      "success_when_used": 19,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/loop-detection-recovery": {
+      "title": "Loop Detection & Recovery",
+      "level": 2,
+      "body_hash": "028a605b1c92",
+      "created_version": 65,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 164,
+      "success_when_used": 73,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/avoid-taking-non-target-objects": {
+      "title": "Avoid Taking Non-Target Objects",
+      "level": 2,
+      "body_hash": "292143ac8717",
+      "created_version": 65,
+      "last_changed_version": 74,
+      "stable_versions": 1,
+      "call_count": 164,
+      "success_when_used": 73,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

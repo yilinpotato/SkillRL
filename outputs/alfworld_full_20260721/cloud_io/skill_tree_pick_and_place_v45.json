@@ -1,0 +1,193 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specified object and place it into or onto a specified receptacle.\n\n## Sub-Goal Flow\n1. **Identify target object and target receptacle** from the task description.\n2. **Locate the target object** by searching all listed receptacles systematically.\n3. **Take the object only if its name exactly matches** the target (base noun, ignore numerals).\n4. **Navigate to target receptacle**, open if closed, then place the object there.\n5. **Terminate immediately after successful placement** – do not perform any further actions.\n\n## Object Search (Mandatory)\n- From the initial observation, **extract every receptacle noun** – any word followed by a number is a receptacle. **Write them down mentally**. You must visit **every single one** before concluding the object is missing.\n- If the initial observation is truncated, use `look` once to get the full room description. After that, avoid further `look` or `inventory`.\n- **Do not skip any receptacle.** Even if you find the object early, take it and proceed to placement – but the search rule applies until the object is found. If you have not found it, you must continue until every receptacle has been visited.\n\n### Forced Systematic Search (Follow strictly)\n1. **Visit every open-surface receptacle first** (tables, countertops, shelves, beds, sofas, chairs, dresser tops, sidetables, etc.). For each, go to it and inspect its contents.\n2. **Then visit every closed-container receptacle** (cabinets, drawers, fridge, microwave, safe, sinkbasin, etc.). For each, go to it, open it, inspect contents, and leave it open.\n3. **Pay special attention to drawers and dresser drawers** – they are separate receptacles (e.g., drawer 1, drawer 2, ...). You must go to each one individually.\n4. **Do not stop early.** If you have visited only a few receptacles and not found the object, continue. Only stop when you have exhausted the entire list.\n5. **Mark each receptacle as visited mentally.** If you ever revisit a location before finishing the full list, stop and go to the next unvisited receptacle.\n6. **If you have visited every receptacle and still not found the object, you missed a receptacle.** Re-read the initial observation and check if any noun with a number was omitted. The object is always present.\n\n### Complete container search (Reinforced steps)\n- When you arrive at a closed container (drawer, cabinet, dresser, safe, etc.), **your very next action must be to open it** using `open <receptacle>`. Do **not** use `look` or any other command before opening.\n- After opening, inspect the contents from the observation. If the target object is inside, take it. If not, proceed immediately to the next unvisited receptacle – do not linger.\n- If you ever find yourself at a closed container and you are not sure if it is open, assume it is closed and attempt `open`. It wastes only one step if already open.\n- Never skip a container because you think it is unlikely – open every single one on your list.\n\n### Exhaustive multi-room exploration (If object is still missing)\n- After you have visited **every receptacle** listed in the initial observation and still not found the object, consider that the object might be in **another room**. The observation might have mentioned other rooms (e.g., \"you see a doorway to the kitchen\") or the task may involve leaving the current room.\n- In that case, use `go to <doorway>` to enter the next room, then repeat the same systematic search for all receptacles in that new room.\n- If no doorway is mentioned, re-examine the initial observation – you may have missed a receptacle. The object is always present somewhere.\n\n## Object-Type Location Heuristics\nUse these to prioritize the order of search within open surfaces or closed containers, but **never skip a receptacle**.\n- Bottles and cans (soapbottle, glassbottle, winebottle, etc.) are often on **countertops**, then shelves or tables.\n- Small electronics (cellphone, laptop, alarmclock) are often on **tables, desks, beds, or shelves**.\n- Kitchen tools (knife, fork, pan, kettle) are often on **counters, stovetops, or dining tables**.\n- Books and papers (book, creditcard) are often on **shelves, tables, or desks**.\n- If the object is not in any expected common location, continue with the full systematic search – do not assume it is missing.\n\n## Object Acquisition\n### Name Matching Check (Mandatory Before Taking)\n- When you see an object that might be the target, **first verify its name exactly** against the task. The exact type must match (e.g., \"soapbottle\" vs \"soapbar\" are different; ignore numerals like \"book 1\" matches \"book\").\n- **Do not substitute synonyms or categories** – for example, \"handtowel\" is NOT \"cloth\", \"towel\" is NOT \"paper towel roll\". Only take if the base noun (the word without number) is identical to the task target.\n- **Mentally state the target name and compare** before executing `take`. If the observed object name does not match, continue searching.\n- If the name matches, take it with `take <object> from <receptacle>`.\n- If the name does not match, **do not take it** – even if it seems similar or is the only object on that receptacle.\n\n## Placement\n- After taking the correct object, go to the target receptacle. If it is closed, open it first. Then `move <object> to <receptacle>`.\n- **After executing the move action, stop immediately. Do not take any further actions (no inventory, look, or any other command). The task will be marked complete.**\n\n### Confirm task completion after placement\n- The only action after a successful move should be **nothing**. If the environment does not give an explicit \"task complete\" signal, you must still terminate. Do not continue to explore or check inventory.\n\n## Common Mistakes to Avoid\n- **Taking without verifying** – always check object name before taking.\n- **Stopping search early** – do not assume the object is gone until you have checked every receptacle on the initial list. Especially do not skip drawers and dresser drawers.\n- **Failing to list all receptacles** – you must actively extract every noun that is followed by a number from the initial observation; the object may be on a receptacle not mentioned in the examples.\n- **Unnecessary look/inventory actions** – use `look` only once at the start if you need the full room description; after that, stick to `go to`, `open`, `close`, `take`, `move`.\n- **Skipping open surfaces** – they are quick to check and often contain the target.\n- **Revisiting before finishing the full list** – this wastes steps and may cause you to miss the object.\n- **Not terminating after placement** – after moving the object to the target, stop. Any further action is unnecessary and wastes steps.",
+  "level": 3,
+  "version": 45,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent used the skill tree but failed to follow the systematic search rules, notably not opening drawer 2 and skipping many other drawers and the dresser. The tree's wording was clear, but the agent may have skimmed or misunderstood the sequence at the critical point. The new subsections reinforce the exact action needed when arriving at a closed container and extend the search to other rooms if necessary.",
+  "changelog": "Added '### Complete container search' and '### Exhaustive multi-room exploration' under '## Object Search (Mandatory)' to explicitly require opening every container immediately and to handle cases where the object is in another room.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not open most drawers or the dresser to search for the cellphone; it only opened drawer 1 and then stopped.",
+      "skill_tree_gap": "Missing a subskill for systematically opening all containers in a room.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found a spraybottle because it only visited a few locations and did not check all containers or other rooms.",
+      "skill_tree_gap": "Lacks a broader exploration strategy covering all rooms and containers.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only explored countertop 1 and a few drawers, missing other surfaces and containers where a spraybottle might be.",
+      "skill_tree_gap": "The agent's exploration is too narrow; it does not consider other rooms or furniture.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_5472",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 44,
+      "call_count": 1209,
+      "success_when_used": 1099,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "80ee3303fa3c",
+      "created_version": 1,
+      "last_changed_version": 34,
+      "stable_versions": 11,
+      "call_count": 1209,
+      "success_when_used": 1099,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "4ad8f3c65973",
+      "created_version": 1,
+      "last_changed_version": 39,
+      "stable_versions": 6,
+      "call_count": 1209,
+      "success_when_used": 1099,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory": {
+      "title": "Object Search (Mandatory)",
+      "level": 2,
+      "body_hash": "e53f2994cd3c",
+      "created_version": 38,
+      "last_changed_version": 44,
+      "stable_versions": 1,
+      "call_count": 190,
+      "success_when_used": 171,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory/forced-systematic-search-follow-strictly": {
+      "title": "Forced Systematic Search (Follow strictly)",
+      "level": 3,
+      "body_hash": "73d95f3396fd",
+      "created_version": 43,
+      "last_changed_version": 45,
+      "stable_versions": 0,
+      "call_count": 46,
+      "success_when_used": 38,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory/complete-container-search-reinforced-steps": {
+      "title": "Complete container search (Reinforced steps)",
+      "level": 3,
+      "body_hash": "757781d51943",
+      "created_version": 45,
+      "last_changed_version": 45,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory/exhaustive-multi-room-exploration-if-object-is-still-missing": {
+      "title": "Exhaustive multi-room exploration (If object is still missing)",
+      "level": 3,
+      "body_hash": "6a70a235ea84",
+      "created_version": 45,
+      "last_changed_version": 45,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-type-location-heuristics": {
+      "title": "Object-Type Location Heuristics",
+      "level": 2,
+      "body_hash": "010df6673785",
+      "created_version": 38,
+      "last_changed_version": 38,
+      "stable_versions": 7,
+      "call_count": 190,
+      "success_when_used": 171,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition": {
+      "title": "Object Acquisition",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 26,
+      "last_changed_version": 42,
+      "stable_versions": 3,
+      "call_count": 490,
+      "success_when_used": 446,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition/name-matching-check-mandatory-before-taking": {
+      "title": "Name Matching Check (Mandatory Before Taking)",
+      "level": 3,
+      "body_hash": "298057304b3a",
+      "created_version": 42,
+      "last_changed_version": 42,
+      "stable_versions": 3,
+      "call_count": 66,
+      "success_when_used": 55,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "c0e8a133d9e3",
+      "created_version": 26,
+      "last_changed_version": 39,
+      "stable_versions": 6,
+      "call_count": 490,
+      "success_when_used": 446,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement/confirm-task-completion-after-placement": {
+      "title": "Confirm task completion after placement",
+      "level": 3,
+      "body_hash": "b58c72af534e",
+      "created_version": 39,
+      "last_changed_version": 39,
+      "stable_versions": 6,
+      "call_count": 149,
+      "success_when_used": 133,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/common-mistakes-to-avoid": {
+      "title": "Common Mistakes to Avoid",
+      "level": 2,
+      "body_hash": "3cf37ee1f1ca",
+      "created_version": 31,
+      "last_changed_version": 44,
+      "stable_versions": 1,
+      "call_count": 371,
+      "success_when_used": 336,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,235 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\n- Place exactly two instances of a specific object type into a specified target receptacle.\n\n## Initial Observation\n- Immediately after the task description, read the room description carefully.\n- List every visible furniture item (e.g., cabinet, drawer, shelf, countertop, dresser, sink, fridge, bathtub, toilet, towelholder, etc.). **Write this list down mentally** – it is your master list.\n\n## Search Strategy\n\n### First Object Search\n- Visit every item on your master list exactly once. For each:\n  - Go to it.\n  - If it is a closed container (drawer, cabinet, fridge, etc.), open it.\n  - Examine its contents (on surfaces or inside).\n- If you find an object whose exact name matches the required type, take it.\n\n### Sequential Search Protocol (Critical)\n- After you have placed the **first** object, **do not stop**. You must now perform a **second, identical search** for the remaining object.\n- Reset your mental list to the **original master list** (the same list you made at the start).\n- Re-visit every item on that list exactly once again. Do **not** skip any furniture type – even if you already checked it and it was empty, check it again (objects may have been moved into it by the environment).\n- Open every closed container again.\n- Only once you have completed this full second pass and still found no matching object, you may conclude the second object is missing. Otherwise, take it and proceed.\n\n#### Step-by-Step Sweep Procedure\n- Immediately after placing the first object, recall the **original master list** from the initial room description. If you are unsure, re-read the initial observation if it is still in your context.\n- For each item in that list (in any order, but do not skip any):\n  1. Go to that furniture item.\n  2. If it is a closed container, open it.\n  3. Examine the contents (surface or inside).\n  4. If you see an object whose exact name matches the required type, take it and go directly to the target receptacle. Place it immediately.\n- Continue until you have visited every item on the list. If you find and place the second object, stop.\n- If you finish the list without finding the second object, then you have exhausted all locations. (The task may be impossible, but you have done your best.)\n\n## Object Identification\n\n### Exact Type Matching\n- Before taking any object, compare its exact name (as it appears in the observation) to the required object type from the task. Do not take if the names differ (e.g., soapbottle vs soapbar, spraybottle vs bottle). Only take when names match exactly.\n\n## Placement\n\n### Immediate Action at Target\n- When you have a matching object in hand, go directly to the target receptacle. Immediately use `move <object> to <target>`.\n- Do **not** perform any other actions (e.g., looking, opening other containers) between arriving at the target and moving the object.\n\n## Counting and Completion\n\n### Keep a Counter\n- Start a counter at 0.\n- After placing the first object, increment counter to 1. **Do not stop until counter is 2.**\n- After placing the second object, increment to 2. The task is complete.\n\n## Common Failure Patterns (Avoid These)\n\n- **Premature Stop**: You stopped after one object. Use the Sequential Search Protocol to force a second full search.\n- **Incomplete Initial List**: You did not list all furniture at the start. Re-read the initial room description and ensure no item type is missed (e.g., handtowelholder, toiletpaperhanger, stoveburner, sinkbasin, etc.).\n- **Wrong Object Taken**: You took an object that partially matches but is not the exact required type. Always verify exact name.\n- **Missed Containers**: You forgot to open closed containers before checking their contents. Always open first.\n\n## Critical Warnings\n- **List all furniture at the start** – failing to do so leads to missed locations.\n- **Do not stop after one object** – always perform a second full search.\n- **Open before examining** – \"examine\" does not open closed containers.\n- **Verify exact name** – no partial matches.\n- **At target receptacle with correct object, use move action immediately** – no delays.",
+  "level": 4,
+  "version": 20,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent often failed to follow the Sequential Search Protocol, stopping after one object or only revisiting a subset of furniture. The skill tree explicitly instructed a full second sweep, but the agent did not execute it, likely because it lacked a concrete step-by-step breakdown to follow. The refined tree adds a numbered sweep procedure to make the required loop unambiguous.",
+  "changelog": "Added a 'Step-by-Step Sweep Procedure' sub-heading under 'Sequential Search Protocol (Critical)' with a numbered loop for systematically re-visiting every furniture item after placing the first object, to prevent incomplete second searches.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only a subset of shelves and drawers, missing other furniture like dresser or sidetable that might contain CDs.",
+      "skill_tree_gap": "No systematic room coverage algorithm.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only searched drawers and bathtubbasin, ignoring other locations like handtowelholder or sinkbasin where spraybottles might be.",
+      "skill_tree_gap": "Incomplete search pattern for spraybottles.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "After placing the first creditcard, the agent only revisited already searched areas instead of exploring new locations like shelves or sidetable.",
+      "skill_tree_gap": "No strategy for continued search after first object placed.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "After placing one pot, the agent revisited only cabinet1 and countertop1, missing other countertops and cabinets that might contain a second pot.",
+      "skill_tree_gap": "Incomplete search coverage.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "After placing one pencil, the agent only went to shelf2 but did not search other drawers or desks for a second pencil.",
+      "skill_tree_gap": "No systematic search.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "After placing one remotecontrol, the agent revisited only the same locations and opened one drawer, but did not search other drawers or sidetable.",
+      "skill_tree_gap": "Incomplete search.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_2304",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 19,
+      "call_count": 511,
+      "success_when_used": 411,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "223f4d32cb23",
+      "created_version": 1,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 511,
+      "success_when_used": 411,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/initial-observation": {
+      "title": "Initial Observation",
+      "level": 2,
+      "body_hash": "9bcdbe1f2e1e",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy": {
+      "title": "Search Strategy",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy/first-object-search": {
+      "title": "First Object Search",
+      "level": 3,
+      "body_hash": "6c6d6190b0eb",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy/sequential-search-protocol-critical": {
+      "title": "Sequential Search Protocol (Critical)",
+      "level": 3,
+      "body_hash": "3789f4a5554b",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy/sequential-search-protocol-critical/step-by-step-sweep-procedure": {
+      "title": "Step-by-Step Sweep Procedure",
+      "level": 4,
+      "body_hash": "f53f86801de6",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-identification": {
+      "title": "Object Identification",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 18,
+      "last_changed_version": 18,
+      "stable_versions": 2,
+      "call_count": 37,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/object-identification/exact-type-matching": {
+      "title": "Exact Type Matching",
+      "level": 3,
+      "body_hash": "60c4d7552a06",
+      "created_version": 18,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 37,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/placement/immediate-action-at-target": {
+      "title": "Immediate Action at Target",
+      "level": 3,
+      "body_hash": "09757c44d7ad",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counting-and-completion": {
+      "title": "Counting and Completion",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counting-and-completion/keep-a-counter": {
+      "title": "Keep a Counter",
+      "level": 3,
+      "body_hash": "56770500a181",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns-avoid-these": {
+      "title": "Common Failure Patterns (Avoid These)",
+      "level": 2,
+      "body_hash": "fb90aa3a64bc",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-warnings": {
+      "title": "Critical Warnings",
+      "level": 2,
+      "body_hash": "4be4af037d6d",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,81 @@
+```json
+[
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent explored only drawers and countertop, failed to find the spraybottle, then stopped.",
+    "evidence": "After searching drawers, action 'go to countertop 1' results in observation 'You arrive at drawer 3. The drawer 3 is closed.' and no further actions.",
+    "corrective_rule": "When object not found, systematically search all receptacles (sink, toilet, etc.) before stopping.",
+    "skill_tree_gap": "No systematic object search routine for single-object tasks.",
+    "patch_location": "Under 'pick_and_place' section, add a new subsection '### Object Search'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one pen and did not search for the second pen, then got stuck in a loop of look actions.",
+    "evidence": "After 'move pen 1 to sidetable 1', all subsequent actions are 'look' (dropped 4 looping actions).",
+    "corrective_rule": "After placing one object, continue searching for the second object from unexplored locations.",
+    "skill_tree_gap": "Missing subgoal tracking for multi-object tasks (needs to remember to find two objects).",
+    "patch_location": "Under 'pick_two_obj_and_place' section, add a new subsection '### Multi-object tracking'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one handtowel and did not search for the second handtowel, then got stuck in a loop of look actions.",
+    "evidence": "After 'move handtowel 2 to toilet 1', all subsequent actions are 'look' (dropped 4 looping actions).",
+    "corrective_rule": "After placing one object, continue searching for the second object from unexplored locations.",
+    "skill_tree_gap": "Missing subgoal tracking for multi-object tasks.",
+    "patch_location": "Under 'pick_two_obj_and_place' section, add a new subsection '### Multi-object tracking'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one statue and did not search for the second statue, then got stuck in a loop of look actions.",
+    "evidence": "After 'move statue 1 to diningtable 1', all subsequent actions are 'look' (dropped 4 looping actions).",
+    "corrective_rule": "After placing one object, continue searching for the second object from unexplored locations.",
+    "skill_tree_gap": "Missing subgoal tracking for multi-object tasks.",
+    "patch_location": "Under 'pick_two_obj_and_place' section, add a new subsection '### Multi-object tracking'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent searched only bathtubbasin, drawers, and garbagecan, but never found any spraybottle, then got stuck in a loop of look actions.",
+    "evidence": "After examining garbagecan, all subsequent actions are 'look' (dropped 4 looping actions).",
+    "corrective_rule": "When searching for an object, systematically explore all receptacles in the room.",
+    "skill_tree_gap": "No systematic object search routine for multi-object tasks.",
+    "patch_location": "Under 'pick_two_obj_and_place' section, add a new subsection '### Systematic object search'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one soapbottle and did not search for the second soapbottle, then got stuck in a loop of look actions.",
+    "evidence": "After 'move soapbottle 1 to cart 1', all subsequent actions are 'look' (dropped 4 looping actions).",
+    "corrective_rule": "After placing one object, continue searching for the second object from unexplored locations.",
+    "skill_tree_gap": "Missing subgoal tracking for multi-object tasks.",
+    "patch_location": "Under 'pick_two_obj_and_place' section, add a new subsection '### Multi-object tracking'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent searched only cabinets and armchairs, missed other locations, never found any keychain, then got stuck.",
+    "evidence": "After opening cabinet 1 (closed), actions drop and no further progress.",
+    "corrective_rule": "When searching for an object, systematically explore all receptacles in the room.",
+    "skill_tree_gap": "No systematic object search routine for multi-object tasks.",
+    "patch_location": "Under 'pick_two_obj_and_place' section, add a new subsection '### Systematic object search'",
+    "confidence": 0.9
+  }
+]
+```

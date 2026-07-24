@@ -1,0 +1,79 @@
+[
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate an apple because it only searched a few cabinets and countertops, missing the actual location of the apple.",
+    "evidence": "After opening cabinet 5, the trajectory ends with no apple found and no heating action taken.",
+    "corrective_rule": "When the target object is not in the fridge, systematically search all receptacles in the room (countertops, cabinets, drawers, etc.) before moving to another room.",
+    "skill_tree_gap": "Missing a systematic search subroutine for object retrieval when the initial location fails.",
+    "patch_location": "## heat / ### object search strategy",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a spraybottle because it only examined sinkbasin, bathtubbasin, and a few drawers, ignoring other possible locations.",
+    "evidence": "After going to sinkbasin 1 and opening drawer 4, the agent returns to countertop and sinkbasin without ever picking up a spraybottle.",
+    "corrective_rule": "Search all receptacles (cabinets, drawers, shelves, etc.) in the current room; if the object is not found, consider other rooms.",
+    "skill_tree_gap": "Lack of a comprehensive exploration strategy for locating a target object.",
+    "patch_location": "## pick_and_place / ### object search strategy",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed only one soapbar in the cabinet and then stopped without searching for a second soapbar.",
+    "evidence": "After moving soapbar 3 to cabinet 1, the agent goes to cabinet 2 and opens it, but never picks up another soapbar and the trajectory ends.",
+    "corrective_rule": "After placing the first object, continue searching for a second identical object and place it in the target container until the required count is met.",
+    "skill_tree_gap": "Missing a loop or count-check mechanism to ensure the required number of objects are placed.",
+    "patch_location": "## pick_two_obj_and_place / ### completing object count",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate any cellphone because it only searched shelves and two drawers, missing other furniture like bed, desk, and dresser.",
+    "evidence": "After opening drawer 2, the trajectory ends without ever picking up a cellphone.",
+    "corrective_rule": "Systematically search all receptacles in the room (shelves, drawers, bed, desk, dresser, etc.) when the initial locations are empty.",
+    "skill_tree_gap": "Incomplete exploration strategy that does not cover all common furniture types.",
+    "patch_location": "## pick_two_obj_and_place / ### comprehensive search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent was unable to find any tissuebox because it limited its search to drawers and the coffeetable, ignoring other potential locations like diningtable or sofa.",
+    "evidence": "After going to sidetable 1 without having picked up a tissuebox, the trajectory ends.",
+    "corrective_rule": "When the target object is not in obvious places (coffeetable, drawers), extend the search to all other receptacles in the room.",
+    "skill_tree_gap": "Lack of exhaustive search routine for multi-object tasks.",
+    "patch_location": "## pick_two_obj_and_place / ### comprehensive search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed one toiletpaper in the drawer and then failed to locate a second toiletpaper, ending the trajectory before completing the task.",
+    "evidence": "After moving toiletpaper 3 to drawer 1, the agent searches drawer 8 and drawer 2 but finds no second toiletpaper and stops.",
+    "corrective_rule": "After placing the first object, continue searching all possible locations (including unopened drawers, cabinets, and other containers) until a second object is found and placed.",
+    "skill_tree_gap": "Missing a persistent search loop that continues until the required count is satisfied.",
+    "patch_location": "## pick_two_obj_and_place / ### completing object count",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find any cup because it only searched a few cabinets and countertops, leaving many other cabinets and possibly other rooms unexamined.",
+    "evidence": "After opening cabinet 5, the trajectory ends with no cup found and no action towards the microwave.",
+    "corrective_rule": "Search all cabinets (including higher numbers) and other receptacles (dining tables, fridge, etc.) when cups are not found in the first few.",
+    "skill_tree_gap": "Incomplete exploration that does not cover all receptacles in the environment.",
+    "patch_location": "## pick_two_obj_and_place / ### comprehensive search",
+    "confidence": 0.9
+  }
+]

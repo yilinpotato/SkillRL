@@ -1,0 +1,118 @@
+=== Skill Tree Debug — scope=heat  v36 (level=3, tree_depth=3, 13 nodes) ===
+action: refine
+critique: The agent successfully used the skill tree's immediate pick-up rule and heating procedure in all four trajectories, ignoring the deep search because objects were found quickly. However, the skill tree itself contained an incorrect rule in Section 4 ("The destination must be different from the source") which would have caused failure on Trajectory 4 if followed; the agent fortunately did not apply it, but the misleading text needed removal.
+changelog: Removed the incorrect constraint 'The destination must be different from the source where the object originally came from' from Section 4, because valid tasks (e.g., put hot plate in fridge) can involve returning the object to its original location after heating.
+consensus prefix (folded, not re-taught this round): go to fridge 1 → open fridge 1
+n_success this round: 9  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v36) ---
+[STABLE              ] heat                                     level=1 stable_versions=35 calls=806 success=713 rate=88.5%
+[STABLE              ] heat/1-interpret-the-task                level=2 stable_versions=7 calls=806 success=713 rate=88.5%
+[STABLE              ] heat/2-locate-the-object                 level=2 stable_versions=7 calls=806 success=713 rate=88.5%
+[STABLE              ] heat/2-locate-the-object/2-1-critical-immediate-pick-up-rule level=3 stable_versions=8 calls=240 success=225 rate=93.8%
+[STABLE              ] heat/2-locate-the-object/2-2-systematic-search-protocol-exhaustive-by-iteration-revised level=3 stable_versions=1 calls=130 success=124 rate=95.4%
+[STABLE              ] heat/2-locate-the-object/2-3-object-specific-search-heuristics level=3 stable_versions=1 calls=47 success=46 rate=97.9%
+[STABLE              ] heat/2-locate-the-object/2-4-avoid-premature-movement-to-the-target-location level=3 stable_versions=1 calls=47 success=46 rate=97.9%
+[STABLE              ] heat/3-heat-the-object                   level=2 stable_versions=28 calls=806 success=713 rate=88.5%
+[STABLE              ] heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory level=3 stable_versions=23 calls=696 success=645 rate=92.7%
+[STABLE              ] heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory level=3 stable_versions=6 calls=668 success=621 rate=93.0%
+[STABLE              ] heat/3-heat-the-object/3-3-critical-do-not-drop-or-place-the-object-before-heating level=3 stable_versions=8 calls=436 success=414 rate=95.0%
+[MODIFIED            ] heat/4-place-the-heated-object           level=2 stable_versions=0 calls=696 success=645 rate=92.7%
+[MODIFIED            ] heat/5-completion-check-and-termination  level=2 stable_versions=0 calls=799 success=711 rate=89.0%
+
+--- Line diff vs previous version (v35 -> v36) ---
+--- v35
++++ v36
+@@ -1,3 +1,4 @@
++```markdown
+ # heat
+ 
+ ## 1. Interpret the task
+@@ -58,7 +59,6 @@
+ 
+ ## 4. Place the heated object
+ - Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).
+-- The destination must be different from the source where the object originally came from.
+ - If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.
+ - Put the object into/onto the receptacle: `move <object> to <receptacle>`.
+ - **Critical**: Do not take the object back after placing it. Stop.
+@@ -67,3 +67,4 @@
+ - After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.
+ - If the object is there, the task is complete. Do not perform any further actions.
+ - **Termination rule**: Once placed at the target, stop all actions immediately.
++```
+
+--- Rendered content actually shown to the agent (post-prune) ---
+```markdown
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location.
+- The heating appliance is the microwave.
+- The object must be heated before placing; do not place raw.
+
+## 2. Locate the object
+- Start at the fridge. **Open the fridge** to see its contents. If the target object is inside, take it and go directly to Section 3 (heating).
+- If the object is NOT in the fridge, you must search systematically.
+
+### 2.1 Critical: Immediate pick-up rule
+- **If you observe the target object on any surface (countertop, table, shelf, etc.) or inside an already-open container, take it immediately.** Do NOT continue searching. This rule overrides the order below.
+
+### 2.2 Systematic Search Protocol (Exhaustive by Iteration – Revised)
+This protocol replaces the earlier version. Follow it strictly to avoid missing the object. **Mandatory: Follow the order exactly. Do not skip any receptacle type. Do not stop after a few; continue each type until error. Do not go to any location not in this list (including the target placement location) until after you have found and heated the object.**
+
+**Critical Warning: Stopping early is the #1 failure cause. You must continue until you receive an error for that receptacle type. Do not assume the object is absent after checking only a few.**
+
+1. **After opening the fridge and finding no target, perform a `look`.** This may show nearby receptacles. Memorize any visible surfaces (countertop, diningtable, shelf, desk) and openable containers (cabinet, drawer, sinkbasin, garbagecan, microwave, coffeemachine, toaster). **However, do not rely on this list alone** – many receptacles may not be visible until you approach or open them.
+
+2. **Check all countertops first.** Start with `countertop 1`, then `countertop 2`, and so on, incrementally. At each countertop, `look`. **Do not skip any countertop number.** If the target is present, `take` it and go to Section 3. If you receive an error that the location does not exist, stop trying countertops.
+
+3. **Then check all dining tables** (diningtable 1, diningtable 2, ...) in the same incremental way.
+
+4. **Then check all cabinets.** You must try opening cabinets even if none were listed in the initial `look`. Start with `cabinet 1`, then `cabinet 2`, etc. **Crucial: Do not stop after opening only one or two cabinets. Continue until you receive an error that the cabinet does not exist. This is a common mistake.** For each, open it (if closed), `look` inside, and take the target if present. If the cabinet is empty, leave it open and move to the next.
+
+5. **Then check all drawers.** Drawers are separate from cabinets. Even if you saw no drawers in your initial `look`, they may exist. Start with `drawer 1`, then `drawer 2`, etc. For each, open it, `look` inside, take if found. Continue incrementally until you get an error. **Do not skip drawers – they are a mandatory step after cabinets.**
+
+6. **Then check sinkbasin, garbagecan, microwave, coffeemachine, toaster, and any other openable container.** Again, try them incrementally (e.g., `sinkbasin 1`, `garbagecan 1`, `microwave 1`, `coffeemachine 1`, `toaster 1`). Open each, look inside, take if present. If a type does not exist at all, you will get an error – that is fine, move to the next type.
+
+7. **After you have exhausted all the above (received errors for each receptacle type), perform a `look` again.** If new receptacles appear (e.g., a previously hidden cabinet becomes visible), repeat the entire systematic search from step 2. If another room is accessible, go there and repeat.
+
+- **Never give up** until every possible receptacle type has been tried incrementally and you have confirmed the object is truly absent. If you still do not find the object, re-read the task to confirm the object type and continue searching – do not stop early.
+
+### 2.3 Object-specific search heuristics
+- Some objects are more commonly found in certain locations. Use this as a guide to decide where to focus initial attention, but **always fall back to the full systematic search (Section 2.2) if the object is not quickly found.**
+- **Plates, cups, mugs, bowls, utensils**: often stored in cabinets or on dining tables. Check those early after the fridge. They are rarely in the fridge.
+- **Food items (apple, tomato, potato, egg, bread, etc.)**: often in the fridge or on countertops. Check fridge first, then countertops.
+- **Small objects (peppershaker, saltshaker, etc.)**: can be anywhere – on countertops, dining tables, or in cabinets/drawers. Do not rely on heuristics alone; continue exhaustive search.
+- If you have checked the likely locations and still not found the object, do **not** assume it is absent – proceed systematically through cabinets, drawers, and every other receptacle.
+
+### 2.4 Avoid premature movement to the target location
+- Do not go to the target placement location (e.g., sidetable, fridge, cabinet, etc.) while searching for the object. The target location is only for placing the heated object. If you find yourself at that location before heating, you are off-track. Return to the systematic search immediately.
+
+## 3. Heat the object
+### 3.1 Efficient heating method (direct from inventory)
+- Once the object is in your inventory, go to the microwave.
+- Use action `heat <object> with microwave` while holding it. This works reliably.
+- If direct heat fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.
+- After heating, the object is ready. Do not return it to the microwave.
+
+### 3.2 Prerequisite: Object must be in inventory
+- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the systematic search again.
+
+### 3.3 Critical: Do not drop or place the object before heating
+- Once you have picked up the target object, you must go directly to the microwave and heat it. Do NOT move the object to any other location before heating. Dropping it back onto a surface or placing it elsewhere will cause a loop.
+
+## 4. Place the heated object
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).
+- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.
+- Put the object into/onto the receptacle: `move <object> to <receptacle>`.
+- **Critical**: Do not take the object back after placing it. Stop.
+
+## 5. Completion check and termination
+- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.
+- If the object is there, the task is complete. Do not perform any further actions.
+- **Termination rule**: Once placed at the target, stop all actions immediately.
+```

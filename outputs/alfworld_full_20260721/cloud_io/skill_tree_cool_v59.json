@@ -1,0 +1,133 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Navigation\n- Before moving, check that the intended destination is reachable from your current location. If you are not sure, use 'look' to see observable locations.\n- After executing a 'go to' action, read the observation carefully. Verify that you arrived at the exact location you intended (e.g., \"You arrive at countertop 2\"). If the observation says a different location, you did not reach it — do not assume success. Instead, consider that the target may not be adjacent or you may have misidentified it.\n- Keep track of which instances you have already visited (e.g., countertop 1, countertop 2) to avoid revisiting them accidentally.\n\n## Phase 1: Find and take the target object\n\n### Systematic surface search\n- Use the 'go to' action to move to each surface instance. After arriving, read the observation to see what is on that surface. Do not use 'look' or 'examine' — the arrival observation already shows all items.\n- First, check all countertops (every instance you saw in the initial look). If the target is not on any, proceed to check all diningtables, then sidetables, then shelves, then sinkbasins, then stoveburners, then the fridge (open it, look inside).\n- For the fridge: if target found inside, take it and go to Phase 2. If not, close the fridge before moving on.\n- **Stay on track**: After every move, confirm you are at the intended next location. If you ever find yourself at a location that is not the next unvisited type in the search order above, return to the correct next type immediately. Do not skip any surface type.\n\n### Exhaustive container search\n- Only begin container search after you have checked **every** surface type (countertops, diningtables, sidetables, shelves, sinkbasins, stoveburners, and the inside of the fridge) and the target was not found.\n- **Open each cabinet one by one**: Move to the cabinet, then use 'open cabinet X'. After opening, read the observation to see what is inside. If target present, take it, then close the cabinet before moving on. If not, close the cabinet and move to the next unopened cabinet.\n- **Then check each drawer** (same process: move, open, look inside, close).\n- **Then check the microwave** (open, look inside).\n- **Crucial**: After moving to a container, you **must** open it to see its contents. The arrival observation does not show what is inside a closed container. If you skip opening, you will miss the target.\n\n### Object verification\n- Before taking, read the exact name. After taking, verify again. If wrong, put it back on the exact surface you took it from and resume searching from that location.\n\n## Phase 2: Cool the object using the fridge\n- As soon as you are carrying the correct target object, go to a fridge, open it (if closed), and use 'cool <object> with fridge'.\n\n## Phase 3: Move the cooled object to the target location\n- Go directly to the target location (e.g., cabinet, diningtable, garbagecan). If it is a closed container, open it first.\n- Use 'move <object> to <target>'.\n\n## Completion check\n- The object is now cooled and placed at the target. Task complete.",
+  "level": 3,
+  "version": 59,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent followed the consensus prefix and Phase 2/3 correctly in successes, but in the failure it diverged from the systematic surface search order (skipping countertops and diningtables) and then moved to a cabinet without opening it, even though the skill tree instructed to open containers. The tree's wording was clear but the container search instructions were buried in a paragraph; making them a separate subsection with explicit open-before-seeing steps should reduce such omissions.",
+  "changelog": "Added a dedicated '### Exhaustive container search' subsection under Phase 1 to explicitly list steps for opening cabinets, drawers, and microwave, and reinforced that the surface search must be completed before container search.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent never found a bowl because it only opened the fridge and then went to cabinet 1 without opening it, missing the bowl likely in another cabinet.",
+      "skill_tree_gap": "No exhaustive container search procedure.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_6912",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 58,
+      "call_count": 1027,
+      "success_when_used": 893,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/navigation": {
+      "title": "Navigation",
+      "level": 2,
+      "body_hash": "c7512a898c84",
+      "created_version": 58,
+      "last_changed_version": 58,
+      "stable_versions": 1,
+      "call_count": 17,
+      "success_when_used": 16,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object": {
+      "title": "Phase 1: Find and take the target object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 43,
+      "last_changed_version": 43,
+      "stable_versions": 16,
+      "call_count": 284,
+      "success_when_used": 246,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/systematic-surface-search": {
+      "title": "Systematic surface search",
+      "level": 3,
+      "body_hash": "d703c62536db",
+      "created_version": 57,
+      "last_changed_version": 59,
+      "stable_versions": 0,
+      "call_count": 27,
+      "success_when_used": 24,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/exhaustive-container-search": {
+      "title": "Exhaustive container search",
+      "level": 3,
+      "body_hash": "6e1eeb376c99",
+      "created_version": 59,
+      "last_changed_version": 59,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/object-verification": {
+      "title": "Object verification",
+      "level": 3,
+      "body_hash": "faa0dc77ee88",
+      "created_version": 55,
+      "last_changed_version": 55,
+      "stable_versions": 4,
+      "call_count": 51,
+      "success_when_used": 46,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge",
+      "level": 2,
+      "body_hash": "2575bc469e6f",
+      "created_version": 24,
+      "last_changed_version": 57,
+      "stable_versions": 2,
+      "call_count": 623,
+      "success_when_used": 551,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location",
+      "level": 2,
+      "body_hash": "fa33c71fa527",
+      "created_version": 24,
+      "last_changed_version": 57,
+      "stable_versions": 2,
+      "call_count": 623,
+      "success_when_used": 551,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check",
+      "level": 2,
+      "body_hash": "af963720c4cf",
+      "created_version": 27,
+      "last_changed_version": 43,
+      "stable_versions": 16,
+      "call_count": 570,
+      "success_when_used": 503,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

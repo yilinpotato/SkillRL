@@ -1,0 +1,121 @@
+{
+  "content": "```markdown\n# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location.\n- The heating appliance is the microwave.\n- The object must be heated before placing; do not place raw.\n\n## 2. Locate the object\n### 2.1 Immediate check: fridge\n- Open the fridge. If the target object is inside, take it and go directly to Section 3 (Heat).\n- If not, **immediately start the exhaustive search below. Do not go anywhere else first.**\n\n### 2.2 Systematic Exhaustive Search (mandatory, follow exactly in order)\nYou must try every receptacle type in the fixed order below. For each type, try numbers sequentially (e.g., countertop 1, countertop 2, ...) until you receive an error that the location does not exist. At each, look and take if found. **Do not skip any type; do not return to a previously checked type.**\n\n1. **Countertops**: Check all countertop numbers until error.\n2. **Dining tables**: Check all diningtable numbers until error. (Do not skip even if none were visible initially.)\n3. **Cabinets**: For each cabinet number, open it, look inside, take if found. Continue until error.\n4. **Drawers**: For each drawer number, open it, look inside, take if found. Continue until error.\n5. **Other openable containers**: Check sinkbasin 1, garbagecan 1, microwave 1, coffeemachine 1, toaster 1, etc. – try each type incrementally until error.\n6. **Repeat look**: If still not found, perform a `look`. If new receptacles become visible, repeat the entire sequence from step 1. If another room is accessible, go there and repeat.\n\n**Critical rules:**\n- If you ever find yourself at the target placement location (e.g., fridge, diningtable) without the object, you have made a mistake. Immediately stop and resume the exhaustive search from the next unchecked receptacle type.\n- Do not drop or place the object before heating.\n- Once you pick up the object, go directly to the microwave (Section 3).\n\n## 3. Heat the object\n- Go to the microwave.\n- Use `heat <object> with microwave` while holding it. Optionally open microwave first if direct heat fails.\n- After heating, the object is ready. Do not return it to the microwave.\n\n## 4. Place the heated object\n- Go to the target receptacle specified in the task.\n- If it is openable (cabinet, drawer, fridge, garbagecan), open it first.\n- Use `move <object> to <receptacle>`.\n- Do not take the object back after placing.\n\n## 5. Completion check and termination\n- After placing, verify: check inventory (must be empty) and examine the receptacle (must contain the object).\n- If both conditions hold, task complete. Stop immediately. Do not loop.\n```",
+  "level": 3,
+  "version": 41,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "The agent misread the current skill tree's exhaustive search by skipping dining tables and drawers, and by returning to the target location (fridge) prematurely. The tree's wording was clear but the agent failed to follow the ordered sequence; we have restructured Section 2 to be more prescriptive with a fixed order and a fail-safe rule to prevent premature return to the target location.",
+  "changelog": "Refined Section 2 (Locate the object) by removing heuristic hints, enforcing a strict sequential search order, and adding a rule to abort any premature return to the target location and resume the search.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found a potato because it limited search to fridge, countertops, and cabinets, missing other possible locations.",
+      "skill_tree_gap": "No fallback search strategy when the target is absent from expected locations.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_7128",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 40,
+      "call_count": 909,
+      "success_when_used": 807,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "14e2bfab74e3",
+      "created_version": 1,
+      "last_changed_version": 29,
+      "stable_versions": 12,
+      "call_count": 909,
+      "success_when_used": 807,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 41,
+      "stable_versions": 0,
+      "call_count": 909,
+      "success_when_used": 807,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-1-immediate-check-fridge": {
+      "title": "2.1 Immediate check: fridge",
+      "level": 3,
+      "body_hash": "282333551cbe",
+      "created_version": 41,
+      "last_changed_version": 41,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-2-systematic-exhaustive-search-mandatory-follow-exactly-in-order": {
+      "title": "2.2 Systematic Exhaustive Search (mandatory, follow exactly in order)",
+      "level": 3,
+      "body_hash": "977187dfc516",
+      "created_version": 41,
+      "last_changed_version": 41,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "e536f9283338",
+      "created_version": 1,
+      "last_changed_version": 41,
+      "stable_versions": 0,
+      "call_count": 909,
+      "success_when_used": 807,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object": {
+      "title": "4. Place the heated object",
+      "level": 2,
+      "body_hash": "4471284add9e",
+      "created_version": 8,
+      "last_changed_version": 41,
+      "stable_versions": 0,
+      "call_count": 799,
+      "success_when_used": 739,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check-and-termination": {
+      "title": "5. Completion check and termination",
+      "level": 2,
+      "body_hash": "25aef22e4ebd",
+      "created_version": 2,
+      "last_changed_version": 41,
+      "stable_versions": 0,
+      "call_count": 902,
+      "success_when_used": 805,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

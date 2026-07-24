@@ -1,0 +1,120 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v20 (level=4, tree_depth=4, 15 nodes) ===
+action: refine
+critique: The agent often failed to follow the Sequential Search Protocol, stopping after one object or only revisiting a subset of furniture. The skill tree explicitly instructed a full second sweep, but the agent did not execute it, likely because it lacked a concrete step-by-step breakdown to follow. The refined tree adds a numbered sweep procedure to make the required loop unambiguous.
+changelog: Added a 'Step-by-Step Sweep Procedure' sub-heading under 'Sequential Search Protocol (Critical)' with a numbered loop for systematically re-visiting every furniture item after placing the first object, to prevent incomplete second searches.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 14  n_failure this round: 6
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent searched only a subset of shelves and drawers, missing other furniture like dresser or sidetable that might contain CDs. | evidence: It examined shelves 1-9 and drawer1, but did not go to dresser or sidetable. | fix: For multi-object tasks, systematically visit all furniture types in the room. | skill_tree_gap: No systematic room coverage algorithm. | patch_location: ### Multi-Object Tasks > ### Systematic Room Sweep After First Object
+- [inefficient_exploration] The agent only searched drawers and bathtubbasin, ignoring other locations like handtowelholder or sinkbasin where spraybottles might be. | evidence: It never checked handtowelholder or sinkbasin. | fix: Search all surfaces and containers, including handtowelholder and sinkbasin. | skill_tree_gap: Incomplete search pattern for spraybottles. | patch_location: ### Exploration and Search > ### Object-Specific Location Priors
+- [inefficient_exploration] After placing the first creditcard, the agent only revisited already searched areas instead of exploring new locations like shelves or sidetable. | evidence: After placing, it went to armchair and coffeetable again, not to new furniture. | fix: After placing one object, systematically search all remaining unexplored locations for the second. | skill_tree_gap: No strategy for continued search after first object placed. | patch_location: ### Multi-Object Tasks > ### Post-Placement Search Expansion
+- [inefficient_exploration] After placing one pot, the agent revisited only cabinet1 and countertop1, missing other countertops and cabinets that might contain a second pot. | evidence: It went back to countertop1 and cabinet1, but not to countertop3 or other cabinets. | fix: After placing first pot, search all countertops and cabinets systematically. | skill_tree_gap: Incomplete search coverage. | patch_location: ### Multi-Object Tasks > ### Systematic Room Sweep After First Object
+- [inefficient_exploration] After placing one pencil, the agent only went to shelf2 but did not search other drawers or desks for a second pencil. | evidence: It went to shelf2 (no action) and then stopped. | fix: After placing first pencil, search all desks, drawers, and shelves for the second. | skill_tree_gap: No systematic search. | patch_location: ### Multi-Object Tasks > ### Systematic Room Sweep After First Object
+- [inefficient_exploration] After placing one remotecontrol, the agent revisited only the same locations and opened one drawer, but did not search other drawers or sidetable. | evidence: It went back to coffeetable and armchair and opened drawer1, but not other drawers or sidetable. | fix: After placing first remote, search all drawers and other furniture. | skill_tree_gap: Incomplete search. | patch_location: ### Multi-Object Tasks > ### Systematic Room Sweep After First Object
+
+--- Node tree (per-node lifecycle, this version=v20) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=19 calls=511 success=411 rate=80.4%
+[STABLE              ] pick-two-obj-and-place/common-failure-patterns-avoid-these level=2 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/counting-and-completion level=2 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/counting-and-completion/keep-a-counter level=3 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/critical-warnings level=2 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=1 calls=511 success=411 rate=80.4%
+[STABLE              ] pick-two-obj-and-place/initial-observation level=2 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/object-identification level=2 stable_versions=2 calls=37 success=27 rate=73.0%
+[STABLE              ] pick-two-obj-and-place/object-identification/exact-type-matching level=3 stable_versions=1 calls=37 success=27 rate=73.0%
+[STABLE              ] pick-two-obj-and-place/placement         level=2 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/placement/immediate-action-at-target level=3 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/search-strategy   level=2 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/search-strategy/first-object-search level=3 stable_versions=1 calls=20 success=14 rate=70.0%
+[STABLE              ] pick-two-obj-and-place/search-strategy/sequential-search-protocol-critical level=3 stable_versions=1 calls=20 success=14 rate=70.0%
+[NEW                 ] pick-two-obj-and-place/search-strategy/sequential-search-protocol-critical/step-by-step-sweep-procedure level=4 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v19 -> v20) ---
+--- v19
++++ v20
+@@ -22,6 +22,16 @@
+ - Re-visit every item on that list exactly once again. Do **not** skip any furniture type – even if you already checked it and it was empty, check it again (objects may have been moved into it by the environment).
+ - Open every closed container again.
+ - Only once you have completed this full second pass and still found no matching object, you may conclude the second object is missing. Otherwise, take it and proceed.
++
++#### Step-by-Step Sweep Procedure
++- Immediately after placing the first object, recall the **original master list** from the initial room description. If you are unsure, re-read the initial observation if it is still in your context.
++- For each item in that list (in any order, but do not skip any):
++  1. Go to that furniture item.
++  2. If it is a closed container, open it.
++  3. Examine the contents (surface or inside).
++  4. If you see an object whose exact name matches the required type, take it and go directly to the target receptacle. Place it immediately.
++- Continue until you have visited every item on the list. If you find and place the second object, stop.
++- If you finish the list without finding the second object, then you have exhausted all locations. (The task may be impossible, but you have done your best.)
+ 
+ ## Object Identification
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+- Place exactly two instances of a specific object type into a specified target receptacle.
+
+## Initial Observation
+- Immediately after the task description, read the room description carefully.
+- List every visible furniture item (e.g., cabinet, drawer, shelf, countertop, dresser, sink, fridge, bathtub, toilet, towelholder, etc.). **Write this list down mentally** – it is your master list.
+
+## Search Strategy
+
+### First Object Search
+- Visit every item on your master list exactly once. For each:
+  - Go to it.
+  - If it is a closed container (drawer, cabinet, fridge, etc.), open it.
+  - Examine its contents (on surfaces or inside).
+- If you find an object whose exact name matches the required type, take it.
+
+### Sequential Search Protocol (Critical)
+- After you have placed the **first** object, **do not stop**. You must now perform a **second, identical search** for the remaining object.
+- Reset your mental list to the **original master list** (the same list you made at the start).
+- Re-visit every item on that list exactly once again. Do **not** skip any furniture type – even if you already checked it and it was empty, check it again (objects may have been moved into it by the environment).
+- Open every closed container again.
+- Only once you have completed this full second pass and still found no matching object, you may conclude the second object is missing. Otherwise, take it and proceed.
+
+#### Step-by-Step Sweep Procedure
+- Immediately after placing the first object, recall the **original master list** from the initial room description. If you are unsure, re-read the initial observation if it is still in your context.
+- For each item in that list (in any order, but do not skip any):
+  1. Go to that furniture item.
+  2. If it is a closed container, open it.
+  3. Examine the contents (surface or inside).
+  4. If you see an object whose exact name matches the required type, take it and go directly to the target receptacle. Place it immediately.
+- Continue until you have visited every item on the list. If you find and place the second object, stop.
+- If you finish the list without finding the second object, then you have exhausted all locations. (The task may be impossible, but you have done your best.)
+
+## Object Identification
+
+### Exact Type Matching
+- Before taking any object, compare its exact name (as it appears in the observation) to the required object type from the task. Do not take if the names differ (e.g., soapbottle vs soapbar, spraybottle vs bottle). Only take when names match exactly.
+
+## Placement
+
+### Immediate Action at Target
+- When you have a matching object in hand, go directly to the target receptacle. Immediately use `move <object> to <target>`.
+- Do **not** perform any other actions (e.g., looking, opening other containers) between arriving at the target and moving the object.
+
+## Counting and Completion
+
+### Keep a Counter
+- Start a counter at 0.
+- After placing the first object, increment counter to 1. **Do not stop until counter is 2.**
+- After placing the second object, increment to 2. The task is complete.
+
+## Common Failure Patterns (Avoid These)
+
+- **Premature Stop**: You stopped after one object. Use the Sequential Search Protocol to force a second full search.
+- **Incomplete Initial List**: You did not list all furniture at the start. Re-read the initial room description and ensure no item type is missed (e.g., handtowelholder, toiletpaperhanger, stoveburner, sinkbasin, etc.).
+- **Wrong Object Taken**: You took an object that partially matches but is not the exact required type. Always verify exact name.
+- **Missed Containers**: You forgot to open closed containers before checking their contents. Always open first.
+
+## Critical Warnings
+- **List all furniture at the start** – failing to do so leads to missed locations.
+- **Do not stop after one object** – always perform a second full search.
+- **Open before examining** – "examine" does not open closed containers.
+- **Verify exact name** – no partial matches.
+- **At target receptacle with correct object, use move action immediately** – no delays.

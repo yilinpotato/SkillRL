@@ -1,0 +1,93 @@
+=== Skill Tree Debug — scope=heat  v3 (level=3, tree_depth=2, 6 nodes) ===
+action: refine
+critique: The agent followed the general structure of the skill tree but failed to open cabinets before placing (existing step ignored), returned objects to their source (no rule against), stopped prematurely after heating, and did not fully explore. The skill tree was not misleading, but it lacked explicit rules for different-destination placement and emphasis on completing the full placement sequence.
+changelog: Added 'Different Destination Requirement' and 'Do Not Stop After Heating' sub-sections under heat and placement; reinforced systematic search with a 'Complete Systematic Search' sub-section; added 'Post-Placement Verification' under placement.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 3  n_failure this round: 8
+
+--- Failure diagnoses feeding this round ---
+- [other] The agent heated the plate and placed it back on the same countertop it was taken from, resulting in no effective placement; the task likely expects a destination different from the source. | evidence: Action: 'move plate 1 to countertop 1' after taking plate from countertop 1. | fix: Ensure the target receptacle for placement is not the same as the source receptacle. | skill_tree_gap: Lack of awareness that placing an object back where it came from is not a valid 'put'. | patch_location: Under '## heat', add a new subsection '### Placement Destination Rule' (must be different from origin).
+- [other] The tomato was taken from the fridge, heated, and then placed back into the same fridge, meaning its location did not change; the task likely requires a different final location. | evidence: Action: 'move tomato 1 to fridge 1' after taking tomato from fridge 1. | fix: Place the heated object into a receptacle different from its original location. | skill_tree_gap: No distinction between moving within same receptacle and moving to a new one. | patch_location: Under '## heat', add a new subsection '### Different Destination Requirement'.
+- [premature_stop] The agent heated the apple and then went to the garbagecan but did not place it inside; the trajectory ends without a move action. | evidence: Last action 'go to garbagecan 1' with no subsequent 'move apple 2 to garbagecan 1'. | fix: After heating, always execute a 'move' action to place the object into the target receptacle. | skill_tree_gap: Missing final placement step after achieving the heated state. | patch_location: Under '## heat', add a new subsection '### Complete Placement After Heating'.
+- [inefficient_exploration] The agent never found a potato; it searched several countertops and cabinets but missed the location where the potato was (likely in a different cabinet or fridge). | evidence: No potato observed in any visited location; agent gave up after opening cabinet 2. | fix: Systematically search all receptacles including the fridge, all cabinets, and all countertops for the target object. | skill_tree_gap: Incomplete exploration of all possible object locations. | patch_location: Under '## heat', add a new subsection '### Full Exploration Routine'.
+- [wrong_order] The agent moved the plate into cabinet 1 without opening it first, so the plate was placed on top of the cabinet rather than inside. | evidence: No 'open cabinet 1' action occurred before 'move plate 1 to cabinet 1'. | fix: Always open a closed container before moving an object into it. | skill_tree_gap: Missing precondition check for placing objects into closed containers. | patch_location: Under '## heat', add a new subsection '### Open Container Before Placement'.
+- [other] The agent moved the egg to the sidetable, but the observation after the move shows the same state as before, indicating the move may not have taken effect (possibly due to sidetable already containing an egg). | evidence: Observation after 'move egg 4 to sidetable 1' is identical to the previous observation of sidetable contents, suggesting no change. | fix: After a move action, verify the object appears in the target receptacle's inventory. | skill_tree_gap: Lack of verification that placement succeeded. | patch_location: Under '## heat', add a new subsection '### Post-Placement Verification'.
+
+--- Node tree (per-node lifecycle, this version=v3) ---
+[STABLE              ] heat                                     level=1 stable_versions=2 calls=18 success=5 rate=27.8%
+[STABLE              ] heat/1-interpret-the-task                level=2 stable_versions=2 calls=18 success=5 rate=27.8%
+[MODIFIED            ] heat/2-locate-the-object                 level=2 stable_versions=0 calls=18 success=5 rate=27.8%
+[MODIFIED            ] heat/3-heat-the-object                   level=2 stable_versions=0 calls=18 success=5 rate=27.8%
+[MODIFIED            ] heat/4-place-the-heated-object-in-the-target-location level=2 stable_versions=0 calls=18 success=5 rate=27.8%
+[STABLE              ] heat/5-completion-check-and-termination  level=2 stable_versions=1 calls=11 success=3 rate=27.3%
+
+--- Line diff vs previous version (v2 -> v3) ---
+--- v2
++++ v3
+@@ -15,7 +15,7 @@
+ - Then check shelves, sidetables, diningtables, and other flat surfaces.
+ - Then check cabinets and drawers (open each, look inside).
+ - Do not skip any receptacle; use 'look' to see what is in the room if you lose track.
+-- ### If the object is not found in any of these, re-scan the entire room by listing receptacles again.
++- ### Complete Systematic Search: If you have checked every receptacle you see and still not found the object, perform a 'look' action to refresh the list of all receptacles, then continue searching each one you haven't visited. Do not stop until you have found the object or exhausted all receptacles.
+ 
+ ## 3. Heat the object
+ - Once you have the object in inventory, go to the microwave.
+@@ -24,12 +24,14 @@
+ - Close the microwave to start heating.
+ - Open the microwave again; the object is now heated.
+ - Take the heated object from the microwave (action: 'take <object> from microwave').
++- ### Do Not Stop After Heating: After taking the heated object, immediately proceed to place it in the target location. Do not perform any other actions (e.g., go elsewhere, examine) until placement is complete.
+ 
+ ## 4. Place the heated object in the target location
+ - Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).
++- ### Different Destination Requirement: Ensure the target receptacle is different from the source receptacle where the object originally came from. Returning the object to its original location is not a valid placement.
+ - If the receptacle is a container that can be opened (e.g., cabinet, fridge, drawer, garbagecan, etc.), open it first.
+ - Put the object into/onto the receptacle (action: 'move <object> to <receptacle>').
+-- ### Verify that the object is now in the target receptacle: after the move, check your inventory (it should be empty) and examine the target to confirm the object is there. If not, try again or consider if the receptacle is closed.
++- ### Post-Placement Verification: After the move, check your inventory (it should be empty) and examine the target to confirm the object is there. If not, try again or consider if the receptacle is closed.
+ 
+ ## 5. Completion check and termination
+ - Once you have placed the heated object at the target location, **do not pick it up again**. Resist any impulse to take it back.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location from the task description.
+- The heating appliance is typically the microwave.
+
+## 2. Locate the object
+- Search systematically across all receptacles you can see.
+- List all visible receptacles in the current room (e.g., countertop, sidetable, diningtable, shelf, cabinet, drawer, fridge, garbagecan, sinkbasin, etc.).
+- Prioritize likely locations based on object type:
+  - Food items (e.g., tomato, egg, apple, lettuce, bread) are often stored in the fridge.
+  - Non-food items (e.g., cup, mug, bowl, plate) may be in cabinets, drawers, or on countertops.
+- Start with the fridge (go there, open it, check contents). If object is inside, take it.
+- If not found, check each countertop (go to each, look at its contents).
+- Then check shelves, sidetables, diningtables, and other flat surfaces.
+- Then check cabinets and drawers (open each, look inside).
+- Do not skip any receptacle; use 'look' to see what is in the room if you lose track.
+- ### Complete Systematic Search: If you have checked every receptacle you see and still not found the object, perform a 'look' action to refresh the list of all receptacles, then continue searching each one you haven't visited. Do not stop until you have found the object or exhausted all receptacles.
+
+## 3. Heat the object
+- Once you have the object in inventory, go to the microwave.
+- Open the microwave.
+- Move the object from inventory into the microwave (action: 'move <object> to microwave').
+- Close the microwave to start heating.
+- Open the microwave again; the object is now heated.
+- Take the heated object from the microwave (action: 'take <object> from microwave').
+- ### Do Not Stop After Heating: After taking the heated object, immediately proceed to place it in the target location. Do not perform any other actions (e.g., go elsewhere, examine) until placement is complete.
+
+## 4. Place the heated object in the target location
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).
+- ### Different Destination Requirement: Ensure the target receptacle is different from the source receptacle where the object originally came from. Returning the object to its original location is not a valid placement.
+- If the receptacle is a container that can be opened (e.g., cabinet, fridge, drawer, garbagecan, etc.), open it first.
+- Put the object into/onto the receptacle (action: 'move <object> to <receptacle>').
+- ### Post-Placement Verification: After the move, check your inventory (it should be empty) and examine the target to confirm the object is there. If not, try again or consider if the receptacle is closed.
+
+## 5. Completion check and termination
+- Once you have placed the heated object at the target location, **do not pick it up again**. Resist any impulse to take it back.
+- ### Terminate after placing at target: After a successful placement, stop all actions. Do not go back to the microwave or any other location.
+- ### If you are unsure, perform a final verification: check inventory (should be empty) and examine the target to see the object. If it is there, the task is complete.
+- Do not continue searching, heating, or moving the object.

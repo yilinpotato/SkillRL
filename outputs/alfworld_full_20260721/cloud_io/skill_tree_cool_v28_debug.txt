@@ -1,0 +1,118 @@
+=== Skill Tree Debug — scope=cool  v28 (level=3, tree_depth=3, 7 nodes) ===
+action: refine
+critique: The agent had the current skill tree but did not follow the specified order of surface and closed-container exploration, skipping countertop 3 and not systematically checking all cabinets. The tree's wording was clear, but the agent deviated; the refinement adds explicit subsections that enforce the sequence step-by-step.
+changelog: Replaced the generic '### Exhaustive Search' with two separate subsections '### Ordered Countertop Exploration' and '### Systematic Closed Container Search' to prevent skipping and enforce the exact order of search, as well as adding explicit notes about correcting order mistakes.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 12  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never located a pot because it did not systematically search closed containers and skipped countertop 3. | evidence: action: go to fridge 1 | obs: You arrive at fridge 1. The fridge 1 is closed. (agent went to fridge without any pot) | fix: Always search all countertops and then all closed containers (cabinets, drawers) for the target object before attempting to cool. | skill_tree_gap: Missing a systematic subroutine for searching closed containers when the object is not on open surfaces. | patch_location: Under ## cool, add a new subsection ### search closed containers
+- [wrong_order] After visiting countertop 2, the agent went to diningtable instead of continuing to countertop 3, missing a likely location for the plate. | evidence: action: go to diningtable 1 | obs: You arrive at countertop 2. (should have gone to countertop 3) | fix: After visiting countertop 2, proceed to countertop 3 before exploring other rooms. | skill_tree_gap: The countertop exploration sequence is not enforced; the agent skipped a critical step. | patch_location: Under ## cool, add a new subsection ### ordered countertop exploration (refining the explore sequence)
+- [wrong_order] The agent went to diningtable first instead of exploring countertops in order, missing the pan (likely on countertop 2 or 3). | evidence: action: go to diningtable 1 | obs: You arrive at countertop 1. (first non-consensus action, skipped countertop 2) | fix: Always begin by searching countertops 1, 2, and 3 in order before moving to other locations. | skill_tree_gap: Lack of a fixed order for initial countertop exploration. | patch_location: Under ## cool, add a new subsection ### ordered countertop exploration (refining the explore sequence)
+- [wrong_order] After countertop 2, the agent went to diningtable instead of countertop 3, and never found the pot anywhere. | evidence: action: go to diningtable 1 | obs: You arrive at countertop 2. (should have gone to countertop 3) | fix: After visiting countertop 2, proceed to countertop 3 before exploring other rooms. | skill_tree_gap: The countertop exploration sequence is not enforced. | patch_location: Under ## cool, add a new subsection ### ordered countertop exploration (refining the explore sequence)
+
+--- Node tree (per-node lifecycle, this version=v28) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=27 calls=473 success=402 rate=85.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=1 calls=16 success=12 rate=75.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval level=2 stable_versions=1 calls=16 success=12 rate=75.0%
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/ordered-countertop-exploration level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/systematic-closed-container-search level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge level=2 stable_versions=1 calls=69 success=60 rate=87.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location level=2 stable_versions=4 calls=69 success=60 rate=87.0%
+
+--- Line diff vs previous version (v27 -> v28) ---
+--- v27
++++ v28
+@@ -2,34 +2,26 @@
+ 
+ ## Object Search and Retrieval
+ 
+-### Exhaustive Search
+-1. **Re-read the room description** from the prompt. Note all receptacle types and their instance numbers.
+-2. **Search surfaces in this fixed order:**
+-   - countertops (all numbered instances)
+-   - diningtables
+-   - sidetables
+-   - shelves
+-   - sinkbasin
+-   - stoveburners
+-   
+-   For each instance: go to it, read the objects listed. If you see the exact target object name, take it immediately and proceed to Phase 2. If the receptacle is open (e.g., sinkbasin), check inside. If closed, only note it – do not open yet.
+-3. **After all surfaces are searched** (you have visited every instance of the six categories above and the object is not found), proceed to **closed receptacles** in this order:
+-   - fridge
+-   - cabinets
+-   - drawers
+-   - microwave
+-   
+-   For **each instance** of each category:
+-   - Go to it.
+-   - If it is closed, open it.
+-   - Look inside and take the object if present.
+-   - **Do not stop** until you have opened and checked every instance of every category. For example, check cabinet 1, cabinet 2, … all drawers, and the microwave.
+-4. **If you accidentally go to a category that is not the next one in the sequence**, immediately go to the correct next category (do not backtrack to earlier ones).
+-5. **If after all surfaces and all closed receptacles you still have not found the object**, it is absent (but this should not happen in valid tasks).
++### Ordered Countertop Exploration
++- Start by visiting countertop 1 (already done by consensus prefix). Then proceed to countertop 2, then countertop 3, and so on for all numbered countertop instances in order. Do not skip any.
++- At each countertop, read the objects listed. If the target object is present, take it immediately and proceed to Phase 2.
++- After visiting all countertops, move to diningtables in order, then sidetables, then shelves, then sinkbasin, then stoveburners. For each instance of these surface types, go to it and check the objects.
++- If the target object is found on any surface, take it and proceed to Phase 2.
++- If you accidentally go to a category out of order, immediately go to the correct next category; do not backtrack to earlier ones.
+ 
+-### Prioritize Common Locations
+-- When searching closed receptacles, start with the fridge (common for perishable items), then cabinets, drawers, microwave. This order reflects typical likelihood based on object type.
+-- For non-food objects, still follow the same order; the priority is a heuristic, not a rule.
++### Systematic Closed Container Search
++- If the target object was not found on any surface, search closed receptacles in this exact order:
++  1. fridge (all instances)
++  2. cabinets (all instances)
++  3. drawers (all instances)
++  4. microwave (all instances)
++- For each instance:
++  - Go to it.
++  - If it is closed, open it.
++  - Look inside and take the target object if present.
++- Do not stop until you have opened and checked every instance of every category. Do not backtrack to earlier categories.
++- Heuristic: start with fridge (common for perishable/food items) but follow the order regardless of object type.
++- If you accidentally go to a category out of order, immediately go to the correct next category; do not revisit earlier ones.
+ 
+ ## Phase 2: Cool the object using the fridge
+ - After picking up the object, go directly to the fridge.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Object Search and Retrieval
+
+### Ordered Countertop Exploration
+- Start by visiting countertop 1 (already done by consensus prefix). Then proceed to countertop 2, then countertop 3, and so on for all numbered countertop instances in order. Do not skip any.
+- At each countertop, read the objects listed. If the target object is present, take it immediately and proceed to Phase 2.
+- After visiting all countertops, move to diningtables in order, then sidetables, then shelves, then sinkbasin, then stoveburners. For each instance of these surface types, go to it and check the objects.
+- If the target object is found on any surface, take it and proceed to Phase 2.
+- If you accidentally go to a category out of order, immediately go to the correct next category; do not backtrack to earlier ones.
+
+### Systematic Closed Container Search
+- If the target object was not found on any surface, search closed receptacles in this exact order:
+  1. fridge (all instances)
+  2. cabinets (all instances)
+  3. drawers (all instances)
+  4. microwave (all instances)
+- For each instance:
+  - Go to it.
+  - If it is closed, open it.
+  - Look inside and take the target object if present.
+- Do not stop until you have opened and checked every instance of every category. Do not backtrack to earlier categories.
+- Heuristic: start with fridge (common for perishable/food items) but follow the order regardless of object type.
+- If you accidentally go to a category out of order, immediately go to the correct next category; do not revisit earlier ones.
+
+## Phase 2: Cool the object using the fridge
+- After picking up the object, go directly to the fridge.
+- If the fridge is closed, open it.
+- Use `cool <object> with fridge`.
+
+## Phase 3: Move the cooled object to the target location
+- Go to the target location.
+- If the target receptacle is closed, open it first.
+- Use `move <object> to <target>`.
+
+## Completion check
+- Object is cooled and placed at the target location – task complete.

@@ -1,0 +1,101 @@
+=== Skill Tree Debug — scope=cool  v53 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent did not follow the strict surface search order; it skipped diningtables, sidetables, and shelves after checking the fridge. The skill tree's wording was not misleading but was insufficiently explicit about continuing the order after the fridge, leading to incomplete exploration.
+changelog: Added explicit instruction under Search Heuristic to proceed to diningtables after fridge, added a common mistake warning under Surface Search, and reinforced that skipping any surface type causes failure.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 10  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never found an egg; it opened the fridge (which contained no egg) and then explored stoveburners and cabinets but missed other common egg locations like the diningtable or countertops. | evidence: After opening fridge and seeing apple, bread, mug, it moves to sinkbasin, stoveburners, cabinets, and then back to countertops without ever picking up an egg. | fix: When the first likely location (fridge) does not contain the target, continue searching other surfaces and containers (e.g., diningtable, countertops, cabinets). | skill_tree_gap: Insufficient backtracking and expansion of search after initial failure. | patch_location: ## cool > ### Object Search
+
+--- Node tree (per-node lifecycle, this version=v53) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=52 calls=955 success=828 rate=86.7%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=10 calls=498 success=438 rate=88.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object level=2 stable_versions=10 calls=212 success=181 rate=85.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/container-search-only-after-all-surface-types-including-cabinet-drawer-tops-are-exhausted level=3 stable_versions=1 calls=11 success=10 rate=90.9%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/object-verification-rule level=3 stable_versions=2 calls=170 success=145 rate=85.3%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/search-heuristic-prioritize-common-locations level=3 stable_versions=0 calls=64 success=55 rate=85.9%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/surface-search-strictly-follow-this-order-and-check-every-instance-of-each-type level=3 stable_versions=0 calls=11 success=10 rate=90.9%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge level=2 stable_versions=2 calls=551 success=486 rate=88.2%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location level=2 stable_versions=4 calls=551 success=486 rate=88.2%
+
+--- Line diff vs previous version (v52 -> v53) ---
+--- v52
++++ v53
+@@ -7,11 +7,11 @@
+ - Start by checking **every** countertop instance. The consensus step brings you to the first countertop; you must then visit all other countertops in the environment. Do not stop after only one.
+ - If the target is on any countertop, take it immediately and go to Phase 2.
+ - If not found on any countertop, **check the fridge** before moving to other surfaces. Open it, look inside. If target present, take it (→ Phase 2). If not, close the fridge and proceed.
++- **After the fridge, the next surface type in the strict order is diningtables. Do not skip to sinkbasins or stoveburners.** Skipping any surface type means you will miss the target.
+ - Only after checking all countertops and the fridge, continue to the other surface types in the strict order below.
+-- **Do not** visit stoveburners or sinkbasins early—they rarely hold coolable objects. Stick to the order.
+ 
+ ### Surface Search – strictly follow this order and check **every** instance of each type
+-1. **Countertops** – check every countertop instance (as described above).
++1. **Countertops** – checked already (but if you return here later, check again only if all containers are exhausted).
+ 2. **Diningtables** – check every diningtable.
+ 3. **Sidetables** – check every sidetable.
+ 4. **Shelves** – check every shelf.
+@@ -23,6 +23,7 @@
+ - At each location, read the observation. If the target object is present **on the surface**, take it immediately and go to Phase 2.
+ - **Never skip a surface type.** If you have not visited every type above (including all instances of each), you are NOT done. Do NOT move to container interiors until all surface types are exhausted.
+ - **If you find yourself at a container before finishing surfaces, that is a mistake.** Immediately return to the next unvisited surface type. Do not open the container yet.
++- **Common mistake:** After the fridge, agents often jump to sinkbasins or stoveburners. This misses diningtables, sidetables, and shelves. Stick to the order exactly.
+ 
+ ### Container Search – only after ALL surface types (including cabinet/drawer tops) are exhausted
+ - After checking every surface type above and still not finding the object, you **must** open and search the interiors of closed containers.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Phase 1: Find and take the target object
+
+### Search Heuristic – prioritize common locations
+- Most household objects are found on **countertops**, **diningtables**, or inside the **fridge**.
+- Start by checking **every** countertop instance. The consensus step brings you to the first countertop; you must then visit all other countertops in the environment. Do not stop after only one.
+- If the target is on any countertop, take it immediately and go to Phase 2.
+- If not found on any countertop, **check the fridge** before moving to other surfaces. Open it, look inside. If target present, take it (→ Phase 2). If not, close the fridge and proceed.
+- **After the fridge, the next surface type in the strict order is diningtables. Do not skip to sinkbasins or stoveburners.** Skipping any surface type means you will miss the target.
+- Only after checking all countertops and the fridge, continue to the other surface types in the strict order below.
+
+### Surface Search – strictly follow this order and check **every** instance of each type
+1. **Countertops** – checked already (but if you return here later, check again only if all containers are exhausted).
+2. **Diningtables** – check every diningtable.
+3. **Sidetables** – check every sidetable.
+4. **Shelves** – check every shelf.
+5. **Sinkbasins** – check every sinkbasin.
+6. **Stoveburners** – check every stoveburner.
+7. **Cabinets (top surface)** – note: cabinets have a top that counts as a surface. Check the top of every cabinet. Also, cabinets have an interior that must be opened (see Container Search).
+8. **Drawers (top surface)** – same as cabinets: check the top of every drawer; interior must be opened.
+
+- At each location, read the observation. If the target object is present **on the surface**, take it immediately and go to Phase 2.
+- **Never skip a surface type.** If you have not visited every type above (including all instances of each), you are NOT done. Do NOT move to container interiors until all surface types are exhausted.
+- **If you find yourself at a container before finishing surfaces, that is a mistake.** Immediately return to the next unvisited surface type. Do not open the container yet.
+- **Common mistake:** After the fridge, agents often jump to sinkbasins or stoveburners. This misses diningtables, sidetables, and shelves. Stick to the order exactly.
+
+### Container Search – only after ALL surface types (including cabinet/drawer tops) are exhausted
+- After checking every surface type above and still not finding the object, you **must** open and search the interiors of closed containers.
+- Search containers **in this exact order**. For each type, check every instance:
+  1. **Cabinet** – open each cabinet, look inside. If target present, take it (→ Phase 2). If not, close and move to next cabinet.
+  2. **Drawer** – same process.
+  3. **Microwave** – same process.
+- **Critical: You must open every container to see its contents.** Simply looking at a closed container (or at objects on top of it) reveals nothing about what is inside.
+- **After each container type, do NOT return to surfaces.** Continue to the next container type in the list. Only after you have checked **all** container types and still not found the object, then backtrack through the surface list again – you may have missed a location earlier.
+
+### Object Verification Rule
+- **Before taking** any object, carefully read its exact name from the observation. Only take an object whose name matches the target object type **exactly**.
+- **Immediately after taking** any object (even if you think it is correct), pause and verify the name. If it does not match the target, **put it back on the exact surface you took it from** using `put <object> on <surface>` and resume searching from that same location.
+- If you are already carrying an object that does not match the task, put it down immediately and continue searching.
+
+## Phase 2: Cool the object using the fridge
+- As soon as you have taken the **correct** target object, your next action **MUST** be to go to a fridge, open it (if closed), and use `cool <object> with fridge`.
+- Do NOT examine the object, move anywhere else, or perform any other action in between.
+- If you are not carrying the object, go back to Phase 1.
+
+## Phase 3: Move the cooled object to the target location
+- Go directly to the target location (e.g., cabinet, diningtable, garbagecan).
+- If the target is a closed container, open it first.
+- Use `move <object> to <target>`.
+
+## Completion check
+- The object is now cooled and placed at the target. Task complete.

@@ -1,0 +1,85 @@
+{
+  "content": "# Goal: Examine a target object using a light source (e.g., desklamp)\n\n## Phase 1: Locate the light source\n- Identify the light source (typically a desklamp) from your current observations or initial room description.\n- If you are not already at its location, move there (e.g., go to the receptacle containing the desklamp).\n\n## Phase 2: Turn on the light\n- Use the desklamp (action: use desklamp) to turn it on.\n- Confirm the light is on (observation will say \"You turn on the desklamp\").\n\n## Phase 3: Locate the target object\n- After turning on the lamp, check what is on the same surface (the lamp's receptacle). If the target object is there, proceed to Phase 4.\n- If the target object is NOT on the lamp's surface, systematically search all other common furniture in the room (bed, dresser, sidetable, shelf, desk, etc.). \n  ### Systematic search procedure\n  - List each piece of furniture you have observed (from the initial room description) that could hold objects. Prioritize surfaces you haven't visited yet.\n  - For each candidate surface, go to it (action: go to <receptacle>) and examine its contents.\n  - If the target object is found on that surface, proceed to Phase 4.\n  - If not, move to the next candidate. Do not open drawers or containers unless no surface holds the object; the task expects the object to be in plain sight on a surface.\n- Only after all visible surfaces have been checked should you consider opening closed containers (drawers, cabinets) as a last resort.\n\n## Phase 4: Take and examine the target object\n- Take the target object from its receptacle (action: take <object> from <receptacle>).\n- The task is considered complete once the object is in your inventory and the light is on.",
+  "level": 3,
+  "version": 2,
+  "kind": "task_skill_tree",
+  "task_type": "look_at_obj_in_light",
+  "history": [],
+  "critique": "The agent generally followed the phases but failed because the 'Locate the target object' step lacked a concrete search strategy; the agent wandered and opened drawers instead of checking visible surfaces like bed or dresser. The current skill tree's wording ('determine where the target object is') was too vague, leading to inefficient exploration.",
+  "changelog": "Added a 'Systematic search procedure' subsection under Phase 3 to guide the agent through checking all common furniture surfaces when the target is not on the lamp's receptacle, addressing the failure mode of incomplete exploration.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not find the book; it searched the sidetable (no book) and drawers, but missed the bed and dresser where books might be placed.",
+      "skill_tree_gap": "No exploration coverage for all common furniture types in the room (bed, dresser).",
+      "task_type": "look_at_obj_in_light"
+    }
+  ],
+  "task_scope": "look_at_obj_in_light",
+  "updated_at": "step_144",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp": {
+      "title": "Goal: Examine a target object using a light source (e.g., desklamp)",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 6,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-1-locate-the-light-source": {
+      "title": "Phase 1: Locate the light source",
+      "level": 2,
+      "body_hash": "8e8150456193",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 6,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-2-turn-on-the-light": {
+      "title": "Phase 2: Turn on the light",
+      "level": 2,
+      "body_hash": "73bf6cf8e48e",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 6,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-3-locate-the-target-object": {
+      "title": "Phase 3: Locate the target object",
+      "level": 2,
+      "body_hash": "8a3ba8d94841",
+      "created_version": 1,
+      "last_changed_version": 2,
+      "stable_versions": 0,
+      "call_count": 6,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-4-take-and-examine-the-target-object": {
+      "title": "Phase 4: Take and examine the target object",
+      "level": 2,
+      "body_hash": "95d615ebe584",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 6,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

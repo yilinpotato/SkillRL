@@ -1,0 +1,82 @@
+=== Skill Tree Debug — scope=cool  v3 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent used the skill tree but did not follow the instruction to check all receptacles including fridge; it wasted time on cabinets without ever visiting the fridge. The skill tree's wording was not misleading, but it lacked explicit prioritization for checking the fridge early in cooling tasks, which could have prevented the failure.
+changelog: Added '### Immediately check the fridge for cooling tasks' under Sub-goal 1 to prioritize fridge search for cooling tasks, based on observed failures where the agent never checked the fridge.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 9  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent searched only cabinets and countertops for bread, never checking the fridge where bread is commonly stored. | evidence: After opening cabinet6, trajectory ends without finding bread; fridge was never visited. | fix: When cooling is required, prioritize checking the fridge for the target object. | skill_tree_gap: Lack of knowledge that for cooling tasks, the object often resides in the fridge. | patch_location: Under '## cool', add a new subsection '### check fridge for target object'.
+- [inefficient_exploration] The agent searched only countertops and cabinets for potato, never checking the fridge where potato might be. | evidence: After opening cabinet3 and seeing nothing, returns to countertops without ever going to fridge. | fix: When cooling is required, check the fridge as a likely location for the target object. | skill_tree_gap: Exploration does not include fridge for cooling tasks. | patch_location: Under '## cool', add a new subsection '### check fridge for target object'.
+- [inefficient_exploration] The agent searched only cabinets and the sink for mug, never checking the fridge or drawer. | evidence: After moving to diningtable, trajectory ends without finding mug; fridge and drawer were ignored. | fix: When cooling is required, check fridge and other storage containers like drawers. | skill_tree_gap: Exploration strategy missing fridge and drawers for cooling tasks. | patch_location: Under '## cool', add a new subsection '### check fridge and drawers'.
+- [inefficient_exploration] The agent searched only countertops, cabinets, and one drawer for pan, but never checked the fridge or stoveburner where pan might be. | evidence: After opening drawer1 and seeing nothing, returns to countertop and stops. | fix: When cooling is required, expand search to include fridge, stoveburner, and other surfaces. | skill_tree_gap: Exploration not comprehensive for cooling tasks; misses common pan locations. | patch_location: Under '## cool', add a new subsection '### expand search to all receptacles'.
+
+--- Node tree (per-node lifecycle, this version=v3) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=2 calls=19 success=13 rate=68.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=2 calls=19 success=13 rate=68.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool level=2 stable_versions=2 calls=19 success=13 rate=68.4%
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/immediately-check-the-fridge-for-cooling-tasks level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/prioritize-pickup-of-visible-target level=3 stable_versions=1 calls=13 success=9 rate=69.2%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-search-of-all-receptacles level=3 stable_versions=1 calls=13 success=9 rate=69.2%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object level=2 stable_versions=2 calls=19 success=13 rate=68.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-3-cool-the-object-using-the-fridge level=2 stable_versions=2 calls=19 success=13 rate=68.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-4-move-the-cooled-object-to-the-target-location level=2 stable_versions=2 calls=19 success=13 rate=68.4%
+
+--- Line diff vs previous version (v2 -> v3) ---
+--- v2
++++ v3
+@@ -7,6 +7,10 @@
+ - For each receptacle, first go to it, then if it is closed, open it. Look at its contents.
+ - If the receptacle is open or does not open, simply look at what is on/in it.
+ - Continue until you find the target object.
++
++### Immediately check the fridge for cooling tasks
++- Because the goal involves cooling, the target object is often stored in the fridge. Before searching many cabinets, go to the fridge and check its contents (open it if closed).
++- If the target is not in the fridge, then proceed to systematically check all other receptacles.
+ 
+ ### Systematic search of all receptacles
+ - List every receptacle from the initial room description. Visit each one without skipping any.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Sub-goal 1: Find the object to cool.
+- The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.
+- Do NOT focus only on cabinets; also check countertops, fridge, sinkbasin, drawers, and any other openable containers or surfaces.
+- Start by observing the room description for all receptacle names, then systematically visit each one.
+- For each receptacle, first go to it, then if it is closed, open it. Look at its contents.
+- If the receptacle is open or does not open, simply look at what is on/in it.
+- Continue until you find the target object.
+
+### Immediately check the fridge for cooling tasks
+- Because the goal involves cooling, the target object is often stored in the fridge. Before searching many cabinets, go to the fridge and check its contents (open it if closed).
+- If the target is not in the fridge, then proceed to systematically check all other receptacles.
+
+### Systematic search of all receptacles
+- List every receptacle from the initial room description. Visit each one without skipping any.
+- Include fridge, drawers, cabinets, countertops, diningtable, sidetable, microwave, garbagecan, sinkbasin – all that are present.
+- Do not stop after checking only a few; the target might be anywhere.
+
+### Prioritize pickup of visible target
+- When you arrive at a location, immediately check the observation text for the target object's name.
+- If the target object is present in that location (e.g., "a pan 1" on countertop), take it right away before moving elsewhere.
+- Do not proceed to another receptacle if the target is in front of you.
+
+## Sub-goal 2: Take the object.
+- Once you see the object, use `take <object> from <location>` (e.g., `take bread 2 from countertop 2`).
+- Confirm you are holding it (the action response will say "You pick up the ...").
+
+## Sub-goal 3: Cool the object using the fridge.
+- Go to the fridge (if not already there).
+- If the fridge is closed, open it.
+- Then use `cool <object> with fridge` (e.g., `cool bread 2 with fridge 1`).
+- The response will confirm the object has been cooled.
+
+## Sub-goal 4: Move the cooled object to the target location.
+- Go to the target location named in the task (e.g., diningtable, cabinet, microwave, countertop).
+- Use `move <object> to <target>` (e.g., `move bread 2 to diningtable 1`).
+- The response will confirm the object is placed.
+
+## Completion check:
+- The task is complete when the object has been cooled and placed at the target location.
+- If you have done all steps, the environment may not give explicit success feedback; trust the sequence.

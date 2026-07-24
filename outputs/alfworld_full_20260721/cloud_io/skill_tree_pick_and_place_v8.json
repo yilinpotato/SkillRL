@@ -1,0 +1,169 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nYou must pick up a specific object and place it into or onto a specified receptacle. The task description states both the object and the target (e.g., \"put a book in sofa\").\n\n## Sub-Goal Flow\n### 1. Parse the task\nIdentify two entities: the **target object** (what to pick) and the **target receptacle** (where to place it). Keep these in mind throughout.\n\n### 2. Locate the target object\n#### 2.1 List all receptacles\n- **Use ONLY the initial room observation** to create your list of receptacles. The very first observation after \"Your task is to: ...\" shows every receptacle in the room. Write down every name exactly as it appears. Do **not** add any receptacles that you encounter later (e.g., sidetables not mentioned initially). That initial list is your complete search set.\n- Include ALL types: cabinets, drawers, shelves, tables, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubbasins, handtowelholders, towelholders, toilet, toiletpaperhanger, garbagecan, beds, and any other furniture mentioned. **Include the target receptacle itself** – the object might already be on it.\n- Common overlooked receptacles: desks, dressers, armchairs, beds, sidetables, tvstands, countertops, sinkbasins, bathtubbasins, handtowelholders, toilet, garbagecan. Make sure you list every one you see.\n\n#### 2.2 Systematically search each receptacle\n- Create a mental queue of all receptacles on your list (from step 2.1). You will visit each one in any order.\n- For each receptacle:\n  1. Go to it (`go to <receptacle>`).\n  2. If it is closed (e.g., cabinet, drawer), open it (`open <receptacle>`) before examining.\n  3. Read the observation. It lists objects inside or on the receptacle.\n  4. **If you see the target object**, use `take <object> from <receptacle>`. Then proceed immediately to step 3 (placement). **Do not continue searching.**\n  5. If you do **not** see the target object, mentally mark that receptacle as checked and move to the next on your list.\n- **Important**: Keep searching until you have visited **every** receptacle on your initial list **or** you find the target object. Do not give up early. If you exhaust the list and still have not found the object (unlikely), you may re-read the initial room observation to ensure you didn't miss any receptacle.\n- **Do not** wander to receptacles that were not on your initial list. They do not exist in this environment.\n\n### 3. Verify and pick up\n- Before picking up any object, **confirm that its name exactly matches the target object** (e.g., if task says \"cloth\", do not pick \"handtowel\"; if task says \"spraybottle\", do not pick \"soapbottle\"). If there is any mismatch, do not take it.\n- **Exact match is required** – synonyms are not acceptable. For example, \"handtowel\" is not \"cloth\", \"towel\" is not \"cloth\", \"soapbar\" is not \"soapbottle\", \"winebottle\" is not \"glassbottle\". When in doubt, re-read the task description and the observed object name.\n- Once confirmed, use `take <object> from <receptacle>` to pick it up.\n- If you are already carrying something else and it is not the target, you may drop it (not typical, but avoid carrying wrong items).\n\n### 4. Navigate to the target receptacle\n- After successfully picking up the target object, move to the target receptacle (e.g., \"sofa 1\", \"toilet 1\", \"garbagecan 1\") using `go to <receptacle>`.\n\n### 5. Place the object\n- When you arrive at the target receptacle, immediately execute `move <object> to <receptacle>`.\n- Do **not** perform any other actions (like examining or going away) before placing; placing is the final required action.\n\n### 6. Termination\n- After the `move` action, the task is complete. No further actions are needed.\n\n## Common Mistakes to Avoid\n- **Wrong object pickup:** Always re-verify the object name in the observation before using `take`. Never take an object unless its name is an exact match.\n- **Incomplete search:** Do not skip any receptacle type or instance. The target object may be on any surface, in any drawer, or inside any cabinet. Check all furniture listed in the initial room observation – including desks, dressers, beds, armchairs, and other surfaces often missed.\n- **Using receptacles not in the initial list:** The initial room observation is the only source of all receptacles. If you start going to a receptacle that was not in that first description (e.g., a sidetable that appears only after moving), you are wasting steps. Stick to your initial list.\n- **Giving up too early:** If you have not found the object after checking many receptacles, do not stop until you have visited every single one on your list. Patience is required.\n- **Missing the placement step:** Arriving at the target is not enough; you must explicitly `move` the object.",
+  "level": 3,
+  "version": 8,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent did not follow the existing instruction to list all receptacles from the initial observation and instead visited sidetables that were not in that initial list, leading to an incomplete search of cabinets and countertops. The skill tree's wording was clear but could be strengthened to explicitly forbid adding receptacles later and to emphasize that the initial list is the sole search set.",
+  "changelog": "Refined section 2.1 to require using only the initial room observation for the receptacle list, and section 2.2 to clarify the stopping condition (stop when object found) and to warn against wandering to unlisted receptacles; added corresponding mistake in Common Mistakes.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only sidetables and a few drawers, never exploring cabinets or countertops where a box might be.",
+      "skill_tree_gap": "No comprehensive search procedure for pick_and_place tasks covering all common object locations.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_936",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "00de2685624f",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/1-parse-the-task": {
+      "title": "1. Parse the task",
+      "level": 3,
+      "body_hash": "ec3565dc82fd",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/2-locate-the-target-object": {
+      "title": "2. Locate the target object",
+      "level": 3,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 5,
+      "stable_versions": 3,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/2-locate-the-target-object/2-1-list-all-receptacles": {
+      "title": "2.1 List all receptacles",
+      "level": 4,
+      "body_hash": "18884358c240",
+      "created_version": 7,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 22,
+      "success_when_used": 21,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/2-locate-the-target-object/2-2-systematically-search-each-receptacle": {
+      "title": "2.2 Systematically search each receptacle",
+      "level": 4,
+      "body_hash": "fa27319de9e7",
+      "created_version": 7,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 22,
+      "success_when_used": 21,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/3-verify-and-pick-up": {
+      "title": "3. Verify and pick up",
+      "level": 3,
+      "body_hash": "1ffe78521c74",
+      "created_version": 1,
+      "last_changed_version": 5,
+      "stable_versions": 3,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/4-navigate-to-the-target-receptacle": {
+      "title": "4. Navigate to the target receptacle",
+      "level": 3,
+      "body_hash": "9d20ee86e2d5",
+      "created_version": 1,
+      "last_changed_version": 5,
+      "stable_versions": 3,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/5-place-the-object": {
+      "title": "5. Place the object",
+      "level": 3,
+      "body_hash": "fc6b4b003505",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow/6-termination": {
+      "title": "6. Termination",
+      "level": 3,
+      "body_hash": "96a9224d8f8b",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/common-mistakes-to-avoid": {
+      "title": "Common Mistakes to Avoid",
+      "level": 2,
+      "body_hash": "514633724213",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 206,
+      "success_when_used": 187,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

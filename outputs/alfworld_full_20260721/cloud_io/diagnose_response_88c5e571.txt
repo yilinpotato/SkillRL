@@ -1,0 +1,123 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate a cup because it wandered through countertops and shelves without systematically searching cabinets or drawers.",
+    "evidence": "After going to sinkbasin, it performs 'look' then moves to cabinets, but never picks up a cup.",
+    "corrective_rule": "First systematically search all containers (cabinets, drawers) for the target object before exploring unrelated locations.",
+    "skill_tree_gap": "Lack of a systematic container search routine for locating target objects.",
+    "patch_location": "Under '## Clean Task', add a deeper subsection '### Locate Object' with exhaustive search steps.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a bowl because it visited diningtable and sinkbasin without searching cabinets or drawers.",
+    "evidence": "After diningtable, it goes to sinkbasin (no bowl), then stoveburners, fridge, but never opens any cabinet.",
+    "corrective_rule": "If the target object is not in visible locations, open and inspect all cabinets and drawers.",
+    "skill_tree_gap": "Missing a step to search containers when object not immediately visible.",
+    "patch_location": "Under '## Cool Task', add a deeper subsection '### Search Containers' after initial location checks.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate a mug because it explored countertops and stoveburners but opened only cabinet 1, finding nothing.",
+    "evidence": "After opening cabinet 1 and seeing nothing, it stops without checking other cabinets or drawers.",
+    "corrective_rule": "Continue searching all cabinets and drawers until the target object is found.",
+    "skill_tree_gap": "Incomplete exhaustive search: only one cabinet was opened.",
+    "patch_location": "Under '## Cool Task', add a deeper subsection '### Exhaustive Container Search'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#2",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found an egg because it visited countertops and sinkbasin but did not open any cabinet or drawer.",
+    "evidence": "After opening fridge and seeing no egg, it goes to cabinet 1 but does not open it, then returns to countertops.",
+    "corrective_rule": "Always open and inspect every cabinet and drawer when searching for the target object.",
+    "skill_tree_gap": "No rule to open containers encountered during search.",
+    "patch_location": "Under '## Cool Task', add a deeper subsection '### Mandatory Container Opening'.",
+    "confidence": 0.8
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate a cup because it explored countertops and opened only three cabinets, none containing a cup.",
+    "evidence": "After opening cabinet 3 (saltshaker), it returns to countertop 1 instead of continuing to search other cabinets or drawers.",
+    "corrective_rule": "Search all available cabinets and drawers completely until the target object is found.",
+    "skill_tree_gap": "Lack of a full inventory of containers to search for heat tasks.",
+    "patch_location": "Under '## Heat Task', add a deeper subsection '### Complete Container Search'.",
+    "confidence": 0.8
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing the first candle in cabinet, the agent started exploring other cabinets instead of returning to countertop to retrieve the second candle.",
+    "evidence": "After 'move candle 4 to cabinet 1', it goes to cabinet 4 instead of going back to countertop 1.",
+    "corrective_rule": "After placing one object, immediately return to the source location to pick up the second object.",
+    "skill_tree_gap": "Missing iterative retrieve-place pattern for two-object tasks.",
+    "patch_location": "Under '## Pick Two Object and Place Task', add a deeper subsection '### Iterative Object Retrieval'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent picked up only one keychain and then stopped, failing to search for a second keychain or place any.",
+    "evidence": "The trajectory ends after 'take keychain 2 from coffeetable 1' with no further actions.",
+    "corrective_rule": "After acquiring one target object, continue searching for the second before placing any.",
+    "skill_tree_gap": "No check that two objects are required and must be collected before placement.",
+    "patch_location": "Under '## Pick Two Object and Place Task', add a deeper subsection '### Object Counting and Completion Check'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a towel instead of a toiletpaper, derailing the task.",
+    "evidence": "Action: 'take towel 1 from towelholder 1' when the task requires toiletpaper.",
+    "corrective_rule": "Always verify that the object you are picking is exactly the target object type before taking it.",
+    "skill_tree_gap": "Lack of object type verification before pickup.",
+    "patch_location": "Under '## Pick Two Object and Place Task', add a deeper subsection '### Object Identification Check'.",
+    "confidence": 1.0
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one spraybottle in garbagecan, the agent wandered without searching for the second spraybottle.",
+    "evidence": "After 'move spraybottle 1 to garbagecan 1', it goes to bathtubbasin and shelf 2/3 but never picks another spraybottle.",
+    "corrective_rule": "After placing the first object, systematically search all remaining locations for the second object.",
+    "skill_tree_gap": "Missing a post-placement search routine for second object.",
+    "patch_location": "Under '## Pick Two Object and Place Task', add a deeper subsection '### Post-Placement Search for Second Object'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one tissuebox, the agent failed to locate a second tissuebox because it did not search any containers.",
+    "evidence": "It visits armchairs, coffeetables, sofa, sidetables but never opens a drawer or cabinet.",
+    "corrective_rule": "When the second object is not in plain sight, search all closed containers (drawers, cabinets).",
+    "skill_tree_gap": "No container search step included in multi-object placement routine.",
+    "patch_location": "Under '## Pick Two Object and Place Task', add a deeper subsection '### Container Search for Second Object'.",
+    "confidence": 0.8
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent picked up only one spraybottle and then stopped, without placing it or searching for a second.",
+    "evidence": "Trajectory ends with 'take spraybottle 1 from countertop 1' and no further actions.",
+    "corrective_rule": "After picking the first object, either place it and immediately return to search for the second, or continue searching for the second before placing.",
+    "skill_tree_gap": "No task progress tracking to ensure both objects are handled.",
+    "patch_location": "Under '## Pick Two Object and Place Task', add a deeper subsection '### Multi-Object Task Completion Check'.",
+    "confidence": 0.9
+  }
+]

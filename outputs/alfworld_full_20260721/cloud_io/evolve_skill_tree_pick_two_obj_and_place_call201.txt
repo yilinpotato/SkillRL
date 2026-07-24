@@ -1,0 +1,282 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "pick_two_obj_and_place" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specified object type into a target receptacle. Stop only when counter == 2.
+
+## Counter
+- Start at 0.
+- Increment after each successful placement.
+- If counter == 2, task complete – stop. Never stop earlier.
+- If counter < 2, you **must** search for the next object.
+
+### Confirm Object Identity Before Picking
+- **Always re-read the target object name from the task description before each pick.**
+- Only pick up an object whose name **exactly matches** the target type (e.g., if task says "soapbottle", do not pick "soapbar").
+- If you are unsure, use `look` to see the object name clearly or examine the task again.
+- If you accidentally take a wrong object, `drop` it immediately and resume search.
+
+## Search Procedure (Use for Every Object)
+1. Always start with `look` to get the full list of all furniture items in the room. This is your **search list** – remember its order.
+2. Immediately after that `look`, go to the first item on the list. Do not `look` again.
+3. Visit **every** item on the list **in that exact order**. Do not skip any. All types must be checked:
+   - Containers: cabinets, drawers, shelves, fridge, dresser, etc.
+   - Surfaces: countertops, tables, desks, beds, sidetables, sofa, armchair, sinkbasin, bathtubbasin, etc.
+   - Special fixtures: toiletpaperhanger, towelholder, etc.
+4. At each item:
+   - If closed, **open** it.
+   - Examine contents. If you see the **exact target object name**, **take it immediately**. Do not pick up any other object.
+   - If you accidentally take a wrong object, `drop` it and continue.
+5. If you complete the entire list without taking anything, **repeat the list once more**. After two full passes with no target found, the object is absent – task impossible, stop.
+
+## Phase 1 – First Object (counter = 0)
+- Execute the **Search Procedure** to find and take the first target object.
+- **After taking it, go directly to the target receptacle.** Do not place anywhere else.
+- At the target receptacle: open if closed, then use `move` to place the object. Counter becomes 1.
+- **While holding the object, do not drop it, move it elsewhere, or interact with any other object.**
+
+## Phase 2 – Second Object (counter = 1)
+After placing the first object, you need to find and place the second one. Choose exactly one of the following two paths:
+
+### Shortcut – Only If Multiple Copies Were at the Same Source
+- **Condition:** You saw **more than one** instance of the target object at the exact location where you found the first one (e.g., multiple plates on the same diningtable). If you saw only one copy there, do **not** use this shortcut – proceed to Full Restart.
+- **Action:** Go back to that same location, take the next copy of the target, then go to the target receptacle and place it. Counter becomes 2. Stop.
+
+### Full Restart (Default Path)
+- Execute a fresh `look` to get a new search list.
+- Immediately go to the first item on that new list.
+- Follow the **Search Procedure** exactly to find the second target.
+- When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.
+- If you complete two full passes of the fresh search list without finding a second target, task impossible – stop.
+
+### After Placing the First Object – Decision Branching
+- Immediately after placing the first object, do **one of the following**:
+  1. If the shortcut condition is met (multiple copies at the same source), go to that source and take the next copy.
+  2. Otherwise, execute a **single `look`** and then **immediately go to the first item on the new list** – begin Full Restart.
+- Do **not** go back to a location where you previously found an object unless the shortcut condition holds.
+- Do **not** perform multiple `look`s without moving.
+
+## Critical Rules for Transition
+- (Already covered in the section above. This section is retained for clarity.)
+
+## Avoid Taking Non-Target Objects
+- **Only touch objects whose name exactly matches the target type.** Do not pick up cloth, soapbar, book, candle, or anything else – they waste actions and disorient you.
+- If you already hold an irrelevant object, `drop` it immediately and resume the search plan.
+
+## Loop Detection & Recovery
+- If you ever perform three consecutive actions of the same type (e.g., `look`, `look`, `look` or `open`, `open`, `open` without moving), you are in a loop.
+- **Force a change**: immediately go to the next item on your current search list (or if you have no list, do a fresh `look` then go to the first item). Never repeat the same action more than twice in a row.
+- After placing an object, if you do `look` more than once without moving, treat it as a loop and immediately go to the first item on a fresh `look` list.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): look
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: find two candle and put them in cabinet.
+  [consensus prefix ✓: look]  (folded, already mastered)
+  action: go to bathtubbasin 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to cabinet 2  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 2.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a toiletpaper 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a cloth 1.
+  action: take candle 1 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 3, a candle 2, a candle 1, a sink 1, a soapbar 1, a soapbottle 1, a spraybottle 2, and a spraybottle 1.
+  action: go to cabinet 1  | obs: You pick up the candle 1 from the countertop 1.
+  action: move candle 1 to cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is open. In it, you see a cloth 1.
+  action: go to countertop 1  | obs: You move the candle 1 to the cabinet 1.
+  action: take candle 2 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 3, a candle 2, a sink 1, a soapbar 1, a soapbottle 1, a spraybottle 2, and a spraybottle 1.
+  action: go to cabinet 1  | obs: You pick up the candle 2 from the countertop 1.
+
+Trajectory 2 [success] task: put two statue in dresser.
+  [consensus prefix ✓: look]  (folded, already mastered)
+  action: go to armchair 2  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: look  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: go to armchair 1  | obs: You are facing the armchair 2. Next to it, you see nothing.
+  action: go to coffeetable 1  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: take statue 1 from coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a keychain 1, a statue 4, a statue 3, a statue 2, and a statue 1.
+  action: go to dresser 1  | obs: You pick up the statue 1 from the coffeetable 1.
+  action: move statue 1 to dresser 1  | obs: You arrive at dresser 1. On the dresser 1, you see a book 3, a book 2, a book 1, a creditcard 1, a laptop 1, and a television 1.
+  action: go to coffeetable 1  | obs: You move the statue 1 to the dresser 1.
+  action: take statue 2 from coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a keychain 1, a statue 4, a statue 3, and a statue 2.
+  action: go to dresser 1  | obs: You pick up the statue 2 from the coffeetable 1.
+  action: move statue 2 to dresser 1  | obs: You arrive at dresser 1. On the dresser 1, you see a book 3, a book 2, a book 1, a creditcard 1, a laptop 1, a statue 1, and a television 1.
+
+Trajectory 3 [success] task: find two tissuebox and put them in diningtable.
+  [consensus prefix ✓: look]  (folded, already mastered)
+  action: go to armchair 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to armchair 2  | obs: You arrive at armchair 1. On the armchair 1, you see a creditcard 2.
+  action: go to coffeetable 2  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: look  | obs: You arrive at coffeetable 2. On the coffeetable 2, you see a candle 1, a creditcard 3, a remotecontrol 1, and a television 1.
+  action: go to coffeetable 1  | obs: You are facing the coffeetable 2. Next to it, you see nothing.
+  action: take tissuebox 1 from coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 1, a houseplant 2, a keychain 2, a plate 3, a plate 2, a statue 2, a tissuebox 3, a tissuebox 2, a tissuebox 1, a watch 2, and a watch 1.
+  action: go to diningtable 1  | obs: You pick up the tissuebox 1 from the coffeetable 1.
+  action: move tissuebox 1 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 2, a creditcard 1, a keychain 1, a laptop 2, a laptop 1, a newspaper 1, a plate 1, a remotecontrol 2, and a statue 1.
+  action: go to coffeetable 1  | obs: You move the tissuebox 1 to the diningtable 1.
+  action: take tissuebox 2 from coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 1, a houseplant 2, a keychain 2, a plate 3, a plate 2, a statue 2, a tissuebox 3, a tissuebox 2, a watch 2, and a watch 1.
+  action: go to diningtable 1  | obs: You pick up the tissuebox 2 from the coffeetable 1.
+  action: move tissuebox 2 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 2, a creditcard 1, a keychain 1, a laptop 2, a laptop 1, a newspaper 1, a plate 1, a remotecontrol 2, a statue 1, and a tissuebox 1.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: find two pen and put them in garbagecan.
+  [consensus prefix ✓: look]  (folded, already mastered)
+  action: go to armchair 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: go to diningtable 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: take pen 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a alarmclock 1, a cd 2, a cellphone 1, a creditcard 1, a keychain 1, a pen 1, a pencil 2, and a pencil 1.
+  action: go to garbagecan 1  | obs: You pick up the pen 1 from the diningtable 1.
+  action: move pen 1 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see a cd 1.
+  action: look  | obs: You move the pen 1 to the garbagecan 1.
+  action: look  | obs: You are facing the garbagecan 1. Next to it, you see nothing.
+  action: look  | obs: You are facing the garbagecan 1. Next to it, you see nothing.
+  (dropped 4 looping actions)
+
+Trajectory 2 [failure] task: put two winebottle in garbagecan.
+  action: go to cabinet 9  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a countertop 3, a countertop 2, a countertop 1, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a 
+  action: look  | obs: You arrive at cabinet 9. The cabinet 9 is closed.
+  action: open cabinet 9  | obs: You are facing the cabinet 9. Next to it, you see nothing.
+  action: go to cabinet 8  | obs: You open the cabinet 9. The cabinet 9 is open. In it, you see a vase 2.
+  action: open cabinet 8  | obs: You arrive at cabinet 8. The cabinet 8 is closed.
+  action: go to cabinet 7  | obs: You open the cabinet 8. The cabinet 8 is open. In it, you see a soapbottle 3.
+  action: open cabinet 7  | obs: You arrive at cabinet 7. The cabinet 7 is closed.
+  action: go to cabinet 6  | obs: You open the cabinet 7. The cabinet 7 is open. In it, you see a cup 3, and a mug 1.
+  action: open cabinet 6  | obs: You arrive at cabinet 6. The cabinet 6 is closed.
+  action: go to cabinet 5  | obs: You open the cabinet 6. The cabinet 6 is open. In it, you see nothing.
+  action: open cabinet 5  | obs: You arrive at cabinet 5. The cabinet 5 is closed.
+  action: take winebottle 1 from cabinet 5  | obs: You open the cabinet 5. The cabinet 5 is open. In it, you see a winebottle 1.
+  (dropped 3 looping actions)
+
+Trajectory 3 [failure] task: put two spraybottle in cabinet.
+  [consensus prefix ✓: look]  (folded, already mastered)
+  action: go to cabinet 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a soapbottle 3, and a soapbottle 1.
+  action: look  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: open cabinet 2  | obs: You are facing the cabinet 2. Next to it, you see nothing.
+  action: look  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a cloth 2, and a toiletpaper 1.
+  action: look  | obs: You are facing the cabinet 2. Next to it, you see nothing.
+  action: go to cabinet 3  | obs: You are facing the cabinet 2. Next to it, you see nothing.
+  action: look  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: look  | obs: You are facing the cabinet 4, and cabinet 3. Next to it, you see nothing.
+  action: look  | obs: You are facing the cabinet 4, and cabinet 3. Next to it, you see nothing.
+  action: go to countertop 1  | obs: You are facing the cabinet 4, and cabinet 3. Next to it, you see nothing.
+  (dropped 4 looping actions)
+
+Trajectory 4 [failure] task: put two saltshaker in drawer.
+  [consensus prefix ✓: look]  (folded, already mastered)
+  action: go to cabinet 20  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: open cabinet 20  | obs: You arrive at cabinet 20. The cabinet 20 is closed.
+  action: go to cabinet 19  | obs: You open the cabinet 20. The cabinet 20 is open. In it, you see nothing.
+  action: open cabinet 19  | obs: You arrive at cabinet 19. The cabinet 19 is closed.
+  action: go to cabinet 18  | obs: You open the cabinet 19. The cabinet 19 is open. In it, you see nothing.
+  action: open cabinet 18  | obs: You arrive at cabinet 18. The cabinet 18 is closed.
+  action: go to cabinet 17  | obs: You open the cabinet 18. The cabinet 18 is open. In it, you see nothing.
+  action: open cabinet 17  | obs: You arrive at cabinet 17. The cabinet 17 is closed.
+  action: look  | obs: You open the cabinet 17. The cabinet 17 is open. In it, you see nothing.
+  action: go to countertop 1  | obs: You are facing the cabinet 17. Next to it, you see nothing.
+  action: take saltshaker 3 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a kettle 1, a lettuce 3, a pan 1, a peppershaker 2, a saltshaker 3, and a soapbottle 2.
+  action: go to drawer 1  | obs: You pick up the saltshaker 3 from the countertop 1.
+  (dropped 4 looping actions)
+
+Trajectory 5 [failure] task: put two remotecontrol in coffeetable.
+  [consensus prefix ✓: look]  (folded, already mastered)
+  action: go to armchair 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: take remotecontrol 2 from armchair 1  | obs: You arrive at armchair 1. On the armchair 1, you see a book 1, a creditcard 1, and a remotecontrol 2.
+  action: go to coffeetable 1  | obs: You pick up the remotecontrol 2 from the armchair 1.
+  action: move remotecontrol 2 to coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a book 2, a houseplant 1, and a statue 1.
+  action: look  | obs: You move the remotecontrol 2 to the coffeetable 1.
+  action: look  | obs: You are facing the coffeetable 1. Next to it, you see nothing.
+  action: look  | obs: You are facing the coffeetable 1. Next to it, you see nothing.
+  (dropped 4 looping actions)
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+- [premature_stop] The agent picked only one pen and then stopped, never searching for a second pen. | evidence: After moving pen 1 to garbagecan, the agent issued repeated 'look' actions instead of searching for another pen. | fix: After moving the first object, continue searching for a second identical object before declaring task complete. | skill_tree_gap: No loop or check to ensure two objects are collected. | patch_location: ## pick_two_obj_and_place / new subsection '### collect_second_object'
+- [premature_stop] The agent took one winebottle and then started looping, never picking a second winebottle. | evidence: After taking winebottle 1 from cabinet 5, the agent dropped 3 looping actions instead of searching for another. | fix: After acquiring the first target object, actively search for a duplicate before ending. | skill_tree_gap: Missing termination condition requiring two objects. | patch_location: ## pick_two_obj_and_place / new subsection '### require_two'
+- [inefficient_exploration] The agent never found any spraybottle; it only opened cabinets 1 and 2 and then started looping. | evidence: After opening cabinet 2 and seeing cloth and toiletpaper, the agent repeated 'look' actions without searching countertops or other locations. | fix: If cabinets do not contain the target object, search countertops and other surfaces. | skill_tree_gap: Incomplete search strategy for spraybottles. | patch_location: ## pick_two_obj_and_place / new subsection '### search_countertops'
+- [premature_stop] The agent picked only one saltshaker and then stopped, never searching for a second one. | evidence: After picking saltshaker 3 from countertop 1 and going to drawer 1, the agent dropped 4 looping actions. | fix: After moving the first saltshaker, continue to find another saltshaker before finishing. | skill_tree_gap: Missing loop for second identical object. | patch_location: ## pick_two_obj_and_place / new subsection '### collect_second'
+- [premature_stop] The agent moved one remotecontrol to coffeetable and then stopped, ignoring the need for a second remotecontrol. | evidence: After moving remotecontrol 2 to coffeetable, the agent issued repeated 'look' actions. | fix: After placing the first object, actively search for a second remotecontrol to place. | skill_tree_gap: Missing requirement to collect two remotecontrols. | patch_location: ## pick_two_obj_and_place / new subsection '### require_two_remote'
+- [inefficient_exploration] The agent never found any remotecontrol; it searched armchair, coffee table, garbagecan, and shelf but missed likely locations like cabinets or sofas. | evidence: After going to shelf 2 and seeing a statue, the agent looped without ever picking up a remotecontrol. | fix: Extend search to cabinets, sofas, and drawers when remotecontrol is not immediately visible. | skill_tree_gap: Incomplete search coverage for remotecontrols. | patch_location: ## pick_two_obj_and_place / new subsection '### search_cabinets_sofas'
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

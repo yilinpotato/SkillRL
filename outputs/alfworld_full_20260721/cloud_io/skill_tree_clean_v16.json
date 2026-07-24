@@ -1,0 +1,187 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).\n\n## Phase 1: Locate and Take the Target Object\n### Systematic Search Order – Follow Exactly\n- Read the initial room description. Identify every receptacle type present: cabinets, drawers, fridge, countertops, diningtables, sidetables, shelves, sinkbasins, etc.\n- **Search in this exact order and do NOT skip any step:**\n  1. **All cabinets** in increasing number order (cabinet 1, cabinet 2, ...). For each, first go to it, then `open cabinet X` to inspect contents. Do not use 'look' or 'examine' – only `open` reveals contents of closed containers.\n  2. **All drawers** in increasing number order (drawer 1, drawer 2, ...). For each, go, `open drawer X`, inspect.\n  3. **The fridge** (if present). Go, `open fridge 1`, inspect.\n  4. **All open surfaces** (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) in any order. You can see objects on open surfaces without opening – just go to them and read the observation. **After checking cabinets and drawers (and fridge if present), you MUST check every open surface. Do not stop after step 3.**\n- **Important**: Always open closed containers (cabinets, drawers, fridge) after arriving. Do not use `look` or `examine` – they do not reveal contents of closed containers. Use `open` instead.\n- If you have searched all of the above and still not found the target object, re-read the initial description to ensure you did not miss a receptacle type (e.g., a shelf or bathtub).\n\n### Navigation First: Move Before Interacting\n- **Before attempting to open any container or take any object, you must be at that exact location.**\n- The sequence is always: `go to <receptacle>` then `open <receptacle>` or `take <object>`. If you try to open or take from a distance, the action will only move you there and not actually perform the operation.\n- Pay attention to observations: if you see \"You arrive at ...\" instead of \"You open ...\", you were not at the right place. Correct by issuing the `open` again after moving.\n\n### Always Open Containers Upon Arrival\n- When you arrive at a closed container (cabinet, drawer, fridge), immediately open it to see its contents. Do not assume it is open or that you can see inside without opening.\n- This applies even to the first cabinet (cabinet 1) – after going to it, always open it.\n\n### Persistence – Do Not Stop Early\n- **The search is not complete until you have visited every single instance of every receptacle type present.** Stopping before finishing all types is the most common cause of failure.\n- After completing the systematic order above, if you still have not found the object, re-read the initial description – you may have missed a receptacle type.\n- Avoid redundant 'look' or 'examine' actions that waste steps and do not help find objects. Only 'open' works for closed containers.\n\n### Object Name Verification\n- Before taking an object, verify that its name matches the task target **exactly** (e.g., \"cup\" ≠ \"mug\"; \"pan\" ≠ \"pot\"). If it matches, take it and proceed to Phase 2. If not, continue searching.\n\n## Phase 2: Clean the Object\n- While holding [object], go to [cleaning_source] (typically sinkbasin 1).\n- Immediately use \"clean [object] with [cleaning_source]\".\n- Confirm the observation says you cleaned it; if not retry or check you are at the correct source.\n- Do not use \"look\" or \"examine\" at the sink – only the clean action works.\n\n## Phase 3: Place the Clean Object at Destination\n- After cleaning, go to the [destination] specified in the task (e.g., cabinet, diningtable, microwave, stoveburner).\n- Use \"move [object] to [destination]\" to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.",
+  "level": 3,
+  "version": 16,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent used the skill tree but missed critical preconditions: it often moved to a new location and then attempted an open without being there (invalid action), and it sometimes skipped opening containers upon arrival (especially cabinet 1). The skill tree's wording was not sufficiently explicit about these preconditions and did not enforce unconditional checking of all surfaces after cabinets/drawers, leading to early stopping. The tree itself was not misleading but lacked emphasis on the 'move before interact' rule and on checking all surfaces regardless of fridge presence.",
+  "changelog": "Added subheadings under Phase 1 for 'Navigation First: Move Before Interacting' and 'Always Open Containers Upon Arrival', clarified the surface-checking step to be unconditional after cabinets/drawers, and reinforced persistence rules to address exploration and action failures.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent stopped searching after only partially exploring cabinets and drawers, never finding the pot.",
+      "skill_tree_gap": "Missing a systematic exploration strategy that covers all possible locations for the target object.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only searched cabinets and ignored other surfaces like countertops or dining table where the apple might be.",
+      "skill_tree_gap": "No branch for checking alternative, non-cabinet receptacles for food items.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "invalid_action",
+      "root_cause": "The agent attempted to open drawer 1 while still at cabinet 6, resulting in a navigation-only move that left the drawer closed, and then stopped without finding the pan.",
+      "skill_tree_gap": "Missing a precondition check that ensures the agent is at the correct location before performing manipulation actions.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not open cabinet 1 (the starting cabinet) and only searched a subset of cabinets, missing the kettle.",
+      "skill_tree_gap": "No enforcement to open containers upon arrival; the agent may skip the open action.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "invalid_action",
+      "root_cause": "The agent attempted to open drawer 2 while still at drawer 1, causing the open to fail, and never found the ladle.",
+      "skill_tree_gap": "Lack of a navigation-before-manipulation guard.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "invalid_action",
+      "root_cause": "The agent tried to open cabinet 7 without being at it, resulting in a failed open, and never found a mug.",
+      "skill_tree_gap": "Same as above; missing location precondition.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_1368",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 15,
+      "call_count": 217,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "f2f6d8489c8b",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 9,
+      "call_count": 217,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object": {
+      "title": "Phase 1: Locate and Take the Target Object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 14,
+      "stable_versions": 2,
+      "call_count": 217,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search-order-follow-exactly": {
+      "title": "Systematic Search Order – Follow Exactly",
+      "level": 3,
+      "body_hash": "cdc0d1a7bb4e",
+      "created_version": 14,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 22,
+      "success_when_used": 11,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/navigation-first-move-before-interacting": {
+      "title": "Navigation First: Move Before Interacting",
+      "level": 3,
+      "body_hash": "46fb08ec302e",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/always-open-containers-upon-arrival": {
+      "title": "Always Open Containers Upon Arrival",
+      "level": 3,
+      "body_hash": "4b307cbd2a1d",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/persistence-do-not-stop-early": {
+      "title": "Persistence – Do Not Stop Early",
+      "level": 3,
+      "body_hash": "a4b7f0df6b79",
+      "created_version": 7,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 126,
+      "success_when_used": 78,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/object-name-verification": {
+      "title": "Object Name Verification",
+      "level": 3,
+      "body_hash": "f7d0a27f0399",
+      "created_version": 4,
+      "last_changed_version": 14,
+      "stable_versions": 2,
+      "call_count": 183,
+      "success_when_used": 116,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "318172e431f4",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 9,
+      "call_count": 217,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "4f38f5124e8d",
+      "created_version": 1,
+      "last_changed_version": 14,
+      "stable_versions": 2,
+      "call_count": 217,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "8ba0a9c393e7",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 15,
+      "call_count": 217,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

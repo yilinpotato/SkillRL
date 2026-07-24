@@ -1,0 +1,175 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specific object type into a specified target receptacle.\n\n### Critical Rule (Overrides All Others)\n- **After taking any matching object, immediately go to the target and place it. Do not take any other action (including searching for the second object) until this placement is complete.**\n- You need exactly two placed objects. After first placement, mental counter = 1. Then restart search for the second. Never stop at counter = 1.\n\n### Multi-Object Collection Protocol\n- You must collect and place two objects. After placing the first, immediately begin a second search. Do **not** wander or explore unrelated items.\n- If during the first search you saw a second matching object at the same location (e.g., on same countertop or inside same open container), return directly there and take it.\n- Otherwise, perform a full systematic search (see Persistent Search Loop) again.\n\n### Persistent Search Loop (Repeat Until Two Placed)\nThis loop is your core control flow. Run it once for the first object, then immediately repeat it for the second.\n\n#### Step 1: Create Master List\n- After the initial room description, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, sinkbasin 1). This is your checklist. Do not miss any item.\n\n#### Step 2: Visit Each Furniture Item Systematically\n- Pick any unvisited item from your master list. Go to it.\n- If it is closed (drawer, cabinet, fridge, etc.), **open it**.\n- **Examine its contents** (inside if container, on top if surface).\n- If you see an object whose exact name matches the required type, **take it immediately**.\n- Check off that item as visited.\n- Repeat for every item on the list. Do not skip any even if you already found one object; you need to find all possible sources.\n\n#### Step 3: Immediate Placement\n- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. **No other actions in between.**\n- After placing, increment your mental counter. (After first placement, counter=1; after second, counter=2.)\n\n#### Step 4: Second Object Search (Critical)\n- **After placing the first object, you must immediately begin the Persistent Search Loop again.**\n- If you earlier observed a second matching object at the same location (e.g., on the same countertop or inside the same open container), go directly back to that location and take it.\n- If you did not notice a second object at any visited location, **execute Step 1 and Step 2 again from scratch**, including reopening all previously opened containers.\n- Do not stop after visiting only a few items. You must visit **every** furniture item on your master list again (a second complete pass).\n- If after a full second pass you still find only one object, the task may be impossible – but do not give up before finishing both passes. If counter is still 1 after both passes, you may stop (task likely impossible).\n\n### Common Failure Patterns (Avoid These)\n- **Premature stop after taking first object without placing it**: You must place it immediately before doing anything else.\n- **Stopping after first placement**: Immediately restart the loop. Do not wander or explore unrelated items.\n- **Incomplete master list**: Omitting any furniture item leads to missing objects. Ensure you list every item from the initial observation.\n- **Not reopening containers during second pass**: New objects may appear inside.\n- **Stopping early due to frustration**: Complete at least two full passes before concluding impossibility.\n- **Picking wrong object**: Verify exact name before taking.\n- **Skipping surfaces (countertops, sidetables, etc.)**: Visit every furniture item in the master list, including surfaces. Do not assume an object is only inside containers.\n\n### Exact Type Matching Reminder\nBefore taking any object, compare its exact name to the required type. Only take exact matches. Ignore objects with similar names (e.g., soapbottle vs soapbar).",
+  "level": 3,
+  "version": 28,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent did not follow the skill tree's instructions: it stopped after taking one object (without placing it) and did not systematically search all furniture items. The tree's wording was clear but the agent ignored the critical rule of immediate placement and the requirement to visit every item. The failures are due to execution error, not ambiguous tree wording.",
+  "changelog": "Refined the Multi-Object Collection Protocol to emphasize immediate placement after taking, added a Critical Rule at the top, and expanded Common Failure Patterns with observed mistakes.",
+  "round_failures": [
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent found only one toiletpaper and stopped without searching for the second or placing the first.",
+      "skill_tree_gap": "No subskill for multi-object collection completion.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent did not search all countertops for spoons, only visited drawer1 and fridge.",
+      "skill_tree_gap": "Insufficient initial exploration.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent only searched cabinets and one countertop, missed countertop2 where soapbottle might be.",
+      "skill_tree_gap": "Incomplete countertop search.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent only searched coffeetable and drawers, missed sidetables and sofa where keychains might be.",
+      "skill_tree_gap": "Limited search area.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_2952",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 27,
+      "call_count": 667,
+      "success_when_used": 526,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cecaaea52d6c",
+      "created_version": 1,
+      "last_changed_version": 21,
+      "stable_versions": 7,
+      "call_count": 667,
+      "success_when_used": 526,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/critical-rule-overrides-all-others": {
+      "title": "Critical Rule (Overrides All Others)",
+      "level": 3,
+      "body_hash": "a7350f9b952b",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/multi-object-collection-protocol": {
+      "title": "Multi-Object Collection Protocol",
+      "level": 3,
+      "body_hash": "afc7d45bff5a",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed": {
+      "title": "Persistent Search Loop (Repeat Until Two Placed)",
+      "level": 3,
+      "body_hash": "46b3e062a8eb",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-1-create-master-list": {
+      "title": "Step 1: Create Master List",
+      "level": 4,
+      "body_hash": "57bcce1340f3",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-2-visit-each-furniture-item-systematically": {
+      "title": "Step 2: Visit Each Furniture Item Systematically",
+      "level": 4,
+      "body_hash": "1cc41a38b37c",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-3-immediate-placement": {
+      "title": "Step 3: Immediate Placement",
+      "level": 4,
+      "body_hash": "c9efc788ef73",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/persistent-search-loop-repeat-until-two-placed/step-4-second-object-search-critical": {
+      "title": "Step 4: Second Object Search (Critical)",
+      "level": 4,
+      "body_hash": "8504a6125a9e",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/common-failure-patterns-avoid-these": {
+      "title": "Common Failure Patterns (Avoid These)",
+      "level": 3,
+      "body_hash": "473f50ee665e",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/exact-type-matching-reminder": {
+      "title": "Exact Type Matching Reminder",
+      "level": 3,
+      "body_hash": "43fb161ae0ff",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

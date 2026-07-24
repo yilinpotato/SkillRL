@@ -1,0 +1,157 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- [cleaning_source] is a sinkbasin or bathtubbasin (typically sinkbasin 1).\n\n## Phase 1: Search and Acquire the Target Object\n**⚠️ CRITICAL RULE: Do NOT go to any sinkbasin, bathtubbasin, or any cleaning source until you are holding the target object. Beginning search immediately after consensus prefix; ignore sinkbasin until Phase 2.**\n- **This phase ends only when you are holding exactly the target object.** Do not attempt to clean or place until then.\n- If you are already holding something that is not the target, put it down immediately (e.g., `put [object] on/into [receptacle]`).\n\n### Object Name Matching\n- Compare the object name from the task with names in your observations. Only an exact string match counts.\n- Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.\n\n### Adapting search when the environment lacks a kitchen countertop (e.g., bathroom)\n- The consensus prefix is \"go to countertop 1\" – but if the initial room description does NOT contain any countertop 1, **skip the consensus prefix** and start your search directly from the listed receptacles.\n- In such rooms, still follow the same systematic search procedure (open surfaces first, then closed containers) using the receptacles given in the room description.\n- Do NOT wander aimlessly; list all receptacles from the description and check them one by one.\n\n### Systematic Search Procedure\n#### Mandatory order: open surfaces first, then all closed containers (no skipping)\n- **Step 1 – All Open Surfaces** (e.g., countertops, tables, shelves, sinkbasins, bathtubbasins, stoveburners, etc.)\n  - Visit every individual instance listed in the room description. Do not skip any.\n  - At each, examine its contents. If you find the target, pick it up and proceed to Phase 2.\n  - **Do not move to Step 2 until every open receptacle instance has been visited.**\n- **Step 2 – All Closed Containers** (only after Step 1 is complete)\n  - **You must open every single closed container that was listed in the initial room description. Do not stop after opening only one or two.**\n  - Open them in this fixed order: all cabinets first (in numerical order if numbered), then all drawers, then the fridge, then the microwave, then any other closed container (e.g., oven). **Do not deviate from this order.**\n  - For each container: `open [container]`, then look inside (observation shows contents). If the target is inside, pick it up. If not, move to the next container.\n  - **If the object is a food item (e.g., egg, potato, lettuce, apple, tomato) and you haven't found it on surfaces, the fridge is a high-probability location – force yourself to check it.**\n  - **Do not go back to open surfaces or to the cleaning source until you have checked every closed container.**\n  - **Persist through large numbers of containers.** For example, if the initial description lists cabinets 1 through 16, you must open each one in order. Do not stop after a few empty ones; the object may be in a later cabinet or drawer.\n  - If you have checked all closed containers and still haven't found the object, you may repeat the cycle (open surfaces again, then containers) in case the environment changed, but that is rare.\n\n#### Self-Check to Avoid Skipping\n- If you ever find yourself moving between receptacles without a clear order, stop. **List all receptacles you have seen in the initial room description and check off which ones you have visited.** Do not proceed until you have a plan.\n- The most common failure is stopping after checking only a few open surfaces or a handful of cabinets. **Force yourself to continue until every single receptacle has been examined.**\n- Another common failure is jumping to closed containers before finishing open surfaces. Always finish Step 1 first.\n- **After the consensus prefix (go to countertop 1), do NOT immediately go to sinkbasin or bathtubbasin. Search open surfaces first.**\n\n## Phase 2: Clean the Object\n- **Prerequisite: You must be holding the target object.** If you are empty-handed, return to Phase 1.\n- **Immediately after picking up the target, do not examine it or check inventory.** Go directly to [cleaning_source] (sinkbasin or bathtubbasin).\n- Use `clean [object] with [cleaning_source]`.\n- Confirm the observation says you cleaned it.\n\n## Phase 3: Place the Clean Object at Destination\n- Go to the [destination] specified in the task.\n- If the destination is a closed container (e.g., microwave, fridge, drawer, cabinet), open it first.\n- Use `move [object] to [destination]` to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends as soon as you have placed the clean object. Stop all other actions.\n- Do not continue searching or moving other objects.",
+  "level": 3,
+  "version": 36,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent followed the skill tree's initial open-surface search but then stopped after only a few cabinets, failing to complete the full closed-container traversal. The skill tree's wording already instructs to open every container, but the agent's early termination suggests the importance of persistence needs a more explicit emphasis, especially with large numbers of containers.",
+  "changelog": "Refined the 'Systematic Search Procedure' under Phase 1 to add explicit instructions to persist through all containers (including numerical order) and added a note about large numbers of containers, while keeping the same heading depth.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never located and took a kettle, spending all actions opening empty cabinets instead of searching common surfaces where kettles are typically found.",
+      "skill_tree_gap": "Missing a systematic search strategy that prioritizes open surfaces over containers.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_4176",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 35,
+      "call_count": 751,
+      "success_when_used": 608,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "358fbf681120",
+      "created_version": 1,
+      "last_changed_version": 28,
+      "stable_versions": 8,
+      "call_count": 751,
+      "success_when_used": 608,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object": {
+      "title": "Phase 1: Search and Acquire the Target Object",
+      "level": 2,
+      "body_hash": "6eacf69678e2",
+      "created_version": 28,
+      "last_changed_version": 33,
+      "stable_versions": 3,
+      "call_count": 144,
+      "success_when_used": 125,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-name-matching": {
+      "title": "Object Name Matching",
+      "level": 3,
+      "body_hash": "c315e8e1ebe6",
+      "created_version": 28,
+      "last_changed_version": 31,
+      "stable_versions": 5,
+      "call_count": 144,
+      "success_when_used": 125,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/adapting-search-when-the-environment-lacks-a-kitchen-countertop-e-g-bathroom": {
+      "title": "Adapting search when the environment lacks a kitchen countertop (e.g., bathroom)",
+      "level": 3,
+      "body_hash": "404e0d95c0b7",
+      "created_version": 35,
+      "last_changed_version": 35,
+      "stable_versions": 1,
+      "call_count": 11,
+      "success_when_used": 10,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure": {
+      "title": "Systematic Search Procedure",
+      "level": 3,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 30,
+      "last_changed_version": 31,
+      "stable_versions": 5,
+      "call_count": 107,
+      "success_when_used": 91,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure/mandatory-order-open-surfaces-first-then-all-closed-containers-no-skipping": {
+      "title": "Mandatory order: open surfaces first, then all closed containers (no skipping)",
+      "level": 4,
+      "body_hash": "ade153bbe6d8",
+      "created_version": 34,
+      "last_changed_version": 36,
+      "stable_versions": 0,
+      "call_count": 39,
+      "success_when_used": 33,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure/self-check-to-avoid-skipping": {
+      "title": "Self-Check to Avoid Skipping",
+      "level": 4,
+      "body_hash": "fc32ce60d2a2",
+      "created_version": 32,
+      "last_changed_version": 34,
+      "stable_versions": 2,
+      "call_count": 65,
+      "success_when_used": 55,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "0062b775de74",
+      "created_version": 1,
+      "last_changed_version": 31,
+      "stable_versions": 5,
+      "call_count": 751,
+      "success_when_used": 608,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "e71596893b96",
+      "created_version": 1,
+      "last_changed_version": 28,
+      "stable_versions": 8,
+      "call_count": 751,
+      "success_when_used": 608,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "1dee0da99b36",
+      "created_version": 1,
+      "last_changed_version": 28,
+      "stable_versions": 8,
+      "call_count": 751,
+      "success_when_used": 608,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

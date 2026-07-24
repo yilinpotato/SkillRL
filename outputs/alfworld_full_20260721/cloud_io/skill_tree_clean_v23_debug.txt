@@ -1,0 +1,113 @@
+=== Skill Tree Debug — scope=clean  v23 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent generally followed the skill tree's top-level phases but failed to execute the exhaustive search strategy: it skipped some open surfaces (e.g., toilets, garbage cans) and did not open all closed containers. The skill tree's original list of open surfaces was incomplete, which may have misled the agent into thinking certain receptacles (like toilets or carts) were not required to check. The instruction for environments with no closed containers was also ambiguous, causing premature abandonment in one case.
+changelog: Refined 'Open Surface Priority' to list all common open receptacle types explicitly (adding toilets, garbage cans, carts, handtowel/towel holders) and added a fallback note for environments without closed containers; also reinforced that the agent must exhaustively check every receptacle from the initial description before stopping.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 11  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent wandered through multiple locations and opened cabinets but never located a mug to clean, stopping after finding only a cup. | evidence: After opening cabinet 3: 'In it, you see a cup 1, and a dishsponge 1.' No mug found and no further actions. | fix: When the target object is not immediately visible, systematically search all common receptacles (countertops, tables, cabinets, drawers) and do not give up until all are checked. | skill_tree_gap: Missing a structured search subroutine for locating specific objects from the environment. | patch_location: Under ## clean, add a new subsection ### Object location search strategy
+- [inefficient_exploration] The agent moved between locations but never found an apple to clean; it visited only open surfaces and did not open any cabinets or the fridge. | evidence: After returning to countertop 1: 'On the countertop 1, you see a butterknife 1, a soapbottle 1, a spoon 1, and a winebottle 2.' No apple. | fix: Always open all closed containers (cabinets, fridge, drawers) that could contain the target object before concluding it is absent. | skill_tree_gap: Lacks a policy for opening containers when searching for objects. | patch_location: Under ## clean, add a new subsection ### Systematic container inspection
+- [inefficient_exploration] The agent searched all shelves and several bathroom fixtures but never located a soapbar, stopping when it did not find it on the expected surfaces. | evidence: Final observation after revisiting shelf 1: 'On the shelf 1, you see a spraybottle 3, and a spraybottle 2.' No soapbar. | fix: Ensure to inspect every possible receptacle in the room (including cabinets, drawers, and hidden spots) when the object is not on open shelves. | skill_tree_gap: No fallback exploration strategy for objects that are not on the most obvious surfaces. | patch_location: Under ## clean, add a new subsection ### Exhaustive location coverage
+- [inefficient_exploration] The agent visited multiple countertops and stoveburners but never found a pan; it opened only one cabinet (which was empty) and left another cabinet unopened. | evidence: After returning to stoveburner 1: 'On the stoveburner 1, you see a pot 1.' No pan found anywhere visited. | fix: When the target object is missing from visible surfaces, open all cabinets and drawers before giving up. | skill_tree_gap: Incomplete search routine that does not force opening all closed containers. | patch_location: Under ## clean, add a new subsection ### Ensuring all containers are opened
+
+--- Node tree (per-node lifecycle, this version=v23) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=22 calls=483 success=367 rate=76.0%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=22 calls=483 success=367 rate=76.0%
+[STABLE              ] clean-task-skill-tree/exploration-search-strategy level=2 stable_versions=2 calls=200 success=173 rate=86.5%
+[MODIFIED            ] clean-task-skill-tree/exploration-search-strategy/object-specific-location-priors level=3 stable_versions=0 calls=69 success=63 rate=91.3%
+[MODIFIED            ] clean-task-skill-tree/exploration-search-strategy/open-surface-priority level=3 stable_versions=0 calls=69 success=63 rate=91.3%
+[MODIFIED            ] clean-task-skill-tree/exploration-search-strategy/search-strategy-for-missing-objects level=3 stable_versions=0 calls=42 success=37 rate=88.1%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=16 calls=483 success=367 rate=76.0%
+[STABLE              ] clean-task-skill-tree/object-manipulation-pick-object level=2 stable_versions=3 calls=200 success=173 rate=86.5%
+[STABLE              ] clean-task-skill-tree/object-manipulation-pick-object/object-type-check level=3 stable_versions=3 calls=200 success=173 rate=86.5%
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=1 calls=483 success=367 rate=76.0%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=6 calls=483 success=367 rate=76.0%
+
+--- Line diff vs previous version (v22 -> v23) ---
+--- v22
++++ v23
+@@ -17,21 +17,22 @@
+ 
+ ## Exploration / Search Strategy
+ ### Open Surface Priority
+-- **Before opening any closed container (cabinet, drawer, fridge), you must have visited every open surface present in the environment.** Open surfaces include: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, and any other receptacle described as "on" something without a door.
+-- List every such surface from the initial description and your observations. Visit each one in turn and inspect its contents.
++- **Before opening any closed container (cabinet, drawer, fridge), you must have visited every open surface present in the environment.** Open surfaces are any receptacle that is not described as "closed" — they include: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, **toilets, garbage cans, carts, handtowel holders, towel holders, and any other receptacle you see in the initial description.**
++- From the initial room description, mentally list every such receptacle. Visit each one in turn and inspect its contents. Do not skip any.
+ - Only after you have checked ALL open surfaces and the target object is not found, proceed to closed containers.
++- **If the environment has no closed containers at all (e.g., only shelves, sinks, carts, etc.), you must still have visited every open receptacle listed. If after checking all of them the object is missing, re-read the initial description to ensure you did not overlook any receptacle.**
+ 
+ ### Object-Specific Location Priors
+ - Use common sense about where objects typically appear:
+   - **Pots, pans, kettles, and cookware** are often on stoveburners, but also on countertops or in cabinets.
+   - **Food items** (lettuce, tomato, apple, potato, etc.) frequently appear on diningtables, countertops, or in the fridge.
+   - **Utensils** (knife, fork, spoon, ladle) are commonly on countertops, diningtables, or in drawers.
+-  - **Cleaning items** (soapbar, sponge, dishsponge) may be near sinkbasins or on countertops.
++  - **Cleaning items** (soapbar, sponge, dishsponge) may be near sinkbasins, on countertops, on shelves, or in cabinets.
+   - **Dishes and bowls** can be in cabinets or on open surfaces.
+ - These are hints, not constraints; always check all surfaces if the target is not in the expected spot.
+ 
+ ### Search Strategy for Missing Objects
+-- After checking all open surfaces, you must systematically check every closed container you have observed. Do not skip any type. The recommended order:
++- After checking all open surfaces, you must systematically check **every closed container you observed in the initial description.** Do not skip any type. The recommended order:
+   1. All cabinets – go to each, open, inspect.
+   2. All drawers – go to each, open, inspect.
+   3. Fridge (if present) – go to it, open, inspect.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Object Manipulation / Pick Object
+- **Before taking any object, confirm its name matches the task target exactly.** Do not pick up similar objects (e.g., towel vs cloth, pan vs pot). Only the exact match can be cleaned and placed.
+- Once verified, take the object (e.g., `take [object] from [receptacle]`).
+- If you are already holding an object and it is not the target, put it down before searching for the correct one.
+
+### Object Type Check
+- Compare the object name as shown in the observation (e.g., "cloth", "knife", "kettle") against the target object from the task.
+- If they are identical, proceed to take it. If they differ — even slightly — do not take it. Continue searching.
+- Do not rely on functional similarity; only exact string match is acceptable.
+
+## Exploration / Search Strategy
+### Open Surface Priority
+- **Before opening any closed container (cabinet, drawer, fridge), you must have visited every open surface present in the environment.** Open surfaces are any receptacle that is not described as "closed" — they include: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, **toilets, garbage cans, carts, handtowel holders, towel holders, and any other receptacle you see in the initial description.**
+- From the initial room description, mentally list every such receptacle. Visit each one in turn and inspect its contents. Do not skip any.
+- Only after you have checked ALL open surfaces and the target object is not found, proceed to closed containers.
+- **If the environment has no closed containers at all (e.g., only shelves, sinks, carts, etc.), you must still have visited every open receptacle listed. If after checking all of them the object is missing, re-read the initial description to ensure you did not overlook any receptacle.**
+
+### Object-Specific Location Priors
+- Use common sense about where objects typically appear:
+  - **Pots, pans, kettles, and cookware** are often on stoveburners, but also on countertops or in cabinets.
+  - **Food items** (lettuce, tomato, apple, potato, etc.) frequently appear on diningtables, countertops, or in the fridge.
+  - **Utensils** (knife, fork, spoon, ladle) are commonly on countertops, diningtables, or in drawers.
+  - **Cleaning items** (soapbar, sponge, dishsponge) may be near sinkbasins, on countertops, on shelves, or in cabinets.
+  - **Dishes and bowls** can be in cabinets or on open surfaces.
+- These are hints, not constraints; always check all surfaces if the target is not in the expected spot.
+
+### Search Strategy for Missing Objects
+- After checking all open surfaces, you must systematically check **every closed container you observed in the initial description.** Do not skip any type. The recommended order:
+  1. All cabinets – go to each, open, inspect.
+  2. All drawers – go to each, open, inspect.
+  3. Fridge (if present) – go to it, open, inspect.
+  4. Microwave (if present) – go to it, open, inspect.
+- **Do not return to open surfaces or any other location until you have examined every closed container.** Only after exhausting all of them should you consider re-checking open surfaces or giving up.
+- **Critical: Do not go to sinkbasin or any cleaning source until you are holding the target object.** If you are not holding any object, you have not yet found it – continue searching.
+
+## Phase 2: Clean the Object
+- **Before walking to the cleaning source, confirm you are holding exactly the target object.** If you are empty-handed, you are in the wrong phase – go back to searching.
+- While holding [object], go to [cleaning_source] (sinkbasin or bathtubbasin).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

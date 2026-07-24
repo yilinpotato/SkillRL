@@ -1,0 +1,175 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Sub-goal 1: Find the object to cool.\n- The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.\n\n### Initial assessment\n- Start by reading the room description from the `look` command. It lists all receptacles with their numbers.\n- Do not assume any receptacle contents are known until you have explicitly looked inside.\n\n### Systematic search of open flat surfaces (mandatory order)\n- The target is often on a flat surface (countertop, diningtable, sidetable, shelf, sinkbasin, stoveburner). Do not open closed receptacles until every flat surface has been checked.\n\n#### Exhaustive enumeration of all flat surfaces\n- List all flat surface types from the room description: countertops, diningtables, sidetables, shelves, sinkbasin, stoveburners.\n- Visit each numbered instance in order: all countertops first, then diningtables, then sidetables, then shelves, then sinkbasin, then stoveburners.\n- For each:\n  1. Go to it.\n  2. Read the observation. If the target is present, take it immediately using `take <object> from <location>`.\n  3. If not, move to the next without extra actions.\n- **Do not skip any flat surface.**\n\n### If target still not found: search closed receptacles, starting with the fridge\n- After every open flat surface has been checked, search closed receptacles. The fridge is both a likely hiding place for the object (if it needs cooling) and the appliance you will use to cool it. **Always check the fridge first among closed containers.**\n  1. Go to the fridge.\n  2. If it is closed, open it.\n  3. Look at its contents. If the target is present, take it. (You are already at the fridge; you can go straight to cooling.)\n  4. If not, move on to other closed receptacles.\n\n#### Systematic search of all other closed receptacles\n- After checking the fridge, identify every remaining closed receptacle from the room description: cabinets, drawers, microwave (any numbered instances of each type). **Do not stop after a few; you must check every numbered instance.**\n- Visit each type in order: all cabinets first, then all drawers, then microwave.\n- For each numbered instance:\n  1. Go to it.\n  2. If closed, open it.\n  3. Look at its contents. If target present, take it.\n  4. If not, proceed to the next instance.\n- **Do not skip any numbered instance of any closed receptacle type.** If one cabinet is empty, continue to the next cabinet. Only stop when you have checked every instance listed in the room description.\n- If after all that the object is still not found, re-read the room description to ensure you have not overlooked any receptacle.\n\n## Sub-goal 2: Take the object.\n- Once you see the object, take it immediately with `take <object> from <location>`.\n\n### Immediately cool after picking (mandatory)\n- As soon as you have taken the object, cool it using the fridge before doing anything else. Do not move to the target location or do other actions.\n\n## Sub-goal 3: Cool the object using the fridge.\n- Ensure you are at the fridge (go there if not already).\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Sub-goal 4: Move the cooled object to the target location.\n- Go to the target location (named in the task).\n- Use `move <object> to <target>`.\n\n## Completion check:\n- The task is complete when the object has been cooled and placed at the target location. Trust the sequence.",
+  "level": 3,
+  "version": 11,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent followed the skill tree's surface search and fridge check correctly, but then only opened a subset of cabinets, stopping prematurely. The skill tree's phrasing 'any numbered instance' was ambiguous and did not force exhaustive checking of all closed receptacles, leading to the failure.",
+  "changelog": "Refined the closed-receptacle search subsection under Sub-goal 1 to explicitly require checking every numbered instance of cabinets, drawers, and microwave, with a step to re-consult the room description to ensure completeness.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "After extensively exploring surfaces (countertops, diningtable, sinkbasin, stoveburners) and the fridge, the agent only opened one cabinet and failed to search remaining cabinets where the bowl might be.",
+      "skill_tree_gap": "Under the cool task, the search pattern does not include exhaustive cabinet checking after surface search.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent opened the fridge and checked only two cabinets, missing the plate which is likely in an unopened cabinet.",
+      "skill_tree_gap": "No explicit step to check all cabinets for plate under cool task.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_936",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 10,
+      "call_count": 140,
+      "success_when_used": 108,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool": {
+      "title": "Sub-goal 1: Find the object to cool.",
+      "level": 2,
+      "body_hash": "1f7046c49942",
+      "created_version": 1,
+      "last_changed_version": 4,
+      "stable_versions": 7,
+      "call_count": 140,
+      "success_when_used": 108,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/initial-assessment": {
+      "title": "Initial assessment",
+      "level": 3,
+      "body_hash": "22c43a4bc46b",
+      "created_version": 10,
+      "last_changed_version": 10,
+      "stable_versions": 1,
+      "call_count": 29,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-search-of-open-flat-surfaces-mandatory-order": {
+      "title": "Systematic search of open flat surfaces (mandatory order)",
+      "level": 3,
+      "body_hash": "a93d12d7fc10",
+      "created_version": 8,
+      "last_changed_version": 10,
+      "stable_versions": 1,
+      "call_count": 51,
+      "success_when_used": 44,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-search-of-open-flat-surfaces-mandatory-order/exhaustive-enumeration-of-all-flat-surfaces": {
+      "title": "Exhaustive enumeration of all flat surfaces",
+      "level": 4,
+      "body_hash": "7181e6fd004f",
+      "created_version": 9,
+      "last_changed_version": 10,
+      "stable_versions": 1,
+      "call_count": 44,
+      "success_when_used": 39,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/if-target-still-not-found-search-closed-receptacles-starting-with-the-fridge": {
+      "title": "If target still not found: search closed receptacles, starting with the fridge",
+      "level": 3,
+      "body_hash": "7417938f60c8",
+      "created_version": 10,
+      "last_changed_version": 11,
+      "stable_versions": 0,
+      "call_count": 29,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/if-target-still-not-found-search-closed-receptacles-starting-with-the-fridge/systematic-search-of-all-other-closed-receptacles": {
+      "title": "Systematic search of all other closed receptacles",
+      "level": 4,
+      "body_hash": "8494bd6f5094",
+      "created_version": 11,
+      "last_changed_version": 11,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object": {
+      "title": "Sub-goal 2: Take the object.",
+      "level": 2,
+      "body_hash": "9de0b19fb32d",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 3,
+      "call_count": 140,
+      "success_when_used": 108,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object/immediately-cool-after-picking-mandatory": {
+      "title": "Immediately cool after picking (mandatory)",
+      "level": 3,
+      "body_hash": "689d3e428df2",
+      "created_version": 6,
+      "last_changed_version": 8,
+      "stable_versions": 3,
+      "call_count": 77,
+      "success_when_used": 62,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-3-cool-the-object-using-the-fridge": {
+      "title": "Sub-goal 3: Cool the object using the fridge.",
+      "level": 2,
+      "body_hash": "937e41ce17e0",
+      "created_version": 1,
+      "last_changed_version": 10,
+      "stable_versions": 1,
+      "call_count": 140,
+      "success_when_used": 108,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-4-move-the-cooled-object-to-the-target-location": {
+      "title": "Sub-goal 4: Move the cooled object to the target location.",
+      "level": 2,
+      "body_hash": "a2cc96d4ae2d",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 3,
+      "call_count": 140,
+      "success_when_used": 108,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check:",
+      "level": 2,
+      "body_hash": "20e98ca49a9b",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 3,
+      "call_count": 140,
+      "success_when_used": 108,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

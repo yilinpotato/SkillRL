@@ -1,0 +1,247 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2.\n\n## Counter & Completion Rules\n- Start counter at 0.\n- After each successful placement, increment counter by 1.\n- If counter == 2, task complete – stop immediately.\n- If counter < 2, you MUST continue searching for the next object. Never stop after a single placement.\n- After two exhaustive full passes (in either Phase 1 or Phase 2) without finding a needed object, task is impossible – stop.\n\n## Critical Rules (Must Follow)\n### Before Every Movement – Look and List\n- Perform `look` to get the current observation. List every furniture item in the order they appear. This list is your search plan. Deviating from this plan leads to loops and missing objects.\n- If you are already at a location, you still need a plan – if you haven't listed the furniture, do a fresh `look`.\n\n### When You Arrive at a Furniture Item\n- If the item is closed (e.g., cabinet, drawer, fridge), **open it** first.\n- Examine its contents for the target object.\n- **If you see an object whose name exactly matches the target, take it immediately.** Do not move away before picking it up.\n\n### After Taking a Matching Object\n- **Next action must be `go to [target receptacle]`.** No exceptions.\n- At the target receptacle, open if closed, then place the object. Increment counter.\n\n### After Placing an Object\n- Increment counter. If counter == 2, stop – success.\n- If counter == 1, you **must** find the second object. Do not stop or loop.\n- **Assess whether you saw multiple instances at the pickup location** (e.g., \"cellphone 3, cellphone 4\"). If yes, go back to that same location immediately and take the next instance. Then go place it.\n- **Otherwise, perform a Full Restart:** Execute `look` to get a fresh observation. List every furniture item in the order they appear. Visit each in that exact order, opening closed receptacles and checking contents.\n- If you complete the full restart list without finding a second object, perform a second full pass. If after two full passes counter is still 1, task impossible – stop.\n\n### Object Type Verification\n- Before taking any object, read its exact name. Compare to the target type character by character. Only take if they match exactly.\n- If you take a non‑matching object by mistake, drop it immediately (`drop [object]`) and resume searching from the same furniture item.\n\n### Loop Detection and Breaking\n- If you find yourself repeatedly visiting the same few furniture items without covering the full list, you are in a loop. Stop immediately and perform a fresh `look` to rebuild your search plan.\n- Always ensure your search covers all furniture types – not just one category (e.g., only cabinets or only drawers).\n\n## Phase 1: First Object Search (Counter = 0)\n- Execute `look` immediately. List all visible furniture.\n- Visit each item in that exact order. For each:\n  - Open if closed.\n  - Check contents for target object.\n  - If found, take it, go to target receptacle, place it. Increment counter to 1.\n- **Exhaustive Search:** If you finish the list without taking any object, perform a second full pass (repeat from first item). After two full passes and counter still 0, task impossible – stop.\n\n## Phase 2: Second Object Search (Counter = 1)\n### Immediate Action After Placement\n- Increment counter to 1. (If it becomes 2, stop.)\n- Now you must find the second object.\n\n### Decision: Where to Look Next\n1. **Check if multiple copies were available at the original pickup location.** If yes (e.g., you took \"book 1\" from a bed that also had \"book 2\"), go back to that same location immediately and take the next matching instance. Then go place it. Counter becomes 2. Stop.\n2. **Otherwise, perform a Full Restart:**\n   - Execute `look` to get a fresh observation. List every furniture item in the order they appear.\n   - Visit each item in that exact order, opening closed receptacles and examining contents.\n   - When you find a second target object, take it, go to target receptacle, open if needed, place it. Increment counter to 2. Stop.\n3. If you complete the full restart list without finding a second object, perform a second full pass. If after two full passes counter is still 1, task impossible – stop.\n\n### Important\n- If you return to the original pickup location and find no second object there, continue with the full restart list – do not stop.\n\n## Failure Prevention (Reminders)\n- **Always open closed receptacles** when you visit them. Do not skip any.\n- **Check every furniture type** – surfaces, containers, shelves, tables, basins, stoveburners, armchairs, beds, etc.\n- **After placing one object, you must find a second.** Do not stop until counter == 2 or two full searches yield nothing.\n- **Take objects immediately when seen.** Do not move away without picking them up.\n- **If you ever repeat the same action without covering new ground, do a fresh `look` and restart the list.**",
+  "level": 3,
+  "version": 62,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent did not follow the existing skill tree in most failures—it ignored instructions to open all receptacles, to search the full furniture list, and to continue searching after one placement. The tree itself was not misleading, but its verbose paragraph structure may have caused the agent to miss or skip critical rules; the refined tree organizes them into explicit subheadings for clearer emphasis.",
+  "changelog": "Restructured Critical Rules into subheadings (Before Every Movement, When You Arrive, After Taking, After Placing, Object Verification, Loop Detection) and moved the multiple-copies logic into a dedicated subsection to increase clarity and ensure the agent sees each key action as a separate directive.",
+  "round_failures": [
+    {
+      "failure_type": "loop",
+      "root_cause": "After finding a glassbottle (possibly winebottle) in cabinet 20, the agent did not take it and instead entered an infinite loop of examining and looking.",
+      "skill_tree_gap": "No trigger to pick up detected objects before further exploration.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed one candle in drawer but did not search for the second candle, instead repeating look actions.",
+      "skill_tree_gap": "Missing a loop to repeat object search until the required count is reached.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only visited beds and did not search desk or drawers for books.",
+      "skill_tree_gap": "No prioritization of common book locations.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only cabinets and never visited the countertop or fridge where potatoes are likely stored.",
+      "skill_tree_gap": "Lack of domain-specific search heuristics.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent took only one alarmclock from desk 2 even though multiple were available, and never returned for the second.",
+      "skill_tree_gap": "Missing logic to collect multiple identical objects from the same source.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only opened one drawer and glanced at others, never thoroughly searching all drawers and shelves for pencils.",
+      "skill_tree_gap": "No exhaustive drawer-opening sequence.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_5832",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 61,
+      "call_count": 1313,
+      "success_when_used": 933,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "fc176e3329c4",
+      "created_version": 1,
+      "last_changed_version": 60,
+      "stable_versions": 2,
+      "call_count": 1313,
+      "success_when_used": 933,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/counter-completion-rules": {
+      "title": "Counter & Completion Rules",
+      "level": 2,
+      "body_hash": "174d5edb0438",
+      "created_version": 60,
+      "last_changed_version": 60,
+      "stable_versions": 2,
+      "call_count": 37,
+      "success_when_used": 9,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow": {
+      "title": "Critical Rules (Must Follow)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 53,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 171,
+      "success_when_used": 60,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow/before-every-movement-look-and-list": {
+      "title": "Before Every Movement – Look and List",
+      "level": 3,
+      "body_hash": "1521c70c57a3",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow/when-you-arrive-at-a-furniture-item": {
+      "title": "When You Arrive at a Furniture Item",
+      "level": 3,
+      "body_hash": "c83b631d2e4d",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow/after-taking-a-matching-object": {
+      "title": "After Taking a Matching Object",
+      "level": 3,
+      "body_hash": "3cd650f4c832",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow/after-placing-an-object": {
+      "title": "After Placing an Object",
+      "level": 3,
+      "body_hash": "35222dac5fcf",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 3,
+      "body_hash": "28d526c048c1",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow/loop-detection-and-breaking": {
+      "title": "Loop Detection and Breaking",
+      "level": 3,
+      "body_hash": "2f9a484ca7fe",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-search-counter-0": {
+      "title": "Phase 1: First Object Search (Counter = 0)",
+      "level": 2,
+      "body_hash": "a40bda74cd2a",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-counter-1": {
+      "title": "Phase 2: Second Object Search (Counter = 1)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-counter-1/immediate-action-after-placement": {
+      "title": "Immediate Action After Placement",
+      "level": 3,
+      "body_hash": "1f66146eab12",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-counter-1/decision-where-to-look-next": {
+      "title": "Decision: Where to Look Next",
+      "level": 3,
+      "body_hash": "fbba7fc7d3cc",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-counter-1/important": {
+      "title": "Important",
+      "level": 3,
+      "body_hash": "eba52edf4752",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention-reminders": {
+      "title": "Failure Prevention (Reminders)",
+      "level": 2,
+      "body_hash": "b9dd5cd795e6",
+      "created_version": 62,
+      "last_changed_version": 62,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

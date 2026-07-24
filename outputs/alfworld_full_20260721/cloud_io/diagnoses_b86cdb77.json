@@ -1,0 +1,147 @@
+{
+  "batch_id": "b86cdb77-6626-4aab-b2ec-869f2de6abc3",
+  "diagnoses": {
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a bowl to cool; it explored irrelevant areas (sinkbasin, stoveburners) instead of common bowl locations like countertops or diningtable.",
+        "evidence": "action: open cabinet 1 | obs: ... you see a mug 1, a peppershaker 1, and a saltshaker 1. (no bowl found after extensive wandering)",
+        "corrective_rule": "When task requires a cool object, first search receptacles that commonly hold that object (e.g., countertops, diningtable) before exploring other areas.",
+        "skill_tree_gap": "Lack of object-location association knowledge for 'bowl'.",
+        "patch_location": "Under 'cool' as a new deeper subsection '### Object search policy'",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "loop",
+        "root_cause": "After successfully heating and placing the mug in the cabinet, the agent did not recognize task completion and continued examining and looping.",
+        "evidence": "action: examine cabinet 1 | obs: On the cabinet 1, you see a mug 3. (repeated after successful move)",
+        "corrective_rule": "After moving the target object to the destination, verify goal satisfaction and terminate if complete.",
+        "skill_tree_gap": "Missing goal verification step after placement.",
+        "patch_location": "Under 'heat' as a new deeper subsection '### Termination detection'",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a cellphone; it searched desk, drawers, dressers, and cabinets but missed common locations like sidetable or bed where cellphones are often found.",
+        "evidence": "action: go to drawer 2 | obs: ... look (no cellphone encountered in any step)",
+        "corrective_rule": "When task requires examining an object under light, first locate the object by checking common furniture like sidetable, bed, and dresser.",
+        "skill_tree_gap": "Object location knowledge for 'cellphone'.",
+        "patch_location": "Under 'look_at_obj_in_light' as a new deeper subsection '### Object location search'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent got stuck in a loop of 'look' actions after the initial observation, never moving to a relevant location.",
+        "evidence": "action: look | obs: You are in the middle of a room. Looking quickly around you, you see nothing. (repeated immediately after first look)",
+        "corrective_rule": "After initial observation, immediately navigate to a relevant location (e.g., countertop, drawer) instead of repeating look.",
+        "skill_tree_gap": "Lack of initial action selection after environment reset.",
+        "patch_location": "Under 'pick_and_place' as a new deeper subsection '### Initial move strategy'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only shelves and ottoman for a remotecontrol, ignoring common locations like coffeetable, sidetable, or sofa.",
+        "evidence": "action: go to shelf 8 | obs: You arrive at shelf 8. On the shelf 8, you see nothing. (searched many shelves with no remotecontrol)",
+        "corrective_rule": "For a remotecontrol, first check coffeetable, sidetable, and sofa before exploring shelves.",
+        "skill_tree_gap": "Object location knowledge for 'remotecontrol'.",
+        "patch_location": "Under 'pick_and_place' as a new deeper subsection '### Object-specific search (remotecontrol)'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent directly opened drawers without first locating a soapbar on countertops or shelves, and never found one.",
+        "evidence": "action: go to countertop 1 | obs: ... you see a candle 1, a sink 1, and a spraybottle 1. (no soapbar after searching drawers)",
+        "corrective_rule": "First find the object (soapbar) by checking countertops and shelves before opening receptacles.",
+        "skill_tree_gap": "Object search order prioritization.",
+        "patch_location": "Under 'pick_and_place' as a new deeper subsection '### Object acquisition before receptacle interaction'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one remotecontrol in the armchair and then stopped, failing to retrieve and place the second.",
+        "evidence": "action: look | obs: You are facing the armchair 1. (after moving one remotecontrol, no further object acquisition)",
+        "corrective_rule": "After placing the first object, continue to find and place the second object until the count is met.",
+        "skill_tree_gap": "Lack of count tracking for multi-object tasks.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets for saltshakers, ignoring countertops and shelves where they are commonly found, and never took any.",
+        "evidence": "action: go to shelf 1 | obs: On the shelf 1, you see nothing. (no saltshaker found after extensive cabinet search)",
+        "corrective_rule": "For saltshakers, first check countertops, diningtable, and shelves before opening cabinets.",
+        "skill_tree_gap": "Object location knowledge for 'saltshaker'.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### Object-specific search (saltshaker)'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one cup on the countertop and then stopped, without retrieving the required second cup.",
+        "evidence": "action: look | obs: You are facing the countertop 1. (after moving one cup, no further action to get second)",
+        "corrective_rule": "After placing the first cup, search for and place the second cup.",
+        "skill_tree_gap": "Lack of multi-object completion detection.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched cabinets for cups, missing common locations like countertops, diningtable, and shelves, and never took any cup.",
+        "evidence": "action: open cabinet 5 | obs: ... you see nothing. (no cup found in cabinets)",
+        "corrective_rule": "For cups, check countertops, diningtable, and shelves before opening cabinets.",
+        "skill_tree_gap": "Object location knowledge for 'cup'.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### Object-specific search (cup)'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent took only one toiletpaper and then went to countertop without placing it (or placed only one), failing to get a second.",
+        "evidence": "action: go to countertop 1 | obs: ... (dropped 4 looping actions after taking only one toiletpaper)",
+        "corrective_rule": "After placing the first toiletpaper, retrieve and place the second.",
+        "skill_tree_gap": "Multi-object count tracking.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one newspaper in the sofa and then stopped, without obtaining the second.",
+        "evidence": "action: look | obs: You are facing the sofa 1. (after moving one newspaper, no further action)",
+        "corrective_rule": "After placing the first newspaper, continue to find and place the second.",
+        "skill_tree_gap": "Multi-object completion detection.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).\n\n## Object Manipulation / Pick Object\n- **Before taking any object, confirm its name matches the task target exactly.** Do not pick up similar objects (e.g., towel vs cloth, pan vs pot). Only the exact match can be cleaned and placed.\n- Once verified, take the object (e.g., `take [object] from [receptacle]`).\n- If you are already holding an object and it is not the target, put it down before searching for the correct one.\n\n### Object Type Check\n- Compare the object name as shown in the observation (e.g., \"cloth\", \"knife\", \"kettle\") against the target object from the task.\n- If they are identical, proceed to take it. If they differ — even slightly — do not take it. Continue searching.\n- Do not rely on functional similarity; only exact string match is acceptable.\n\n## Exploration / Search Strategy\n- First, search all **open surfaces** (countertops, diningtables, sidetables, shelves, sinkbasins, etc.). These are visible without opening.\n- List every open-surface receptacle from the initial description. Visit each one and read its observation. Do not skip any.\n- Only after checking ALL open surfaces, start searching closed containers.\n- For closed containers, systematically visit every instance of: cabinets, drawers, fridge (if present).\n- For each closed container: go to it, open it, inspect its contents.\n- Continue until the target object is found. Do not stop after checking only one container type.\n\n### Comprehensive Search\n- After checking all open surfaces, proceed in this order:\n    1. All cabinets – go to each, open, inspect.\n    2. All drawers – go to each, open, inspect.\n    3. Fridge (if present) – go to it, open, inspect.\n- Do not return to open surfaces or give up until every receptacle of every type has been examined.\n- If the object is still not found, re-check open surfaces (rare, but possible).\n\n## Phase 2: Clean the Object\n- While holding [object], go to [cleaning_source] (sinkbasin or bathtubbasin).\n- Use `clean [object] with [cleaning_source]`.\n- Confirm the observation says you cleaned it.\n\n## Phase 3: Place the Clean Object at Destination\n- Go to the [destination] specified in the task.\n- Use `move [object] to [destination]` to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.",
+  "level": 3,
+  "version": 20,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent did not follow the existing verification and search instructions: it picked a towel instead of a cloth (object name mismatch) and failed to search all open surfaces and the fridge. The current tree's wording was clear but the agent skipped the critical checks; no misleading wording was present.",
+  "changelog": "Added new sections ## Object Manipulation / Pick Object with ### Object Type Check and ## Exploration / Search Strategy with ### Comprehensive Search to enforce exact object name verification and exhaustive receptacle search, replacing the previous Phase 1 subsections.",
+  "round_failures": [
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "The agent picked up a towel instead of a cloth, then never retrieved the correct object.",
+      "skill_tree_gap": "Missing a validation step to compare candidate object type with the required object.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only cabinets and countertops but never looked in the fridge or other common locations for the egg.",
+      "skill_tree_gap": "Lack of a systematic search routine that covers all possible locations for a given object type.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_1656",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 19,
+      "call_count": 283,
+      "success_when_used": 194,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "f2f6d8489c8b",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 13,
+      "call_count": 283,
+      "success_when_used": 194,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/object-manipulation-pick-object": {
+      "title": "Object Manipulation / Pick Object",
+      "level": 2,
+      "body_hash": "dff163845204",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/object-manipulation-pick-object/object-type-check": {
+      "title": "Object Type Check",
+      "level": 3,
+      "body_hash": "670aefc5438d",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/exploration-search-strategy": {
+      "title": "Exploration / Search Strategy",
+      "level": 2,
+      "body_hash": "948870c7d817",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/exploration-search-strategy/comprehensive-search": {
+      "title": "Comprehensive Search",
+      "level": 3,
+      "body_hash": "98a2c751a58f",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "2f7198bceb3e",
+      "created_version": 1,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 283,
+      "success_when_used": 194,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "71e0d3ca9635",
+      "created_version": 1,
+      "last_changed_version": 17,
+      "stable_versions": 3,
+      "call_count": 283,
+      "success_when_used": 194,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "8ba0a9c393e7",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 19,
+      "call_count": 283,
+      "success_when_used": 194,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

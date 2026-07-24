@@ -1,0 +1,114 @@
+```json
+[
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never located a pot because it did not systematically search closed containers and skipped countertop 3.",
+    "evidence": "action: go to fridge 1 | obs: You arrive at fridge 1. The fridge 1 is closed. (agent went to fridge without any pot)",
+    "corrective_rule": "Always search all countertops and then all closed containers (cabinets, drawers) for the target object before attempting to cool.",
+    "skill_tree_gap": "Missing a systematic subroutine for searching closed containers when the object is not on open surfaces.",
+    "patch_location": "Under ## cool, add a new subsection ### search closed containers",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "wrong_order",
+    "root_cause": "After visiting countertop 2, the agent went to diningtable instead of continuing to countertop 3, missing a likely location for the plate.",
+    "evidence": "action: go to diningtable 1 | obs: You arrive at countertop 2. (should have gone to countertop 3)",
+    "corrective_rule": "After visiting countertop 2, proceed to countertop 3 before exploring other rooms.",
+    "skill_tree_gap": "The countertop exploration sequence is not enforced; the agent skipped a critical step.",
+    "patch_location": "Under ## cool, add a new subsection ### ordered countertop exploration (refining the explore sequence)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#2",
+    "task_type": "cool",
+    "failure_type": "wrong_order",
+    "root_cause": "The agent went to diningtable first instead of exploring countertops in order, missing the pan (likely on countertop 2 or 3).",
+    "evidence": "action: go to diningtable 1 | obs: You arrive at countertop 1. (first non-consensus action, skipped countertop 2)",
+    "corrective_rule": "Always begin by searching countertops 1, 2, and 3 in order before moving to other locations.",
+    "skill_tree_gap": "Lack of a fixed order for initial countertop exploration.",
+    "patch_location": "Under ## cool, add a new subsection ### ordered countertop exploration (refining the explore sequence)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#3",
+    "task_type": "cool",
+    "failure_type": "wrong_order",
+    "root_cause": "After countertop 2, the agent went to diningtable instead of countertop 3, and never found the pot anywhere.",
+    "evidence": "action: go to diningtable 1 | obs: You arrive at countertop 2. (should have gone to countertop 3)",
+    "corrective_rule": "After visiting countertop 2, proceed to countertop 3 before exploring other rooms.",
+    "skill_tree_gap": "The countertop exploration sequence is not enforced.",
+    "patch_location": "Under ## cool, add a new subsection ### ordered countertop exploration (refining the explore sequence)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After opening the fridge and not finding the egg, the agent did not systematically search other receptacles (drawers, cabinets) for the egg.",
+    "evidence": "action: go to countertop 1 | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 1, a bowl 1, a lettuce 1, and a mug 1. (no egg, then agent wanders without finding egg)",
+    "corrective_rule": "If the target object is not in the fridge, systematically search all visible surfaces and then all closed containers (cabinets, drawers).",
+    "skill_tree_gap": "No subroutine for searching beyond the fridge when the target is missing.",
+    "patch_location": "Under ## heat, add a new subsection ### systematic search after fridge",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not explore all receptacles (e.g., tvstand, garbagecan) and never found the box.",
+    "evidence": "action: go to armchair 2 | obs: You arrive at armchair 2. On the armchair 2, you see nothing. (final step, no box)",
+    "corrective_rule": "Thoroughly search all receptacles listed in the initial observation (including tvstand, garbagecan, sofa) before concluding the object is absent.",
+    "skill_tree_gap": "Lack of a comprehensive exploration list for pick_and_place tasks.",
+    "patch_location": "Under ## pick_and_place, add a new subsection ### comprehensive receptacle search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent visited many shelves but missed other receptacles (e.g., tvstand, armchair) and never located a remotecontrol.",
+    "evidence": "action: go to shelf 9 | obs: You arrive at armchair 1. On the armchair 1, you see nothing. (final step, no remotecontrol)",
+    "corrective_rule": "Thoroughly search all receptacles listed in the initial observation (including tvstand, garbagecan, sofa) before concluding the object is absent.",
+    "skill_tree_gap": "Lack of a comprehensive exploration list for pick_and_place tasks.",
+    "patch_location": "Under ## pick_and_place, add a new subsection ### comprehensive receptacle search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only a few drawers and a coffeetable, missing other surfaces and containers that might hold creditcards.",
+    "evidence": "action: go to coffeetable 1 | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a keychain 3, and a statue 2. (no creditcard)",
+    "corrective_rule": "Search all visible surfaces and all closed containers (drawers, cabinets, dresser, sidetable) for the target objects.",
+    "skill_tree_gap": "No systematic multiple-object search strategy.",
+    "patch_location": "Under ## pick_two_obj_and_place, add a new subsection ### systematic object search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "misread_state",
+    "root_cause": "The agent picked up a mug (thinking it was a cup) and then moved it back, failing to identify the correct object type and not searching for actual cups.",
+    "evidence": "action: take mug 2 from coffeemachine 1 | obs: You pick up the mug 2 from the coffeemachine 1. followed by move back",
+    "corrective_rule": "Verify that the object picked matches the task's object type (cup vs mug); if not, continue searching for the correct type.",
+    "skill_tree_gap": "Object type discrimination is not handled; the agent confuses similar objects.",
+    "patch_location": "Under ## pick_two_obj_and_place, add a new subsection ### object type verification",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one saltshaker, the agent stopped searching and did not locate a second saltshaker to complete the task.",
+    "evidence": "action: move saltshaker 3 to cabinet 1 | obs: You move the saltshaker 3 to the cabinet 1. (only one placed, then searches two cabinets and stops)",
+    "corrective_rule": "After placing one object, continue searching for the second object until both are placed in the target container.",
+    "skill_tree_gap": "Lack of a loop or count-check to ensure both objects are placed before ending.",
+    "patch_location": "Under ## pick_two_obj_and_place, add a new subsection ### multi-object placement loop",
+    "confidence": 0.9
+  }
+]
+```

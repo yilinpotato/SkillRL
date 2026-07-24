@@ -1,0 +1,103 @@
+```json
+[
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate the apple because it did not explore all countertops and receptacles.",
+    "evidence": "After opening fridge, it returns to countertop1 and countertop2 but never goes to countertop3 or other locations where apple might be.",
+    "corrective_rule": "Systematically search all accessible receptacles (countertops, diningtable, etc.) before concluding object is absent.",
+    "skill_tree_gap": "Lack of systematic search strategy for target objects.",
+    "patch_location": "Task: cool -> ### Object search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate a mug as it visited only countertops and cabinets without finding one.",
+    "evidence": "At countertop3, it saw no mug; then opened cabinets but found only cup2 and soapbottle, not a mug.",
+    "corrective_rule": "Search all common mug locations (countertops, cabinets, diningtable) before proceeding.",
+    "skill_tree_gap": "Incomplete search for specific object.",
+    "patch_location": "Task: heat -> ### Object search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to find peppershaker after visiting countertops and cabinets, missing other locations like diningtable or fridge.",
+    "evidence": "After opening cabinet4, it stops; no peppershaker was ever observed.",
+    "corrective_rule": "If target object not on visible surfaces, search all other receptacles in the room.",
+    "skill_tree_gap": "Lack of exhaustive search.",
+    "patch_location": "Task: pick_and_place -> ### Object search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent took one candle but then stopped without placing it or searching for a second candle.",
+    "evidence": "Trajectory ends after 'take candle 2 from countertop 1'.",
+    "corrective_rule": "After obtaining first target object, continue to place it and then search for the second.",
+    "skill_tree_gap": "Missing multi-object task completion logic.",
+    "patch_location": "Task: pick_two_obj_and_place -> ### Multi-object completion",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent searched only a few drawers and desk but never found a pen, missing shelves and other locations.",
+    "evidence": "Opens drawers 8,6,5,4 but sees no pens; ends at desk with no pen.",
+    "corrective_rule": "Expand search to shelves, sidetable, and other surfaces.",
+    "skill_tree_gap": "Incomplete search pattern for pens.",
+    "patch_location": "Task: pick_two_obj_and_place -> ### Object search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent searched only drawers and bed for CDs, but CDs may be on shelves or sidetable.",
+    "evidence": "Opens drawers 10,9,8,7,6 but no cd found.",
+    "corrective_rule": "Search all receptacles including shelves and sidetables for CDs.",
+    "skill_tree_gap": "Limited search scope.",
+    "patch_location": "Task: pick_two_obj_and_place -> ### Object search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one toiletpaper but then failed to locate a second toiletpaper, ending without completing task.",
+    "evidence": "After moving toiletpaper3 to drawer, it goes to countertop2 and toiletpaperhanger1 but finds no second toiletpaper and stops.",
+    "corrective_rule": "Continue searching for second object until found or all possible locations exhausted.",
+    "skill_tree_gap": "No iterative search after placing first object.",
+    "patch_location": "Task: pick_two_obj_and_place -> ### Multi-object collection loop",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "loop",
+    "root_cause": "After placing one pencil, agent repeatedly examined bed and desk without finding a second pencil, entering a loop.",
+    "evidence": "Actions: go to bed1, go to desk1, go to bed1, examine bed1, go to desk1, examine desk1.",
+    "corrective_rule": "If no new objects found in visited locations, explore new areas instead of re-examining.",
+    "skill_tree_gap": "Lack of loop detection and exploration expansion.",
+    "patch_location": "Task: pick_two_obj_and_place -> ### Stuck detection",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent took one candle from countertop and then stopped without placing it or searching for second.",
+    "evidence": "Trajectory ends after 'take candle 2 from countertop 1'.",
+    "corrective_rule": "After obtaining first candle, place it and then search for second candle.",
+    "skill_tree_gap": "Missing multi-object completion.",
+    "patch_location": "Task: pick_two_obj_and_place -> ### Multi-object completion",
+    "confidence": 0.95
+  }
+]
+```

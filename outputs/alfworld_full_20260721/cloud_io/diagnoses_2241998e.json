@@ -1,0 +1,134 @@
+{
+  "batch_id": "2241998e-9b4c-406f-9a47-37bfed8b6894",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never located the soapbar because it only searched countertop1, sinkbasin, and a few drawers, missing other common surfaces like diningtable or other countertops.",
+        "evidence": "After examining sinkbasin, observation shows only a sink; no soapbar was ever found.",
+        "corrective_rule": "Before cleaning, systematically search all accessible surfaces (countertops, tables, cabinets) for the target object.",
+        "skill_tree_gap": "Missing a routine to search for a specific object across multiple receptacles before proceeding to action.",
+        "patch_location": "## clean -> new subsection ### Object Search",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "wrong_target",
+        "root_cause": "Agent picked up a mug instead of a cup, as the task required a cup.",
+        "evidence": "Action 'take mug 3 from countertop 3' shows it took a mug, not a cup.",
+        "corrective_rule": "Always verify that the object name matches the task's specified target exactly before picking it up.",
+        "skill_tree_gap": "Lack of object name validation before pickup.",
+        "patch_location": "## cool -> new subsection ### Object Identity Check",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a tomato because it explored irrelevant locations (stoveburners, cabinets) and did not search all common surfaces.",
+        "evidence": "After opening fridge, it saw no tomato; then went to stoveburners and cabinets without finding a tomato.",
+        "corrective_rule": "If the target object is not in the initial view, conduct a systematic search of all countertops, tables, shelves, and cabinets.",
+        "skill_tree_gap": "Incomplete search strategy when target is not immediately visible.",
+        "patch_location": "## cool -> new subsection ### Systematic Object Search",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent failed to find an apple; it searched many countertops and cabinets but never located an apple, possibly missing a diningtable or other area.",
+        "evidence": "After exploring countertops 1-4 and several cabinets, it returned to the fridge and saw no apple (only cup, egg, potato, tomato).",
+        "corrective_rule": "When the target is not in the fridge, expand search to include diningtable and all countertops not yet visited.",
+        "skill_tree_gap": "Search scope in heat tasks is too narrow, focusing only on countertops and cabinets.",
+        "patch_location": "## heat -> new subsection ### Target Object Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a potato; it searched many locations (countertops, shelves, cabinets, drawers) but missed the potato location.",
+        "evidence": "After returning to the fridge, the observation showed no potato, only bowls, lettuce, egg, pot.",
+        "corrective_rule": "After checking common areas, if potato is still missing, search diningtable and any remaining countertops.",
+        "skill_tree_gap": "Same as heat#0, incomplete search pattern.",
+        "patch_location": "## heat -> new subsection ### Target Object Search",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found any cd because it only searched shelves 1-8 and one drawer, missing other containers like dresser or shelf9.",
+        "evidence": "After visiting shelf8 (empty) and opening drawer1 (empty), no cd was found.",
+        "corrective_rule": "Exhaustively search all containers listed in the initial observation (all shelves, drawers, dresser) before concluding absence.",
+        "skill_tree_gap": "Lack of thorough enumeration of all possible object locations.",
+        "patch_location": "## pick_two_obj_and_place -> new subsection ### Exhaustive Object Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent only found one candle (candle2) and did not search elsewhere for a second candle, assuming both were on the same countertop.",
+        "evidence": "After placing the first candle, it returned to countertop1 and saw only one candle had been present (now taken), then searched drawers failing to find a second.",
+        "corrective_rule": "After obtaining one instance of the target object, continue searching all other potential locations for a second instance before placing any.",
+        "skill_tree_gap": "No iterative search for multiple identical objects; agent prematurely stops searching.",
+        "patch_location": "## pick_two_obj_and_place -> new subsection ### Collecting Both Objects",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent placed one egg (egg3) but never found a second egg; it only searched the fridge and a few cabinets, missing other surfaces.",
+        "evidence": "After placing egg3, it returned to fridge (now only apple1) and cabinets found no other egg.",
+        "corrective_rule": "When required to place two items, collect both before placing any; search all common areas (countertops, tables) for the second item.",
+        "skill_tree_gap": "Lack of a 'collect all required items first' discipline.",
+        "patch_location": "## pick_two_obj_and_place -> new subsection ### Collecting Both Objects",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent placed one kettle (kettle1) and then only searched cabinets for a second, never checking other countertops or tables.",
+        "evidence": "After placing kettle1, it opened cabinet2 and found plate2, not a kettle.",
+        "corrective_rule": "After placing one kettle, search all other countertops and diningtable for the second kettle.",
+        "skill_tree_gap": "Same as above, incomplete second-object search.",
+        "patch_location": "## pick_two_obj_and_place -> new subsection ### Collecting Both Objects",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found any candle; it only searched countertop1 (which had no candle) and several drawers, missing other possible locations.",
+        "evidence": "After opening drawer5, it found only toiletpaper2, no candle.",
+        "corrective_rule": "Search all surfaces and containers that could hold candles, including other countertops, shelves, cabinets.",
+        "skill_tree_gap": "Incomplete initial search routine.",
+        "patch_location": "## pick_two_obj_and_place -> new subsection ### Exhaustive Object Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a glassbottle; it only searched cabinets, missing countertops and diningtable where glassbottles might be.",
+        "evidence": "After opening cabinet6 (empty), no glassbottle was found.",
+        "corrective_rule": "When searching for glassbottle, also check all countertops and tables; do not limit to cabinets only.",
+        "skill_tree_gap": "Narrow search assumption.",
+        "patch_location": "## pick_two_obj_and_place -> new subsection ### Exhaustive Object Search",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

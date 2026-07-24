@@ -1,0 +1,288 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "pick_two_obj_and_place" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specific object type into a specified target receptacle.
+
+## Systematic Search Procedure (Repeat for Each Object)
+### Master List Creation
+1. Immediately after the initial room description appears, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, handtowelholder 2, sinkbasin 1, etc.). Do not omit any item.
+2. This master list is your checklist for all searches. Keep it in memory throughout the task.
+
+### Visiting Each Item
+1. Pick any item from the master list. Go to it.
+2. If it is closed (drawer, cabinet, fridge, microwave, etc.), **open it**.
+3. **Examine its contents** (inside if a container, on top if a surface).
+4. If you see an object whose exact name matches the required type, **take it** immediately. Do not take non-exact matches (e.g., soapbottle vs soapbar).
+5. **Check off** that item as visited so you know you have not missed any.
+6. Repeat for every item on the list. Do not skip any, even if you already found one object. You need to find all possible sources.
+
+### Exact Type Matching
+- Before taking any object, compare its exact name to the required type. Only take exact matches.
+
+## Placement
+- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. No other actions in between.
+
+## Repeat Until Complete
+- After placing an object, **immediately restart the Systematic Search Procedure** using the same master list. Do not assume any item is empty because you checked it before. Objects may appear from containers that were previously closed or from locations you already visited (e.g., a second identical object can be in the same container).
+- Place a total of two objects. Keep a counter: after first placement, set counter=1; after second, set counter=2 and stop.
+- Do not stop before counter=2, even if you think you have searched everywhere. Only stop after placing the second object or after confirming every item on the list (twice) contains no second match.
+
+## Common Failure Patterns (Avoid These)
+- **Premature stop**: Placing one object and not continuing. Always perform the systematic search again immediately.
+- **Incomplete master list**: Omitting any furniture item from the initial list leads to missing objects. Every item in the initial observation must be included.
+- **Not reopening containers**: After placing the first object, re-open every closed container you previously opened. New objects can be inside.
+- **Stopping early due to frustration**: Even if you have visited all items and found only one, the task may be impossible. But do not give up before two complete passes.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): (none — no shared successful opening yet)
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: find two candle and put them in cabinet.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 1, a shelf 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, a towelholder 2, and a towelholder 1.
+
+Your task is to: find two candle and put them in cabinet
+  action: go to cabinet 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a cloth 2.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a dishsponge 1.
+  action: take candle 1 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 2, a candle 1, a dishsponge 2, a mirror 1, a showerglass 1, a soapbar 1, a spraybottle 3, a spraybottle 2, and a toiletpaper 2.
+  action: go to cabinet 1  | obs: You pick up the candle 1 from the countertop 1.
+  action: move candle 1 to cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is open. In it, you see a cloth 2.
+  action: go to countertop 1  | obs: You move the candle 1 to the cabinet 1.
+  action: take candle 2 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 2, a dishsponge 2, a mirror 1, a showerglass 1, a soapbar 1, a spraybottle 3, a spraybottle 2, and a toiletpaper 2.
+  action: go to cabinet 1  | obs: You pick up the candle 2 from the countertop 1.
+
+Trajectory 2 [success] task: put two soapbar in toilet.
+  action: go to cabinet 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 2, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: put two soapbar in toilet.
+  action: go to cabinet 2  | obs: You arrive at cabinet 1. On the cabinet 1, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a toiletpaper 1.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a candle 2, a soapbottle 2, and a soapbottle 1.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: take soapbar 4 from cabinet 4  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a cloth 1, and a soapbar 4.
+  action: go to toilet 1  | obs: You pick up the soapbar 4 from the cabinet 4.
+  action: move soapbar 4 to toilet 1  | obs: You arrive at toilet 1. On the toilet 1, you see a candle 3, and a soapbottle 3.
+  action: go to cabinet 1  | obs: You move the soapbar 4 to the toilet 1.
+  action: go to cabinet 2  | obs: You arrive at cabinet 1. On the cabinet 1, you see nothing.
+
+Trajectory 3 [success] task: put two spraybottle in garbagecan.
+  action: go to bathtubbasin 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a countertop 2, a countertop 1, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a handtowelholder 4, a handtowelholder 3, a handtowelholder 2, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toil
+  action: go to countertop 2  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see nothing.
+  action: go to countertop 1  | obs: You arrive at countertop 2. On the countertop 2, you see a candle 2, a cloth 1, and a soapbar 2.
+  action: take spraybottle 2 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 1, a spraybottle 3, a spraybottle 2, and a toiletpaper 1.
+  action: go to garbagecan 1  | obs: You pick up the spraybottle 2 from the countertop 1.
+  action: move spraybottle 2 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see a soapbar 1.
+  action: go to countertop 1  | obs: You move the spraybottle 2 to the garbagecan 1.
+  action: take spraybottle 3 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 1, a spraybottle 3, and a toiletpaper 1.
+  action: go to garbagecan 1  | obs: You pick up the spraybottle 3 from the countertop 1.
+  action: move spraybottle 3 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see a soapbar 1, and a spraybottle 2.
+
+Trajectory 4 [success] task: find two tissuebox and put them in sidetable.
+  action: go to armchair 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a bed 1, a diningtable 1, a drawer 2, a drawer 1, a garbagecan 1, a sidetable 2, and a sidetable 1.
+
+Your task is to: find two tissuebox and put them in sidetable.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see a cellphone 1.
+  action: go to diningtable 1  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a laptop 2, a laptop 1, a pillow 2, and a pillow 1.
+  action: take tissuebox 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a alarmclock 2, a alarmclock 1, a book 1, a cd 2, a creditcard 1, a keychain 1, a pen 1, a pencil 1, a tissuebox 3, a tissuebox 2, and a tissuebox 1.
+  action: go to sidetable 1  | obs: You pick up the tissuebox 1 from the diningtable 1.
+  action: move tissuebox 1 to sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 3, a cellphone 2, and a pen 2.
+  action: go to diningtable 1  | obs: You move the tissuebox 1 to the sidetable 1.
+  action: take tissuebox 2 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a alarmclock 2, a alarmclock 1, a book 1, a cd 2, a creditcard 1, a keychain 1, a pen 1, a pencil 1, a tissuebox 3, and a tissuebox 2.
+  action: go to sidetable 1  | obs: You pick up the tissuebox 2 from the diningtable 1.
+  action: move tissuebox 2 to sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 3, a cellphone 2, a pen 2, and a tissuebox 1.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: find two candle and put them in cabinet.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: find two candle and put them in cabinet.
+  action: go to countertop 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: take candle 4 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 4, a handtowel 1, a toiletpaper 2, and a toiletpaper 1.
+  action: go to cabinet 1  | obs: You pick up the candle 4 from the countertop 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: move candle 4 to cabinet 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a cloth 1.
+  action: go to cabinet 4  | obs: You move the candle 4 to the cabinet 1.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a cloth 2.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a spraybottle 3, and a spraybottle 2.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+
+Trajectory 2 [failure] task: find two keychain and put them in armchair.
+  action: go to armchair 2  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 2, a armchair 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeetable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 1, and a sofa 1.
+
+Your task is to: find two keychain and put them in armchair.
+  action: go to armchair 1  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: go to cabinet 4  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a box 1.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to coffeetable 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: take keychain 2 from coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a box 2, a keychain 2, a statue 2, and a statue 1.
+
+Trajectory 3 [failure] task: put two toiletpaper in cabinet.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: put two toiletpaper in cabinet.
+  action: go to toiletpaperhanger 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to towelholder 1  | obs: You arrive at toiletpaperhanger 1. On the toiletpaperhanger 1, you see nothing.
+  action: take towel 1 from towelholder 1  | obs: You arrive at towelholder 1. On the towelholder 1, you see a towel 1.
+  action: go to cabinet 4  | obs: You pick up the towel 1 from the towelholder 1.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: examine cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a soapbottle 2, and a soapbottle 1.
+  action: open cabinet 3  | obs: The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to toiletpaperhanger 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: examine towel 1  | obs: You arrive at toiletpaperhanger 1. On the toiletpaperhanger 1, you see nothing.
+
+Trajectory 4 [failure] task: find two spraybottle and put them in garbagecan.
+  action: go to shelf 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a garbagecan 1, a handtowelholder 1, a shelf 3, a shelf 2, a shelf 1, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: find two spraybottle and put them in garbagecan.
+  action: take spraybottle 1 from shelf 1  | obs: You arrive at shelf 1. On the shelf 1, you see a spraybottle 1.
+  action: look  | obs: You pick up the spraybottle 1 from the shelf 1.
+  action: go to garbagecan 1  | obs: You are facing the shelf 1. Next to it, you see nothing.
+  action: move spraybottle 1 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see nothing.
+  action: go to bathtubbasin 1  | obs: You move the spraybottle 1 to the garbagecan 1.
+  action: go to garbagecan 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 3, a cloth 2, a cloth 1, and a soapbar 1.
+  action: go to bathtubbasin 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see a spraybottle 1.
+  action: go to shelf 2  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 3, a cloth 2, a cloth 1, and a soapbar 1.
+  action: go to shelf 3  | obs: You arrive at shelf 2. On the shelf 2, you see a tissuebox 1.
+  action: go to sinkbasin 1  | obs: You arrive at shelf 3. On the shelf 3, you see a soapbottle 1.
+  action: go to toiletpaperhanger 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+
+Trajectory 5 [failure] task: put two tissuebox in diningtable.
+  action: go to armchair 2  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 2, a armchair 1, a coffeetable 2, a coffeetable 1, a diningtable 1, a garbagecan 1, a sidetable 2, a sidetable 1, and a sofa 1.
+
+Your task is to: put two tissuebox in diningtable.
+  action: go to armchair 1  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: go to coffeetable 2  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: take tissuebox 2 from coffeetable 2  | obs: You arrive at coffeetable 2. On the coffeetable 2, you see a candle 1, a keychain 1, a television 1, and a tissuebox 2.
+  action: go to diningtable 1  | obs: You pick up the tissuebox 2 from the coffeetable 2.
+  action: move tissuebox 2 to diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 3, a box 2, a box 1, a laptop 1, a newspaper 1, a plate 3, a plate 1, a remotecontrol 1, a statue 2, a statue 1, and a watch 1.
+  action: go to armchair 2  | obs: You move the tissuebox 2 to the diningtable 1.
+  action: go to coffeetable 1  | obs: You arrive at armchair 2. On the armchair 2, you see nothing.
+  action: go to sofa 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a creditcard 1, a houseplant 2, a plate 2, and a remotecontrol 2.
+  action: go to sidetable 1  | obs: You arrive at sofa 1. On the sofa 1, you see a newspaper 2, and a pillow 1.
+  action: go to armchair 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a candle 2, and a watch 3.
+  action: go to sidetable 2  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  (dropped 2 looping actions)
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+- [premature_stop] After placing the first candle in cabinet, the agent started exploring other cabinets instead of returning to countertop to retrieve the second candle. | evidence: After 'move candle 4 to cabinet 1', it goes to cabinet 4 instead of going back to countertop 1. | fix: After placing one object, immediately return to the source location to pick up the second object. | skill_tree_gap: Missing iterative retrieve-place pattern for two-object tasks. | patch_location: Under '## Pick Two Object and Place Task', add a deeper subsection '### Iterative Object Retrieval'.
+- [premature_stop] The agent picked up only one keychain and then stopped, failing to search for a second keychain or place any. | evidence: The trajectory ends after 'take keychain 2 from coffeetable 1' with no further actions. | fix: After acquiring one target object, continue searching for the second before placing any. | skill_tree_gap: No check that two objects are required and must be collected before placement. | patch_location: Under '## Pick Two Object and Place Task', add a deeper subsection '### Object Counting and Completion Check'.
+- [wrong_target] The agent picked up a towel instead of a toiletpaper, derailing the task. | evidence: Action: 'take towel 1 from towelholder 1' when the task requires toiletpaper. | fix: Always verify that the object you are picking is exactly the target object type before taking it. | skill_tree_gap: Lack of object type verification before pickup. | patch_location: Under '## Pick Two Object and Place Task', add a deeper subsection '### Object Identification Check'.
+- [premature_stop] After placing one spraybottle in garbagecan, the agent wandered without searching for the second spraybottle. | evidence: After 'move spraybottle 1 to garbagecan 1', it goes to bathtubbasin and shelf 2/3 but never picks another spraybottle. | fix: After placing the first object, systematically search all remaining locations for the second object. | skill_tree_gap: Missing a post-placement search routine for second object. | patch_location: Under '## Pick Two Object and Place Task', add a deeper subsection '### Post-Placement Search for Second Object'.
+- [premature_stop] After placing one tissuebox, the agent failed to locate a second tissuebox because it did not search any containers. | evidence: It visits armchairs, coffeetables, sofa, sidetables but never opens a drawer or cabinet. | fix: When the second object is not in plain sight, search all closed containers (drawers, cabinets). | skill_tree_gap: No container search step included in multi-object placement routine. | patch_location: Under '## Pick Two Object and Place Task', add a deeper subsection '### Container Search for Second Object'.
+- [premature_stop] The agent picked up only one spraybottle and then stopped, without placing it or searching for a second. | evidence: Trajectory ends with 'take spraybottle 1 from countertop 1' and no further actions. | fix: After picking the first object, either place it and immediately return to search for the second, or continue searching for the second before placing. | skill_tree_gap: No task progress tracking to ensure both objects are handled. | patch_location: Under '## Pick Two Object and Place Task', add a deeper subsection '### Multi-Object Task Completion Check'.
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

@@ -1,0 +1,307 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "pick_two_obj_and_place" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2 or after two exhaustive full passes without finding a second instance.
+
+## Systematic Search Procedure (Unified)
+1. **Re‑read the initial observation** – list every furniture item in the exact order they appear. This is your mental list. Do not skip any type (surfaces, containers, shelves, drawers, etc.).
+2. **Visit each item in that order exactly once.** For each:
+   - If closed, open it.
+   - Examine contents: surfaces – just look at what is on them; containers – look inside.
+   - If you see an object whose exact name matches the required type, **take it immediately**.
+   - **After taking, your next action MUST be `go to [target receptacle]`** – no detours.
+   - Open the target if closed, then place the object (`move` or `put`). Increment counter by 1.
+   - If counter == 2, stop – task complete.
+   - If counter == 1, **immediately restart this procedure from step 1** – do not continue from your current location.
+3. If you finish the list and counter == 0, perform a **second full pass** – repeat step 2 from the first item.
+4. After two full passes, if counter is still 0, the task is impossible – stop.
+
+## Post‑Placement Behaviour (counter == 1)
+- **Do NOT** continue searching from where you just placed the object. Always restart the Systematic Search Procedure from step 1 (re‑read the observation, rebuild the list, start at the first furniture item).
+- After the first placement, you are searching for the second object. The search must be exhaustive: visit every item in order, including those you already checked earlier (they may now contain the second object, or you may have missed it).
+
+## Immediate Rules (Must Follow)
+- Counter starts at 0. After each placement, increment. If counter == 1, continue; if 2, stop.
+- After picking up a matching object, next action MUST be `go to [target]`. No exception.
+- If you accidentally take a non‑matching object, drop it immediately and resume the search from the current furniture item.
+
+## Failure Prevention
+- **Stopping early:** If you catch yourself not searching after placing one object, re‑read the observation and restart the systematic search from the first furniture item.
+- **Looping:** If you revisit the same few locations without taking a target object, stop, re‑read the observation, rebuild the mental list, and restart from the first item.
+- **Skipping furniture types:** The target object may be on any surface or in any container. Follow the mental list order; do not only check drawers or only shelves.
+- **Opening target receptacle:** When placing, if the target is closed, open it first.
+
+### Multi‑Object Search Strategy
+- Always check **all** furniture types in the initial observation – surfaces (countertops, tables, sidetables, coffeetables, etc.) are just as likely as containers (cabinets, drawers, shelves). Do not specialise on cabinets alone.
+- If you have not found any object after visiting half the list, continue systematically – the object may be in an item you haven't opened yet.
+
+### Re‑acquisition After First Placement
+- After placing the first object, **you must perform a fresh exhaustive search** from the beginning of the mental list. Do not rely on memory of where you found the first object; the second may be in a different location.
+- The same systematic procedure applies: visit every furniture item exactly once, in order. If you finish the list without finding the second, do a second full pass before concluding impossibility.
+
+### Object‑specific Storage Knowledge
+- Some object types (e.g., tissuebox, newspaper) are more common in certain furniture types (e.g., cabinets, armchairs). However, **never assume** – always check every furniture type in the initial observation. Use this knowledge only as a hint to be thorough, not as a reason to skip other locations.
+
+## Stop Condition
+- counter == 2 → success
+- counter == 1 after two full passes following first placement → impossible, stop.
+- counter == 0 after two full passes in initial search → impossible, stop.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): (none — no shared successful opening yet)
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: find two pencil and put them in sidetable.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a diningtable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a sidetable 2, and a sidetable 1.
+
+Your task is to: find two pencil and put them in sidetable.
+  action: go to diningtable 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a pillow 2, and a pillow 1.
+  action: take pencil 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a alarmclock 2, a cd 2, a cellphone 1, a laptop 1, a pen 1, a pencil 4, a pencil 3, a pencil 2, and a pencil 1.
+  action: go to sidetable 2  | obs: You pick up the pencil 1 from the diningtable 1.
+  action: move pencil 1 to sidetable 2  | obs: You arrive at sidetable 2. On the sidetable 2, you see a alarmclock 1.
+  action: go to bed 1  | obs: You move the pencil 1 to the sidetable 2.
+  action: go to diningtable 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a pillow 2, and a pillow 1.
+  action: take pencil 2 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a alarmclock 2, a cd 2, a cellphone 1, a laptop 1, a pen 1, a pencil 4, a pencil 3, and a pencil 2.
+  action: go to sidetable 2  | obs: You pick up the pencil 2 from the diningtable 1.
+  action: move pencil 2 to sidetable 2  | obs: You arrive at sidetable 2. On the sidetable 2, you see a alarmclock 1, and a pencil 1.
+
+Trajectory 2 [success] task: put two alarmclock in dresser.
+  action: go to armchair 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a bed 2, a bed 1, a cabinet 1, a desk 2, a desk 1, a drawer 13, a drawer 12, a drawer 11, a drawer 10, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 2, a dresser 1, and a garbagecan 1.
+
+Your task is to: put t
+  action: go to bed 2  | obs: You arrive at armchair 1. On the armchair 1, you see a cd 1, and a keychain 1.
+  action: go to bed 1  | obs: You arrive at bed 2. On the bed 2, you see a book 2, and a pillow 1.
+  action: go to cabinet 1  | obs: You arrive at bed 1. On the bed 1, you see a laptop 2, and a pillow 2.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to desk 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a book 1.
+  action: take alarmclock 2 from desk 2  | obs: You arrive at desk 2. On the desk 2, you see a alarmclock 4, a alarmclock 3, a alarmclock 2, a cellphone 1, a mug 2, and a mug 1.
+  action: go to dresser 2  | obs: You pick up the alarmclock 2 from the desk 2.
+  action: move alarmclock 2 to dresser 2  | obs: You arrive at dresser 2. On the dresser 2, you see a creditcard 2, a keychain 3, a laptop 1, and a pencil 2.
+  action: go to armchair 1  | obs: You move the alarmclock 2 to the dresser 2.
+  action: go to bed 2  | obs: You arrive at armchair 1. On the armchair 1, you see a cd 1, and a keychain 1.
+  action: go to cabinet 1  | obs: You arrive at bed 2. On the bed 2, you see a book 2, and a pillow 1.
+
+Trajectory 3 [success] task: find two pencil and put them in drawer.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 2, a drawer 1, a garbagecan 1, a shelf 8, a shelf 7, a shelf 6, a shelf 5, a shelf 4, a shelf 3, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: find two pencil and put them in drawer.
+  action: go to desk 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: take pencil 1 from desk 1  | obs: You arrive at desk 1. On the desk 1, you see a cd 1, a cellphone 1, a pencil 3, a pencil 2, and a pencil 1.
+  action: go to drawer 1  | obs: You pick up the pencil 1 from the desk 1.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: move pencil 1 to drawer 1  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a keychain 1.
+  action: go to bed 1  | obs: You move the pencil 1 to the drawer 1.
+  action: go to desk 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at desk 1. On the desk 1, you see a cd 1, a cellphone 1, a pencil 3, and a pencil 2.
+  action: examine bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to desk 1  | obs: On the bed 1, you see a book 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: take pencil 2 from desk 1  | obs: You arrive at desk 1. On the desk 1, you see a cd 1, a cellphone 1, a pencil 3, and a pencil 2.
+
+Trajectory 4 [success] task: find two alarmclock and put them in dresser.
+  action: go to dresser 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a bed 2, a bed 1, a cabinet 1, a desk 2, a desk 1, a drawer 13, a drawer 12, a drawer 11, a drawer 10, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 2, a dresser 1, and a garbagecan 1.
+
+Your task is to: find 
+  action: go to armchair 1  | obs: You arrive at dresser 1. On the dresser 1, you see nothing.
+  action: go to bed 2  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: go to bed 1  | obs: You arrive at bed 2. On the bed 2, you see a book 1, a laptop 2, and a pillow 1.
+  action: go to cabinet 1  | obs: You arrive at bed 1. On the bed 1, you see a cellphone 1, and a pillow 2.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to desk 2  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a mug 2.
+  action: take alarmclock 3 from desk 2  | obs: You arrive at desk 2. On the desk 2, you see a alarmclock 4, a alarmclock 3, a book 3, and a creditcard 3.
+  action: go to dresser 1  | obs: You pick up the alarmclock 3 from the desk 2.
+  action: move alarmclock 3 to dresser 1  | obs: You arrive at dresser 1. On the dresser 1, you see nothing.
+  action: go to armchair 1  | obs: You move the alarmclock 3 to the dresser 1.
+  action: go to bed 2  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: find two cellphone and put them in bed.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a drawer 10, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a shelf 7, a shelf 6, a shelf 5, a shelf 4, a shelf 3, a shelf 2, and a shelf 1.
+
+Your task is to: find two cellphone and put them in b
+  action: go to drawer 10  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a laptop 2, a laptop 1, a pillow 2, and a pillow 1.
+  action: open drawer 10  | obs: You arrive at drawer 10. The drawer 10 is closed.
+  action: go to drawer 9  | obs: You open the drawer 10. The drawer 10 is open. In it, you see nothing.
+  action: open drawer 9  | obs: You arrive at drawer 9. The drawer 9 is closed.
+  action: go to drawer 8  | obs: You open the drawer 9. The drawer 9 is open. In it, you see nothing.
+  action: open drawer 8  | obs: You arrive at drawer 8. The drawer 8 is closed.
+  action: go to drawer 7  | obs: You open the drawer 8. The drawer 8 is open. In it, you see nothing.
+  action: open drawer 7  | obs: You arrive at drawer 7. The drawer 7 is closed.
+  action: go to drawer 6  | obs: You open the drawer 7. The drawer 7 is open. In it, you see nothing.
+  action: go to shelf 1  | obs: You arrive at drawer 6. The drawer 6 is closed.
+  action: go to shelf 2  | obs: You arrive at shelf 1. On the shelf 1, you see nothing.
+
+Trajectory 2 [failure] task: find two soapbottle and put them in countertop.
+  action: go to bathtubbasin 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a countertop 2, a countertop 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a handtowelholder 1, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, a towelholder 2, and a towelholder 1.
+
+Your task is to: find two soapbottle and put them in countertop.
+  action: take soapbar 1 from bathtubbasin 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a bathtub 1, a cloth 2, and a soapbar 1.
+  action: move soapbar 1 to bathtubbasin 1  | obs: You pick up the soapbar 1 from the bathtubbasin 1.
+  action: take soapbar 1 from bathtubbasin 1  | obs: You move the soapbar 1 to the bathtubbasin 1.
+  action: move soapbar 1 to bathtubbasin 1  | obs: You pick up the soapbar 1 from the bathtubbasin 1.
+  action: go to countertop 1  | obs: You move the soapbar 1 to the bathtubbasin 1.
+  action: inventory  | obs: You arrive at countertop 1. On the countertop 1, you see a spraybottle 2.
+  action: go to bathtubbasin 1  | obs: You are not carrying anything.
+  action: take soapbar 1 from bathtubbasin 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a bathtub 1, a cloth 2, and a soapbar 1.
+  action: go to countertop 1  | obs: You pick up the soapbar 1 from the bathtubbasin 1.
+  action: go to bathtubbasin 1  | obs: You arrive at countertop 1. On the countertop 1, you see a spraybottle 2.
+  action: go to countertop 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a bathtub 1, and a cloth 2.
+  (dropped 1 looping actions)
+
+Trajectory 3 [failure] task: find two soapbottle and put them in countertop.
+  action: go to cabinet 4  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 2, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: find two soapbottle and put them in countertop.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a cloth 1, and a spraybottle 1.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a cloth 2, a soapbar 1, and a toiletpaper 1.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a candle 2, a candle 1, and a toiletpaper 2.
+  action: look  | obs: You arrive at cabinet 1. On the cabinet 1, you see a soapbar 2.
+  action: go to countertop 1  | obs: You are facing the cabinet 1. Next to it, you see nothing.
+  action: go to cabinet 1  | obs: You arrive at countertop 1. On the countertop 1, you see nothing.
+  action: take soapbar 2 from cabinet 1  | obs: You arrive at cabinet 1. On the cabinet 1, you see a soapbar 2.
+  action: go to countertop 1  | obs: You pick up the soapbar 2 from the cabinet 1.
+  (dropped 1 looping actions)
+
+Trajectory 4 [failure] task: find two spraybottle and put them in cabinet.
+  action: go to bathtubbasin 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: find two spraybottle and put them in cabinet.
+  action: go to cabinet 4  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 1.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a soapbar 3, a soapbottle 3, and a toiletpaper 2.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a soapbar 2, and a soapbottle 2.
+  action: take spraybottle 3 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a candle 3, a candle 2, a candle 1, a mirror 1, and a spraybottle 3.
+  action: go to cabinet 1  | obs: You pick up the spraybottle 3 from the countertop 1.
+
+Trajectory 5 [failure] task: find two cellphone and put them in bed.
+  action: go to armchair 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a bed 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 2, and a sidetable 1.
+
+Your task is to: find two cellphone and put them in bed.
+  action: take cellphone 1 from armchair 1  | obs: You arrive at armchair 1. On the armchair 1, you see a cellphone 1.
+  action: go to bed 1  | obs: You pick up the cellphone 1 from the armchair 1.
+  action: move cellphone 1 to bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 3, a book 2, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to armchair 1  | obs: You move the cellphone 1 to the bed 1.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: go to armchair 1  | obs: You arrive at bed 1. On the bed 1, you see a book 3, a book 2, a cellphone 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: go to armchair 1  | obs: You arrive at bed 1. On the bed 1, you see a book 3, a book 2, a cellphone 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: go to armchair 1  | obs: You arrive at bed 1. On the bed 1, you see a book 3, a book 2, a cellphone 1, a laptop 1, a pillow 2, and a pillow 1.
+  action: go to bed 1  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+- [gave_up] The agent opened only four drawers and did not open drawer 6 or search other locations like dresser or shelves, then ended. | evidence: After opening drawer 7 (empty), agent went to drawer 6 but did not open it, then went to shelf 1 and stopped. | fix: Systematically open all drawers and search all receptacles before giving up. | skill_tree_gap: Lack of systematic exhaustive search for multi-object tasks. | patch_location: ## pick_two_obj_and_place -> ### Exhaustive Search
+- [wrong_target] The agent incorrectly picked up a soapbar instead of a soapbottle and got stuck in an infinite loop of moving it. | evidence: Repeated actions: 'take soapbar 1 from bathtubbasin 1' and 'move soapbar 1 to bathtubbasin 1'. | fix: Verify the object name matches the target type exactly; if not, search for the correct object. | skill_tree_gap: Object identification confusion leading to repetitive loops. | patch_location: ## pick_two_obj_and_place -> ### Object Type Verification
+- [wrong_target] The agent picked up a soapbar instead of a soapbottle because it misidentified the object, and then looped. | evidence: Action: 'take soapbar 2 from cabinet 1' after finding no soapbottles. | fix: Ensure the object name matches the target; if not, continue searching. | skill_tree_gap: Object identification confusion. | patch_location: ## pick_two_obj_and_place -> ### Object Type Verification
+- [premature_stop] The agent found only one spraybottle and stopped without searching for a second one. | evidence: After taking spraybottle 3, the agent went to cabinet 1 and the trajectory ended without further search. | fix: For tasks requiring two objects, continue searching until two are found. | skill_tree_gap: Lack of count tracking for multi-object tasks. | patch_location: ## pick_two_obj_and_place -> ### Multi-Object Count Completion
+- [premature_stop] The agent placed one cellphone and then looped between two locations without searching for a second cellphone elsewhere. | evidence: After placing cellphone 1, agent repeatedly went between armchair and bed, never exploring other receptacles. | fix: After placing one object, expand the search to other receptacles for the second copy. | skill_tree_gap: Lack of multi-object search strategy. | patch_location: ## pick_two_obj_and_place -> ### Multi-Object Search
+- [premature_stop] The agent placed one pen and then looped between armchair and coffeetable, never searching for a second pen in other locations. | evidence: After moving pen 1 to dresser, agent repeatedly visited armchair and coffeetable without finding another pen. | fix: After placing one pen, search other furniture (sidetables, drawers) for the second. | skill_tree_gap: Lack of multi-object search strategy. | patch_location: ## pick_two_obj_and_place -> ### Multi-Object Search
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

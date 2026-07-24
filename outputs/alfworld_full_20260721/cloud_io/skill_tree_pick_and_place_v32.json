@@ -1,0 +1,133 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specified object and place it into or onto a specified receptacle (e.g., \"put a book in sofa\"). The task names both the target object and the target receptacle.\n\n## Sub-Goal Flow\n1. **Parse the task** – identify the target object and target receptacle exactly as written.\n2. **Locate the target object** – search receptacles, starting with open surfaces, then closed containers.\n3. **Take the object** – only if its type matches the task (ignore numerals).\n4. **Navigate to target receptacle** and open it if closed, then move the object there.\n5. **Terminate** after placement.\n\n## Systematic Search for Target Object\n- From the initial observation, note the available receptacles. You must check every open surface first, then every closed container.\n- **Open surfaces** (tables, countertops, shelves, armchairs, sofas, dressers, beds, bathtubs, toilets, etc.): Go to each and read its contents. Do not skip any.\n- **Closed containers** (drawers, cabinets, fridge, microwave, oven, dishwasher, safe, etc.): For each, go to the receptacle, open it, and check its contents.\n- **Do not stop** until the object is found. If you have checked all receptacles and not found it, double-check any you may have missed. The object is always somewhere.\n\n### Exhaustive Search Procedure\n1. Start with any open surface visible in the initial observation.\n2. After visiting an open surface, if the object is not there, move to the next open surface. You must visit **all** open surfaces listed.\n3. If the object is not on any open surface, proceed to closed containers. Go to each closed container, open it, and inspect its contents.\n4. After opening a container, if the object is not inside, immediately move to the next unopened container. Do not return to open surfaces until all containers have been opened.\n5. If you have checked every receptacle (both open and closed) and still have not found the object, revisit any that you might have overlooked. The object must be somewhere.\n\n## Common Mistakes to Avoid\n- **Taking wrong object** – verify the object's type matches the task exactly (base noun level; ignore numerals).\n- **Using wrong actions** – never `examine` or `look`; use `go to` to move, `open`/`close` for containers.\n- **Stopping early** – only stop after you have placed the object. Keep searching until you find it.\n\n## Object Acquisition\nOnce you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.\n\n### Object Type Verification\nCompare the object's name (as shown in observation) with the target object type from the task. They must match at the base noun level (e.g., \"glassbottle\" vs. \"winebottle\" are different). Ignore numerals (e.g., \"book 2\" matches \"book\").\n\n## Placement\nAfter taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.",
+  "level": 3,
+  "version": 32,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent had the current skill tree and followed the search procedure but stopped early after checking only a few cabinets, ignoring the instruction to continue until found. The skill tree's wording was not misleading; the failure is due to the agent not executing the exhaustive search. The refinement adds an explicit 'Exhaustive Search Procedure' subsection to prevent similar early termination.",
+  "changelog": "Refined '## Systematic Search for Target Object' section by strengthening the requirement to check all open surfaces first, and added a new subsection '### Exhaustive Search Procedure' to emphasize continuing until the object is found and checking every receptacle.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not search all countertops and cabinets for the soapbottle, missing likely locations.",
+      "skill_tree_gap": "Incomplete object search routine for pick_and_place tasks.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_3960",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 31,
+      "call_count": 872,
+      "success_when_used": 796,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cf7ac951b48a",
+      "created_version": 1,
+      "last_changed_version": 31,
+      "stable_versions": 1,
+      "call_count": 872,
+      "success_when_used": 796,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "e7d4537641cd",
+      "created_version": 1,
+      "last_changed_version": 31,
+      "stable_versions": 1,
+      "call_count": 872,
+      "success_when_used": 796,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-for-target-object": {
+      "title": "Systematic Search for Target Object",
+      "level": 2,
+      "body_hash": "fc9f25e231b0",
+      "created_version": 31,
+      "last_changed_version": 32,
+      "stable_versions": 0,
+      "call_count": 34,
+      "success_when_used": 33,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-for-target-object/exhaustive-search-procedure": {
+      "title": "Exhaustive Search Procedure",
+      "level": 3,
+      "body_hash": "7277384b50b5",
+      "created_version": 32,
+      "last_changed_version": 32,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/common-mistakes-to-avoid": {
+      "title": "Common Mistakes to Avoid",
+      "level": 2,
+      "body_hash": "83e3afe513e4",
+      "created_version": 31,
+      "last_changed_version": 31,
+      "stable_versions": 1,
+      "call_count": 34,
+      "success_when_used": 33,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition": {
+      "title": "Object Acquisition",
+      "level": 2,
+      "body_hash": "8902640fb9d5",
+      "created_version": 26,
+      "last_changed_version": 26,
+      "stable_versions": 6,
+      "call_count": 153,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 3,
+      "body_hash": "37339abc8d04",
+      "created_version": 28,
+      "last_changed_version": 31,
+      "stable_versions": 1,
+      "call_count": 115,
+      "success_when_used": 110,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "ce5383d42eef",
+      "created_version": 26,
+      "last_changed_version": 26,
+      "stable_versions": 6,
+      "call_count": 153,
+      "success_when_used": 143,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

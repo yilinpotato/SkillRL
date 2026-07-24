@@ -1,0 +1,150 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v26 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent read the skill tree but did not execute the 'Repeat Until Complete' section, likely because it was placed after the detailed search procedure and not dominant enough. The tree's wording was not misleading, but its structure allowed the agent to stop prematurely after the first search and placement.
+changelog: Refined the skill tree by restructuring to place the 'Persistent Search Loop' as the central control flow, merging the search procedure and placement into a clear repeated cycle, and adding explicit instructions to continue searching after the first placement until two objects are placed.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 15  n_failure this round: 5
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] After placing one soapbottle, the agent fails to continue searching for the second soapbottle and moves to other cabinets without acquiring it. | evidence: The agent moves soapbottle 4 to countertop then looks, then opens cabinet 1, then goes to cabinet 2, but never takes another soapbottle. | fix: After placing the first object, the agent should continue searching for the second object until both are placed. | skill_tree_gap: In the pick_two_obj_and_place skill tree, it lacks a persistent search loop until both objects are placed. | patch_location: ## Pick Two Obj and Place (add ### Persistent Search Loop)
+- [premature_stop] After placing the first dishsponge, the agent returns to an already searched cabinet instead of searching for the second dishsponge in other receptacles. | evidence: After moving dishsponge 3 to toilet, the agent goes to cabinet 1 (already opened, no dishsponge) and stops. | fix: After placing one object, systematically search all unsearched receptacles for the second object. | skill_tree_gap: Missing a mechanism to track which receptacles have been searched and continue until count is met. | patch_location: ## Pick Two Obj and Place (add ### Search Completion Condition)
+- [premature_stop] The agent takes a candle but then ends the trajectory without placing it in the cabinet and without searching for the second candle. | evidence: The last action is 'take candle 1 from shelf 1', and then trajectory ends. | fix: After picking up an object, immediately navigate to the target receptacle and place it, then continue searching for the second. | skill_tree_gap: The skill tree likely has a step for placing after picking, but the agent's policy terminated prematurely after picking. | patch_location: ## Pick Two Obj and Place (add ### Post-Pick Placement and Continue)
+- [premature_stop] After placing one glassbottle, the agent searches only a few cabinets and then terminates without finding the second glassbottle. | evidence: The agent opens cabinets 1,9,2, then goes to countertop 3 and stops, never finding a second glassbottle. | fix: Search all available receptacles (including drawers, fridge, sinkbasin) until the second object is found. | skill_tree_gap: The search space for multiple objects is incomplete; the agent doesn't explore all container types. | patch_location: ## Pick Two Obj and Place (add ### Comprehensive Search for Second Object)
+- [premature_stop] After placing the first cellphone, the agent searches three cabinets but fails to find the second cellphone and then stops without checking other locations like drawers or dressers. | evidence: The agent goes to sidetable 1 and ends, without searching drawers or other furniture. | fix: Expand search to all receptacles, including drawers and dressers, and persist until both objects are placed. | skill_tree_gap: The search strategy does not cover all possible object locations for multiple-object tasks. | patch_location: ## Pick Two Obj and Place (add ### Exhaustive Search for Second Object)
+
+--- Node tree (per-node lifecycle, this version=v26) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=25 calls=634 success=499 rate=78.7%
+[MODIFIED            ] pick-two-obj-and-place/common-failure-patterns-avoid-these level=2 stable_versions=0 calls=38 success=25 rate=65.8%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=5 calls=634 success=499 rate=78.7%
+[NEW                 ] pick-two-obj-and-place/persistent-search-loop-repeat-until-two-placed level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/persistent-search-loop-repeat-until-two-placed/exact-type-matching-reminder level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/persistent-search-loop-repeat-until-two-placed/step-1-create-master-list level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/persistent-search-loop-repeat-until-two-placed/step-2-visit-each-furniture-item-systematically level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/persistent-search-loop-repeat-until-two-placed/step-3-immediate-placement level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/persistent-search-loop-repeat-until-two-placed/step-4-second-object-search-critical level=3 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v25 -> v26) ---
+--- v25
++++ v26
+@@ -3,53 +3,37 @@
+ ## Goal
+ Place exactly two instances of a specific object type into a specified target receptacle.
+ 
+-## Systematic Search Procedure (Repeat for Each Object)
+-### Master List Creation
+-1. Immediately after the initial room description appears, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, handtowelholder 2, sinkbasin 1, etc.). Do not omit any item.
+-2. This master list is your checklist for all searches. Keep it in memory throughout the task.
++## Persistent Search Loop (Repeat Until Two Placed)
++This is the core control flow. You must run it once for the first object, then **immediately repeat it** for the second object. Do not stop until counter = 2.
+ 
+-### Visiting Each Item
+-1. Pick any item from the master list. Go to it.
+-2. If it is closed (drawer, cabinet, fridge, microwave, etc.), **open it**.
+-3. **Examine its contents** (inside if a container, on top if a surface).
+-4. If you see an object whose exact name matches the required type, **take it** immediately. Do not take non-exact matches.
+-5. **Check off** that item as visited so you know you have not missed any.
+-6. Repeat for every item on the list. Do not skip any, even if you already found one object. You need to find all possible sources.
++### Step 1: Create Master List
++Immediately after the initial room description appears, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, sinkbasin 1, etc.). This list is your checklist for all searches. Keep it in memory throughout the task.
+ 
+-### Exact Type Matching
+-- Before taking any object, compare its exact name to the required type. Only take exact matches.
++### Step 2: Visit Each Furniture Item Systematically
++- Pick any unvisited item from your master list. Go to it.
++- If it is closed (drawer, cabinet, fridge, etc.), **open it**.
++- **Examine its contents** (inside if container, on top if surface).
++- If you see an object whose exact name matches the required type, **take it immediately**.
++- Check off that item as visited.
++- Repeat for every item on the list. Do not skip any even if you already found one object; you need to find all possible sources.
+ 
+-### Object Identification Check
+-- Before executing any `take` action, mentally verify that the object's name exactly matches the target type. 
+-- If the name differs (e.g., `soapbottle` vs `soapbar`, `towel` vs `toiletpaper`), do not take it.
+-- If you are unsure, re-read the task description and compare character by character.
++### Step 3: Immediate Placement
++- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. **No other actions in between.**
++- After placing, increment your mental counter. (After first placement, counter=1; after second, counter=2.)
+ 
+-## Placement
+-- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. No other actions in between.
++### Step 4: Second Object Search (Critical)
++- **After placing the first object, you must immediately begin the Persistent Search Loop again.**
++- If you earlier observed a second matching object at the same location (e.g., on the same countertop or inside the same open container), go directly back to that location and take it.
++- If you did not notice a second object at any visited location, **execute Step 1 and Step 2 again from scratch**, including reopening all previously opened containers.
++- Do not stop after visiting only a few items. You must visit **every** furniture item on your master list again (a second complete pass).
++- If after a full second pass you still find only one object, the task may be impossible – but do not give up before finishing both passes. If counter is still 1 after both passes, you may stop (task likely impossible).
+ 
+-## Repeat Until Complete
+-- After placing an object, **immediately restart the search for the second object**. Do not wander or explore unrelated items.
+-- If you earlier observed a second matching object at the same location (e.g., on the same countertop or inside the same open container), go directly back to that location and take it.
+-- If you did not notice a second object at any visited location, **perform the full Systematic Search Procedure again**, including reopening all previously opened containers.
+-- Keep a counter: after first placement, set counter=1; after second, set counter=2 and stop.
+-- Do not stop before counter=2, even if you think you have searched everywhere. Only stop after placing the second object or after confirming every item on the list (twice) contains no second match.
+-
+-### Iterative Object Retrieval
+-- After placing the first object, your immediate next action must be to return to the location where you found that object (if you saw another copy there) or to the next likely source. Do not start exploring new furniture unless you have exhausted that immediate source.
+-
+-### Post-Placement Search for Second Object
+-- If the immediate source does not yield the second object, systematically visit every furniture item on your master list again, including those you already checked. Reopen all containers that you opened before (they may now contain the second object).
+-
+-### Container Search for Second Object
+-- When searching for a second object after placement, **prioritize closed containers** (drawers, cabinets, etc.) that you have not yet opened or that you opened but did not fully inspect. Objects can be hidden inside.
+-
+-### Object Counting and Completion Check
+-- Maintain a mental counter of how many objects you have placed. After each placement, increment the counter. If counter < 2, you must continue searching. If counter == 2, you are done.
+-- Do not assume that because you have visited every item once, the task is impossible. You may need to revisit items or open previously closed containers a second time.
++### Exact Type Matching Reminder
++Before taking any object, compare its exact name to the required type. Only take exact matches. Ignore objects with similar names (e.g., soapbottle vs soapbar).
+ 
+ ## Common Failure Patterns (Avoid These)
+-- **Premature stop**: Placing one object and not continuing. Always perform the systematic search again immediately.
+-- **Incomplete master list**: Omitting any furniture item from the initial list leads to missing objects. Every item in the initial observation must be included.
+-- **Not reopening containers**: After placing the first object, re-open every closed container you previously opened. New objects can be inside.
+-- **Stopping early due to frustration**: Even if you have visited all items and found only one, the task may be impossible. But do not give up before two complete passes.
+-- **Wrong object taken**: Always verify the exact name before taking. Taking a wrong object wastes time and can lead to task failure.
++- **Premature stop after first placement**: Immediately restart the loop. Do not wander or explore unrelated items.
++- **Incomplete master list**: Omitting any furniture item leads to missing objects.
++- **Not reopening containers during second pass**: New objects may appear inside.
++- **Stopping early due to frustration**: Complete at least two full passes before concluding impossibility.
++- **Picking wrong object**: Verify exact name before taking.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specific object type into a specified target receptacle.
+
+## Persistent Search Loop (Repeat Until Two Placed)
+This is the core control flow. You must run it once for the first object, then **immediately repeat it** for the second object. Do not stop until counter = 2.
+
+### Step 1: Create Master List
+Immediately after the initial room description appears, **write down every furniture item** exactly as listed (e.g., cabinet 3, countertop 1, sinkbasin 1, etc.). This list is your checklist for all searches. Keep it in memory throughout the task.
+
+### Step 2: Visit Each Furniture Item Systematically
+- Pick any unvisited item from your master list. Go to it.
+- If it is closed (drawer, cabinet, fridge, etc.), **open it**.
+- **Examine its contents** (inside if container, on top if surface).
+- If you see an object whose exact name matches the required type, **take it immediately**.
+- Check off that item as visited.
+- Repeat for every item on the list. Do not skip any even if you already found one object; you need to find all possible sources.
+
+### Step 3: Immediate Placement
+- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. **No other actions in between.**
+- After placing, increment your mental counter. (After first placement, counter=1; after second, counter=2.)
+
+### Step 4: Second Object Search (Critical)
+- **After placing the first object, you must immediately begin the Persistent Search Loop again.**
+- If you earlier observed a second matching object at the same location (e.g., on the same countertop or inside the same open container), go directly back to that location and take it.
+- If you did not notice a second object at any visited location, **execute Step 1 and Step 2 again from scratch**, including reopening all previously opened containers.
+- Do not stop after visiting only a few items. You must visit **every** furniture item on your master list again (a second complete pass).
+- If after a full second pass you still find only one object, the task may be impossible – but do not give up before finishing both passes. If counter is still 1 after both passes, you may stop (task likely impossible).
+
+### Exact Type Matching Reminder
+Before taking any object, compare its exact name to the required type. Only take exact matches. Ignore objects with similar names (e.g., soapbottle vs soapbar).
+
+## Common Failure Patterns (Avoid These)
+- **Premature stop after first placement**: Immediately restart the loop. Do not wander or explore unrelated items.
+- **Incomplete master list**: Omitting any furniture item leads to missing objects.
+- **Not reopening containers during second pass**: New objects may appear inside.
+- **Stopping early due to frustration**: Complete at least two full passes before concluding impossibility.
+- **Picking wrong object**: Verify exact name before taking.

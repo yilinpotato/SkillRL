@@ -1,0 +1,156 @@
+=== Skill Tree Debug — scope=clean  v40 (level=3, tree_depth=3, 8 nodes) ===
+action: refine
+critique: The agent failed to follow the current skill tree's explicit search procedure—it visited sinkbasin before acquiring the target and did not systematically check all open surfaces then closed containers. The skill tree's wording was not misleading but may have been too complex; the refined version simplifies the steps and reiterates the critical prohibition at the start of Phase 1.
+changelog: Refined Phase 1 search procedure into a clear numbered list, moved the critical 'no sinkbasin until holding target' rule to the head of Phase 1, and removed redundant wording to reduce cognitive load.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 6  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never located the potato because it wandered through irrelevant locations without systematically searching containers (cabinets, fridge) and then stopped after moving an irrelevant pot. | evidence: After moving pot2, it returns to countertop1 -> countertop2 -> countertop3 and halts, never having taken or cleaned a potato. | fix: Before cleaning, systematically search all common storage locations (cabinets, fridge, sinkbasin) for the target object. | skill_tree_gap: Missing a dedicated 'find object' subroutine that exhaustively checks containers. | patch_location: New subsection '### search for target object' under '## clean'
+
+--- Node tree (per-node lifecycle, this version=v40) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=39 calls=839 success=687 rate=81.9%
+[MODIFIED            ] clean-task-skill-tree/completion         level=2 stable_versions=0 calls=839 success=687 rate=81.9%
+[MODIFIED            ] clean-task-skill-tree/critical-rules-must-be-followed-without-exception level=2 stable_versions=0 calls=43 success=39 rate=90.7%
+[MODIFIED            ] clean-task-skill-tree/goal-identification level=2 stable_versions=0 calls=839 success=687 rate=81.9%
+[MODIFIED            ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object level=2 stable_versions=0 calls=232 success=204 rate=87.9%
+[MODIFIED            ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure level=3 stable_versions=0 calls=195 success=170 rate=87.2%
+[MODIFIED            ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=0 calls=839 success=687 rate=81.9%
+[MODIFIED            ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=0 calls=839 success=687 rate=81.9%
+
+--- Line diff vs previous version (v39 -> v40) ---
+--- v39
++++ v40
+@@ -3,67 +3,39 @@
+ ## Goal Identification
+ - Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+ - The [object] must be cleaned before placing at [destination].
+-- [cleaning_source] is a sinkbasin or bathtubbasin (typically sinkbasin 1).
++- [cleaning_source] is a sinkbasin or bathtubbasin.
+ 
+ ## Critical Rules (must be followed without exception)
+-- **Pick up the target object immediately when you see it.** Do not explore any other location until you are holding the target.
+-- **Always finish checking ALL open surfaces before opening any closed container.** Open surfaces include: countertops, tables, shelves, stoveburners, diningtables, towelholders, handtowelholders, and any other receptacle that is not a closed container (cabinet, drawer, fridge, microwave, oven, etc.). Do not skip any.
+-- **Persist through every closed container.** Open each cabinet, drawer, fridge, microwave, etc. in order. Do not stop after a few empty ones; the object may be in a later container.
++- **Do not go to any sinkbasin or bathtubbasin until you are holding the target object.**
++- **Do not go to the destination receptacle until after cleaning.**
++- **Search open surfaces first, then closed containers. Do not skip any.**
+ 
+ ## Phase 1: Search and Acquire the Target Object
+-**⚠️ CRITICAL RULE: Do NOT go to any sinkbasin, bathtubbasin, or any cleaning source until you are holding the target object. Do NOT go to the destination receptacle until Phase 3 (after cleaning).**
+-- **This phase ends only when you are holding exactly the target object.** Do not attempt to clean or place until then.
+-- If you are already holding something that is not the target, put it down immediately (e.g., `put [object] on/into [receptacle]`).
+-
+-### Object Name Matching
+-- Compare the object name from the task with names in your observations. Only an exact string match counts.
+-- Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.
+-
+-### Adapting search when the environment lacks a kitchen countertop (e.g., bathroom)
+-- The consensus prefix is "go to countertop 1" – but if the initial room description does NOT contain any countertop 1, **skip the consensus prefix** and start your search directly from the listed receptacles.
+-- In such rooms, still follow the same systematic search procedure (open surfaces first, then closed containers) using the receptacles given in the room description.
+-- Do NOT wander aimlessly; list all receptacles from the description and check them one by one.
++**Prerequisite: You have completed the consensus prefix (go to countertop 1).**
++- If you are already holding something that is not the target, put it down immediately.
++- **Do not go to sinkbasin or bathtubbasin during this phase.**
++- **Object Name Matching:** Compare the object name from the task exactly. Do not pick up similar items (e.g., cloth vs towel).
+ 
+ ### Systematic Search Procedure
+-#### Mandatory order: open surfaces first, then all closed containers (no skipping)
+-- **Step 1 – All Open Surfaces** (e.g., countertops, tables, shelves, stoveburners, diningtables, towelholders, handtowelholders, etc.)
+-  - **IMPORTANT: Do NOT include sinkbasin or bathtubbasin in this search – they are cleaning sources reserved for Phase 2. Skip them entirely.**
+-  - Visit every individual open surface instance listed in the room description (excluding cleaning sources). Do not skip any.
+-  - At each, examine its contents. If you find the target, pick it up and proceed to Phase 2.
+-  - **Do not move to Step 2 until every open surface instance has been visited.**
+-- **Step 2 – All Closed Containers** (only after Step 1 is complete)
+-  - **If the target object is a food item (e.g., egg, tomato, apple, lettuce, potato), go to the fridge first – it is a high-probability location. Otherwise, proceed in the fixed order below.**
+-  - **You must open every single closed container that was listed in the initial room description. Do not stop after opening only one or two.**
+-  - Open them in this fixed order: all cabinets first (in numerical order if numbered), then all drawers, then the fridge (if not already checked for food), then the microwave, then any other closed container (e.g., oven). **Do not deviate from this order.**
+-  - For each container: `open [container]`, then look inside (observation shows contents). If the target is inside, pick it up. If not, move to the next container.
+-  - **Do not go back to open surfaces or to the cleaning source until you have checked every closed container.**
+-  - **Persist through large numbers of containers.** For example, if the initial description lists cabinets 1 through 16, you must open each one in order. Do not stop after a few empty ones; the object may be in a later cabinet or drawer.
+-  - If you have checked all closed containers and still haven't found the object, you may repeat the cycle (open surfaces again, then containers) in case the environment changed, but that is rare.
++Follow this order exactly. Do not deviate.
+ 
+-#### Self-Check to Avoid Skipping
+-- If you ever find yourself moving between receptacles without a clear order, stop. **List all receptacles you have seen in the initial room description and check off which ones you have visited.** Do not proceed until you have a plan.
+-- The most common failure is stopping after checking only a few open surfaces or a handful of cabinets. **Force yourself to continue until every single receptacle has been examined.**
+-- Another common failure is jumping to closed containers before finishing open surfaces. Always finish Step 1 first.
+-- **After the consensus prefix (go to countertop 1), do NOT immediately go to sinkbasin or bathtubbasin. Search open surfaces first (excluding cleaning sources).**
++1. **List all open surfaces** from the initial room description. Exclude sinkbasin/bathtubbasin. Open surfaces include: countertops, tables, shelves, stoveburners, diningtables, towelholders, handtowelholders, etc.
++2. **Visit each open surface in order.** At each, examine contents. If the target is present, pick it up. Once you have it, go to Phase 2.
++3. **After all open surfaces are done** (target not found), list all closed containers from the room description: cabinets, drawers, fridge, microwave, oven, etc.
++4. **Open each closed container in fixed order:** first all cabinets in numerical order, then all drawers, then the fridge (if target is a food item, check fridge first), then microwave, then oven. For each: `open [container]`, look inside. If target is inside, pick it up. Do not skip any container.
++5. **Persist:** Even if many containers, check every single one. The target may be in a later cabinet or drawer.
++6. **If still not found after all containers, repeat the cycle (open surfaces then containers) but this is rare.**
+ 
+-#### If the target is not on the initial countertop after the consensus prefix
+-- Immediately after arriving at countertop 1 and seeing that the target object is not present, **stop and mentally list all receptacles from the initial room description** (excluding sinkbasin/bathtubbasin). 
+-- Then systematically visit each open surface from that list (countertops, handtowelholders, towelholders, etc.) in order, checking contents at each. Only after every open surface has been visited should you begin opening closed containers.
+-- Do not open any closed container (cabinet, drawer, etc.) until Step 1 (all open surfaces) is fully complete. This includes not opening cabinets or drawers even if they seem promising.
++**Self-Check:** If you find yourself moving between locations without a clear plan, stop. Write down the list of receptacles from the description and check off which you have visited. Do not proceed until you have a plan.
+ 
+ ## Phase 2: Clean the Object
+-- **Prerequisite: You must be holding the target object.** If you are empty-handed, return to Phase 1.
+-- **Immediately after picking up the target, do not examine it or check inventory.** Go directly to [cleaning_source] (sinkbasin or bathtubbasin).
+-- Use `clean [object] with [cleaning_source]`.
+-- Confirm the observation says you cleaned it.
++- **Prerequisite: You must be holding the target object.** If empty-handed, return to Phase 1.
++- Immediately go to [cleaning_source] (sinkbasin or bathtubbasin) and use `clean [object] with [cleaning_source]`. Confirm observation says cleaned.
+ 
+ ## Phase 3: Place the Clean Object at Destination
+-- Go to the [destination] specified in the task.
+-- If the destination is a closed container (e.g., microwave, fridge, drawer, cabinet), open it first.
+-- Use `move [object] to [destination]` to place it.
+-- Confirm the observation shows the object is now at the destination.
+-- **Do not go to the destination before cleaning – only now in Phase 3.**
++- Go to [destination]. If it is a closed container, open it first.
++- Use `move [object] to [destination]`.
++- Confirm the object is now at destination.
+ 
+ ## Completion
+-- The task ends as soon as you have placed the clean object. Stop all other actions.
+-- Do not continue searching or moving other objects.
++- Stop as soon as you have placed the clean object. Do not continue.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- [cleaning_source] is a sinkbasin or bathtubbasin.
+
+## Critical Rules (must be followed without exception)
+- **Do not go to any sinkbasin or bathtubbasin until you are holding the target object.**
+- **Do not go to the destination receptacle until after cleaning.**
+- **Search open surfaces first, then closed containers. Do not skip any.**
+
+## Phase 1: Search and Acquire the Target Object
+**Prerequisite: You have completed the consensus prefix (go to countertop 1).**
+- If you are already holding something that is not the target, put it down immediately.
+- **Do not go to sinkbasin or bathtubbasin during this phase.**
+- **Object Name Matching:** Compare the object name from the task exactly. Do not pick up similar items (e.g., cloth vs towel).
+
+### Systematic Search Procedure
+Follow this order exactly. Do not deviate.
+
+1. **List all open surfaces** from the initial room description. Exclude sinkbasin/bathtubbasin. Open surfaces include: countertops, tables, shelves, stoveburners, diningtables, towelholders, handtowelholders, etc.
+2. **Visit each open surface in order.** At each, examine contents. If the target is present, pick it up. Once you have it, go to Phase 2.
+3. **After all open surfaces are done** (target not found), list all closed containers from the room description: cabinets, drawers, fridge, microwave, oven, etc.
+4. **Open each closed container in fixed order:** first all cabinets in numerical order, then all drawers, then the fridge (if target is a food item, check fridge first), then microwave, then oven. For each: `open [container]`, look inside. If target is inside, pick it up. Do not skip any container.
+5. **Persist:** Even if many containers, check every single one. The target may be in a later cabinet or drawer.
+6. **If still not found after all containers, repeat the cycle (open surfaces then containers) but this is rare.**
+
+**Self-Check:** If you find yourself moving between locations without a clear plan, stop. Write down the list of receptacles from the description and check off which you have visited. Do not proceed until you have a plan.
+
+## Phase 2: Clean the Object
+- **Prerequisite: You must be holding the target object.** If empty-handed, return to Phase 1.
+- Immediately go to [cleaning_source] (sinkbasin or bathtubbasin) and use `clean [object] with [cleaning_source]`. Confirm observation says cleaned.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to [destination]. If it is a closed container, open it first.
+- Use `move [object] to [destination]`.
+- Confirm the object is now at destination.
+
+## Completion
+- Stop as soon as you have placed the clean object. Do not continue.

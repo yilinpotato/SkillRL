@@ -1,0 +1,647 @@
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+[driver][resume] 从 /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/summary_partial.json 恢复：epoch=1 ep_i=7056 completed_groups=98 wins=5834/7056 skill_lib<-/root/autodl-tmp/coskill/outputs/alfworld_full_20260721/skill_lib/skills_latest_checkpoint.json
+[driver][resume] 注意：游戏顺序由 TextWorld 内部 shuffled_cycle 决定，跳过已完成局数是靠重建 env 后空转对应次数 reset() 对齐——同一 seed + 同一批 game_files 下可复现，但不是数学上绝对保证的精确重放。
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: yilinpotato (yilinpotato-south-china-university-of-technology) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run uez20mi9
+wandb: Tracking run with wandb version 0.28.1
+wandb: Run data is saved locally in /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/wandb/run-20260724_103422-uez20mi9
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run alfworld_playbook_evolve_norl
+wandb: ⭐️ View project at https://wandb.ai/yilinpotato-south-china-university-of-technology/coskill-alfworld
+wandb: 🚀 View run at https://wandb.ai/yilinpotato-south-china-university-of-technology/coskill-alfworld/runs/uez20mi9
+wandb: Detected [openai] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai
+wandb: WARNING The get_url method is deprecated and will be removed in a future release. Please use `run.url` instead.
+[wandb] online status reporting enabled: https://wandb.ai/yilinpotato-south-china-university-of-technology/coskill-alfworld/runs/uez20mi9
+[SkillsOnlyMemory] Loaded skills: 157 general, 140 task-specific, 11 mistakes  | retrieval_mode=template | skill_tree=on (6 stored trees: ['clean', 'cool', 'heat', 'look_at_obj_in_light', 'pick_and_place', 'pick_two_obj_and_place'])
+[find] 扫描 6374 个 traj_data.json @ /root/.cache/alfworld/json_2.1.1/train
+[find] 命中 pick_and_place_simple 游戏: 790 个  物体分布: {'alarmclock': 22, 'book': 47, 'bowl': 5, 'box': 19, 'bread': 3, 'butterknife': 6, 'cd': 30, 'candle': 49, 'cellphone': 51, 'cloth': 10, 'creditcard': 33, 'dishsponge': 9, 'egg': 4, 'fork': 2, 'glassbottle': 9, 'handtowel': 29, 'kettle': 9, 'keychain': 52, 'knife': 1, 'laptop': 21, 'lettuce': 2, 'mug': 3, 'newspaper': 17, 'pan': 5, 'pen': 20, 'pencil': 24, 'peppershaker': 12, 'pillow': 17, 'plate': 3, 'potato': 3, 'remotecontrol': 33, 'saltshaker': 3, 'soapbar': 6, 'soapbottle': 51, 'spraybottle': 50, 'statue': 22, 'tissuebox': 16, 'toiletpaper': 57, 'tomato': 8, 'vase': 10, 'watch': 12, 'winebottle': 5}
+[driver] pick_and_place_simple: 790 games
+[find] 扫描 6374 个 traj_data.json @ /root/.cache/alfworld/json_2.1.1/train
+[find] 命中 look_at_obj_in_light 游戏: 308 个  物体分布: {'alarmclock': 41, 'book': 30, 'bowl': 17, 'box': 9, 'cd': 33, 'cellphone': 9, 'creditcard': 5, 'keychain': 4, 'laptop': 20, 'mug': 4, 'newspaper': 14, 'pen': 18, 'pencil': 23, 'pillow': 47, 'plate': 3, 'statue': 11, 'tissuebox': 10, 'vase': 4, 'watch': 6}
+[driver] look_at_obj_in_light: 308 games
+[find] 扫描 6374 个 traj_data.json @ /root/.cache/alfworld/json_2.1.1/train
+[find] 命中 pick_clean_then_place_in_recep 游戏: 650 个  物体分布: {'apple': 25, 'bowl': 26, 'butterknife': 26, 'cloth': 47, 'cup': 20, 'dishsponge': 23, 'egg': 23, 'fork': 23, 'kettle': 47, 'knife': 33, 'ladle': 38, 'lettuce': 31, 'mug': 32, 'pan': 28, 'plate': 22, 'pot': 16, 'potato': 25, 'soapbar': 84, 'spatula': 29, 'spoon': 26, 'tomato': 26}
+[driver] pick_clean_then_place_in_recep: 650 games
+[find] 扫描 6374 个 traj_data.json @ /root/.cache/alfworld/json_2.1.1/train
+[find] 命中 pick_heat_then_place_in_recep 游戏: 459 个  物体分布: {'apple': 52, 'bread': 12, 'cup': 71, 'egg': 70, 'mug': 102, 'plate': 39, 'potato': 60, 'tomato': 53}
+[driver] pick_heat_then_place_in_recep: 459 games
+[find] 扫描 6374 个 traj_data.json @ /root/.cache/alfworld/json_2.1.1/train
+[find] 命中 pick_cool_then_place_in_recep 游戏: 533 个  物体分布: {'apple': 44, 'bowl': 49, 'bread': 40, 'cup': 40, 'egg': 25, 'lettuce': 37, 'mug': 74, 'pan': 46, 'plate': 25, 'pot': 57, 'potato': 44, 'tomato': 34, 'winebottle': 18}
+[driver] pick_cool_then_place_in_recep: 533 games
+[find] 扫描 6374 个 traj_data.json @ /root/.cache/alfworld/json_2.1.1/train
+[find] 命中 pick_two_obj_and_place 游戏: 813 个  物体分布: {'alarmclock': 21, 'apple': 1, 'book': 37, 'bowl': 9, 'box': 3, 'bread': 3, 'cd': 26, 'candle': 35, 'cellphone': 53, 'cloth': 6, 'creditcard': 52, 'cup': 14, 'dishsponge': 7, 'egg': 4, 'glassbottle': 3, 'handtowel': 16, 'kettle': 6, 'keychain': 34, 'knife': 2, 'ladle': 4, 'laptop': 11, 'lettuce': 11, 'mug': 5, 'newspaper': 36, 'pan': 2, 'pen': 28, 'pencil': 28, 'peppershaker': 22, 'pillow': 7, 'plate': 5, 'pot': 3, 'potato': 4, 'remotecontrol': 43, 'saltshaker': 25, 'soapbar': 16, 'soapbottle': 44, 'spatula': 6, 'spoon': 5, 'spraybottle': 58, 'statue': 10, 'tissuebox': 26, 'toiletpaper': 43, 'tomato': 3, 'vase': 14, 'watch': 13, 'wateringcan': 3, 'winebottle': 6}
+[driver] pick_two_obj_and_place: 813 games
+[driver] combined pool: 3553 games across 6 task_types x group_size=6 x epochs=1 = 21318 episodes total
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+Initializing AlfredTWEnv...
+  0%|          | 0/8810 [00:00<?, ?it/s]  4%|▍         | 357/8810 [00:00<00:02, 3564.65it/s]  8%|▊         | 714/8810 [00:00<00:02, 3431.00it/s] 12%|█▏        | 1058/8810 [00:00<00:02, 3387.47it/s] 16%|█▌        | 1397/8810 [00:00<00:02, 3289.10it/s] 20%|█▉        | 1727/8810 [00:00<00:02, 3182.23it/s] 23%|██▎       | 2046/8810 [00:00<00:02, 3173.70it/s] 42%|████▏     | 3703/8810 [00:00<00:00, 7399.46it/s]/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+ 51%|█████     | 4456/8810 [00:01<00:01, 3358.70it/s] 57%|█████▋    | 5018/8810 [00:01<00:01, 2959.40it/s] 62%|██████▏   | 5473/8810 [00:01<00:01, 1925.91it/s][driver] data_parallel_workers=2 gpus=['0', '1'] worker_batch_sizes=[36, 36] fixed_manifest_balanced=False; main process will aggregate trajectories and run cloud updates
+[driver] retrieval_mode=template with_skills=True enable_skill_tree=True enable_skill_tree_evolve=True enable_failure_analysis=True
+[driver] rebuilt cumulative small-model tokens by task type from per-episode records
+[driver] dispatch dp group99 epoch1 group_ep7057-7128/21318 (global_step=7057)
+ 66%|██████▌   | 5815/8810 [00:02<00:01, 1645.02it/s][SkillsOnlyMemory] Saved 308 skills to /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/skill_lib/skills_rollout_step7056.json
+[SkillsOnlyMemory] Saved 308 skills to /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/skill_lib/skills_latest_rollout.json
+ 69%|██████▉   | 6084/8810 [00:02<00:01, 1715.22it/s] 72%|███████▏  | 6336/8810 [00:02<00:01, 1589.14it/s]Initializing AlfredTWEnv...
+ 74%|███████▍  | 6563/8810 [00:02<00:01, 1689.98it/s]  0%|          | 0/8810 [00:00<?, ?it/s]  4%|▍         | 357/8810 [00:00<00:02, 3565.15it/s] 77%|███████▋  | 6780/8810 [00:03<00:01, 1330.65it/s]  8%|▊         | 714/8810 [00:00<00:02, 3454.01it/s] 12%|█▏        | 1060/8810 [00:00<00:02, 3421.34it/s] 16%|█▌        | 1403/8810 [00:00<00:02, 3319.55it/s] 79%|███████▉  | 6954/8810 [00:03<00:01, 1135.96it/s] 20%|█▉        | 1736/8810 [00:00<00:02, 3223.94it/s] 23%|██▎       | 2059/8810 [00:00<00:02, 3219.50it/s] 82%|████████▏ | 7210/8810 [00:03<00:01, 1169.23it/s] 42%|████▏     | 3711/8810 [00:00<00:00, 7424.42it/s] 85%|████████▌ | 7500/8810 [00:03<00:00, 1446.74it/s] 87%|████████▋ | 7698/8810 [00:03<00:00, 1545.25it/s] 90%|████████▉ | 7886/8810 [00:03<00:00, 1598.22it/s] 92%|█████████▏| 8071/8810 [00:03<00:00, 1626.51it/s] 51%|█████     | 4464/8810 [00:01<00:01, 3386.18it/s] 94%|█████████▎| 8252/8810 [00:04<00:00, 1305.98it/s] 96%|█████████▌| 8447/8810 [00:04<00:00, 1442.38it/s] 98%|█████████▊| 8636/8810 [00:04<00:00, 1546.44it/s] 57%|█████▋    | 5027/8810 [00:01<00:01, 2983.47it/s]100%|██████████| 8810/8810 [00:04<00:00, 1993.04it/s]
+Overall we have 3553 games in split=train
+Training with 1777 games
+use_expert = False
+ 62%|██████▏   | 5483/8810 [00:02<00:02, 1614.03it/s] 66%|██████▌   | 5818/8810 [00:02<00:02, 1337.26it/s] 69%|██████▉   | 6074/8810 [00:02<00:01, 1408.85it/s] 72%|███████▏  | 6310/8810 [00:03<00:01, 1276.59it/s] 74%|███████▍  | 6548/8810 [00:03<00:01, 1413.30it/s] 77%|███████▋  | 6753/8810 [00:03<00:01, 1112.11it/s]/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+ 78%|███████▊  | 6915/8810 [00:03<00:02, 910.42it/s] /root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+ 81%|████████  | 7158/8810 [00:03<00:01, 1109.27it/s]/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+ 83%|████████▎ | 7321/8810 [00:04<00:01, 991.94it/s] /root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+ 85%|████████▌ | 7527/8810 [00:04<00:01, 1160.69it/s] 87%|████████▋ | 7708/8810 [00:04<00:00, 1280.25it/s] 89%|████████▉ | 7872/8810 [00:04<00:00, 1338.38it/s] 91%|█████████ | 8033/8810 [00:04<00:00, 1392.02it/s] 93%|█████████▎| 8193/8810 [00:04<00:00, 1046.16it/s] 95%|█████████▍| 8358/8810 [00:04<00:00, 1167.72it/s] 97%|█████████▋| 8546/8810 [00:04<00:00, 1326.20it/s] 99%|█████████▉| 8722/8810 [00:05<00:00, 1430.69it/s]100%|██████████| 8810/8810 [00:05<00:00, 1720.70it/s]
+Overall we have 3553 games in split=train
+Training with 1776 games
+use_expert = False
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+[dp-worker1][resume] skipped 98 reset() calls to align with prior run (528.0s)
+INFO 07-24 10:43:47 [__init__.py:216] Automatically detected platform cuda.
+[dp-worker0][resume] skipped 98 reset() calls to align with prior run (533.5s)
+[vLLM] 加载模型: /root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507
+[vLLM] gpu_mem_util=0.8, max_model_len=10240, tensor_parallel_size=1, pipeline_parallel_size=1, max_num_seqs=36, enforce_eager=False
+INFO 07-24 10:43:48 [arg_utils.py:504] HF_HUB_OFFLINE is True, replace model_id [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507] to model_path [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507]
+INFO 07-24 10:43:48 [arg_utils.py:504] HF_HUB_OFFLINE is True, replace model_id [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507] to model_path [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507]
+INFO 07-24 10:43:48 [utils.py:233] non-default args: {'trust_remote_code': True, 'dtype': 'bfloat16', 'seed': 1, 'max_model_len': 10240, 'gpu_memory_utilization': 0.8, 'max_num_seqs': 36, 'disable_log_stats': True, 'model': '/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507'}
+The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is ignored.
+INFO 07-24 10:43:48 [model.py:547] Resolved architecture: Qwen3ForCausalLM
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO 07-24 10:43:48 [model.py:1510] Using max model len 10240
+INFO 07-24 10:43:48 [scheduler.py:205] Chunked prefill is enabled with max_num_batched_tokens=16384.
+INFO 07-24 10:43:49 [__init__.py:216] Automatically detected platform cuda.
+[vLLM] 加载模型: /root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507
+[vLLM] gpu_mem_util=0.8, max_model_len=10240, tensor_parallel_size=1, pipeline_parallel_size=1, max_num_seqs=36, enforce_eager=False
+INFO 07-24 10:43:50 [arg_utils.py:504] HF_HUB_OFFLINE is True, replace model_id [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507] to model_path [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507]
+INFO 07-24 10:43:50 [arg_utils.py:504] HF_HUB_OFFLINE is True, replace model_id [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507] to model_path [/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507]
+INFO 07-24 10:43:50 [utils.py:233] non-default args: {'trust_remote_code': True, 'dtype': 'bfloat16', 'seed': 0, 'max_model_len': 10240, 'gpu_memory_utilization': 0.8, 'max_num_seqs': 36, 'disable_log_stats': True, 'model': '/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507'}
+The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is ignored.
+INFO 07-24 10:43:51 [model.py:547] Resolved architecture: Qwen3ForCausalLM
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO 07-24 10:43:51 [model.py:1510] Using max model len 10240
+INFO 07-24 10:43:51 [scheduler.py:205] Chunked prefill is enabled with max_num_batched_tokens=16384.
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+/root/autodl-tmp/coskill/agent_system/memory/__init__.py:32: UserWarning: RetrievalMemory unavailable (optional deps missing): sentence-transformers and faiss-cpu are required for retrieval memory. Install with: pip install sentence-transformers faiss-cpu
+  _warnings.warn(f"RetrievalMemory unavailable (optional deps missing): {_e}")
+INFO 07-24 10:43:53 [__init__.py:216] Automatically detected platform cuda.
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:54 [core.py:644] Waiting for init message from front-end.
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:54 [core.py:77] Initializing a V1 LLM engine (v0.11.0) with config: model='/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507', speculative_config=None, tokenizer='/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=True, dtype=torch.bfloat16, max_seq_len=10240, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=1, served_model_name=/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507, enable_prefix_caching=True, chunked_prefill_enabled=True, pooler_config=None, compilation_config={"level":3,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":["vllm.unified_attention","vllm.unified_attention_with_output","vllm.mamba_mixer2","vllm.mamba_mixer","vllm.short_conv","vllm.linear_attention","vllm.plamo2_mamba_mixer","vllm.gdn_attention","vllm.sparse_attn_indexer"],"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":[2,1],"use_cudagraph":true,"cudagraph_num_of_warmups":1,"cudagraph_capture_sizes":[72,64,56,48,40,32,24,16,8,4,2,1],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"use_inductor_graph_partition":false,"pass_config":{},"max_capture_size":72,"local_cache_dir":null}
+[1;36m(EngineCore_DP0 pid=5778)[0;0m W0724 10:43:55.937000 5778 .venv-skillRL/lib/python3.10/site-packages/torch/utils/cpp_extension.py:2425] TORCH_CUDA_ARCH_LIST is not set, all archs for visible cards are included for compilation. 
+[1;36m(EngineCore_DP0 pid=5778)[0;0m W0724 10:43:55.937000 5778 .venv-skillRL/lib/python3.10/site-packages/torch/utils/cpp_extension.py:2425] If this is not desired, please set os.environ['TORCH_CUDA_ARCH_LIST'] to specific architectures.
+INFO 07-24 10:43:55 [__init__.py:216] Automatically detected platform cuda.
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:56 [parallel_state.py:1208] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:43:56 [core.py:644] Waiting for init message from front-end.
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:43:56 [core.py:77] Initializing a V1 LLM engine (v0.11.0) with config: model='/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507', speculative_config=None, tokenizer='/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=True, dtype=torch.bfloat16, max_seq_len=10240, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=/root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507, enable_prefix_caching=True, chunked_prefill_enabled=True, pooler_config=None, compilation_config={"level":3,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":["vllm.unified_attention","vllm.unified_attention_with_output","vllm.mamba_mixer2","vllm.mamba_mixer","vllm.short_conv","vllm.linear_attention","vllm.plamo2_mamba_mixer","vllm.gdn_attention","vllm.sparse_attn_indexer"],"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":[2,1],"use_cudagraph":true,"cudagraph_num_of_warmups":1,"cudagraph_capture_sizes":[72,64,56,48,40,32,24,16,8,4,2,1],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"use_inductor_graph_partition":false,"pass_config":{},"max_capture_size":72,"local_cache_dir":null}
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:56 [topk_topp_sampler.py:55] Using FlashInfer for top-p & top-k sampling.
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:56 [gpu_model_runner.py:2602] Starting to load model /root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507...
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:57 [gpu_model_runner.py:2634] Loading model from scratch...
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:57 [cuda.py:366] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_DP0 pid=5778)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/3 [00:00<?, ?it/s]
+[1;36m(EngineCore_DP0 pid=5778)[0;0m Loading safetensors checkpoint shards:  33% Completed | 1/3 [00:00<00:01,  1.73it/s]
+[1;36m(EngineCore_DP0 pid=5778)[0;0m Loading safetensors checkpoint shards:  67% Completed | 2/3 [00:01<00:00,  1.57it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m W0724 10:43:58.509000 5786 .venv-skillRL/lib/python3.10/site-packages/torch/utils/cpp_extension.py:2425] TORCH_CUDA_ARCH_LIST is not set, all archs for visible cards are included for compilation. 
+[1;36m(EngineCore_DP0 pid=5786)[0;0m W0724 10:43:58.509000 5786 .venv-skillRL/lib/python3.10/site-packages/torch/utils/cpp_extension.py:2425] If this is not desired, please set os.environ['TORCH_CUDA_ARCH_LIST'] to specific architectures.
+[1;36m(EngineCore_DP0 pid=5778)[0;0m Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:01<00:00,  2.22it/s]
+[1;36m(EngineCore_DP0 pid=5778)[0;0m 
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:58 [default_loader.py:267] Loading weights took 1.35 seconds
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:43:58 [gpu_model_runner.py:2653] Model loading took 7.6065 GiB and 1.544696 seconds
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:43:59 [parallel_state.py:1208] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:43:59 [topk_topp_sampler.py:55] Using FlashInfer for top-p & top-k sampling.
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:43:59 [gpu_model_runner.py:2602] Starting to load model /root/.cache/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507...
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:43:59 [gpu_model_runner.py:2634] Loading model from scratch...
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:43:59 [cuda.py:366] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_DP0 pid=5786)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/3 [00:00<?, ?it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m Loading safetensors checkpoint shards:  33% Completed | 1/3 [00:00<00:01,  1.80it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m Loading safetensors checkpoint shards:  67% Completed | 2/3 [00:01<00:00,  1.50it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:01<00:00,  2.19it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:01<00:00,  1.99it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m 
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:01 [default_loader.py:267] Loading weights took 1.51 seconds
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:01 [gpu_model_runner.py:2653] Model loading took 7.6065 GiB and 1.716850 seconds
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:05 [backends.py:548] Using cache directory: /root/.cache/vllm/torch_compile_cache/3657ed1e49/rank_0_0/backbone for vLLM's torch.compile
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:05 [backends.py:559] Dynamo bytecode transform time: 6.14 s
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:08 [backends.py:164] Directly load the compiled graph(s) for dynamic shape from the cache, took 2.189 s
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:08 [backends.py:548] Using cache directory: /root/.cache/vllm/torch_compile_cache/3657ed1e49/rank_0_0/backbone for vLLM's torch.compile
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:08 [backends.py:559] Dynamo bytecode transform time: 6.55 s
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:11 [backends.py:164] Directly load the compiled graph(s) for dynamic shape from the cache, took 2.458 s
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:11 [monitor.py:34] torch.compile takes 6.14 s in total
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:12 [gpu_worker.py:298] Available KV cache memory: 54.50 GiB
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:13 [kv_cache_utils.py:1087] GPU KV cache size: 396,832 tokens
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:13 [kv_cache_utils.py:1091] Maximum concurrency for 10,240 tokens per request: 38.75x
+[1;36m(EngineCore_DP0 pid=5778)[0;0m Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   0%|          | 0/12 [00:00<?, ?it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  33%|███▎      | 4/12 [00:00<00:00, 32.21it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  67%|██████▋   | 8/12 [00:00<00:00, 34.65it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 12/12 [00:00<00:00, 31.19it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 12/12 [00:00<00:00, 31.81it/s]
+[1;36m(EngineCore_DP0 pid=5778)[0;0m Capturing CUDA graphs (decode, FULL):   0%|          | 0/7 [00:00<?, ?it/s]Capturing CUDA graphs (decode, FULL):  57%|█████▋    | 4/7 [00:00<00:00, 31.12it/s]Capturing CUDA graphs (decode, FULL): 100%|██████████| 7/7 [00:00<00:00, 32.05it/s]
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:14 [gpu_model_runner.py:3480] Graph capturing finished in 1 secs, took 0.17 GiB
+[1;36m(EngineCore_DP0 pid=5778)[0;0m INFO 07-24 10:44:14 [core.py:210] init engine (profile, create kv cache, warmup model) took 15.19 seconds
+INFO 07-24 10:44:14 [llm.py:306] Supported_tasks: ['generate']
+[dp-worker1] ready gpu=1 CUDA_VISIBLE_DEVICES=1 batch=36 max_num_seqs=36 enforce_eager=False games=1776
+[SkillsOnlyMemory] Loaded skills: 157 general, 140 task-specific, 11 mistakes  | retrieval_mode=template | skill_tree=on (6 stored trees: ['clean', 'cool', 'heat', 'look_at_obj_in_light', 'pick_and_place', 'pick_two_obj_and_place'])
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:15 [monitor.py:34] torch.compile takes 6.55 s in total
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:16 [gpu_worker.py:298] Available KV cache memory: 54.50 GiB
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:16 [kv_cache_utils.py:1087] GPU KV cache size: 396,832 tokens
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:16 [kv_cache_utils.py:1091] Maximum concurrency for 10,240 tokens per request: 38.75x
+[1;36m(EngineCore_DP0 pid=5786)[0;0m Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   0%|          | 0/12 [00:00<?, ?it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  33%|███▎      | 4/12 [00:00<00:00, 30.16it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  67%|██████▋   | 8/12 [00:00<00:00, 31.76it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 12/12 [00:00<00:00, 29.32it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 12/12 [00:00<00:00, 29.78it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m Capturing CUDA graphs (decode, FULL):   0%|          | 0/7 [00:00<?, ?it/s]Capturing CUDA graphs (decode, FULL):  57%|█████▋    | 4/7 [00:00<00:00, 30.98it/s]Capturing CUDA graphs (decode, FULL): 100%|██████████| 7/7 [00:00<00:00, 29.85it/s]
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:17 [gpu_model_runner.py:3480] Graph capturing finished in 1 secs, took 0.17 GiB
+[1;36m(EngineCore_DP0 pid=5786)[0;0m INFO 07-24 10:44:17 [core.py:210] init engine (profile, create kv cache, warmup model) took 16.17 seconds
+INFO 07-24 10:44:18 [llm.py:306] Supported_tasks: ['generate']
+[dp-worker0] ready gpu=0 CUDA_VISIBLE_DEVICES=0 batch=36 max_num_seqs=36 enforce_eager=False games=1777
+[SkillsOnlyMemory] Loaded skills: 157 general, 140 task-specific, 11 mistakes  | retrieval_mode=template | skill_tree=on (6 stored trees: ['clean', 'cool', 'heat', 'look_at_obj_in_light', 'pick_and_place', 'pick_two_obj_and_place'])
+[rollout-batch] group99 worker1 gpu=1 size=36 tasks={'clean': 4, 'cool': 2, 'heat': 10, 'look_at_obj_in_light': 2, 'pick_and_place': 10, 'pick_two_obj_and_place': 8}
+[rollout-batch] group99 worker0 gpu=0 size=36 tasks={'clean': 5, 'cool': 4, 'heat': 1, 'look_at_obj_in_light': 5, 'pick_and_place': 12, 'pick_two_obj_and_place': 9}
+  [rollout-batch] group99 worker1 gpu=1 step=1/40 active=36 done=0/36 won=0/36 (69.0s)
+  [rollout-batch] group99 worker0 gpu=0 step=1/40 active=36 done=0/36 won=0/36 (67.1s)
+  [rollout-batch] group99 worker1 gpu=1 step=2/40 active=36 done=0/36 won=0/36 (65.8s)
+  [rollout-batch] group99 worker0 gpu=0 step=2/40 active=36 done=0/36 won=0/36 (64.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=3/40 active=36 done=0/36 won=0/36 (65.9s)
+  [rollout-batch] group99 worker1 gpu=1 step=3/40 active=36 done=0/36 won=0/36 (66.5s)
+  [rollout-batch] group99 worker1 gpu=1 step=4/40 active=36 done=1/36 won=1/36 (64.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=4/40 active=36 done=1/36 won=1/36 (67.3s)
+  [rollout-batch] group99 worker1 gpu=1 step=5/40 active=35 done=1/36 won=1/36 (65.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=5/40 active=35 done=1/36 won=1/36 (71.8s)
+  [rollout-batch] group99 worker1 gpu=1 step=6/40 active=35 done=3/36 won=3/36 (61.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=6/40 active=35 done=3/36 won=3/36 (65.8s)
+  [rollout-batch] group99 worker1 gpu=1 step=7/40 active=33 done=7/36 won=7/36 (67.7s)
+  [rollout-batch] group99 worker0 gpu=0 step=7/40 active=33 done=8/36 won=8/36 (68.6s)
+  [rollout-batch] group99 worker1 gpu=1 step=8/40 active=29 done=15/36 won=15/36 (58.7s)
+  [rollout-batch] group99 worker0 gpu=0 step=8/40 active=28 done=10/36 won=10/36 (65.4s)
+  [rollout-batch] group99 worker1 gpu=1 step=9/40 active=21 done=15/36 won=15/36 (57.1s)
+  [rollout-batch] group99 worker0 gpu=0 step=9/40 active=26 done=12/36 won=12/36 (63.8s)
+  [rollout-batch] group99 worker1 gpu=1 step=10/40 active=21 done=18/36 won=18/36 (59.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=10/40 active=24 done=14/36 won=14/36 (64.6s)
+  [rollout-batch] group99 worker1 gpu=1 step=11/40 active=18 done=21/36 won=21/36 (55.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=11/40 active=22 done=18/36 won=18/36 (61.7s)
+  [rollout-batch] group99 worker1 gpu=1 step=12/40 active=15 done=22/36 won=22/36 (50.2s)
+  [rollout-batch] group99 worker0 gpu=0 step=12/40 active=18 done=18/36 won=18/36 (59.1s)
+  [rollout-batch] group99 worker1 gpu=1 step=13/40 active=14 done=23/36 won=23/36 (55.4s)
+  [rollout-batch] group99 worker0 gpu=0 step=13/40 active=18 done=20/36 won=20/36 (55.0s)
+  [rollout-batch] group99 worker1 gpu=1 step=14/40 active=13 done=24/36 won=24/36 (55.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=14/40 active=16 done=20/36 won=20/36 (55.4s)
+  [rollout-batch] group99 worker1 gpu=1 step=15/40 active=12 done=24/36 won=24/36 (51.5s)
+  [rollout-batch] group99 worker1 gpu=1 step=16/40 active=12 done=24/36 won=24/36 (51.3s)
+  [rollout-batch] group99 worker0 gpu=0 step=15/40 active=16 done=20/36 won=20/36 (56.4s)
+  [rollout-batch] group99 worker1 gpu=1 step=17/40 active=12 done=24/36 won=24/36 (51.2s)
+  [rollout-batch] group99 worker0 gpu=0 step=16/40 active=16 done=23/36 won=23/36 (54.2s)
+  [rollout-batch] group99 worker1 gpu=1 step=18/40 active=12 done=26/36 won=26/36 (51.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=17/40 active=13 done=23/36 won=23/36 (50.7s)
+  [rollout-batch] group99 worker1 gpu=1 step=19/40 active=10 done=26/36 won=26/36 (50.0s)
+  [rollout-batch] group99 worker0 gpu=0 step=18/40 active=13 done=24/36 won=24/36 (48.8s)
+  [rollout-batch] group99 worker1 gpu=1 step=20/40 active=10 done=26/36 won=26/36 (50.0s)
+  [rollout-batch] group99 worker0 gpu=0 step=19/40 active=12 done=26/36 won=26/36 (49.5s)
+  [rollout-batch] group99 worker1 gpu=1 step=21/40 active=10 done=26/36 won=26/36 (47.9s)
+  [rollout-batch] group99 worker0 gpu=0 step=20/40 active=10 done=28/36 won=28/36 (46.7s)
+  [rollout-batch] group99 worker0 gpu=0 step=21/40 active=8 done=30/36 won=30/36 (44.2s)
+  [rollout-batch] group99 worker1 gpu=1 step=22/40 active=10 done=26/36 won=26/36 (49.6s)
+  [rollout-batch] group99 worker0 gpu=0 step=22/40 active=6 done=30/36 won=30/36 (41.7s)
+  [rollout-batch] group99 worker1 gpu=1 step=23/40 active=10 done=27/36 won=27/36 (48.5s)
+  [rollout-batch] group99 worker0 gpu=0 step=23/40 active=6 done=30/36 won=30/36 (40.9s)
+  [rollout-batch] group99 worker1 gpu=1 step=24/40 active=9 done=27/36 won=27/36 (47.1s)
+  [rollout-batch] group99 worker0 gpu=0 step=24/40 active=6 done=32/36 won=32/36 (39.5s)
+  [rollout-batch] group99 worker1 gpu=1 step=25/40 active=9 done=27/36 won=27/36 (47.3s)
+  [rollout-batch] group99 worker0 gpu=0 step=25/40 active=4 done=32/36 won=32/36 (39.2s)
+  [rollout-batch] group99 worker1 gpu=1 step=26/40 active=9 done=27/36 won=27/36 (48.1s)
+  [rollout-batch] group99 worker0 gpu=0 step=26/40 active=4 done=32/36 won=32/36 (38.8s)
+  [rollout-batch] group99 worker0 gpu=0 step=27/40 active=4 done=32/36 won=32/36 (37.9s)
+  [rollout-batch] group99 worker1 gpu=1 step=27/40 active=9 done=27/36 won=27/36 (46.2s)
+  [rollout-batch] group99 worker0 gpu=0 step=28/40 active=4 done=32/36 won=32/36 (35.1s)
+  [rollout-batch] group99 worker1 gpu=1 step=28/40 active=9 done=27/36 won=27/36 (44.2s)
+  [rollout-batch] group99 worker0 gpu=0 step=29/40 active=4 done=32/36 won=32/36 (36.2s)
+  [rollout-batch] group99 worker1 gpu=1 step=29/40 active=9 done=27/36 won=27/36 (46.9s)
+  [rollout-batch] group99 worker0 gpu=0 step=30/40 active=4 done=32/36 won=32/36 (36.7s)
+  [rollout-batch] group99 worker1 gpu=1 step=30/40 active=9 done=27/36 won=27/36 (45.6s)
+  [rollout-batch] group99 worker0 gpu=0 step=31/40 active=4 done=32/36 won=32/36 (38.6s)
+  [rollout-batch] group99 worker0 gpu=0 step=32/40 active=4 done=32/36 won=32/36 (39.3s)
+  [rollout-batch] group99 worker1 gpu=1 step=31/40 active=9 done=27/36 won=27/36 (47.4s)
+  [rollout-batch] group99 worker0 gpu=0 step=33/40 active=4 done=33/36 won=33/36 (39.4s)
+  [rollout-batch] group99 worker1 gpu=1 step=32/40 active=9 done=27/36 won=27/36 (47.4s)
+  [rollout-batch] group99 worker0 gpu=0 step=34/40 active=3 done=33/36 won=33/36 (38.5s)
+  [rollout-batch] group99 worker1 gpu=1 step=33/40 active=9 done=28/36 won=27/36 (46.6s)
+  [rollout-batch] group99 worker0 gpu=0 step=35/40 active=3 done=33/36 won=33/36 (37.7s)
+  [rollout-batch] group99 worker1 gpu=1 step=34/40 active=8 done=28/36 won=27/36 (42.3s)
+  [rollout-batch] group99 worker0 gpu=0 step=36/40 active=3 done=33/36 won=33/36 (38.4s)
+  [rollout-batch] group99 worker1 gpu=1 step=35/40 active=8 done=28/36 won=27/36 (44.7s)
+  [rollout-batch] group99 worker0 gpu=0 step=37/40 active=3 done=33/36 won=33/36 (36.3s)
+  [rollout-batch] group99 worker0 gpu=0 step=38/40 active=3 done=33/36 won=33/36 (37.8s)
+  [rollout-batch] group99 worker1 gpu=1 step=36/40 active=8 done=28/36 won=27/36 (46.4s)
+  [rollout-batch] group99 worker0 gpu=0 step=39/40 active=3 done=33/36 won=33/36 (38.3s)
+  [rollout-batch] group99 worker1 gpu=1 step=37/40 active=8 done=28/36 won=27/36 (45.2s)
+  [rollout-batch] group99 worker0 gpu=0 step=40/40 active=3 done=34/36 won=34/36 (36.2s)
+  [rollout-batch] group99 worker1 gpu=1 step=38/40 active=8 done=28/36 won=27/36 (44.4s)
+  [rollout-batch] group99 worker1 gpu=1 step=39/40 active=8 done=28/36 won=27/36 (45.9s)
+  [rollout-batch] group99 worker1 gpu=1 step=40/40 active=8 done=28/36 won=27/36 (45.8s)
+[driver] step=7057 pick_and_place won=True steps=20
+[driver] step=7058 look_at_obj_in_light won=True steps=19
+[driver] step=7059 pick_two_obj_and_place won=True steps=10
+[driver] step=7060 pick_and_place won=True steps=13
+[driver] step=7061 clean won=True steps=7
+[driver] step=7062 cool won=True steps=11
+[driver] step=7063 pick_and_place won=True steps=21
+[driver] step=7064 pick_and_place won=True steps=18
+[driver] step=7065 pick_two_obj_and_place won=True steps=11
+[driver] step=7066 pick_two_obj_and_place won=True steps=20
+[driver] step=7067 clean won=True steps=7
+[driver] step=7068 pick_two_obj_and_place won=True steps=21
+[driver] step=7069 cool won=True steps=9
+[driver] step=7070 pick_and_place won=True steps=19
+[driver] step=7071 pick_two_obj_and_place won=True steps=16
+[driver] step=7072 heat won=True steps=8
+[driver] step=7073 pick_and_place won=True steps=6
+[driver] step=7074 pick_and_place won=True steps=13
+[driver] step=7075 clean won=True steps=16
+[driver] step=7076 cool won=True steps=8
+[driver] step=7077 pick_two_obj_and_place won=False steps=40
+[driver] step=7078 pick_and_place won=True steps=4
+[driver] step=7079 cool won=True steps=9
+[driver] step=7080 look_at_obj_in_light won=True steps=11
+[driver] step=7081 pick_two_obj_and_place won=False steps=40
+[driver] step=7082 pick_and_place won=True steps=11
+[driver] step=7083 pick_and_place won=True steps=24
+[driver] step=7084 clean won=True steps=7
+[driver] step=7085 pick_and_place won=True steps=40
+[driver] step=7086 look_at_obj_in_light won=True steps=7
+[driver] step=7087 clean won=True steps=7
+[driver] step=7088 pick_two_obj_and_place won=True steps=10
+[driver] step=7089 pick_two_obj_and_place won=True steps=16
+[driver] step=7090 look_at_obj_in_light won=True steps=33
+[driver] step=7091 pick_and_place won=True steps=24
+[driver] step=7092 look_at_obj_in_light won=True steps=6
+[driver] step=7093 heat won=True steps=10
+[driver] step=7094 pick_two_obj_and_place won=False steps=33
+[driver] step=7095 clean won=True steps=8
+[driver] step=7096 look_at_obj_in_light won=True steps=6
+[driver] step=7097 pick_and_place won=True steps=8
+[driver] step=7098 heat won=False steps=40
+[driver] step=7099 heat won=True steps=8
+[driver] step=7100 clean won=False steps=40
+[driver] step=7101 pick_and_place won=True steps=13
+[driver] step=7102 clean won=True steps=8
+[driver] step=7103 pick_two_obj_and_place won=True steps=18
+[driver] step=7104 pick_two_obj_and_place won=True steps=14
+[driver] step=7105 heat won=True steps=7
+[driver] step=7106 pick_and_place won=True steps=23
+[driver] step=7107 heat won=True steps=8
+[driver] step=7108 pick_and_place won=False steps=40
+[driver] step=7109 heat won=True steps=7
+[driver] step=7110 pick_and_place won=False steps=40
+[driver] step=7111 pick_two_obj_and_place won=False steps=40
+[driver] step=7112 pick_and_place won=True steps=18
+[driver] step=7113 cool won=True steps=11
+[driver] step=7114 pick_two_obj_and_place won=False steps=40
+[driver] step=7115 clean won=True steps=6
+[driver] step=7116 cool won=True steps=8
+[driver] step=7117 pick_two_obj_and_place won=False steps=40
+[driver] step=7118 heat won=True steps=10
+[driver] step=7119 look_at_obj_in_light won=True steps=4
+[driver] step=7120 pick_and_place won=True steps=10
+[driver] step=7121 heat won=True steps=7
+[driver] step=7122 pick_two_obj_and_place won=False steps=40
+[driver] step=7123 pick_two_obj_and_place won=True steps=12
+[driver] step=7124 heat won=True steps=8
+[driver] step=7125 heat won=True steps=8
+[driver] step=7126 pick_and_place won=True steps=11
+[driver] step=7127 pick_and_place won=True steps=11
+[driver] step=7128 pick_and_place won=True steps=7
+[TracesPool] exported CompressedBatch → /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/traces_pool/batch_1784863145_d1b4034d.json (succ=61, fail=11)
+[CoSkill] watermark fired (success_decline); succ=61 fail=11
+[CloudAnalyzer] wrote 3 patches → /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/cloud_io/patches_d1b4034d.json
+[HierSkillLib] ingested L0 patch: dyn_251 - One Look Per Location
+[HierSkillLib] ingested L0 patch: dyn_252 - Pick Exact Target Only
+[HierSkillLib] ingested L0 patch: dyn_253 - Direct Sequence After Pickup
+[CoSkill] layer counts: {'L0': 3, 'L1': 0, 'L2': 297, 'internalized': 0, 'deprecated': 0}
+[CloudAnalyzer] wrote → /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/cloud_io/diagnoses_d1b4034d.json
+[SkillsOnlyMemory] updated skill_tree[clean] -> v65 level=3 (5955 chars, 16 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] updated skill_tree[cool] -> v61 level=3 (3659 chars, 9 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] updated skill_tree[heat] -> v41 level=3 (2625 chars, 8 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] updated skill_tree[look_at_obj_in_light] -> v30 level=3 (3950 chars, 7 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] updated skill_tree[pick_and_place] -> v66 level=4 (3595 chars, 12 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] updated skill_tree[pick_two_obj_and_place] -> v79 level=3 (4942 chars, 13 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] Saved 311 skills to /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/skill_lib/skills_step7128.json
+[CoSkill] saved evolved skill lib to /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/skill_lib/skills_step7128.json
+[driver] group99 metric: episodes=72 wins=61 success=84.7% valid_action=100.0% strict_valid_action=49.2% small_tokens=6228622 large_tokens=7119799 rollout=2653.2s
+[driver] dispatch dp group100 epoch1 group_ep7129-7200/21318 (global_step=7129)
+[SkillsOnlyMemory] Saved 311 skills to /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/skill_lib/skills_rollout_step7128.json
+[SkillsOnlyMemory] Saved 311 skills to /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/skill_lib/skills_latest_rollout.json
+[SkillsOnlyMemory] Loaded skills: 160 general, 140 task-specific, 11 mistakes  | retrieval_mode=template | skill_tree=on (6 stored trees: ['clean', 'cool', 'heat', 'look_at_obj_in_light', 'pick_and_place', 'pick_two_obj_and_place'])
+[SkillsOnlyMemory] Loaded skills: 160 general, 140 task-specific, 11 mistakes  | retrieval_mode=template | skill_tree=on (6 stored trees: ['clean', 'cool', 'heat', 'look_at_obj_in_light', 'pick_and_place', 'pick_two_obj_and_place'])
+[rollout-batch] group100 worker0 gpu=0 size=36 tasks={'clean': 5, 'cool': 3, 'heat': 2, 'look_at_obj_in_light': 4, 'pick_and_place': 9, 'pick_two_obj_and_place': 13}
+[rollout-batch] group100 worker1 gpu=1 size=36 tasks={'clean': 6, 'cool': 10, 'heat': 4, 'look_at_obj_in_light': 1, 'pick_and_place': 7, 'pick_two_obj_and_place': 8}
+  [rollout-batch] group100 worker1 gpu=1 step=1/40 active=36 done=0/36 won=0/36 (59.6s)
+  [rollout-batch] group100 worker0 gpu=0 step=1/40 active=36 done=0/36 won=0/36 (69.1s)
+  [rollout-batch] group100 worker1 gpu=1 step=2/40 active=36 done=0/36 won=0/36 (58.9s)
+  [rollout-batch] group100 worker0 gpu=0 step=2/40 active=36 done=0/36 won=0/36 (68.3s)
+  [rollout-batch] group100 worker1 gpu=1 step=3/40 active=36 done=1/36 won=1/36 (58.0s)
+  [rollout-batch] group100 worker0 gpu=0 step=3/40 active=36 done=1/36 won=1/36 (65.4s)
+  [rollout-batch] group100 worker1 gpu=1 step=4/40 active=35 done=2/36 won=2/36 (61.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=4/40 active=35 done=1/36 won=1/36 (70.7s)
+  [rollout-batch] group100 worker1 gpu=1 step=5/40 active=34 done=4/36 won=4/36 (61.9s)
+  [rollout-batch] group100 worker0 gpu=0 step=5/40 active=35 done=1/36 won=1/36 (73.7s)
+  [rollout-batch] group100 worker1 gpu=1 step=6/40 active=32 done=4/36 won=4/36 (57.1s)
+  [rollout-batch] group100 worker0 gpu=0 step=6/40 active=35 done=1/36 won=1/36 (69.0s)
+  [rollout-batch] group100 worker1 gpu=1 step=7/40 active=32 done=6/36 won=6/36 (63.9s)
+  [rollout-batch] group100 worker0 gpu=0 step=7/40 active=35 done=1/36 won=1/36 (68.0s)
+  [rollout-batch] group100 worker1 gpu=1 step=8/40 active=30 done=8/36 won=8/36 (63.5s)
+  [rollout-batch] group100 worker1 gpu=1 step=9/40 active=28 done=15/36 won=15/36 (60.2s)
+  [rollout-batch] group100 worker0 gpu=0 step=8/40 active=35 done=3/36 won=3/36 (74.4s)
+  [rollout-batch] group100 worker1 gpu=1 step=10/40 active=21 done=15/36 won=15/36 (56.9s)
+  [rollout-batch] group100 worker0 gpu=0 step=9/40 active=33 done=7/36 won=6/36 (72.4s)
+  [rollout-batch] group100 worker1 gpu=1 step=11/40 active=21 done=16/36 won=16/36 (55.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=10/40 active=29 done=9/36 won=8/36 (66.6s)
+  [rollout-batch] group100 worker1 gpu=1 step=12/40 active=20 done=19/36 won=19/36 (59.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=11/40 active=27 done=11/36 won=10/36 (69.3s)
+  [rollout-batch] group100 worker1 gpu=1 step=13/40 active=17 done=22/36 won=22/36 (53.1s)
+  [rollout-batch] group100 worker1 gpu=1 step=14/40 active=14 done=22/36 won=22/36 (51.0s)
+  [rollout-batch] group100 worker0 gpu=0 step=12/40 active=25 done=13/36 won=12/36 (66.6s)
+  [rollout-batch] group100 worker1 gpu=1 step=15/40 active=14 done=23/36 won=22/36 (55.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=13/40 active=23 done=16/36 won=15/36 (61.9s)
+  [rollout-batch] group100 worker1 gpu=1 step=16/40 active=13 done=23/36 won=22/36 (53.2s)
+  [rollout-batch] group100 worker0 gpu=0 step=14/40 active=20 done=19/36 won=18/36 (62.5s)
+  [rollout-batch] group100 worker1 gpu=1 step=17/40 active=13 done=23/36 won=22/36 (55.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=15/40 active=17 done=20/36 won=19/36 (60.4s)
+  [rollout-batch] group100 worker1 gpu=1 step=18/40 active=13 done=24/36 won=23/36 (50.9s)
+  [rollout-batch] group100 worker0 gpu=0 step=16/40 active=16 done=20/36 won=19/36 (56.3s)
+  [rollout-batch] group100 worker1 gpu=1 step=19/40 active=12 done=24/36 won=23/36 (49.0s)
+  [rollout-batch] group100 worker1 gpu=1 step=20/40 active=12 done=25/36 won=24/36 (44.8s)
+  [rollout-batch] group100 worker0 gpu=0 step=17/40 active=16 done=20/36 won=19/36 (58.8s)
+  [rollout-batch] group100 worker1 gpu=1 step=21/40 active=11 done=25/36 won=24/36 (48.2s)
+  [rollout-batch] group100 worker0 gpu=0 step=18/40 active=16 done=20/36 won=19/36 (60.5s)
+  [rollout-batch] group100 worker1 gpu=1 step=22/40 active=11 done=25/36 won=24/36 (47.6s)
+  [rollout-batch] group100 worker0 gpu=0 step=19/40 active=16 done=20/36 won=19/36 (58.4s)
+  [rollout-batch] group100 worker1 gpu=1 step=23/40 active=11 done=25/36 won=24/36 (49.3s)
+  [rollout-batch] group100 worker0 gpu=0 step=20/40 active=16 done=21/36 won=20/36 (59.6s)
+  [rollout-batch] group100 worker1 gpu=1 step=24/40 active=11 done=26/36 won=25/36 (48.3s)
+  [rollout-batch] group100 worker0 gpu=0 step=21/40 active=15 done=21/36 won=20/36 (56.3s)
+  [rollout-batch] group100 worker1 gpu=1 step=25/40 active=10 done=26/36 won=25/36 (49.1s)
+  [rollout-batch] group100 worker1 gpu=1 step=26/40 active=10 done=27/36 won=26/36 (49.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=22/40 active=15 done=21/36 won=20/36 (58.8s)
+  [rollout-batch] group100 worker1 gpu=1 step=27/40 active=9 done=27/36 won=26/36 (45.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=23/40 active=15 done=21/36 won=20/36 (58.9s)
+  [rollout-batch] group100 worker1 gpu=1 step=28/40 active=9 done=27/36 won=26/36 (44.6s)
+  [rollout-batch] group100 worker0 gpu=0 step=24/40 active=15 done=21/36 won=20/36 (55.1s)
+  [rollout-batch] group100 worker1 gpu=1 step=29/40 active=9 done=28/36 won=27/36 (45.7s)
+  [rollout-batch] group100 worker0 gpu=0 step=25/40 active=15 done=21/36 won=20/36 (54.7s)
+  [rollout-batch] group100 worker1 gpu=1 step=30/40 active=8 done=28/36 won=27/36 (43.7s)
+  [rollout-batch] group100 worker1 gpu=1 step=31/40 active=8 done=28/36 won=27/36 (43.9s)
+  [rollout-batch] group100 worker0 gpu=0 step=26/40 active=15 done=21/36 won=20/36 (55.5s)
+  [rollout-batch] group100 worker1 gpu=1 step=32/40 active=8 done=28/36 won=27/36 (43.7s)
+  [rollout-batch] group100 worker0 gpu=0 step=27/40 active=15 done=21/36 won=20/36 (58.1s)
+  [rollout-batch] group100 worker1 gpu=1 step=33/40 active=8 done=28/36 won=27/36 (41.8s)
+  [rollout-batch] group100 worker0 gpu=0 step=28/40 active=15 done=22/36 won=21/36 (57.0s)
+  [rollout-batch] group100 worker1 gpu=1 step=34/40 active=8 done=28/36 won=27/36 (41.4s)
+  [rollout-batch] group100 worker1 gpu=1 step=35/40 active=8 done=28/36 won=27/36 (45.5s)
+  [rollout-batch] group100 worker0 gpu=0 step=29/40 active=14 done=22/36 won=21/36 (54.7s)
+  [rollout-batch] group100 worker1 gpu=1 step=36/40 active=8 done=28/36 won=27/36 (44.6s)
+  [rollout-batch] group100 worker0 gpu=0 step=30/40 active=14 done=23/36 won=22/36 (59.4s)
+  [rollout-batch] group100 worker1 gpu=1 step=37/40 active=8 done=28/36 won=27/36 (45.7s)
+  [rollout-batch] group100 worker0 gpu=0 step=31/40 active=13 done=23/36 won=22/36 (56.8s)
+  [rollout-batch] group100 worker1 gpu=1 step=38/40 active=8 done=28/36 won=27/36 (44.2s)
+  [rollout-batch] group100 worker0 gpu=0 step=32/40 active=13 done=23/36 won=22/36 (53.5s)
+  [rollout-batch] group100 worker1 gpu=1 step=39/40 active=8 done=28/36 won=27/36 (43.7s)
+  [rollout-batch] group100 worker1 gpu=1 step=40/40 active=8 done=28/36 won=27/36 (42.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=33/40 active=13 done=23/36 won=22/36 (57.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=34/40 active=13 done=23/36 won=22/36 (53.3s)
+  [rollout-batch] group100 worker0 gpu=0 step=35/40 active=13 done=23/36 won=22/36 (53.6s)
+  [rollout-batch] group100 worker0 gpu=0 step=36/40 active=13 done=25/36 won=24/36 (54.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=37/40 active=11 done=25/36 won=24/36 (53.2s)
+  [rollout-batch] group100 worker0 gpu=0 step=38/40 active=11 done=25/36 won=24/36 (51.5s)
+  [rollout-batch] group100 worker0 gpu=0 step=39/40 active=11 done=25/36 won=24/36 (53.4s)
+  [rollout-batch] group100 worker0 gpu=0 step=40/40 active=11 done=26/36 won=25/36 (48.8s)
+[driver] step=7129 pick_two_obj_and_place won=False steps=40
+[driver] step=7130 clean won=False steps=40
+[driver] step=7131 clean won=True steps=10
+[driver] step=7132 cool won=True steps=8
+[driver] step=7133 pick_two_obj_and_place won=True steps=36
+[driver] step=7134 look_at_obj_in_light won=True steps=3
+[driver] step=7135 pick_two_obj_and_place won=True steps=30
+[driver] step=7136 cool won=True steps=14
+[driver] step=7137 clean won=True steps=14
+[driver] step=7138 pick_and_place won=True steps=13
+[driver] step=7139 clean won=True steps=9
+[driver] step=7140 look_at_obj_in_light won=True steps=20
+[driver] step=7141 pick_two_obj_and_place won=False steps=40
+[driver] step=7142 pick_and_place won=True steps=40
+[driver] step=7143 pick_and_place won=False steps=9
+[driver] step=7144 pick_and_place won=True steps=28
+[driver] step=7145 heat won=True steps=9
+[driver] step=7146 pick_and_place won=True steps=15
+[driver] step=7147 pick_two_obj_and_place won=True steps=14
+[driver] step=7148 pick_two_obj_and_place won=True steps=9
+[driver] step=7149 pick_and_place won=True steps=36
+[driver] step=7150 pick_two_obj_and_place won=False steps=40
+[driver] step=7151 pick_and_place won=False steps=40
+[driver] step=7152 pick_two_obj_and_place won=False steps=40
+[driver] step=7153 pick_two_obj_and_place won=False steps=40
+[driver] step=7154 pick_and_place won=True steps=12
+[driver] step=7155 pick_and_place won=False steps=40
+[driver] step=7156 pick_two_obj_and_place won=True steps=11
+[driver] step=7157 clean won=True steps=13
+[driver] step=7158 look_at_obj_in_light won=True steps=12
+[driver] step=7159 pick_two_obj_and_place won=True steps=13
+[driver] step=7160 pick_two_obj_and_place won=False steps=40
+[driver] step=7161 heat won=True steps=10
+[driver] step=7162 look_at_obj_in_light won=True steps=8
+[driver] step=7163 cool won=True steps=11
+[driver] step=7164 pick_two_obj_and_place won=False steps=40
+[driver] step=7165 look_at_obj_in_light won=True steps=3
+[driver] step=7166 heat won=True steps=9
+[driver] step=7167 heat won=False steps=40
+[driver] step=7168 pick_and_place won=True steps=5
+[driver] step=7169 cool won=True steps=8
+[driver] step=7170 pick_two_obj_and_place won=False steps=40
+[driver] step=7171 clean won=True steps=9
+[driver] step=7172 pick_two_obj_and_place won=True steps=20
+[driver] step=7173 cool won=False steps=40
+[driver] step=7174 pick_two_obj_and_place won=True steps=26
+[driver] step=7175 cool won=True steps=13
+[driver] step=7176 clean won=False steps=40
+[driver] step=7177 cool won=True steps=7
+[driver] step=7178 cool won=True steps=13
+[driver] step=7179 pick_and_place won=True steps=5
+[driver] step=7180 cool won=True steps=9
+[driver] step=7181 pick_and_place won=False steps=40
+[driver] step=7182 cool won=True steps=9
+[driver] step=7183 heat won=True steps=9
+[driver] step=7184 pick_two_obj_and_place won=True steps=24
+[driver] step=7185 clean won=True steps=12
+[driver] step=7186 heat won=True steps=8
+[driver] step=7187 pick_and_place won=True steps=9
+[driver] step=7188 clean won=True steps=7
+[driver] step=7189 pick_two_obj_and_place won=False steps=40
+[driver] step=7190 pick_and_place won=True steps=9
+[driver] step=7191 pick_and_place won=True steps=29
+[driver] step=7192 cool won=True steps=13
+[driver] step=7193 pick_and_place won=True steps=18
+[driver] step=7194 pick_two_obj_and_place won=False steps=15
+[driver] step=7195 clean won=True steps=4
+[driver] step=7196 clean won=True steps=12
+[driver] step=7197 cool won=True steps=12
+[driver] step=7198 pick_two_obj_and_place won=True steps=11
+[driver] step=7199 cool won=False steps=40
+[driver] step=7200 pick_two_obj_and_place won=False steps=40
+[TracesPool] exported CompressedBatch → /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/traces_pool/batch_1784865922_ceccf9cc.json (succ=52, fail=20)
+[CoSkill] watermark fired (success_decline); succ=52 fail=20
+[CloudAnalyzer] wrote 3 patches → /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/cloud_io/patches_ceccf9cc.json
+[HierSkillLib] ingested L0 patch: dyn_254 - Prioritize Countertop Dining Table Search
+[HierSkillLib] ingested L0 patch: dyn_255 - Skip Kitchen Appliances Initially
+[HierSkillLib] ingested L0 patch: dyn_256 - Pick-Clean-Place Without Interruption
+[CoSkill] layer counts: {'L0': 6, 'L1': 0, 'L2': 297, 'internalized': 0, 'deprecated': 0}
+[CloudAnalyzer] wrote → /root/autodl-tmp/coskill/outputs/alfworld_full_20260721/cloud_io/diagnoses_ceccf9cc.json
+[SkillsOnlyMemory] updated skill_tree[clean] -> v66 level=3 (7237 chars, 19 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] updated skill_tree[cool] -> v62 level=3 (4248 chars, 10 nodes, heading depths=[1, 2, 3])
+[SkillsOnlyMemory] updated skill_tree[heat] -> v42 level=5 (2780 chars, 8 nodes, heading depths=[1, 2, 3])
+[CoSkill] skill_tree[look_at_obj_in_light] skipped: 5 < min_samples=6

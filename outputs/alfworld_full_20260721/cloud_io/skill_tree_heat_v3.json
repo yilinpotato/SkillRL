@@ -1,0 +1,127 @@
+{
+  "content": "# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location from the task description.\n- The heating appliance is typically the microwave.\n\n## 2. Locate the object\n- Search systematically across all receptacles you can see.\n- List all visible receptacles in the current room (e.g., countertop, sidetable, diningtable, shelf, cabinet, drawer, fridge, garbagecan, sinkbasin, etc.).\n- Prioritize likely locations based on object type:\n  - Food items (e.g., tomato, egg, apple, lettuce, bread) are often stored in the fridge.\n  - Non-food items (e.g., cup, mug, bowl, plate) may be in cabinets, drawers, or on countertops.\n- Start with the fridge (go there, open it, check contents). If object is inside, take it.\n- If not found, check each countertop (go to each, look at its contents).\n- Then check shelves, sidetables, diningtables, and other flat surfaces.\n- Then check cabinets and drawers (open each, look inside).\n- Do not skip any receptacle; use 'look' to see what is in the room if you lose track.\n- ### Complete Systematic Search: If you have checked every receptacle you see and still not found the object, perform a 'look' action to refresh the list of all receptacles, then continue searching each one you haven't visited. Do not stop until you have found the object or exhausted all receptacles.\n\n## 3. Heat the object\n- Once you have the object in inventory, go to the microwave.\n- Open the microwave.\n- Move the object from inventory into the microwave (action: 'move <object> to microwave').\n- Close the microwave to start heating.\n- Open the microwave again; the object is now heated.\n- Take the heated object from the microwave (action: 'take <object> from microwave').\n- ### Do Not Stop After Heating: After taking the heated object, immediately proceed to place it in the target location. Do not perform any other actions (e.g., go elsewhere, examine) until placement is complete.\n\n## 4. Place the heated object in the target location\n- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).\n- ### Different Destination Requirement: Ensure the target receptacle is different from the source receptacle where the object originally came from. Returning the object to its original location is not a valid placement.\n- If the receptacle is a container that can be opened (e.g., cabinet, fridge, drawer, garbagecan, etc.), open it first.\n- Put the object into/onto the receptacle (action: 'move <object> to <receptacle>').\n- ### Post-Placement Verification: After the move, check your inventory (it should be empty) and examine the target to confirm the object is there. If not, try again or consider if the receptacle is closed.\n\n## 5. Completion check and termination\n- Once you have placed the heated object at the target location, **do not pick it up again**. Resist any impulse to take it back.\n- ### Terminate after placing at target: After a successful placement, stop all actions. Do not go back to the microwave or any other location.\n- ### If you are unsure, perform a final verification: check inventory (should be empty) and examine the target to see the object. If it is there, the task is complete.\n- Do not continue searching, heating, or moving the object.",
+  "level": 3,
+  "version": 3,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "The agent followed the general structure of the skill tree but failed to open cabinets before placing (existing step ignored), returned objects to their source (no rule against), stopped prematurely after heating, and did not fully explore. The skill tree was not misleading, but it lacked explicit rules for different-destination placement and emphasis on completing the full placement sequence.",
+  "changelog": "Added 'Different Destination Requirement' and 'Do Not Stop After Heating' sub-sections under heat and placement; reinforced systematic search with a 'Complete Systematic Search' sub-section; added 'Post-Placement Verification' under placement.",
+  "round_failures": [
+    {
+      "failure_type": "other",
+      "root_cause": "The agent heated the plate and placed it back on the same countertop it was taken from, resulting in no effective placement; the task likely expects a destination different from the source.",
+      "skill_tree_gap": "Lack of awareness that placing an object back where it came from is not a valid 'put'.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "other",
+      "root_cause": "The tomato was taken from the fridge, heated, and then placed back into the same fridge, meaning its location did not change; the task likely requires a different final location.",
+      "skill_tree_gap": "No distinction between moving within same receptacle and moving to a new one.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent heated the apple and then went to the garbagecan but did not place it inside; the trajectory ends without a move action.",
+      "skill_tree_gap": "Missing final placement step after achieving the heated state.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found a potato; it searched several countertops and cabinets but missed the location where the potato was (likely in a different cabinet or fridge).",
+      "skill_tree_gap": "Incomplete exploration of all possible object locations.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "wrong_order",
+      "root_cause": "The agent moved the plate into cabinet 1 without opening it first, so the plate was placed on top of the cabinet rather than inside.",
+      "skill_tree_gap": "Missing precondition check for placing objects into closed containers.",
+      "task_type": "heat"
+    },
+    {
+      "failure_type": "other",
+      "root_cause": "The agent moved the egg to the sidetable, but the observation after the move shows the same state as before, indicating the move may not have taken effect (possibly due to sidetable already containing an egg).",
+      "skill_tree_gap": "Lack of verification that placement succeeded.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_288",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 2,
+      "call_count": 18,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "00273d90cecd",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 2,
+      "call_count": 18,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "a09be66aac0f",
+      "created_version": 1,
+      "last_changed_version": 3,
+      "stable_versions": 0,
+      "call_count": 18,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "616757a51dbe",
+      "created_version": 1,
+      "last_changed_version": 3,
+      "stable_versions": 0,
+      "call_count": 18,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object-in-the-target-location": {
+      "title": "4. Place the heated object in the target location",
+      "level": 2,
+      "body_hash": "1856a9318f6a",
+      "created_version": 1,
+      "last_changed_version": 3,
+      "stable_versions": 0,
+      "call_count": 18,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check-and-termination": {
+      "title": "5. Completion check and termination",
+      "level": 2,
+      "body_hash": "58b0eaa741df",
+      "created_version": 2,
+      "last_changed_version": 2,
+      "stable_versions": 1,
+      "call_count": 11,
+      "success_when_used": 3,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

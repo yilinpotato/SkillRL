@@ -1,0 +1,87 @@
+=== Skill Tree Debug — scope=heat  v19 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent ignored the heat step entirely, dropping the target object back onto the countertop and then picking a different mug, never proceeding to the microwave. The skill tree's wording was clear about the need to heat, but it did not explicitly forbid dropping before heating, which may have allowed the loop. The new subsection 3.3 closes that gap.
+changelog: Added subsection 3.3 under '## 3. Heat the object' to explicitly prohibit dropping or moving the object before heating, preventing the pick-and-drop loop observed in the failure trajectory.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [loop] The agent repeatedly picked up and dropped mugs on the countertop without ever heating them or proceeding to the shelf. | evidence: Actions: take mug 2, then move mug 2 to countertop 2; then take mug 1, then move mug 1 to countertop 2; no heating action was attempted. | fix: After picking up an object that requires heating, immediately go to the microwave (or stove) and perform the heat action before moving to the destination. | skill_tree_gap: Missing a directed workflow that enforces the order: pick -> heat -> place, preventing loops of unproductive pick-and-drop. | patch_location: Under '## heat', add a new subsection '### Heat sequence' that explicitly separates the heating step from placement and prevents re-dropping the object.
+
+--- Node tree (per-node lifecycle, this version=v19) ---
+[STABLE              ] heat                                     level=1 stable_versions=18 calls=370 success=299 rate=80.8%
+[STABLE              ] heat/1-interpret-the-task                level=2 stable_versions=2 calls=370 success=299 rate=80.8%
+[STABLE              ] heat/2-locate-the-object                 level=2 stable_versions=12 calls=370 success=299 rate=80.8%
+[STABLE              ] heat/2-locate-the-object/critical-search-order-do-not-skip-steps level=3 stable_versions=1 calls=18 success=15 rate=83.3%
+[STABLE              ] heat/2-locate-the-object/persistence-and-retry level=3 stable_versions=2 calls=18 success=15 rate=83.3%
+[STABLE              ] heat/3-heat-the-object                   level=2 stable_versions=11 calls=370 success=299 rate=80.8%
+[STABLE              ] heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory level=3 stable_versions=6 calls=260 success=231 rate=88.8%
+[STABLE              ] heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory level=3 stable_versions=5 calls=232 success=207 rate=89.2%
+[NEW                 ] heat/3-heat-the-object/3-3-critical-do-not-drop-or-place-the-object-before-heating level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] heat/4-place-the-heated-object           level=2 stable_versions=6 calls=260 success=231 rate=88.8%
+[STABLE              ] heat/5-completion-check-and-termination  level=2 stable_versions=6 calls=363 success=297 rate=81.8%
+
+--- Line diff vs previous version (v18 -> v19) ---
+--- v18
++++ v19
+@@ -33,6 +33,9 @@
+ ### 3.2 Prerequisite: Object must be in inventory
+ - Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the exhaustive search again.
+ 
++### 3.3 Critical: Do not drop or place the object before heating
++- Once you have picked up the target object, you must go directly to the microwave and heat it. Do NOT move the object to any other location (countertop, shelf, etc.) before heating. Dropping it back onto a surface or placing it elsewhere will cause a loop and waste steps. The heating action must be performed while the object is in your inventory and you are at the microwave.
++
+ ## 4. Place the heated object
+ - Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).
+ - The destination must be different from the source where the object originally came from.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location.
+- The heating appliance is the microwave.
+
+## 2. Locate the object
+### Critical search order (DO NOT skip steps)
+1. **Start at fridge** (already open). Look inside. If target present, take it and go to heating.
+2. **Check every countertop** you can see. Use `look` to see which countertops are present. Examine each, take object if found.
+3. **After checking all countertops** (and not finding object), perform a `look` to refresh the room description. Identify all flat surfaces: diningtable, sidetables, shelves, desk, coffee table, etc. **Visit each one** – look and take if found. Do NOT skip this step: failing to check flat surfaces before opening containers is the most common cause of missing the object.
+4. **Only after all flat surfaces have been visited**, proceed to openable containers in strict order:
+   - First all cabinets (go to each, open, look inside)
+   - Then all drawers
+   - Then the sinkbasin
+   - Then the garbagecan
+   - Then the microwave (yes, even though it is the heating appliance)
+   - Then any other openable container (e.g., coffeemaker)
+5. **Do not skip any category** – if you stop after only a few, you will miss the object.
+6. If still not found after completing the full list, see "Persistence and retry" below.
+
+### Persistence and retry
+- Perform a `look` again. If new receptacles appear, repeat the entire search from step 1.
+- Otherwise, re-read the task to confirm object type. If another room is available, go there and repeat the search.
+
+## 3. Heat the object
+### 3.1 Efficient heating method (direct from inventory)
+- Once the object is in your inventory, go to the microwave.
+- Use action `heat <object> with microwave` while holding it. This works reliably.
+- If direct heat fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.
+- After heating, the object is ready. Do not return it to the microwave.
+
+### 3.2 Prerequisite: Object must be in inventory
+- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the exhaustive search again.
+
+### 3.3 Critical: Do not drop or place the object before heating
+- Once you have picked up the target object, you must go directly to the microwave and heat it. Do NOT move the object to any other location (countertop, shelf, etc.) before heating. Dropping it back onto a surface or placing it elsewhere will cause a loop and waste steps. The heating action must be performed while the object is in your inventory and you are at the microwave.
+
+## 4. Place the heated object
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).
+- The destination must be different from the source where the object originally came from.
+- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.
+- Put the object into/onto the receptacle: `move <object> to <receptacle>`.
+- **Critical**: Do not take the object back after placing it. Stop.
+
+## 5. Completion check and termination
+- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.
+- If the object is there, the task is complete. Do not perform any further actions.
+- **Termination rule**: Once placed at the target, stop all actions immediately.

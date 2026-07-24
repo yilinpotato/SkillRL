@@ -1,0 +1,134 @@
+{
+  "batch_id": "f1a65c49-9836-4b3e-9086-e7ac326f48e1",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located the potato because it did not search all possible receptacles (e.g., fridge, cabinets) and repeatedly visited the same areas without finding it.",
+        "evidence": "After many moves, it returns to countertop 1 and still no potato is taken; the task is not progressed.",
+        "corrective_rule": "Systematically search all receptacles (fridge, cabinets, countertops, drawers) for the target object before repeating visited locations.",
+        "skill_tree_gap": "Missing a systematic object search strategy that covers all container types and prevents redundant exploration.",
+        "patch_location": "## Object Search → new subsection '### Systematic Search Strategy'",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After not finding the potato in the fridge, the agent wasted actions opening empty cabinets and returned to the fridge without ever locating the potato on other surfaces.",
+        "evidence": "Fridge contents show no potato; subsequent cabinet searches yield no potato and the agent loops back to fridge.",
+        "corrective_rule": "After the expected location fails, search all other accessible receptacles (countertops, dining table, etc.) without repeating already-checked spots.",
+        "skill_tree_gap": "Lacks a contingency plan for when the target object is not in the first assumed location.",
+        "patch_location": "## Object Search → new subsection '### Fallback Search Plan'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent explored many containers but never found a glassbottle; it missed possible locations like the dining table (which had a winebottle) and cabinets that were not fully opened.",
+        "evidence": "After opening the fridge, garbagecan, microwave, and attempting cabinet 1, no glassbottle is taken; the task remains incomplete.",
+        "corrective_rule": "Ensure all receptacles are fully inspected (open and look inside) and consider objects with similar names (e.g., glassbottle vs winebottle) before concluding absence.",
+        "skill_tree_gap": "No systematic recipe for searching all object containers, including those with partial names.",
+        "patch_location": "## Object Search → new subsection '### Thorough Container Inspection'",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent became stuck at shelf 1, repeatedly using 'look' instead of moving to search for the alarmclock elsewhere.",
+        "evidence": "After 'go to shelf 1', the agent executes 'look' multiple times (dropped 4 looping actions) with no change in observation.",
+        "corrective_rule": "If a location does not contain the target object, immediately move to a different location rather than repeating 'look'.",
+        "skill_tree_gap": "Lacks a timeout or diversity mechanism to break out of repetitive 'look' actions when no new information is gained.",
+        "patch_location": "## Navigation and Exploration → new subsection '### Loop Detection and Breakout'",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not open any cabinets or drawers beyond drawer 1, thus missing the box which may be inside a closed container.",
+        "evidence": "After opening drawer 1 (creditcards), the agent checks armchairs and shelves but never touches cabinets or other drawers; box is never found.",
+        "corrective_rule": "Systematically open all closed containers (cabinets, drawers) when searching for an object, especially when open surfaces yield nothing.",
+        "skill_tree_gap": "No explicit instruction to open containers during search; agent only inspected open surfaces.",
+        "patch_location": "## Object Search → new subsection '### Open Closed Containers'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent picked up only one toiletpaper and then stopped, never obtaining the second required object nor placing the first one into the drawer.",
+        "evidence": "Last action: 'take toiletpaper 2 from toiletpaperhanger 1' with no subsequent placement or second pickup.",
+        "corrective_rule": "For tasks requiring two objects, first collect both objects before moving to the target location; do not interrupt the workflow after the first pickup.",
+        "skill_tree_gap": "Missing a multi-object workflow that enforces collecting both items before placement, and ensures placement after both are obtained.",
+        "patch_location": "## Multi-Object Tasks → new subsection '### Two-Object Collection and Placement Workflow'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets and missed other receptacles (countertops, drawers) where saltshakers might be located, thus never finding any.",
+        "evidence": "After opening cabinets 1-4 and drawer 1 (empty), it goes to drawer 2 but then loops; no saltshaker is ever taken.",
+        "corrective_rule": "When the target is not in the first set of containers, expand search to all types of receptacles, including countertops and drawers.",
+        "skill_tree_gap": "No exhaustive search that covers all receptacle types; agent fixated on cabinets.",
+        "patch_location": "## Object Search → new subsection '### Exhaustive Receptacle Coverage'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched cabinets (which contained other items) and never looked at countertops or drawers for peppershakers.",
+        "evidence": "Cabinets 1-5 are opened but contain no peppershaker; the agent stops without exploring elsewhere.",
+        "corrective_rule": "If cabinets do not contain the target, immediately search countertops and drawers before concluding the object is absent.",
+        "skill_tree_gap": "Lack of search diversification; agent needs to switch to different receptacle types after failing in one.",
+        "patch_location": "## Object Search → new subsection '### Diversify Search Across Receptacle Types'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one candle into cabinet 1 but never returned to get the second candle, ending the episode prematurely.",
+        "evidence": "After moving the first candle to cabinet 1, the agent enters a loop of look actions without attempting to obtain a second candle.",
+        "corrective_rule": "After placing the first object, immediately return to the source location to retrieve the second object and then place it as well.",
+        "skill_tree_gap": "No explicit step for returning to pick up the second object after placing the first; the workflow is linear single-object.",
+        "patch_location": "## Multi-Object Tasks → new subsection '### Return-to-Source for Second Object'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets and never investigated countertops or other open surfaces where kettles are typically found.",
+        "evidence": "After opening cabinets 16 through 11, no kettle is seen; the agent drops into a loop without checking countertops.",
+        "corrective_rule": "Begin search by scanning open surfaces (countertops, tables) before opening cabinets, as kettles are often out in the open.",
+        "skill_tree_gap": "No prioritization of open surfaces over closed containers for large objects like kettles.",
+        "patch_location": "## Object Search → new subsection '### Surface-First Search Heuristic'",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one plate onto the coffeetable but then wandered and looped without returning to diningtable 2 to fetch the second plate.",
+        "evidence": "After moving plate 1 to coffeetable, the agent goes to armchairs and looks, never heading back to diningtable 2.",
+        "corrective_rule": "After placing the first object, navigate directly back to the source location to get the second object before any other actions.",
+        "skill_tree_gap": "Missing a short-term memory of where the second object is located and a plan to return.",
+        "patch_location": "## Multi-Object Tasks → new subsection '### Navigate Back to Source After First Placement'",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).\n\n## Object Manipulation / Pick Object\n- **Before taking any object, confirm its name matches the task target exactly.** Do not pick up similar objects (e.g., towel vs cloth, pan vs pot). Only the exact match can be cleaned and placed.\n- Once verified, take the object (e.g., `take [object] from [receptacle]`).\n- If you are already holding an object and it is not the target, put it down before searching for the correct one.\n\n### Object Type Check\n- Compare the object name as shown in the observation (e.g., \"cloth\", \"knife\", \"kettle\") against the target object from the task.\n- If they are identical, proceed to take it. If they differ — even slightly — do not take it. Continue searching.\n- Do not rely on functional similarity; only exact string match is acceptable.\n\n## Exploration / Search Strategy\n### Open Surface Priority\n- **Before opening any closed container (cabinet, drawer, fridge), you must have visited every open surface present in the environment.** Open surfaces are any receptacle that is not described as \"closed\" — they include: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, **toilets, garbage cans, carts, handtowel holders, towel holders, and any other receptacle you see in the initial description.**\n- From the initial room description, mentally list every such receptacle. Visit each one in turn and inspect its contents. Do not skip any.\n- Only after you have checked ALL open surfaces and the target object is not found, proceed to closed containers.\n- **If the environment has no closed containers at all (e.g., only shelves, sinks, carts, etc.), you must still have visited every open receptacle listed. If after checking all of them the object is missing, re-read the initial description to ensure you did not overlook any receptacle.**\n\n### Object-Specific Location Priors\n- Use common sense about where objects typically appear:\n  - **Pots, pans, kettles, and cookware** are often on stoveburners, but also on countertops or in cabinets.\n  - **Food items** (lettuce, tomato, apple, potato, etc.) frequently appear on diningtables, countertops, or in the fridge.\n  - **Utensils** (knife, fork, spoon, ladle) are commonly on countertops, diningtables, or in drawers.\n  - **Cleaning items** (soapbar, sponge, dishsponge) may be near sinkbasins, on countertops, on shelves, or in cabinets.\n  - **Dishes and bowls** can be in cabinets or on open surfaces.\n- These are hints, not constraints; always check all surfaces if the target is not in the expected spot.\n\n### Search Strategy for Missing Objects\n- After checking all open surfaces, you must systematically check **every closed container you observed in the initial description.** Do not skip any type. The recommended order:\n  1. All cabinets – go to each, open, inspect.\n  2. All drawers – go to each, open, inspect.\n  3. Fridge (if present) – go to it, open, inspect.\n  4. Microwave (if present) – go to it, open, inspect.\n- **Do not return to open surfaces or any other location until you have examined every closed container.** Only after exhausting all of them should you consider re-checking open surfaces or giving up.\n- **Critical: Do not go to sinkbasin or any cleaning source until you are holding the target object.** If you are not holding any object, you have not yet found it – continue searching.\n\n## Phase 2: Clean the Object\n- **Before walking to the cleaning source, confirm you are holding exactly the target object.** If you are empty-handed, you are in the wrong phase – go back to searching.\n- While holding [object], go to [cleaning_source] (sinkbasin or bathtubbasin).\n- Use `clean [object] with [cleaning_source]`.\n- Confirm the observation says you cleaned it.\n\n## Phase 3: Place the Clean Object at Destination\n- Go to the [destination] specified in the task.\n- Use `move [object] to [destination]` to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.",
+  "level": 3,
+  "version": 23,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent generally followed the skill tree's top-level phases but failed to execute the exhaustive search strategy: it skipped some open surfaces (e.g., toilets, garbage cans) and did not open all closed containers. The skill tree's original list of open surfaces was incomplete, which may have misled the agent into thinking certain receptacles (like toilets or carts) were not required to check. The instruction for environments with no closed containers was also ambiguous, causing premature abandonment in one case.",
+  "changelog": "Refined 'Open Surface Priority' to list all common open receptacle types explicitly (adding toilets, garbage cans, carts, handtowel/towel holders) and added a fallback note for environments without closed containers; also reinforced that the agent must exhaustively check every receptacle from the initial description before stopping.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent wandered through multiple locations and opened cabinets but never located a mug to clean, stopping after finding only a cup.",
+      "skill_tree_gap": "Missing a structured search subroutine for locating specific objects from the environment.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent moved between locations but never found an apple to clean; it visited only open surfaces and did not open any cabinets or the fridge.",
+      "skill_tree_gap": "Lacks a policy for opening containers when searching for objects.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched all shelves and several bathroom fixtures but never located a soapbar, stopping when it did not find it on the expected surfaces.",
+      "skill_tree_gap": "No fallback exploration strategy for objects that are not on the most obvious surfaces.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent visited multiple countertops and stoveburners but never found a pan; it opened only one cabinet (which was empty) and left another cabinet unopened.",
+      "skill_tree_gap": "Incomplete search routine that does not force opening all closed containers.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_2664",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 22,
+      "call_count": 483,
+      "success_when_used": 367,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "f2f6d8489c8b",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 16,
+      "call_count": 483,
+      "success_when_used": 367,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/object-manipulation-pick-object": {
+      "title": "Object Manipulation / Pick Object",
+      "level": 2,
+      "body_hash": "dff163845204",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 3,
+      "call_count": 200,
+      "success_when_used": 173,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/object-manipulation-pick-object/object-type-check": {
+      "title": "Object Type Check",
+      "level": 3,
+      "body_hash": "670aefc5438d",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 3,
+      "call_count": 200,
+      "success_when_used": 173,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/exploration-search-strategy": {
+      "title": "Exploration / Search Strategy",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 20,
+      "last_changed_version": 21,
+      "stable_versions": 2,
+      "call_count": 200,
+      "success_when_used": 173,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/exploration-search-strategy/open-surface-priority": {
+      "title": "Open Surface Priority",
+      "level": 3,
+      "body_hash": "60c0d769431a",
+      "created_version": 21,
+      "last_changed_version": 23,
+      "stable_versions": 0,
+      "call_count": 69,
+      "success_when_used": 63,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/exploration-search-strategy/object-specific-location-priors": {
+      "title": "Object-Specific Location Priors",
+      "level": 3,
+      "body_hash": "7f28dbd48cff",
+      "created_version": 21,
+      "last_changed_version": 23,
+      "stable_versions": 0,
+      "call_count": 69,
+      "success_when_used": 63,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/exploration-search-strategy/search-strategy-for-missing-objects": {
+      "title": "Search Strategy for Missing Objects",
+      "level": 3,
+      "body_hash": "1e941904573a",
+      "created_version": 22,
+      "last_changed_version": 23,
+      "stable_versions": 0,
+      "call_count": 42,
+      "success_when_used": 37,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "a062b25f4e38",
+      "created_version": 1,
+      "last_changed_version": 22,
+      "stable_versions": 1,
+      "call_count": 483,
+      "success_when_used": 367,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "71e0d3ca9635",
+      "created_version": 1,
+      "last_changed_version": 17,
+      "stable_versions": 6,
+      "call_count": 483,
+      "success_when_used": 367,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "8ba0a9c393e7",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 22,
+      "call_count": 483,
+      "success_when_used": 367,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,134 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v40 (level=3, tree_depth=3, 12 nodes) ===
+action: refine
+critique: The agent in successful trajectories followed the skill tree, but in failures it ignored crucial instructions like never stopping after one object and performing Phase 2 search. The skill tree itself is not misleading; the agents failed to execute the prescribed steps. The refinement adds explicit post-placement protocol and loop detection to make these rules more salient.
+changelog: Added '### Post-placement protocol' under Core Rules and '### Loop detection and fallback' under Search Protocol, and strengthened emphasis on comprehensive furniture coverage in master list creation.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 12  n_failure this round: 8
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] The agent placed only one soapbottle and then stopped searching, failing to retrieve the second required soapbottle. | evidence: After moving soapbottle 2 to toilet 1, the agent goes to cabinet 4 and cabinet 3 without taking any other soapbottle. | fix: After placing the first target object, immediately return to search for a second instance of the same object type. | skill_tree_gap: Lack of a completion check that ensures two objects are placed before ending the task. | patch_location: Under '## pick_two_obj_and_place' as a new subsection '### Multi-object counting and completion'
+- [premature_stop] The agent placed one cellphone and then wandered without searching for a second cellphone, leaving the task incomplete. | evidence: After moving cellphone 1 to drawer 1, the agent repeatedly moves between armchair, bed, and desk without taking any other cellphone. | fix: After placing the first object, systematically explore all likely locations (desks, beds, cabinets) for the second object. | skill_tree_gap: No mechanism to resume search after placing the first item. | patch_location: Under '## pick_two_obj_and_place' as a new subsection '### Post-placement search for second object'
+- [inefficient_exploration] The agent only searched cabinets and ignored the fridge, countertops, and dining table where lettuce might be found. | evidence: All actions target cabinets; the agent never visits the fridge or any surface that could contain lettuce. | fix: For food items, prioritize checking the fridge and dining table in addition to cabinets. | skill_tree_gap: Narrow search heuristic that excludes common food storage locations. | patch_location: Under '## pick_two_obj_and_place' as a new subsection '### Diverse location exploration for target objects'
+- [loop] After placing one cd, the agent entered a repetitive loop between bed and desk without finding a second cd or exploring elsewhere. | evidence: Repeated actions: 'go to bed 1', 'go to desk 1', 'go to bed 1', etc., with no new object pickups. | fix: Detect when the agent is repeating the same location cycle and trigger an alternative search strategy. | skill_tree_gap: Absence of loop detection and fallback exploration plan. | patch_location: Under '## pick_two_obj_and_place' as a new subsection '### Loop detection and alternative search'
+- [inefficient_exploration] The agent only searched a few drawers and one countertop, missing candles that might be on shelves, cabinets, or other surfaces. | evidence: After visiting drawers 5-8 and countertop 1, no candle was ever observed. | fix: Extend search to all furniture types including shelves, cabinets, and other countertops. | skill_tree_gap: Insufficient coverage of room furniture for object search. | patch_location: Under '## pick_two_obj_and_place' as a new subsection '### Comprehensive receptacle search'
+- [inefficient_exploration] The agent only searched drawers and a cabinet but never visited areas like desks, beds, or shelves where cellphones often appear. | evidence: After opening drawer 18, inventory shows nothing; then agent goes to drawer 1 without ever having seen a cellphone. | fix: When searching for small electronics, check all desks, beds, and shelves in addition to drawers and cabinets. | skill_tree_gap: Search pattern limited to drawers only; lacks diversity of receptacle types. | patch_location: Under '## pick_two_obj_and_place' as a new subsection '### Broad search across all furniture types'
+
+--- Node tree (per-node lifecycle, this version=v40) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=39 calls=870 success=695 rate=79.9%
+[STABLE              ] pick-two-obj-and-place/common-failure-patterns-avoid-these level=2 stable_versions=1 calls=45 success=34 rate=75.6%
+[STABLE              ] pick-two-obj-and-place/core-rules        level=2 stable_versions=1 calls=45 success=34 rate=75.6%
+[NEW                 ] pick-two-obj-and-place/core-rules/post-placement-protocol level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/critical-do-not-stop level=2 stable_versions=1 calls=20 success=12 rate=60.0%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=3 calls=870 success=695 rate=79.9%
+[STABLE              ] pick-two-obj-and-place/object-type-verification level=2 stable_versions=3 calls=79 success=65 rate=82.3%
+[STABLE              ] pick-two-obj-and-place/search-protocol   level=2 stable_versions=3 calls=45 success=34 rate=75.6%
+[NEW                 ] pick-two-obj-and-place/search-protocol/loop-detection-and-fallback level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/search-protocol/phase-1-first-object level=3 stable_versions=0 calls=45 success=34 rate=75.6%
+[STABLE              ] pick-two-obj-and-place/search-protocol/phase-2-second-object-after-placing-the-first level=3 stable_versions=2 calls=45 success=34 rate=75.6%
+[STABLE              ] pick-two-obj-and-place/stop-condition-verification level=2 stable_versions=3 calls=45 success=34 rate=75.6%
+
+--- Line diff vs previous version (v39 -> v40) ---
+--- v39
++++ v40
+@@ -14,10 +14,10 @@
+ - Keep a mental counter: start at 0, increment by 1 after each successful placement.
+ - Never stop while counter < 2.
+ 
+-### Count Verification (always check after placement)
++### Post-placement protocol
+ - Immediately after placing, update counter: +1.
+-- If counter == 1: **do not explore any other items**; begin Phase 2 search right away.
+-- If counter == 2: stop.
++- If counter == 1: **stop all other actions**. Do not examine the target receptacle again. Do not go to any other furniture. The only allowed action is to begin Phase 2 search right away.
++- If counter == 2: stop and declare success.
+ - If you accidentally drop or lose an object, recover it and resume; do not count it as placed until the action succeeds.
+ 
+ ## Object Type Verification
+@@ -27,7 +27,7 @@
+ ## Search Protocol
+ 
+ ### Phase 1: First Object
+-1. **Create Master List**: After the initial room observation, write down every furniture item exactly as listed (all surfaces and containers). **Include the target receptacle** in this list. Do not miss any.
++1. **Create Master List**: After the initial room observation, write down every furniture item exactly as listed (all surfaces and containers). **Include the target receptacle** in this list. Do not miss any. Cover all types: cabinets, drawers, countertops, shelves, beds, desks, fridge, etc.
+ 2. **Visit each item in the exact order of your list**: Go to the first item. If closed, open it. Examine its contents. If you see an exact-matching object, **take it immediately** (then go place it). 
+    - Do NOT skip items. Do NOT jump to a different item that appears later. Follow the list order.
+ 3. After placing the first object, begin Phase 2 immediately.
+@@ -44,6 +44,11 @@
+ 5. Continue until list exhausted or second object taken. If taken, place it and stop (counter == 2).
+ 6. If you have visited all items and found no second object, the task may be impossible – but only after two full passes (Phase 1 + Phase 2).
+ 
++### Loop detection and fallback
++- If you find yourself repeatedly visiting the same furniture item(s) without taking a target object, you have lost the list order or are stuck in a loop.
++- Stop immediately. Re-read the initial room observation and rewrite the master list. Then start Phase 2 from the first item again, following the exact order.
++- Do not revisit the same item more than once per pass unless you are going there to take an object you already spotted.
++
+ ## Stop Condition Verification
+ - After each placement action, immediately check your counter. If counter == 1, you **must** start Phase 2 search. Do not explore or examine anything else until the second object is placed.
+ - Do not stop after placing the first object. Do not wander. Do not assume the task is done.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specific object type into a specified target receptacle. Do not stop until both are placed (counter == 2).
+
+## Critical Do Not Stop
+- **Never stop after placing only one object.** Even if you feel done, you must search for the second immediately.
+- The only valid stop signals are: counter == 2, OR after two complete passes through all furniture items you have placed exactly 1 and cannot find another matching object anywhere.
+- After each placement, mentally say: "Counter is now X." If X == 1, proceed immediately to Phase 2. If X == 2, task complete.
+
+## Core Rules
+- After taking a matching object, immediately go to the target and place it. Do nothing else until placed.
+- If the target receptacle is closed (e.g., drawer, cabinet), open it first, then place.
+- Keep a mental counter: start at 0, increment by 1 after each successful placement.
+- Never stop while counter < 2.
+
+### Post-placement protocol
+- Immediately after placing, update counter: +1.
+- If counter == 1: **stop all other actions**. Do not examine the target receptacle again. Do not go to any other furniture. The only allowed action is to begin Phase 2 search right away.
+- If counter == 2: stop and declare success.
+- If you accidentally drop or lose an object, recover it and resume; do not count it as placed until the action succeeds.
+
+## Object Type Verification
+- Before taking any object, compare its exact name to the required type. Only take exact matches. Do not assume similar objects (e.g., mug vs cup, soapbottle vs soapbar) are acceptable. If the name differs, skip it.
+- If you accidentally take a non-matching object, check inventory, then drop it or leave it; resume search immediately.
+
+## Search Protocol
+
+### Phase 1: First Object
+1. **Create Master List**: After the initial room observation, write down every furniture item exactly as listed (all surfaces and containers). **Include the target receptacle** in this list. Do not miss any. Cover all types: cabinets, drawers, countertops, shelves, beds, desks, fridge, etc.
+2. **Visit each item in the exact order of your list**: Go to the first item. If closed, open it. Examine its contents. If you see an exact-matching object, **take it immediately** (then go place it). 
+   - Do NOT skip items. Do NOT jump to a different item that appears later. Follow the list order.
+3. After placing the first object, begin Phase 2 immediately.
+
+### Phase 2: Second Object (After placing the first)
+1. **Immediately resume searching. Do not explore unrelated items.**
+2. **Re-read the initial room observation** and write down the same master list again. Include the target receptacle.
+3. **Visit every item again in the exact order** – do not skip any, including the target receptacle. For each item:
+   - If closed, open it.
+   - Examine contents.
+   - If you see a matching object, **take it immediately** (then go place it).
+   - Mark item as visited.
+4. If you saw a second matching object during Phase 1 (e.g., two together), return directly to that location instead of a full scan.
+5. Continue until list exhausted or second object taken. If taken, place it and stop (counter == 2).
+6. If you have visited all items and found no second object, the task may be impossible – but only after two full passes (Phase 1 + Phase 2).
+
+### Loop detection and fallback
+- If you find yourself repeatedly visiting the same furniture item(s) without taking a target object, you have lost the list order or are stuck in a loop.
+- Stop immediately. Re-read the initial room observation and rewrite the master list. Then start Phase 2 from the first item again, following the exact order.
+- Do not revisit the same item more than once per pass unless you are going there to take an object you already spotted.
+
+## Stop Condition Verification
+- After each placement action, immediately check your counter. If counter == 1, you **must** start Phase 2 search. Do not explore or examine anything else until the second object is placed.
+- Do not stop after placing the first object. Do not wander. Do not assume the task is done.
+- The only valid stop signals are: counter == 2, or after two complete passes you have exactly 1 placed and no matching object remains.
+
+## Common Failure Patterns (Avoid These)
+- Premature stop after first placement without beginning Phase 2.
+- Taking a non-matching object or the wrong type.
+- Skipping any furniture item in Phase 2 (surfaces and containers) – visit every item from the master list in order.
+- Not opening the target receptacle before placing.
+- Stopping after only one pass when counter is still 1.
+- **Not checking the target receptacle as a possible source of objects.**
+- **Assuming objects are only in closed containers; surfaces and appliances are equally important.**
+- **Deviating from the list order** – always go to the first unvisited item in your master list.

@@ -1,0 +1,157 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2 or after two exhaustive full passes without finding a second instance.\n\n## Systematic Search Procedure (Unified)\n1. **Re‑read the initial observation** – list every furniture item in the exact order they appear. This is your mental list. Do not skip any type (surfaces, containers, shelves, drawers, etc.).\n2. **Visit each item in that order exactly once.** For each:\n   - If closed, open it.\n   - Examine contents: surfaces – just look at what is on them; containers – look inside.\n   - If you see an object whose exact name matches the required type, **take it immediately**.\n   - **After taking, your next action MUST be `go to [target receptacle]`** – no detours.\n   - Open the target if closed, then place the object (`move` or `put`). Increment counter by 1.\n   - If counter == 2, stop – task complete.\n   - If counter == 1, **immediately restart this procedure from step 1** – do not continue from your current location.\n3. If you finish the list and counter == 0, perform a **second full pass** – repeat step 2 from the first item.\n4. After two full passes, if counter is still 0, the task is impossible – stop.\n\n## Post‑Placement Behaviour (counter == 1)\n- **Do NOT** continue searching from where you just placed the object. Always restart the Systematic Search Procedure from step 1 (re‑read the observation, rebuild the list, start at the first furniture item).\n- After the first placement, you are searching for the second object. The search must be exhaustive: visit every item in order, including those you already checked earlier (they may now contain the second object, or you may have missed it).\n\n## Immediate Rules (Must Follow)\n- Counter starts at 0. After each placement, increment. If counter == 1, continue; if 2, stop.\n- After picking up a matching object, next action MUST be `go to [target]`. No exception.\n- If you accidentally take a non‑matching object, drop it immediately and resume the search from the current furniture item.\n\n## Failure Prevention\n- **Stopping early:** If you catch yourself not searching after placing one object, re‑read the observation and restart the systematic search from the first furniture item.\n- **Looping:** If you revisit the same few locations without taking a target object, stop, re‑read the observation, rebuild the mental list, and restart from the first item.\n- **Skipping furniture types:** The target object may be on any surface or in any container. Follow the mental list order; do not only check drawers or only shelves.\n- **Opening target receptacle:** When placing, if the target is closed, open it first.\n\n### Multi‑Object Search Strategy\n- Always check **all** furniture types in the initial observation – surfaces (countertops, tables, sidetables, coffeetables, etc.) are just as likely as containers (cabinets, drawers, shelves). Do not specialise on cabinets alone.\n- If you have not found any object after visiting half the list, continue systematically – the object may be in an item you haven't opened yet.\n\n### Re‑acquisition After First Placement\n- After placing the first object, **you must perform a fresh exhaustive search** from the beginning of the mental list. Do not rely on memory of where you found the first object; the second may be in a different location.\n- The same systematic procedure applies: visit every furniture item exactly once, in order. If you finish the list without finding the second, do a second full pass before concluding impossibility.\n\n### Object‑specific Storage Knowledge\n- Some object types (e.g., tissuebox, newspaper) are more common in certain furniture types (e.g., cabinets, armchairs). However, **never assume** – always check every furniture type in the initial observation. Use this knowledge only as a hint to be thorough, not as a reason to skip other locations.\n\n## Stop Condition\n- counter == 2 → success\n- counter == 1 after two full passes following first placement → impossible, stop.\n- counter == 0 after two full passes in initial search → impossible, stop.",
+  "level": 3,
+  "version": 52,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent did not follow the existing skill tree's systematic search rules, skipping furniture types and not resetting after first placement. The tree's wording is clear but may be too verbose, leading the agent to overlook the reset instruction; no direct misleading wording was found.",
+  "changelog": "Refined the overall procedure into a unified systematic search, added explicit instruction to reset after first placement, and added three new subsections (Multi-Object Search Strategy, Re‑acquisition After First Placement, Object-specific Storage Knowledge) per failure diagnoses to reinforce key behaviors.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only opened cabinets and never visited countertops where toiletpaper was likely located, so it never picked up any toiletpaper.",
+      "skill_tree_gap": "Over‑specialization on cabinets; lack of multi‑surface search strategy.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "After placing the first newspaper, the agent did not exhaustively search all remaining furniture (sidetables, tvstand, other drawers) for the second newspaper and instead looped back to already empty locations.",
+      "skill_tree_gap": "Missing logic to re‑acquire second object with a full search after first placement.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only searched drawers and the diningtable, ignoring cabinets where tissueboxes are typically stored, so it never found any tissuebox.",
+      "skill_tree_gap": "Lack of object‑specific storage knowledge (tissuebox → cabinet).",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_5040",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 51,
+      "call_count": 1126,
+      "success_when_used": 866,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "528ca7399fe3",
+      "created_version": 1,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 1126,
+      "success_when_used": 866,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/systematic-search-procedure-unified": {
+      "title": "Systematic Search Procedure (Unified)",
+      "level": 2,
+      "body_hash": "b5e179d81c0b",
+      "created_version": 52,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/post-placement-behaviour-counter-1": {
+      "title": "Post‑Placement Behaviour (counter == 1)",
+      "level": 2,
+      "body_hash": "884702c77552",
+      "created_version": 52,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/immediate-rules-must-follow": {
+      "title": "Immediate Rules (Must Follow)",
+      "level": 2,
+      "body_hash": "35181825b295",
+      "created_version": 48,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 100,
+      "success_when_used": 77,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention": {
+      "title": "Failure Prevention",
+      "level": 2,
+      "body_hash": "ae981f0cb990",
+      "created_version": 48,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 100,
+      "success_when_used": 77,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/multi-object-search-strategy": {
+      "title": "Multi‑Object Search Strategy",
+      "level": 3,
+      "body_hash": "f8a42f7b87a8",
+      "created_version": 52,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/re-acquisition-after-first-placement": {
+      "title": "Re‑acquisition After First Placement",
+      "level": 3,
+      "body_hash": "1df471e2780f",
+      "created_version": 52,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/object-specific-storage-knowledge": {
+      "title": "Object‑specific Storage Knowledge",
+      "level": 3,
+      "body_hash": "8ed4fc7f7e33",
+      "created_version": 52,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/stop-condition": {
+      "title": "Stop Condition",
+      "level": 2,
+      "body_hash": "54dd9d627db6",
+      "created_version": 48,
+      "last_changed_version": 52,
+      "stable_versions": 0,
+      "call_count": 100,
+      "success_when_used": 77,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

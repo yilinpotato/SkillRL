@@ -1,0 +1,96 @@
+=== Skill Tree Debug — scope=clean  v29 (level=4, tree_depth=4, 11 nodes) ===
+action: refine
+critique: The agent ignored the existing 'Object Name Matching' rule and picked a pot instead of the required kettle, causing failure. The skill tree's wording was clear, but the agent did not apply it; we added a step-by-step verification checklist under a deeper subsection to reinforce the behavior.
+changelog: Added a '#### Before Picking, Verify' checklist under '### Object Name Matching' to prevent picking the wrong object due to name confusion.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 9  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [wrong_target] Agent picked up a pot instead of the required kettle, failing to verify the object name before picking. | evidence: action: take pot 2 from cabinet 1 | fix: Before picking an object, confirm that its name exactly matches the object required by the task (kettle, not pot). | skill_tree_gap: Object name verification and task goal matching are missing from the cleaning skill. | patch_location: Under 'clean' as a new deeper subsection '### object verification before picking'.
+
+--- Node tree (per-node lifecycle, this version=v29) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=28 calls=629 success=504 rate=80.1%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=1 calls=629 success=504 rate=80.1%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=1 calls=629 success=504 rate=80.1%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object level=2 stable_versions=1 calls=22 success=21 rate=95.5%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/closed-container-search level=3 stable_versions=1 calls=22 success=21 rate=95.5%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/location-hints-use-only-after-systematic-search level=3 stable_versions=1 calls=22 success=21 rate=95.5%
+[MODIFIED            ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-name-matching level=3 stable_versions=0 calls=22 success=21 rate=95.5%
+[NEW                 ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-name-matching/before-picking-verify level=4 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/open-surface-search-mandatory-first-step level=3 stable_versions=1 calls=22 success=21 rate=95.5%
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=1 calls=629 success=504 rate=80.1%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=1 calls=629 success=504 rate=80.1%
+
+--- Line diff vs previous version (v28 -> v29) ---
+--- v28
++++ v29
+@@ -12,6 +12,11 @@
+ ### Object Name Matching
+ - Compare the object name from the task with names in your observations. Only an exact string match counts.
+ - Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.
++#### Before Picking, Verify:
++   1. State the task object (e.g., "kettle") to yourself.
++   2. Look at the object you intend to take (e.g., "pot 2").
++   3. If the names do not match exactly, do NOT pick it up. Continue searching.
++   4. Even if the object is in an open container, take only the exact named object.
+ 
+ ### Open Surface Search (mandatory first step)
+ - From the initial room description, list all **open receptacles**: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, toilets, garbage cans, carts, handtowel holders, towel holders, and any other receptacle that is not explicitly closed.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- [cleaning_source] is a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Search and Acquire the Target Object
+- **This phase ends only when you are holding exactly the target object.** Do not attempt to clean or place until then.
+- If you are already holding something that is not the target, put it down immediately (e.g., `put [object] on/into [receptacle]`).
+
+### Object Name Matching
+- Compare the object name from the task with names in your observations. Only an exact string match counts.
+- Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.
+#### Before Picking, Verify:
+   1. State the task object (e.g., "kettle") to yourself.
+   2. Look at the object you intend to take (e.g., "pot 2").
+   3. If the names do not match exactly, do NOT pick it up. Continue searching.
+   4. Even if the object is in an open container, take only the exact named object.
+
+### Open Surface Search (mandatory first step)
+- From the initial room description, list all **open receptacles**: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, toilets, garbage cans, carts, handtowel holders, towel holders, and any other receptacle that is not explicitly closed.
+- **Go to each individual instance** listed (e.g., countertop 1, countertop 2, …). At each, `examine` or simply observe its contents. Do not skip any instance because you think it might be empty.
+- After checking every open receptacle, if you still do not see the target object, proceed to closed containers.
+
+### Closed Container Search
+- Systematically check all closed containers in this order:
+  1. All cabinets – go to each, open, inspect contents.
+  2. All drawers – go to each, open, inspect.
+  3. Fridge (if present) – go to it, open, inspect.
+  4. Microwave (if present) – go to it, open, inspect.
+- Do not return to open surfaces or other locations until every closed container has been examined.
+- If the object still not found, re-read the initial description to ensure you did not miss any receptacle.
+
+### Location Hints (use only after systematic search)
+- Cookware often on stoveburners or countertops.
+- Food items (lettuce, tomato, potato) may be on diningtables, countertops, or in the fridge.
+- Utensils (ladle, knife, spoon) are commonly on countertops, diningtables, or in drawers.
+- Cleaning items (soapbar, sponge) near sinkbasins or on shelves.
+- Dishes/bowls in cabinets or on open surfaces.
+
+## Phase 2: Clean the Object
+- **Prerequisite: You must be holding the target object.** If you are empty-handed, return to Phase 1.
+- Go to [cleaning_source] (sinkbasin or bathtubbasin).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- If the destination is a closed container (e.g., microwave, fridge, drawer, cabinet), open it first.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends as soon as you have placed the clean object. Stop all other actions.
+- Do not continue searching or moving other objects.

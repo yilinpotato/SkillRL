@@ -1,0 +1,122 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v6 (level=3, tree_depth=3, 12 nodes) ===
+action: refine
+critique: The agent followed the skill tree's search strategy but failed because it lacked object-specific location priors; the skill tree's own wording did not mislead but was incomplete, omitting guidance on where different object types are commonly found.
+changelog: Added '### Object-Specific Location Priors' under '## Search Strategy' to provide common-sense location hints for various object types, addressing the exploration failures seen in the trajectories.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 8  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent searched many cabinets but never went to the fridge or diningtable where bread is typically found. | evidence: After opening cabinet 4, the agent returned to shelf 1 without having found any bread. | fix: For food items like bread, prioritize searching fridge, countertop, and diningtable over cabinets. | skill_tree_gap: No object-specific location knowledge to guide search. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### Location priors' that maps object types to likely receptacles.
+- [inefficient_exploration] The agent opened several drawers and visited sidetables but never searched the dresser or other furniture that might contain boxes. | evidence: After opening drawer 3 (empty) and revisiting coffeetable, no box was found. | fix: When searching for boxes, also inspect dresser, armchair, and other furniture beyond drawers and sidetables. | skill_tree_gap: Incomplete coverage of receptacle types; no comprehensive search pattern. | patch_location: Under '## pick_two_obj_and_place', add a subsection '### Expand search scope' to include all furniture items in the room.
+- [inefficient_exploration] The agent inspected drawers and sidetables but never checked the sofa or armchair where remotecontrols might be. | evidence: After opening drawer 3 (empty) and returning to coffeetable, no remotecontrol was found. | fix: Search common living-room furniture (sofa, armchair, tvstand) for remotecontrols. | skill_tree_gap: No awareness of typical object locations in the environment. | patch_location: Under '## pick_two_obj_and_place', add a subsection '### Object-specific search' with priorities for remotecontrols.
+- [inefficient_exploration] The agent searched many shelves and one drawer but never visited the diningtable or sidetable where watches are often placed. | evidence: After opening drawer 1 (empty), the agent stopped without finding a watch. | fix: For watches, search diningtable, sidetables, and drawers in that order, as shelves rarely contain watches. | skill_tree_gap: No prioritized search plan based on object type. | patch_location: Under '## pick_two_obj_and_place', add a subsection '### Watch search strategy' that directs to diningtable and sidetables first.
+
+--- Node tree (per-node lifecycle, this version=v6) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=5 calls=138 success=109 rate=79.0%
+[STABLE              ] pick-two-obj-and-place/completion-detection level=2 stable_versions=2 calls=138 success=109 rate=79.0%
+[MODIFIED            ] pick-two-obj-and-place/extended-search-after-initial-failure level=2 stable_versions=0 calls=72 success=58 rate=80.6%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=3 calls=138 success=109 rate=79.0%
+[STABLE              ] pick-two-obj-and-place/goal/critical-rule-re-read-the-task-before-every-object-pickup level=3 stable_versions=1 calls=12 success=8 rate=66.7%
+[STABLE              ] pick-two-obj-and-place/placement-process level=2 stable_versions=2 calls=138 success=109 rate=79.0%
+[STABLE              ] pick-two-obj-and-place/placement-process/collect-and-place-the-second-object level=3 stable_versions=2 calls=93 success=75 rate=80.6%
+[STABLE              ] pick-two-obj-and-place/placement-process/persistence-after-first-placement level=3 stable_versions=1 calls=93 success=75 rate=80.6%
+[STABLE              ] pick-two-obj-and-place/search-strategy   level=2 stable_versions=1 calls=138 success=109 rate=79.0%
+[STABLE              ] pick-two-obj-and-place/search-strategy/all-container-types-search level=3 stable_versions=2 calls=72 success=58 rate=80.6%
+[STABLE              ] pick-two-obj-and-place/search-strategy/exhaustive-multi-object-search level=3 stable_versions=2 calls=72 success=58 rate=80.6%
+[NEW                 ] pick-two-obj-and-place/search-strategy/object-specific-location-priors level=3 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v5 -> v6) ---
+--- v5
++++ v6
+@@ -17,6 +17,17 @@
+ - For closed containers (drawer, cabinet, dresser, safe), go to each one and open it to see its contents. Do not skip any.
+ - Move on to the next receptacle if the object is not found; do not repeatedly check the same place.
+ - **Perform an exhaustive sweep: check every furniture item listed in the room description**, especially those that commonly hold small objects: dresser, bed, desk, shelf, cabinet, drawer, handtowelholder, towelholder, sinkbasin, bathtubbasin, countertop, sidetable, coffeetable, diningtable, cart, etc. Do not restrict your search to a subset.
++
++### Object-Specific Location Priors
++- Use common sense about where objects of a given type are typically found. Adjust your search order based on the object type.
++- **Food/consumables (e.g., bread, apple, potato)**: Likely in fridge, countertop, diningtable, cabinet. Check fridge first if present.
++- **Electronics/remotecontrols**: Often on sofa, armchair, tvstand, coffeetable, or sidetables. Check living-room furniture before drawers.
++- **Boxes/packages**: Frequently on dresser, sidetable, armchair, or in closets. Do not limit to drawers.
++- **Watches/jewelry**: Commonly on diningtable, sidetable, or in drawers. Shelves are less likely.
++- **Toiletries (tissuebox, soapbottle, toiletpaper)**: Often on shelves, sinkbasin, countertop, or designated holders (toiletpaperhanger, handtowelholder).
++- **Books/pens/paper**: Shelves, desk, sidetable, or drawers.
++- If you have searched all obvious spots without success, reconsider whether the object type fits a different category (e.g., a box might be a cardboard box on a shelf, but treat it as 'box' type and search all places where boxes are found: dresser, armchair, sidetable).
++- This list is not exhaustive; apply general knowledge of typical household layouts.
+ 
+ ### Exhaustive Multi-Object Search
+ - You need **two** identical objects. After finding the first, do **not** stop; immediately begin a fresh search for the second.
+@@ -45,6 +56,7 @@
+ - If you have checked every furniture item once and still have not found two objects, perform a **second full sweep** of the room. Look in locations you might have overlooked (e.g., ottoman, fridge, under beds? Actually, check every container listed in the initial room description again).
+ - Also re-examine open surfaces: sometimes objects are initially hidden by other objects or were not listed because you were not at that location.
+ - **Do not give up** until you have searched every possible receptacle twice.
++- While sweeping again, actively think about the object-specific location priors: e.g., if searching for a remotecontrol, re-check sofas and armchairs even if you already did. Sometimes objects appear after moving others.
+ 
+ ## Completion Detection
+ - After moving the second object, the environment will indicate task success. If unsure, you can check your last observation.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+- Your task is to put exactly two instances of a specific object (e.g., book, soapbottle, handtowel) into a specified target receptacle (e.g., bed, garbagecan, countertop).
+- **Object type must match exactly.** For example, 'cup' is not the same as 'mug', 'cloth' is not the same as 'handtowel'. Do not pick up an object unless its type name matches the task exactly.
+- You must collect and move **both** items. Do not stop after placing only one.
+
+### Critical Rule: Re-read the task before every object pickup
+- Before taking any object, **re-read the task** to confirm the exact required object type (e.g., 'pencil' not 'pen').
+- Compare the object's type name letter-for-letter with the task's target word. If they differ, leave the object and continue searching.
+- Do not assume any similar object substitutes; only a perfect name match is sufficient.
+- **After placing the first object, re-read the task again** before you start searching for the second. This prevents accidentally picking a different object type later.
+
+## Search Strategy
+- Start by reading the room description: list every furniture item (table, shelf, drawer, cabinet, holder, etc.) that could contain the object.
+- First check open surfaces (shelf, desk, countertop, coffeetable, handtowelholder, etc.) — objects there are visible immediately.
+- For closed containers (drawer, cabinet, dresser, safe), go to each one and open it to see its contents. Do not skip any.
+- Move on to the next receptacle if the object is not found; do not repeatedly check the same place.
+- **Perform an exhaustive sweep: check every furniture item listed in the room description**, especially those that commonly hold small objects: dresser, bed, desk, shelf, cabinet, drawer, handtowelholder, towelholder, sinkbasin, bathtubbasin, countertop, sidetable, coffeetable, diningtable, cart, etc. Do not restrict your search to a subset.
+
+### Object-Specific Location Priors
+- Use common sense about where objects of a given type are typically found. Adjust your search order based on the object type.
+- **Food/consumables (e.g., bread, apple, potato)**: Likely in fridge, countertop, diningtable, cabinet. Check fridge first if present.
+- **Electronics/remotecontrols**: Often on sofa, armchair, tvstand, coffeetable, or sidetables. Check living-room furniture before drawers.
+- **Boxes/packages**: Frequently on dresser, sidetable, armchair, or in closets. Do not limit to drawers.
+- **Watches/jewelry**: Commonly on diningtable, sidetable, or in drawers. Shelves are less likely.
+- **Toiletries (tissuebox, soapbottle, toiletpaper)**: Often on shelves, sinkbasin, countertop, or designated holders (toiletpaperhanger, handtowelholder).
+- **Books/pens/paper**: Shelves, desk, sidetable, or drawers.
+- If you have searched all obvious spots without success, reconsider whether the object type fits a different category (e.g., a box might be a cardboard box on a shelf, but treat it as 'box' type and search all places where boxes are found: dresser, armchair, sidetable).
+- This list is not exhaustive; apply general knowledge of typical household layouts.
+
+### Exhaustive Multi-Object Search
+- You need **two** identical objects. After finding the first, do **not** stop; immediately begin a fresh search for the second.
+- Conduct a second full sweep of all receptacles, including those you already checked — some objects may become visible after moving the first one.
+
+### All Container Types Search
+- Open **every** closed container: drawers, cabinets, dressers, safes, etc. Do not focus only on one type (e.g., only drawers or only cabinets).
+- If a container is empty, close it and move on. Do not revisit it unless you have reason to.
+
+## Placement Process
+- When you see an object of the required type, take it: `take <object> from <source>`.
+- If the source is closed, open it first.
+- Then go to the target receptacle (`go to <target>`).
+- Move the object to the target (`move <object> to <target>`).
+
+### Persistence after first placement
+- After placing the first object, **immediately begin a new exhaustive search for the second instance.** Do not stop, do not get sidetracked by unrelated containers.
+- If you have placed one object but the environment has not declared success, you must still be holding zero objects and need to search again.
+- **Immediate action after placing first:** Your next action should be to go to a location that might contain the second object (e.g., the same surface where you found the first, or another receptacle). Do not open containers or take other actions until you are actively searching.
+
+### Collect and place the second object
+- Find the second object using the same search strategy.
+- **Once you pick up the second object, your next actions must be:** go to target receptacle, then move the object to the target. Do not perform any other actions (e.g., opening containers, taking other objects) in between.
+
+## Extended Search After Initial Failure
+- If you have checked every furniture item once and still have not found two objects, perform a **second full sweep** of the room. Look in locations you might have overlooked (e.g., ottoman, fridge, under beds? Actually, check every container listed in the initial room description again).
+- Also re-examine open surfaces: sometimes objects are initially hidden by other objects or were not listed because you were not at that location.
+- **Do not give up** until you have searched every possible receptacle twice.
+- While sweeping again, actively think about the object-specific location priors: e.g., if searching for a remotecontrol, re-check sofas and armchairs even if you already did. Sometimes objects appear after moving others.
+
+## Completion Detection
+- After moving the second object, the environment will indicate task success. If unsure, you can check your last observation.
+- If you have moved two objects but the task is not marked complete, search again — you may have missed one (e.g., two different instances of the same object type).
+- **Do not assume success after one placement.** Keep searching until you have placed two.

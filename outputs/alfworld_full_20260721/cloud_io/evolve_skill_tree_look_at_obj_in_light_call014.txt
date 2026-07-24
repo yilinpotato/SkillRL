@@ -1,0 +1,164 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "look_at_obj_in_light" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# Goal: Examine a target object using a light source (e.g., desklamp)
+
+## Phase 1: Locate the light source
+- Identify a desklamp from the objects visible on surfaces in your current location. If you see a desklamp, note its receptacle.
+- If no desklamp is visible at your current location, systematically search all receptacles you observed in the initial room description.
+  ### Systematic search for desklamp
+  - List each receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) from the room description.
+  - Move to each receptacle (action: go to <receptacle>) and examine its contents.
+  - Stop as soon as you find a desklamp. That receptacle is now the lamp's location.
+- Once you know a receptacle that contains a desklamp, move there if not already present.
+
+## Phase 2: Turn on the light
+- Ensure you are at the same receptacle as the desklamp (if not already, go there).
+- Use the desklamp (action: use desklamp <number>). The observation will confirm: "You turn on the desklamp".
+- The light is now on. This precondition must be satisfied before examining the target object.
+
+## Phase 3: Locate the target object
+- After turning on the lamp, first check the lamp's receptacle for the target object. If present, proceed to Phase 4.
+- If not, recall the initial room description (the first observation) and list every receptacle it mentioned — include beds, desks, dressers, sidetables, shelves, coffeetables, armchairs, sofas, etc. Do **not** restrict your search to only one type.
+  ### Systematic search of all surface receptacles
+  #### Search procedure
+  - Write down the full list of surface receptacles from the initial description. Every one of them must be visited.
+  - Exclude the lamp's receptacle (already checked). Then visit each remaining receptacle **in any order**.
+  - For each, use the 'go to <receptacle>' action and examine its contents. Do **not** open any drawer or cabinet until you have visited every surface receptacle on your list.
+  - If you find the target object on any receptacle, proceed to Phase 4.
+  - After visiting **all** listed surface receptacles and not finding the target, then and only then consider opening closed containers (drawers, cabinets, etc.). For each closed container, go to it, open it, and examine its contents.
+- If you have exhausted all surface receptacles and all closed containers without success, you may have missed a receptacle; re-check the initial description for any receptacles you omitted.
+
+## Phase 4: Take and examine the target object
+- Take the target object from its receptacle (action: take <object> from <receptacle>).
+- The task is considered complete once the object is in your inventory and the light is on.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): (none — no shared successful opening yet)
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: examine the cd with the desklamp.
+  action: go to desk 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a laundryhamper 1, and a shelf 1.
+
+Your task is to: examine the cd with the desklamp.
+  action: go to dresser 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 2, a alarmclock 1, a book 1, a bowl 1, a cd 1, a cellphone 3, a creditcard 2, a keychain 1, a pen 3, a pen 2, and a pencil 1.
+  action: use desklamp 1  | obs: You arrive at dresser 1. On the dresser 1, you see a cd 2, and a desklamp 1.
+  action: take cd 2 from dresser 1  | obs: You turn on the desklamp 1.
+
+Trajectory 2 [success] task: examine the bowl with the desklamp.
+  action: go to desk 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 2, a shelf 1, and a sidetable 1.
+
+Your task is to: examine the bowl with the desklamp.
+  action: go to sidetable 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 2, a keychain 2, a laptop 1, a pen 3, and a pen 2.
+  action: use desklamp 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a alarmclock 1, a bowl 1, a cd 2, a cellphone 2, a cellphone 1, a desklamp 1, a keychain 1, and a pen 1.
+  action: take bowl 1 from sidetable 1  | obs: You turn on the desklamp 1.
+
+Trajectory 3 [success] task: examine the cd with the desklamp.
+  action: go to desk 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 2, a bed 1, a desk 1, a drawer 11, a drawer 10, a drawer 9, a drawer 8, a drawer 7, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a safe 1, a sidetable 2, and a sidetable 1.
+
+Your task is to: examine the cd with the desklamp.
+  action: use desklamp 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 1, a bowl 1, a creditcard 1, a desklamp 1, a keychain 3, a mug 1, a pencil 2, and a pencil 1.
+  action: go to sidetable 1  | obs: You turn on the desklamp 1.
+  action: take cd 2 from sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a cd 2, a pen 1, and a pencil 3.
+  action: go to desk 1  | obs: You pick up the cd 2 from the sidetable 1.
+
+Trajectory 4 [success] task: look at book under the desklamp.
+  action: go to desk 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a shelf 1, and a sidetable 1.
+
+Your task is to: look at book under the desklamp.
+  action: use desklamp 1  | obs: You arrive at desk 1. On the desk 1, you see a book 4, a book 3, a book 2, a book 1, a cd 2, a creditcard 2, a desklamp 1, and a pencil 2.
+  action: take book 1 from desk 1  | obs: You turn on the desklamp 1.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+(none)
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+(none)
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

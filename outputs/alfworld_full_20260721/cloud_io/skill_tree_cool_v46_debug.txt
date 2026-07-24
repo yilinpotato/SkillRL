@@ -1,0 +1,99 @@
+=== Skill Tree Debug — scope=cool  v46 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent partially followed the skill tree but failed to adhere to the strict surface search order (skipped sidetable and shelf) and jumped to the fridge prematurely. It also did not continue checking cabinets/drawers when the plate was not in the fridge. In the second failure, it ignored the object verification rule and took a kettle. The skill tree's container search section lacked an explicit step-by-step loop instruction, and the object verification rule was not emphasized at the moment of taking; these ambiguities contributed to the failures.
+changelog: Refined the Surface Search Order to explicitly forbid moving to containers before all surface types are visited; refined the Closed Container Search to include a clear loop instruction for each container instance (open, check, close if not found, move to next); strengthened the Object Verification Rule with a sub-rule to put down incorrect objects immediately.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 12  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [gave_up] Agent did not find a plate because it only searched surfaces and the fridge, ignoring cabinets and drawers where plates are often stored. | evidence: After opening fridge and seeing no plate, agent returns to countertop 1 and stops. | fix: When a plate is not on visible surfaces, open cabinets and drawers to search for it. | skill_tree_gap: Missing a rule to search storage containers for objects that are typically stored out of sight. | patch_location: Under 'cool' task type, add a new subsection '### Search in containers'.
+- [wrong_target] Agent picked up a kettle instead of a mug because it did not verify the object type against the task requirement. | evidence: Action 'take kettle 1 from stoveburner 2' when task requires a mug. | fix: Only pick up an object if its name exactly matches the target object type specified in the task. | skill_tree_gap: No check to ensure picked object matches the required object type before proceeding. | patch_location: Under 'cool' task type, add a new subsection '### Verify object identity'.
+
+--- Node tree (per-node lifecycle, this version=v46) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=45 calls=799 success=695 rate=87.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=3 calls=342 success=305 rate=89.2%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object level=2 stable_versions=3 calls=56 success=48 rate=85.7%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/closed-container-search-only-after-all-surfaces-are-exhausted level=3 stable_versions=0 calls=41 success=36 rate=87.8%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/object-verification-rule level=3 stable_versions=0 calls=14 success=12 rate=85.7%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-target-object/surface-search-order-strictly-enforced level=3 stable_versions=0 calls=14 success=12 rate=85.7%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge level=2 stable_versions=1 calls=395 success=353 rate=89.4%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge/immediate-cooling-action level=3 stable_versions=1 calls=14 success=12 rate=85.7%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location level=2 stable_versions=1 calls=395 success=353 rate=89.4%
+
+--- Line diff vs previous version (v45 -> v46) ---
+--- v45
++++ v46
+@@ -10,19 +10,21 @@
+ 5. **Sinkbasins** – check each sinkbasin.
+ 6. **Stoveburners** – check each stoveburner.
+ - At each location, read the observation. If the target object is present, take it and go to Phase 2.
+-- Never skip a surface type. If you find yourself at a wrong location, immediately return to the correct next type.
++- **Never skip a surface type.** If you have not visited every surface type listed above, you are NOT done with surfaces. Do NOT go to any container until all surface types have been exhausted.
+ - Keep a mental list of locations already visited; do not revisit.
++- If you find yourself at a container before finishing surfaces, that is a mistake. Immediately return to the next unvisited surface type.
+ 
+ ### Closed Container Search (only after all surfaces are exhausted)
+-After checking every surface type above and still not finding the object, proceed to closed containers in this exact order:
+-1. **Fridge** – open it (if closed), look inside, take object if present; close after if not.
+-2. **Cabinet** – repeat open/look/take/close for each cabinet instance.
+-3. **Drawer** – same.
+-4. **Microwave** – same.
+-- If the object is still not found, you must have missed a location; backtrack through the list again.
++After checking every surface type above and still not finding the object, proceed to closed containers in this exact order. For each container type, check every instance:
++1. **Fridge** – open it (if closed), look inside. If the target object is present, take it and go to Phase 2. If not present, close the fridge and move to the next container instance (or next type).
++2. **Cabinet** – for each cabinet instance: open, look, if target present take it and go to Phase 2; if not, close and move to next cabinet.
++3. **Drawer** – same process.
++4. **Microwave** – same process.
++- After finishing all containers of all types and still not finding the object, backtrack through the surface list again; you may have missed a location.
+ 
+ ### Object Verification Rule
+-- Read the exact object name from the observation (e.g., "cup 1", not "mug 3"). Only take an object that matches the task's target exactly. If you see a similar object with a different name, leave it and continue searching.
++- Before taking any object, carefully read its exact name from the observation (e.g., "cup 1", not "mug 3"). Only take an object whose name matches the target object type exactly. If you see a similar object with a different name, leave it and continue searching.
++- **If you are already carrying an object that does not match the task**, put it down immediately (use `put <object> on <surface>`) and resume searching. Do not proceed to cooling with a wrong object.
+ 
+ ## Phase 2: Cool the object using the fridge
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Phase 1: Find and take the target object
+
+### Surface Search Order (strictly enforced)
+1. **Countertops** – start at countertop 1, then check countertop 2, 3, etc. Do NOT move to the next surface type until all countertops have been examined.
+2. **Diningtables** – check each diningtable instance.
+3. **Sidetables** – check each sidetable.
+4. **Shelves** – check each shelf.
+5. **Sinkbasins** – check each sinkbasin.
+6. **Stoveburners** – check each stoveburner.
+- At each location, read the observation. If the target object is present, take it and go to Phase 2.
+- **Never skip a surface type.** If you have not visited every surface type listed above, you are NOT done with surfaces. Do NOT go to any container until all surface types have been exhausted.
+- Keep a mental list of locations already visited; do not revisit.
+- If you find yourself at a container before finishing surfaces, that is a mistake. Immediately return to the next unvisited surface type.
+
+### Closed Container Search (only after all surfaces are exhausted)
+After checking every surface type above and still not finding the object, proceed to closed containers in this exact order. For each container type, check every instance:
+1. **Fridge** – open it (if closed), look inside. If the target object is present, take it and go to Phase 2. If not present, close the fridge and move to the next container instance (or next type).
+2. **Cabinet** – for each cabinet instance: open, look, if target present take it and go to Phase 2; if not, close and move to next cabinet.
+3. **Drawer** – same process.
+4. **Microwave** – same process.
+- After finishing all containers of all types and still not finding the object, backtrack through the surface list again; you may have missed a location.
+
+### Object Verification Rule
+- Before taking any object, carefully read its exact name from the observation (e.g., "cup 1", not "mug 3"). Only take an object whose name matches the target object type exactly. If you see a similar object with a different name, leave it and continue searching.
+- **If you are already carrying an object that does not match the task**, put it down immediately (use `put <object> on <surface>`) and resume searching. Do not proceed to cooling with a wrong object.
+
+## Phase 2: Cool the object using the fridge
+
+### Immediate Cooling Action
+- As soon as you have taken the target object, your next action MUST be to go to a fridge, open it, and use `cool <object> with fridge`.
+- Do NOT examine the object, move anywhere else, or perform any other action in between. Any detour (e.g., looking, moving to another room) is a failure.
+- If you are not carrying the object, go back to Phase 1.
+
+## Phase 3: Move the cooled object to the target location
+- Go directly to the target location (e.g., cabinet, diningtable, microwave).
+- If the target is a closed container (like a microwave or cabinet), open it first.
+- Use `move <object> to <target>`.
+
+## Completion check
+- The object is now cooled and placed at the target. Task complete.

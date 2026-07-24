@@ -1,0 +1,214 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "pick_and_place" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# pick_and_place skill tree
+
+## Goal
+Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
+
+## Sub-Goal Flow
+1. **Parse the task** – identify the target object and target receptacle exactly as written.
+2. **Locate the target object** – search every visible receptacle systematically.
+3. **Verify and take** – only take the object if its type matches the task (ignore numerals).
+4. **Navigate to target receptacle** and move the object there.
+5. **Terminate** after placement.
+
+## Object Search – Mandatory Systematic Inspection
+### Step-by-Step Procedure
+1. **Before moving**, reread the initial observation and mentally list **every receptacle name** exactly as it appears (all furniture, containers, surfaces). This is your master checklist.
+2. **Visit each receptacle in turn.** You may choose any order, but you must visit each one exactly once before concluding. For each receptacle on your list:
+   - `go to <receptacle>`
+   - If it is closed (e.g., drawer, cabinet, safe, fridge, microwave, oven, dishwasher), first `open <receptacle>`, then read contents.
+   - If the target object is present, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+   - Tick it off your mental list.
+3. **After you have visited every receptacle on your list** and did not find the object, **repeat the entire list again** – start from the first receptacle once more. The object is always somewhere; keep searching until you find it.
+
+### Common Mistakes to Avoid
+- **Skipping any receptacle** – all must be inspected, including tables, chairs, shelves, drawers, cabinets, sinks, bathtubs, toilets, sofas, dressers, countertops, etc. Do not assume only containers hold objects.
+- **Focusing only on one type** – e.g., only shelves or only closed containers. You must check every type.
+- **Using wrong action** – never `examine` or `look` to move; use `go to`.
+- **Taking wrong object** – verify the object's type matches the task exactly (ignore numerals).
+- **Forgetting to open closed containers** before reading their contents.
+- **Stopping early** – only stop after you have checked every receptacle (and repeated if necessary) and still not found the object. But in this environment the object will be found; keep searching until you find it.
+
+## Object Acquisition
+Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+
+## Placement
+After taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): (none — no shared successful opening yet)
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: put some book on sofa.
+  action: go to armchair 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a coffeetable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 3, a sidetable 2, a sidetable 1, and a sofa 1.
+
+Your task is to: put some book on sofa.
+  action: take book 2 from armchair 1  | obs: You arrive at armchair 1. On the armchair 1, you see a book 2.
+  action: go to sofa 1  | obs: You pick up the book 2 from the armchair 1.
+  action: move book 2 to sofa 1  | obs: You arrive at sofa 1. On the sofa 1, you see a keychain 1, and a pillow 1.
+
+Trajectory 2 [success] task: put a soapbottle in toilet.
+  action: go to bathtubbasin 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: put a soapbottle in toilet.
+  action: go to cabinet 4  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 3, a cloth 2, and a cloth 1.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: take soapbottle 3 from cabinet 4  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a candle 1, a soapbar 2, and a soapbottle 3.
+  action: go to toilet 1  | obs: You pick up the soapbottle 3 from the cabinet 4.
+  action: move soapbottle 3 to toilet 1  | obs: You arrive at toilet 1. On the toilet 1, you see a soapbar 3, and a toiletpaper 2.
+
+Trajectory 3 [success] task: put a candle in cart.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cart 1, a garbagecan 1, a handtowelholder 2, a handtowelholder 1, a shelf 4, a shelf 3, a shelf 2, a shelf 1, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, a towelholder 2, and a towelholder 1.
+
+Your task is to: put a candle in cart.
+  action: go to shelf 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: go to shelf 2  | obs: You arrive at shelf 1. On the shelf 1, you see a cloth 1, and a papertowelroll 1.
+  action: go to shelf 3  | obs: You arrive at shelf 2. On the shelf 2, you see nothing.
+  action: go to shelf 4  | obs: You arrive at shelf 3. On the shelf 3, you see nothing.
+  action: go to bathtubbasin 1  | obs: You arrive at shelf 4. On the shelf 4, you see nothing.
+  action: go to sinkbasin 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 3, a cloth 2, and a dishsponge 2.
+  action: go to garbagecan 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+  action: go to handtowelholder 2  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see a dishsponge 1, and a toiletpaper 1.
+  action: go to handtowelholder 1  | obs: You arrive at handtowelholder 2. On the handtowelholder 2, you see a handtowel 1.
+  action: go to towelholder 1  | obs: You arrive at handtowelholder 1. On the handtowelholder 1, you see nothing.
+  action: go to shelf 1  | obs: You arrive at towelholder 1. On the towelholder 1, you see a towel 1.
+
+Trajectory 4 [success] task: put a handtowel in garbagecan.
+  action: go to drawer 2  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a countertop 1, a drawer 2, a drawer 1, a garbagecan 1, a handtowelholder 2, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: put a handtowel in garbagecan.
+  action: open drawer 2  | obs: You arrive at drawer 2. The drawer 2 is closed.
+  action: go to handtowelholder 1  | obs: You open the drawer 2. The drawer 2 is open. In it, you see a cloth 2, and a soapbar 2.
+  action: take handtowel 1 from handtowelholder 1  | obs: You arrive at handtowelholder 1. On the handtowelholder 1, you see a handtowel 1.
+  action: go to garbagecan 1  | obs: You pick up the handtowel 1 from the handtowelholder 1.
+  action: move handtowel 1 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see nothing.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: put some creditcard on armchair.
+  action: go to armchair 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 1, a diningtable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a shelf 1, a sidetable 3, a sidetable 2, a sidetable 1, and a sofa 1.
+
+Your task is to: put some creditcard on armchair.
+  action: go to diningtable 1  | obs: You arrive at armchair 1. On the armchair 1, you see a pillow 1.
+  action: go to shelf 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a statue 2, and a tissuebox 1.
+  action: go to drawer 4  | obs: You arrive at shelf 1. On the shelf 1, you see a keychain 3, a newspaper 3, a newspaper 2, a vase 3, and a vase 2.
+  action: open drawer 4  | obs: You arrive at drawer 4. The drawer 4 is closed.
+  action: go to drawer 3  | obs: You open the drawer 4. The drawer 4 is open. In it, you see nothing.
+  action: open drawer 3  | obs: You arrive at drawer 3. The drawer 3 is closed.
+  action: go to drawer 2  | obs: You open the drawer 3. The drawer 3 is open. In it, you see nothing.
+  action: open drawer 2  | obs: You arrive at drawer 2. The drawer 2 is closed.
+  action: go to drawer 1  | obs: You open the drawer 2. The drawer 2 is open. In it, you see a remotecontrol 1.
+  action: go to armchair 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to drawer 1  | obs: You arrive at armchair 1. On the armchair 1, you see a pillow 1.
+
+Trajectory 2 [failure] task: put some glassbottle on diningtable.
+  action: go to cabinet 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a countertop 1, a diningtable 1, a drawer 2, a drawer 1, a fridge 1, a garbagecan 1, a microwave 1, a sinkbasin 1, a stoveburner 4, a stoveburne
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to countertop 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: go to cabinet 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bread 1, a butterknife 3, a mug 1, a pencil 2, a soapbottle 2, and a spatula 3.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 4  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a winebottle 2.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 5  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see a plate 3.
+  action: open cabinet 5  | obs: You arrive at cabinet 5. The cabinet 5 is closed.
+  action: take winebottle 3 from cabinet 5  | obs: You open the cabinet 5. The cabinet 5 is open. In it, you see a saltshaker 1, and a winebottle 3.
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+- [inefficient_exploration] The agent stopped searching for creditcard after only checking a few drawers without opening all drawers or exploring other surfaces like sidetables. | evidence: After opening drawer 2 and seeing remotecontrol, it goes to drawer 1 but does not open it, then returns to armchair. | fix: When searching for an object in drawers, open all drawers and check their contents before moving to other locations. | skill_tree_gap: Incomplete drawer exploration routine in 'pick_and_place' tasks. | patch_location: Under 'pick_and_place' section, add new subsection '### Drawer Search Protocol'
+- [wrong_target] The agent picked a winebottle instead of a glassbottle because it did not correctly identify the required object type. | evidence: Action: 'take winebottle 3 from cabinet 5' while task is to put 'some glassbottle' on diningtable. | fix: Only pick up objects that exactly match the task's target type (e.g., glassbottle, not winebottle). | skill_tree_gap: Lack of precise object identification or filtering when picking. | patch_location: Under 'pick_and_place' section, add new subsection '### Object Type Verification'
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

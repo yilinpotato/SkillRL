@@ -1,0 +1,175 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specified object and place it into or onto a specified receptacle.\n\n## Sub-Goal Flow\n1. Extract the full list of all receptacles from the initial observation.\n2. Systematically visit every receptacle in that exact order, starting with the target receptacle.\n3. When the target object is found, take it and go to the target receptacle to place it.\n4. Stop immediately after the move action.\n\n## Initial Observation & List Extraction\n- From the welcome observation, note every furniture item (e.g., bed 1, drawer 2, cabinet 3). Include all surfaces (countertop, sidetable, sofa, armchair) and containers (drawer, cabinet, safe).\n- If the observation is truncated (ends abruptly), use `look` once to get the full list. **If the look result is empty, keep the original truncated list as your mental list.** After that, **do not `look` again**.\n- Create a mental list **in the exact order they appear**. This list determines the search order.\n\n## Systematic Search (mandatory)\n\n### Step 1: Go to the target receptacle first\n- Navigate to the receptacle named in the task (e.g., if task says \"put on armchair\", go to armchair 1).\n- If the receptacle is closed, `open` it immediately. Check if the target object is there.\n\n### Step 2: Visit every other receptacle in list order\n- If the object is not at the target receptacle, go to the **next receptacle in your list** (the one that appears after the target in the original observation).\n- For each receptacle:\n  - If it is closed, `open` it immediately upon arrival.\n  - Read the observation. If the target object is present, `take <object> from <receptacle>` and go to Placement.\n  - If not present, **immediately move to the next receptacle in the list**. Do not `examine`, `close`, or `look`.\n- **Strictly follow the list order** – do not skip any receptacle, and do not revisit a receptacle.\n- **Continue until every single receptacle on the list has been visited exactly once.** Do not stop early.\n\n### Loop Avoidance\n- If you ever find yourself at a receptacle you have already visited (check your mental list), you have looped. **Break the loop by moving to the next unvisited receptacle in the list.** Do not go back to a previous one.\n- If the observation ever says \"nothing\" or repeats the same description, do not repeat actions; move on to the next receptacle.\n\n## Object Selection Filter\n- **Before taking any object, verify that the base noun matches the target object exactly.**\n  - Example: target \"soapbottle\" is not \"soapbar\". Target \"pillow\" is not \"cushion\".\n- Do not take an object if the name does not match. Continue searching.\n- If you are holding an object that does not match, you may have picked it by mistake. Check inventory (`inventory` action) and then continue search, but avoid picking objects outside the systematic flow.\n\n## Object Acquisition\n- Action: `take <object> from <receptacle>` only after verification passes.\n- Use the exact object name as it appears in the observation.\n\n## Placement\n- Go to the target receptacle. If it is closed, open it. Then `move <object> to <receptacle>`.\n- **Stop immediately** after the move action. Do not perform any further actions.\n\n## Critical Rules Summary\n- **Do not use object-specific guesses** – the object can be anywhere. The systematic list guarantees you find it.\n- **Include all surface types and container types** – do not skip any.\n- **No `look` or `inventory` during search** (except the single allowed `look` on truncation).\n- **Never revisit a receptacle** – if you catch yourself, go to the next unvisited one.",
+  "level": 4,
+  "version": 66,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent often ignored explicit rules: it used `look` multiple times despite the single-look rule, revisited receptacles despite the do-not-revisit rule, and took an object without matching the target name. The tree's truncation-handling instruction was ambiguous when `look` returned an empty list, possibly contributing to the loop in failure1; the fix clarifies that the original truncated list should be retained. The object verification rule was present but not prominent enough; the new dedicated 'Object Selection Filter' section emphasizes it.",
+  "changelog": "Added 'Loop Avoidance' subsection under Systematic Search and 'Object Selection Filter' section; clarified truncation handling to retain original list if look returns empty; tightened wording throughout.",
+  "round_failures": [
+    {
+      "failure_type": "loop",
+      "root_cause": "The agent got stuck in a loop opening empty drawers instead of searching for the fork elsewhere.",
+      "skill_tree_gap": "Loop detection and reset of search direction not present.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "The agent picked up a pencil (irrelevant object) instead of a box, and never retrieved the correct object.",
+      "skill_tree_gap": "Lack of task-object matching before picking actions.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_7128",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 65,
+      "call_count": 1573,
+      "success_when_used": 1407,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "80ee3303fa3c",
+      "created_version": 1,
+      "last_changed_version": 34,
+      "stable_versions": 32,
+      "call_count": 1573,
+      "success_when_used": 1407,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "59e085606302",
+      "created_version": 1,
+      "last_changed_version": 66,
+      "stable_versions": 0,
+      "call_count": 1573,
+      "success_when_used": 1407,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/initial-observation-list-extraction": {
+      "title": "Initial Observation & List Extraction",
+      "level": 2,
+      "body_hash": "bcdf213b72e4",
+      "created_version": 65,
+      "last_changed_version": 66,
+      "stable_versions": 0,
+      "call_count": 22,
+      "success_when_used": 20,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory": {
+      "title": "Systematic Search (mandatory)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 60,
+      "last_changed_version": 60,
+      "stable_versions": 6,
+      "call_count": 109,
+      "success_when_used": 93,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory/step-1-go-to-the-target-receptacle-first": {
+      "title": "Step 1: Go to the target receptacle first",
+      "level": 3,
+      "body_hash": "59b283541bcf",
+      "created_version": 65,
+      "last_changed_version": 65,
+      "stable_versions": 1,
+      "call_count": 22,
+      "success_when_used": 20,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory/step-2-visit-every-other-receptacle-in-list-order": {
+      "title": "Step 2: Visit every other receptacle in list order",
+      "level": 3,
+      "body_hash": "7312f44bd6cd",
+      "created_version": 65,
+      "last_changed_version": 66,
+      "stable_versions": 0,
+      "call_count": 22,
+      "success_when_used": 20,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search-mandatory/loop-avoidance": {
+      "title": "Loop Avoidance",
+      "level": 3,
+      "body_hash": "e6c56bab8840",
+      "created_version": 66,
+      "last_changed_version": 66,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-selection-filter": {
+      "title": "Object Selection Filter",
+      "level": 2,
+      "body_hash": "2ea8c629ec49",
+      "created_version": 66,
+      "last_changed_version": 66,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition": {
+      "title": "Object Acquisition",
+      "level": 2,
+      "body_hash": "f055df7cc973",
+      "created_version": 26,
+      "last_changed_version": 65,
+      "stable_versions": 1,
+      "call_count": 854,
+      "success_when_used": 754,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "0834c6bebb67",
+      "created_version": 26,
+      "last_changed_version": 65,
+      "stable_versions": 1,
+      "call_count": 854,
+      "success_when_used": 754,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/critical-rules-summary": {
+      "title": "Critical Rules Summary",
+      "level": 2,
+      "body_hash": "34c5c1d56343",
+      "created_version": 66,
+      "last_changed_version": 66,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

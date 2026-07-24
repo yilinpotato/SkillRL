@@ -1,0 +1,127 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Object Search and Retrieval\n\n### Ordered Countertop Exploration\n- Start by visiting countertop 1 (already done by consensus prefix). Then proceed to countertop 2, then countertop 3, and so on for all numbered countertop instances in order. Do not skip any.\n- At each countertop, read the objects listed. If the target object is present, take it immediately and proceed to Phase 2.\n- After visiting all countertops, move to diningtables in order, then sidetables, then shelves, then sinkbasin, then stoveburners. For each instance of these surface types, go to it and check the objects.\n- If the target object is found on any surface, take it and proceed to Phase 2.\n- If you accidentally go to a category out of order, immediately go to the correct next category; do not backtrack to earlier ones.\n\n### Systematic Closed Container Search\n- If the target object was not found on any surface, search closed receptacles in this exact order:\n  1. fridge (all instances)\n  2. cabinets (all instances)\n  3. drawers (all instances)\n  4. microwave (all instances)\n- For each instance:\n  - Go to it.\n  - If it is closed, open it.\n  - Look inside and take the target object if present.\n- Do not stop until you have opened and checked every instance of every category. Do not backtrack to earlier categories.\n- Heuristic: start with fridge (common for perishable/food items) but follow the order regardless of object type.\n- If you accidentally go to a category out of order, immediately go to the correct next category; do not revisit earlier ones.\n\n## Phase 2: Cool the object using the fridge\n- After picking up the object, go directly to the fridge.\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Phase 3: Move the cooled object to the target location\n- Go to the target location.\n- If the target receptacle is closed, open it first.\n- Use `move <object> to <target>`.\n\n## Completion check\n- Object is cooled and placed at the target location – task complete.",
+  "level": 3,
+  "version": 28,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent had the current skill tree but did not follow the specified order of surface and closed-container exploration, skipping countertop 3 and not systematically checking all cabinets. The tree's wording was clear, but the agent deviated; the refinement adds explicit subsections that enforce the sequence step-by-step.",
+  "changelog": "Replaced the generic '### Exhaustive Search' with two separate subsections '### Ordered Countertop Exploration' and '### Systematic Closed Container Search' to prevent skipping and enforce the exact order of search, as well as adding explicit notes about correcting order mistakes.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never located a pot because it did not systematically search closed containers and skipped countertop 3.",
+      "skill_tree_gap": "Missing a systematic subroutine for searching closed containers when the object is not on open surfaces.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "wrong_order",
+      "root_cause": "After visiting countertop 2, the agent went to diningtable instead of continuing to countertop 3, missing a likely location for the plate.",
+      "skill_tree_gap": "The countertop exploration sequence is not enforced; the agent skipped a critical step.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "wrong_order",
+      "root_cause": "The agent went to diningtable first instead of exploring countertops in order, missing the pan (likely on countertop 2 or 3).",
+      "skill_tree_gap": "Lack of a fixed order for initial countertop exploration.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "wrong_order",
+      "root_cause": "After countertop 2, the agent went to diningtable instead of countertop 3, and never found the pot anywhere.",
+      "skill_tree_gap": "The countertop exploration sequence is not enforced.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_3240",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 27,
+      "call_count": 473,
+      "success_when_used": 402,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval": {
+      "title": "Object Search and Retrieval",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 1,
+      "call_count": 16,
+      "success_when_used": 12,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/ordered-countertop-exploration": {
+      "title": "Ordered Countertop Exploration",
+      "level": 3,
+      "body_hash": "77fce53f954c",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/systematic-closed-container-search": {
+      "title": "Systematic Closed Container Search",
+      "level": 3,
+      "body_hash": "f39a404fcfee",
+      "created_version": 28,
+      "last_changed_version": 28,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge",
+      "level": 2,
+      "body_hash": "de516de96541",
+      "created_version": 24,
+      "last_changed_version": 27,
+      "stable_versions": 1,
+      "call_count": 69,
+      "success_when_used": 60,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location",
+      "level": 2,
+      "body_hash": "ee2daf0b8a33",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 4,
+      "call_count": 69,
+      "success_when_used": 60,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check",
+      "level": 2,
+      "body_hash": "68f9629c26b4",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 1,
+      "call_count": 16,
+      "success_when_used": 12,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

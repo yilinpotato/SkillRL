@@ -1,0 +1,169 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).\n\n## Phase 1: Locate and Take the Target Object\n\n### Search Open Surfaces First\n- Open surfaces (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) are visible without opening. Check these first—they often hold the target object.\n- List every open-surface receptacle from the initial description. For each, go to it and read the observation (no need to open). If the target object is present, take it and go to Phase 2.\n- If the destination in the task is an open surface (e.g., diningtable, countertop), check that surface early—the object may already be there.\n\n### Object Verification Before Pick\n- **Before taking any object, verify its exact name matches the task target.** Compare the object's name as shown (e.g., \"pan\", \"pot\", \"soapbar\", \"knife\") against the target object name from the task. If they are identical, take it. If they differ (even slightly, e.g., \"pan\" vs \"pot\", \"soapbar\" vs \"soapbottle\"), do not take it. Continue searching.\n- Do not pick up similar objects hoping they will work; only the exact match can be cleaned and placed.\n\n### Search Closed Containers (if not found on open surfaces)\n- Only after checking all open surfaces, begin opening closed containers.\n- Systematically search **all** instances of these types in this order:\n  1. **Cabinets** – go to each, open, inspect contents.\n  2. **Drawers** – go to each, open, inspect.\n  3. **Fridge** – if present, go to it, open, inspect.\n- Continue until the target object is found. **Do not stop after the first container type; finish every type.**\n- **IMPORTANT**: Whenever you move to a closed container (e.g., cabinet 2) and see \"The [container] is closed.\", **immediately open it** by issuing `open [container]`. Do not walk away without opening it.\n\n### Systematic Search Procedure\n- After exhausting open surfaces, execute this step-by-step:\n  1. List all closed containers of each type from the initial description (e.g., cabinet 1...drawer 1...).\n  2. Start with all cabinets: go to the first cabinet, open, inspect; move to next cabinet until all are opened and inspected.\n  3. Then proceed to all drawers: go to the first drawer, open, inspect; continue until all drawers are done.\n  4. If a fridge exists, do the same.\n- **Do not return to open surfaces or give up until you have opened and inspected every instance of every closed container type.**\n- If you still cannot find the object after all closed containers, re-check the open surfaces (sometimes objects spawn later) but this is rare.\n\n### Navigation and Opening Rules\n- Always move to a receptacle before interacting. Sequence: `go to <receptacle>`, then `open <receptacle>` (or `take <object>` if already seen).\n- For closed containers, you **must** open them to see contents—`look` or `examine` will not reveal inside.\n- If you open a container and see nothing, move to the next container. Persist through all instances.\n\n## Phase 2: Clean the Object\n- While holding [object], go to [cleaning_source] (usually sinkbasin 1).\n- Use `clean [object] with [cleaning_source]`.\n- Confirm the observation says you cleaned it; if not, retry or verify you are at the correct source.\n\n## Phase 3: Place the Clean Object at Destination\n- Go to the [destination] specified in the task.\n- Use `move [object] to [destination]` to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.",
+  "level": 3,
+  "version": 19,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent used the skill tree but failed to follow the object verification rule (took pan instead of pot) and did not complete the systematic search (skipped drawers while searching for spoon and soapbar). The skill tree's existing instructions were clear enough, but the agent did not adhere to them; however, making these rules more prominent as dedicated subsections should improve compliance.",
+  "changelog": "Added 'Object Verification Before Pick' subsection to reinforce exact name matching before taking, and 'Systematic Search Procedure' subsection to explicitly mandate covering every closed container type in order, preventing premature termination.",
+  "round_failures": [
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "Agent picked up a pan instead of the required pot, then stopped without cleaning or placing.",
+      "skill_tree_gap": "Lack of object type verification before taking an object.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent failed to locate the soapbar because it only searched cabinets and did not explore drawers or other surfaces.",
+      "skill_tree_gap": "Incomplete search strategy; missing coverage of all possible object locations.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent failed to locate a spoon because it did not search drawers or other receptacles, only cabinets and countertops.",
+      "skill_tree_gap": "Object search does not cover all receptacle types.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_1584",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 18,
+      "call_count": 267,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "f2f6d8489c8b",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 12,
+      "call_count": 267,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object": {
+      "title": "Phase 1: Locate and Take the Target Object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 14,
+      "stable_versions": 5,
+      "call_count": 267,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/search-open-surfaces-first": {
+      "title": "Search Open Surfaces First",
+      "level": 3,
+      "body_hash": "c719fbab2988",
+      "created_version": 17,
+      "last_changed_version": 17,
+      "stable_versions": 2,
+      "call_count": 32,
+      "success_when_used": 26,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/object-verification-before-pick": {
+      "title": "Object Verification Before Pick",
+      "level": 3,
+      "body_hash": "3a0c64986c83",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/search-closed-containers-if-not-found-on-open-surfaces": {
+      "title": "Search Closed Containers (if not found on open surfaces)",
+      "level": 3,
+      "body_hash": "db8de92f38c2",
+      "created_version": 17,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 32,
+      "success_when_used": 26,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search-procedure": {
+      "title": "Systematic Search Procedure",
+      "level": 3,
+      "body_hash": "d0ab5fd6353d",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/navigation-and-opening-rules": {
+      "title": "Navigation and Opening Rules",
+      "level": 3,
+      "body_hash": "f87106a3d4d3",
+      "created_version": 17,
+      "last_changed_version": 18,
+      "stable_versions": 1,
+      "call_count": 32,
+      "success_when_used": 26,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "0082bae0c5cd",
+      "created_version": 1,
+      "last_changed_version": 17,
+      "stable_versions": 2,
+      "call_count": 267,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "71e0d3ca9635",
+      "created_version": 1,
+      "last_changed_version": 17,
+      "stable_versions": 2,
+      "call_count": 267,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "8ba0a9c393e7",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 18,
+      "call_count": 267,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

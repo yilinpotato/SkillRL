@@ -1,0 +1,90 @@
+{
+  "batch_id": "66b69fdf-43aa-4fb5-97aa-8aaad6c8ceff",
+  "diagnoses": {
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found the target bowl because it iterated through only a few visible locations (diningtable, sinkbasin, stoveburners) without checking cabinets, drawers, or the fridge.",
+        "evidence": "After go to countertop1, the agent visited multiple locations but never picked up a bowl; the bowl was absent from all visited surfaces and containers.",
+        "corrective_rule": "When the target object is not immediately visible, systematically search all storage containers (cabinets, drawers, fridge) before exploring other areas.",
+        "skill_tree_gap": "Missing a general search procedure for objects not in initial view.",
+        "patch_location": "## Cool Task -> new subsection ### Object Search Strategy",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found the target apple because it never searched the fridge (where apples are commonly found) and only explored countertops, sinkbasin, and cabinets that did not contain an apple.",
+        "evidence": "After consensus prefix, the agent went to countertop2, sinkbasin, stoveburner, cabinet2, etc., but never visited the fridge or drawers.",
+        "corrective_rule": "For cool tasks, always check the fridge as a potential source of the target object if it is not on countertops.",
+        "skill_tree_gap": "Lack of heuristic that cold-relevant objects might be in the fridge.",
+        "patch_location": "## Cool Task -> new subsection ### Object Search Strategy",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not find the cup because it only searched a few cabinets and countertops, missing drawers, sinkbasin, and other furniture where a cup could be located.",
+        "evidence": "After opening the fridge and seeing no cup, the agent opened cabinets 1-4 but never opened drawers or checked the sinkbasin.",
+        "corrective_rule": "When the target object is not in the fridge, search all common receptacles (drawers, sinkbasin, diningtable) before concluding it is absent.",
+        "skill_tree_gap": "Incomplete search coverage for heat tasks - missing drawer and sink checks.",
+        "patch_location": "## Heat Task -> new subsection ### Complete Object Search",
+        "confidence": 0.95
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located the laptop because it only visited desk, sidetables, dresser, and a few drawers, ignoring shelves, coffeetable, and other furniture that might contain the laptop.",
+        "evidence": "After using desklamp, the agent went to sidetable1, sidetable2, dresser1, then opened drawer1 and drawer2, but the laptop was not in any of these places.",
+        "corrective_rule": "For look_at_obj_in_light tasks, first systematically scan all furniture items (shelves, coffeetable, etc.) for the target object.",
+        "skill_tree_gap": "Missing a plan to locate the object before using the light source.",
+        "patch_location": "## Look at Object in Light Task -> new subsection ### Object Localization",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only opened cabinets and never visited countertops where toiletpaper was likely located, so it never picked up any toiletpaper.",
+        "evidence": "After starting at bathtubbasin, the agent sequentially opened cabinets 5-1 but never went to countertop1 or countertop2.",
+        "corrective_rule": "When searching for items like toiletpaper, always check flat surfaces (countertops) in addition to containers.",
+        "skill_tree_gap": "Over‑specialization on cabinets; lack of multi‑surface search strategy.",
+        "patch_location": "## Pick Two Objects and Place -> new subsection ### Multi-Object Search Strategy",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing the first newspaper, the agent did not exhaustively search all remaining furniture (sidetables, tvstand, other drawers) for the second newspaper and instead looped back to already empty locations.",
+        "evidence": "After moving newspaper2 to sofa, the agent returned to armchair (empty), then coffeetable, then drawer7 (empty), and then looped.",
+        "corrective_rule": "After placing the first instance, systematically check every unreachable furniture item for the second instance before revisiting known empty spots.",
+        "skill_tree_gap": "Missing logic to re‑acquire second object with a full search after first placement.",
+        "patch_location": "## Pick Two Objects and Place -> new subsection ### Re‑acquisition After First Placement",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched drawers and the diningtable, ignoring cabinets where tissueboxes are typically stored, so it never found any tissuebox.",
+        "evidence": "After starting, the agent opened drawers 4-1 and looked at diningtable, but never visited any cabinet.",
+        "corrective_rule": "For items like tissuebox, always check cabinets as a primary storage location.",
+        "skill_tree_gap": "Lack of object‑specific storage knowledge (tissuebox → cabinet).",
+        "patch_location": "## Pick Two Objects and Place -> new subsection ### Object-specific Storage Knowledge",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

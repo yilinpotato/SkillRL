@@ -1,0 +1,121 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specified object and place it into or onto a specified receptacle.\n\n## Sub-Goal Flow\n1. **Identify target object and target receptacle** from the task description.\n2. **Locate the target object** by searching all listed receptacles systematically.\n3. **Take the object only if its name exactly matches** the target (base noun, ignore numerals).\n4. **Navigate to target receptacle**, open if closed, then place the object there.\n5. **Terminate** after successful placement.\n\n## Systematic Search\n- From the initial observation, list every receptacle mentioned (e.g., tables, shelves, drawers, cabinets, dresser, etc.). These are your complete search set.\n- **Open surfaces first**: go to each open receptacle (tables, shelves, sofa, bed, dresser, etc.) and inspect its contents. Do not skip any.\n- **Then closed containers**: for each drawer, cabinet, etc., go to it, open it, and inspect its contents. Open every single one before concluding the object is not there.\n- **Important**: If after checking all receptacles you still haven't found the object, re-check the list – you may have missed one. The object is always present.\n\n## Object Acquisition\n- When you see an object that *might* be the target, **first verify its name** against the task. The exact type must match (e.g., \"soapbottle\" vs \"soapbar\" are different; ignore numerals like \"book 1\" matches \"book\").\n- Only if the name matches, take it with `take <object> from <receptacle>`.\n- If the name does not match, continue searching.\n\n## Placement\n- After taking the correct object, go to the target receptacle. If it is closed, open it first. Then `move <object> to <receptacle>`.\n- Once placed, terminate (the task will be marked complete).\n\n## Common Mistakes to Avoid\n- **Taking without verifying** – always check object name before taking.\n- **Stopping search early** – do not assume the object is gone until you have checked every receptacle on the initial list.\n- **Wrong actions** – use only `go to`, `open`, `close`, `take`, `move`. Never `examine`, `look`, or `inventory` unnecessarily.",
+  "level": 3,
+  "version": 34,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent had the current skill tree but did not follow its systematic search (missed dresser and drawers) and failed to verify object name before taking (took towel for cloth, soapbar for soapbottle). The tree's verbosity may have caused the agent to overlook critical steps; the refined tree is more concise and places verification immediately before taking.",
+  "changelog": "Reorganized the search section into a clear two-phase algorithm (open surfaces then closed containers) and moved object name verification to a standalone step right before taking, reducing text to improve adherence.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found a cellphone because it limited exploration to armchair, sidetables, bed, and cabinets, missing the dresser and drawers where cellphones might be.",
+      "skill_tree_gap": "Lack of exhaustive search routine for target objects.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "The agent picked up a towel instead of a cloth, misidentifying the required object.",
+      "skill_tree_gap": "Missing a check to match object name with task requirement before picking.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "The agent picked up a soapbar instead of a soapbottle, confusing similar object types.",
+      "skill_tree_gap": "Missing precise object name matching step.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_4176",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 33,
+      "call_count": 914,
+      "success_when_used": 833,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "80ee3303fa3c",
+      "created_version": 1,
+      "last_changed_version": 34,
+      "stable_versions": 0,
+      "call_count": 914,
+      "success_when_used": 833,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "8289ab804059",
+      "created_version": 1,
+      "last_changed_version": 34,
+      "stable_versions": 0,
+      "call_count": 914,
+      "success_when_used": 833,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/systematic-search": {
+      "title": "Systematic Search",
+      "level": 2,
+      "body_hash": "56e2c664db11",
+      "created_version": 34,
+      "last_changed_version": 34,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition": {
+      "title": "Object Acquisition",
+      "level": 2,
+      "body_hash": "1866d0cbd0f8",
+      "created_version": 26,
+      "last_changed_version": 34,
+      "stable_versions": 0,
+      "call_count": 195,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "13e053c83a2d",
+      "created_version": 26,
+      "last_changed_version": 34,
+      "stable_versions": 0,
+      "call_count": 195,
+      "success_when_used": 180,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/common-mistakes-to-avoid": {
+      "title": "Common Mistakes to Avoid",
+      "level": 2,
+      "body_hash": "3bf0dc4707c2",
+      "created_version": 31,
+      "last_changed_version": 34,
+      "stable_versions": 0,
+      "call_count": 76,
+      "success_when_used": 70,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

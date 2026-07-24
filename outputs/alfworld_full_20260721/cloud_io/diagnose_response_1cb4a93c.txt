@@ -1,0 +1,145 @@
+[
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never located the bowl to cool; it wasted time opening irrelevant cabinets and never searched countertops systematically.",
+    "evidence": "After opening fridge, it went to sinkbasin, stoveburner, then cabinets, never taking a bowl.",
+    "corrective_rule": "When the task requires a specific object, first search plausible locations (countertops, cabinets) in a systematic order before exploring other areas.",
+    "skill_tree_gap": "Missing a structured search strategy for target objects in the cool task flow.",
+    "patch_location": "## cool / new subsection '### locate_object'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After finding the fridge empty, the agent did not search for the tomato on countertops or in cabinets, and never cooled or heated it.",
+    "evidence": "Fridge contained nothing, then agent went to countertop1, cabinets, drawers, but never picked up a tomato.",
+    "corrective_rule": "If the target object is not in the fridge, search all countertops and cabinets thoroughly before moving on.",
+    "skill_tree_gap": "Missing fallback search behavior when fridge does not contain the required item.",
+    "patch_location": "## heat / new subsection '### search_after_fridge'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#1",
+    "task_type": "heat",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent stopped exploring after opening a few cabinets and did not find a cup; it should have continued searching all receptacles.",
+    "evidence": "After opening cabinet 4 and seeing nothing, the trajectory ends without ever picking up a cup.",
+    "corrective_rule": "Continue searching all cabinets, drawers, and countertops until the exact object (cup) is found, or all locations are exhausted.",
+    "skill_tree_gap": "No termination condition ensuring exhaustive search before giving up.",
+    "patch_location": "## heat / new subsection '### exhaustive_search'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#2",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not locate the potato; it searched countertops and cabinets but missed the potato and never heated it.",
+    "evidence": "Fridge had no potato, then explored countertops (egg, apple) and cabinets (empty) but never found a potato.",
+    "corrective_rule": "If the target object is not in the fridge, systematically check all countertops and cabinets for it.",
+    "skill_tree_gap": "Lack of systematic object location procedure for heat tasks.",
+    "patch_location": "## heat / new subsection '### locate_potato'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find the keychain; it searched beds, desks, and drawers but overlooked other likely locations like shelves or sidetables.",
+    "evidence": "After opening drawer 3 and seeing nothing, the agent stopped without ever picking up a keychain.",
+    "corrective_rule": "When a target object is not found early, broaden the search to all receptacles in the room (shelf, sidetable, etc.).",
+    "skill_tree_gap": "Incomplete search coverage for pick_and_place tasks.",
+    "patch_location": "## pick_and_place / new subsection '### search_all_receptacles'",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not find the pencil; it searched drawers and shelf but missed desks and countertops where pencils often appear.",
+    "evidence": "After opening drawer 4, the agent went to dresser then drawer 5, never finding a pencil.",
+    "corrective_rule": "Extend search to desks, countertops, and any flat surfaces when target object is not in drawers/cabinets.",
+    "skill_tree_gap": "Search strategy does not include desks or countertops for small objects like pencils.",
+    "patch_location": "## pick_and_place / new subsection '### search_desks_and_surfaces'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#2",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched cabinets, coffee table, and shelves but never found a remotecontrol; it missed armchairs, sofas, and drawers where remotecontrols are common.",
+    "evidence": "After going to shelf 6 and seeing nothing, the agent stopped without ever picking up a remotecontrol.",
+    "corrective_rule": "Include armchairs, sofas, and drawers in the search for remotecontrols.",
+    "skill_tree_gap": "Lack of domain-specific knowledge about common object locations.",
+    "patch_location": "## pick_and_place / new subsection '### search_common_locations'",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent picked only one pen and then stopped, never searching for a second pen.",
+    "evidence": "After moving pen 1 to garbagecan, the agent issued repeated 'look' actions instead of searching for another pen.",
+    "corrective_rule": "After moving the first object, continue searching for a second identical object before declaring task complete.",
+    "skill_tree_gap": "No loop or check to ensure two objects are collected.",
+    "patch_location": "## pick_two_obj_and_place / new subsection '### collect_second_object'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent took one winebottle and then started looping, never picking a second winebottle.",
+    "evidence": "After taking winebottle 1 from cabinet 5, the agent dropped 3 looping actions instead of searching for another.",
+    "corrective_rule": "After acquiring the first target object, actively search for a duplicate before ending.",
+    "skill_tree_gap": "Missing termination condition requiring two objects.",
+    "patch_location": "## pick_two_obj_and_place / new subsection '### require_two'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found any spraybottle; it only opened cabinets 1 and 2 and then started looping.",
+    "evidence": "After opening cabinet 2 and seeing cloth and toiletpaper, the agent repeated 'look' actions without searching countertops or other locations.",
+    "corrective_rule": "If cabinets do not contain the target object, search countertops and other surfaces.",
+    "skill_tree_gap": "Incomplete search strategy for spraybottles.",
+    "patch_location": "## pick_two_obj_and_place / new subsection '### search_countertops'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent picked only one saltshaker and then stopped, never searching for a second one.",
+    "evidence": "After picking saltshaker 3 from countertop 1 and going to drawer 1, the agent dropped 4 looping actions.",
+    "corrective_rule": "After moving the first saltshaker, continue to find another saltshaker before finishing.",
+    "skill_tree_gap": "Missing loop for second identical object.",
+    "patch_location": "## pick_two_obj_and_place / new subsection '### collect_second'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent moved one remotecontrol to coffeetable and then stopped, ignoring the need for a second remotecontrol.",
+    "evidence": "After moving remotecontrol 2 to coffeetable, the agent issued repeated 'look' actions.",
+    "corrective_rule": "After placing the first object, actively search for a second remotecontrol to place.",
+    "skill_tree_gap": "Missing requirement to collect two remotecontrols.",
+    "patch_location": "## pick_two_obj_and_place / new subsection '### require_two_remote'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found any remotecontrol; it searched armchair, coffee table, garbagecan, and shelf but missed likely locations like cabinets or sofas.",
+    "evidence": "After going to shelf 2 and seeing a statue, the agent looped without ever picking up a remotecontrol.",
+    "corrective_rule": "Extend search to cabinets, sofas, and drawers when remotecontrol is not immediately visible.",
+    "skill_tree_gap": "Incomplete search coverage for remotecontrols.",
+    "patch_location": "## pick_two_obj_and_place / new subsection '### search_cabinets_sofas'",
+    "confidence": 0.85
+  }
+]

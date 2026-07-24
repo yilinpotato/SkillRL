@@ -1,0 +1,204 @@
+{
+  "batch_id": "4ed89058-29c5-453a-bcc9-2ae7176ca783",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets 1-4 and drawer 1, then stopped at the fridge without checking countertop, diningtable, or sidetable for the knife.",
+        "evidence": "After opening drawer 1 (spatula) and fridge (apple, egg, lettuce, mug, tomato), the agent took no further actions and never obtained a knife.",
+        "corrective_rule": "Before concluding an object is missing, search all commonly used receptacles including countertops, dining tables, side tables, and all cabinets/drawers.",
+        "skill_tree_gap": "The search strategy lacks systematic enumeration of all possible object locations (e.g., countertop, diningtable, sidetable).",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only checked cabinets 1-6 and drawer 1 for the butterknife, ignoring the many other drawers and the countertop where it might be.",
+        "evidence": "After opening drawer 1 and finding nothing, the agent issued no further actions and never located the butterknife.",
+        "corrective_rule": "Before stopping, systematically open all drawers and check countertops for the target object.",
+        "skill_tree_gap": "The agent's exploration routine does not extend beyond a limited set of cabinets and one drawer.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#2",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched cabinets and drawer 1 but never visited the countertop or diningtable where the bowl could be located.",
+        "evidence": "After opening drawer 1 (butterknife, fork, knife, spatula) and then going to fridge (closed), the agent stopped without checking countertop1 or diningtable.",
+        "corrective_rule": "Always check countertops and dining tables as they commonly hold target objects.",
+        "skill_tree_gap": "Missing coverage of countertop and diningtable in the search plan.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#3",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only examined a few cabinets and drawers, failing to search the countertop or other cabinets for the kettle.",
+        "evidence": "After going to drawer 2 and seeing nothing, the agent stopped; the kettle was never found.",
+        "corrective_rule": "Expand search to include all cabinet numbers and countertop areas.",
+        "skill_tree_gap": "The agent's search is limited to a small subset of cabinets and does not include countertops.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#4",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched cabinets and drawer 1 but never opened the fridge or checked countertops, where lettuce might be stored.",
+        "evidence": "After opening drawer 1 (saltshaker) the agent stopped; the lettuce was never found.",
+        "corrective_rule": "Include the fridge and countertops in the search for perishable items like lettuce.",
+        "skill_tree_gap": "The search plan omits the fridge and countertops for items that often reside there.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#5",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only opened cabinets 1-6 and never looked in any drawer despite the fork often being stored there.",
+        "evidence": "After opening cabinet 6 and seeing nothing, the agent stopped without checking any drawer.",
+        "corrective_rule": "Always check drawers in addition to cabinets, especially for utensils like forks.",
+        "skill_tree_gap": "The agent's search strategy ignores drawers as a possible location for cutlery.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.95
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent visited many locations but never checked cabinets thoroughly (only cabinet 1, which was not opened) and did not find the plate.",
+        "evidence": "After going to cabinet 1 and seeing a saltshaker on it (not opening), the agent returned to countertop2 and stopped; no plate was ever taken.",
+        "corrective_rule": "Open every cabinet and check all countertops and dining tables for the target object.",
+        "skill_tree_gap": "The exploration does not include opening cabinets that appear closed, even when the object is likely inside.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched countertops, shelves, fridge, and one cabinet but missed the potato, which was probably in a different cabinet or drawer.",
+        "evidence": "After opening cabinet 1 and finding nothing, the agent did a 'look' and stopped; potato never found.",
+        "corrective_rule": "Expand search to all cabinets and drawers, especially for root vegetables.",
+        "skill_tree_gap": "The search does not cover all cabinets and drawers systematically.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#2",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent visited many locations but did not open cabinets past number 2 and never found the plate on a countertop or in a drawer.",
+        "evidence": "After opening cabinet 2 (closed) and cabinet 1 (peppershaker), the agent stopped; no plate found in any visited location.",
+        "corrective_rule": "Systematically open all cabinets and check all countertops for the plate.",
+        "skill_tree_gap": "The agent's search routine does not include opening multiple cabinets in sequence.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched fridge, countertops, shelves, and one cabinet but never found the mug because it did not investigate other cabinets or drawers.",
+        "evidence": "After opening cabinet 1 (empty) and going to cabinet 2 (closed), the agent stopped; no mug was ever taken.",
+        "corrective_rule": "Check all cabinets and drawers for mugs, as they are often stored there.",
+        "skill_tree_gap": "The search plan lacks coverage of cabinets and drawers for small kitchen items.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent turned on the desklamp but never searched for a book on shelves, desks, or drawers; only visited shelves 1-7 and drawer 1 without finding a book.",
+        "evidence": "After opening drawer 1 (empty) and examining shelves 6 and 7 (nothing), the agent returned to shelf 1; no book was ever obtained.",
+        "corrective_rule": "Search all shelves, drawers, and desks thoroughly for the book before using the desklamp.",
+        "skill_tree_gap": "The search does not include examining all shelves and drawers in the room.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched drawers 1-5 and countertop1, but never looked in cabinets where the spraybottle might be stored.",
+        "evidence": "After opening drawer 5 and finding a candle, the agent stopped; spraybottle never found.",
+        "corrective_rule": "Search cabinets in addition to drawers when looking for a spraybottle.",
+        "skill_tree_gap": "The search plan omits cabinets as possible storage for cleaning supplies.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched bathtub, countertop, and drawers but never checked any cabinet for the spraybottle.",
+        "evidence": "After opening drawer 5 (closed) the agent stopped; spraybottle not found in any visited location.",
+        "corrective_rule": "Always include cabinets in the search for household items like spraybottles.",
+        "skill_tree_gap": "Cabinets are not part of the default search list for this item type.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched shelves and did not open any drawers or check other surfaces like the desk for the cd.",
+        "evidence": "After going to drawer 1 (closed) and attempting to open it (last action), the agent never explored further; cd not found.",
+        "corrective_rule": "Search drawers and desks in addition to shelves for small objects like cds.",
+        "skill_tree_gap": "The search strategy only considers shelves, ignoring other common places.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#3",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched cabinets and shelves but never opened drawers or checked the countertop properly, missing the peppershaker.",
+        "evidence": "After opening cabinet 4 (empty) and going to countertop1 (nothing), the agent stopped; peppershaker never found.",
+        "corrective_rule": "Include drawers and a thorough check of countertops in the search for spices.",
+        "skill_tree_gap": "Drawers and countertops are not systematically searched.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched shelves, desk, and some drawers but never found any book; likely books were in a different drawer or on a different shelf not examined.",
+        "evidence": "After going to shelf 2 and seeing a mug, the agent returned to shelf 1; no book was ever taken.",
+        "corrective_rule": "Extend search to all drawers and shelves in the room, as books can appear anywhere.",
+        "skill_tree_gap": "The search is not exhaustive; it misses many drawers and shelves.",
+        "patch_location": "### Exploration \\\\n New subsection: #### Systematic Search of All Receptacles",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "After picking up the towel, the agent reached the toilet but then entered a loop of look/inventory actions instead of executing the move action to place the towel.",
+        "evidence": "After 'go to toilet 1', the next actions are 'look', 'look', 'inventory', 'look' with no move action; the towel remains in inventory.",
+        "corrective_rule": "Once at the target location with the object, immediately perform the move action without issuing unnecessary sensory commands.",
+        "skill_tree_gap": "The action sequencing does not enforce that a put action follows arrival at the target location.",
+        "patch_location": "### Action Execution \\\\n New subsection: #### Ensure Completion of Put Action After Reaching Target",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

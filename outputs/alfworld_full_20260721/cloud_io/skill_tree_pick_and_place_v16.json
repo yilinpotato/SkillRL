@@ -1,0 +1,127 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specific object and place it into or onto a specified receptacle (e.g., \"put a book in sofa\"). The task names both the object and the target receptacle.\n\n## Sub-Goal Flow\n1. **Parse the task** – identify the target object and target receptacle exactly as written.\n2. **Locate the target object** – search every visible receptacle systematically.\n3. **Verify and take** – only take the object if its name matches exactly.\n4. **Navigate to target receptacle** and move the object there.\n5. **Terminate** after placement.\n\n## Exploration: Systematic Object Search\n### 1. Create a checklist\nFrom the **first room observation** (after `look` or upon arrival), list every receptacle name exactly as it appears. Write them down. Include ALL furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, etc. Do not skip any.\n\n### 2. Visit receptacles in order\nStart with the **target receptacle** (the object might already be there). Then visit **all open surfaces** (tables, shelves, countertops, etc.) before moving to closed containers. For each receptacle:\n- Use `go to <receptacle>`. The observation appears automatically.\n- If the receptacle is closed, `open <receptacle>` first.\n- Read the observation. If you see the target object, `take <object> from <receptacle>` and proceed to step 3.\n- If not found, mentally check it off and go to the next.\n\n### 3. After completing the list\nIf you have visited every receptacle and not found the object, **repeat the entire sequence** once more. Pay special attention to items you might have overlooked. Only give up after two full passes.\n\n## Common Mistakes\n- **Skipping any receptacle** – all must be checked, even if unlikely.\n- **Using wrong action** – never `examine` or `look` to move; use `go to`.\n- **Taking wrong object** – confirm exact name (e.g., \"handtowel\" ≠ \"cloth\").\n- **Failing to open** closed containers before reading contents.\n- **Forgetting to place** – after taking, go to target and `move <object> to <receptacle>` immediately.\n- **Wasting time** – do not close containers or perform extra actions.",
+  "level": 3,
+  "version": 16,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent disregarded the exhaustive search instructions, likely because the original skill tree was too verbose and the agent skimmed over critical steps. The refined tree compresses the guidance into a clear, action-oriented checklist to improve adherence.",
+  "changelog": "Consolidated the Exploration Strategy into a single, step-by-step 'Systematic Object Search' section with a numbered checklist, removed redundant subsections, and kept only the most essential warnings to reduce cognitive load.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to find a box; it searched shelves and a drawer but missed other containers like sidetable or sofa, then returned to start without picking anything.",
+      "skill_tree_gap": "Incomplete search coverage; the agent only checks a subset of available locations.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to locate a candle; it searched only a few cabinets and sinkbasins, missing other potential locations like bathtubbasin or handtowelholder.",
+      "skill_tree_gap": "No systematic search plan that covers all object-related locations in the environment.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_2232",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 15,
+      "call_count": 491,
+      "success_when_used": 444,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "74da202d7729",
+      "created_version": 1,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 491,
+      "success_when_used": 444,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "37d875b92f99",
+      "created_version": 1,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 491,
+      "success_when_used": 444,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search": {
+      "title": "Exploration: Systematic Object Search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/1-create-a-checklist": {
+      "title": "1. Create a checklist",
+      "level": 3,
+      "body_hash": "fe7b10f5e375",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/2-visit-receptacles-in-order": {
+      "title": "2. Visit receptacles in order",
+      "level": 3,
+      "body_hash": "21abe3b0a79f",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/3-after-completing-the-list": {
+      "title": "3. After completing the list",
+      "level": 3,
+      "body_hash": "311450e806f5",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/common-mistakes": {
+      "title": "Common Mistakes",
+      "level": 2,
+      "body_hash": "7b46700b824a",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

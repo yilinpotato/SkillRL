@@ -1,0 +1,62 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v1 (level=3, tree_depth=3, 9 nodes) ===
+action: rewrite
+critique: 
+changelog: First version created from scratch, covering goal definition, systematic search strategy, two-step placement with iteration, and completion detection.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 11  n_failure this round: 8
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent never found any laptop; it only searched drawers and a coffee table, missing other locations. | evidence: No laptop seen; agent stopped after drawer 6. | fix: Search all receptacles including ottoman, sidetable, and shelves thoroughly. | skill_tree_gap: No systematic search for multiple objects. | patch_location: Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.
+- [premature_stop] Agent placed only one candle and then stopped without searching for a second candle. | evidence: After moving candle 2 to cabinet 1, the next actions explore cabinets but no second candle found or placed. | fix: Continue searching and placing objects until the required count (2) is reached. | skill_tree_gap: Missing loop or check for completion of multiple objects. | patch_location: Under 'pick_two_obj_and_place', add a new subsection '### loop for required number of objects'.
+- [premature_stop] Agent took one toiletpaper and went to drawer but did not place it, and did not search for a second. | evidence: Last action: 'go to drawer 1' with no move; only one toiletpaper taken. | fix: After taking an object, immediately move it to the target; then search for the next object. | skill_tree_gap: Incomplete placement and missing iteration. | patch_location: Under 'pick_two_obj_and_place', add a new subsection '### ensure placement and iterate until count reached'.
+- [inefficient_exploration] Agent never found any bread; it only searched cabinets and saw dishsponge, no bread. | evidence: After cabinet 6, no bread observed; agent stopped. | fix: Search all receptacles including fridge, countertops, and drawers for bread. | skill_tree_gap: Inadequate search for multiple items. | patch_location: Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never found any cup; it searched cabinets and drawers but saw only peppershakers and soapbottles. | evidence: No cup observed in any location; agent stopped after drawer 5. | fix: Search all receptacles including countertops and sinkbasin for cups. | skill_tree_gap: No comprehensive search strategy. | patch_location: Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never found any book; it examined shelves and drawer, but saw only mugs and other items, no book. | evidence: No book in any observation; agent stopped after returning to shelf 2. | fix: Search all receptacles including dresser, desk, and other shelves for books. | skill_tree_gap: Insufficient exploration for books. | patch_location: Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] pick-two-obj-and-place                   level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/completion-detection level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/goal              level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/placement-process level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/placement-process/collect-and-place-the-first-object level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/placement-process/collect-and-place-the-second-object-iteration level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/placement-process/ensure-placement-before-moving-on-critical level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/search-strategy   level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/search-strategy/systematic-search-of-all-receptacles level=3 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+- Your task is to put exactly two instances of a specific object (e.g., book, soapbottle, handtowel) into a specified target receptacle (e.g., bed, garbagecan, countertop).
+- You must collect and move both items. Do not stop after placing only one.
+
+## Search Strategy
+### Systematic search of all receptacles
+- Start by reading the room description: list every furniture item (table, shelf, drawer, cabinet, holder, etc.) that could contain the object.
+- First check open surfaces (shelf, desk, countertop, coffeetable, handtowelholder, etc.) — objects there are visible immediately.
+- For closed containers (drawer, cabinet, dresser), go to each one and open it to see its contents. Do not skip any.
+- Move on to the next receptacle if the object is not found; do not repeatedly check the same place.
+- If you still haven't found two objects after checking everything, re-examine the room description and try receptacles you might have overlooked (e.g., ottoman, sidetable, fridge).
+
+## Placement Process
+### Collect and place the first object
+- When you see an object of the required type, take it: `take <object> from <source>`.
+- If the source is closed, open it first.
+- Then go to the target receptacle (`go to <target>`).
+- Move the object to the target (`move <object> to <target>`).
+
+### Collect and place the second object (iteration)
+- After placing the first object, continue searching for the second instance using the same systematic search.
+- Repeat the take → go → move sequence for the second object.
+
+### Ensure placement before moving on (critical)
+- After taking an object, immediately go to the target and move it. Do not examine other containers or get distracted.
+- If you ever pick up an object, your next action must be moving it to the target.
+
+## Completion Detection
+- After moving the second object, the environment will indicate task success. If unsure, you can check your last observation.
+- If you have moved both objects but the task is not marked complete, search again — you may have missed one (e.g., two different instances of the same object type).

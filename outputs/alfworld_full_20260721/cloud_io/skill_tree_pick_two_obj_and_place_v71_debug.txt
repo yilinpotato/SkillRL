@@ -1,0 +1,147 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v71 (level=3, tree_depth=3, 13 nodes) ===
+action: refine
+critique: The agent followed the skill tree in successful runs, using the shortcut correctly. In failures, it deviated: picked wrong objects despite the 'Avoid Non-Target' note, skipped furniture items despite the ordered search list, and incorrectly returned to a single-copy source instead of doing a full restart. The tree's existing rules were clear, but the added 'Confirm Object Identity' and 'After Placing' subsections explicitly reinforce the critical decision points to prevent these deviations.
+changelog: Added '### Confirm Object Identity Before Picking' to enforce name checking before picking; strengthened '### After Placing the First Object – Decision Branching' to reiterate shortcut vs full restart; no other sections changed.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 6
+
+--- Failure diagnoses feeding this round ---
+- [wrong_target] Agent picked a soapbar instead of a soapbottle, confusing the object type. | evidence: Action 'take soapbar 1 from cabinet 2' but task requires soapbottle. | fix: Verify the object name exactly matches the required type before picking. | skill_tree_gap: Missing object type verification step before picking. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### confirm object identity'.
+- [wrong_target] Agent picked a soapbottle instead of a spraybottle, misidentifying the required object. | evidence: Action 'take soapbottle 1 from countertop 2' but task requires spraybottle. | fix: Ensure the object type matches the task requirement before picking. | skill_tree_gap: Missing object name checking before picking. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### confirm object identity'.
+- [inefficient_exploration] Agent failed to find any soapbottle because it only searched cabinets and ignored countertop, sinkbasin, and other surfaces. | evidence: After opening cabinet5,4,3,2,1 and finding no soapbottle, it loops without checking countertop or other areas. | fix: Search all containers and surfaces, including countertop, sinkbasin, and drawers. | skill_tree_gap: Incomplete search routine for pick_two that omits open surfaces. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### systematic search across all furniture'.
+- [premature_stop] Agent picked only one soapbottle and moved to place it, without obtaining the required second soapbottle. | evidence: After 'take soapbottle 2 from countertop 1', the next action is 'go to garbagecan 1' without picking a second soapbottle. | fix: After picking one object, continue to find and pick the second before moving to the target location. | skill_tree_gap: Missing loop to ensure both objects are collected before placing. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### repeat pick step until two obtained'.
+- [premature_stop] Agent placed only one cellphone and then failed to find and place a second one, stopping after revisiting the empty bed. | evidence: After moving first cellphone to diningtable, it goes back to bed2 but sees no second cellphone and loops. | fix: After placing one, verify count and search other locations if the second is missing. | skill_tree_gap: Missing count check and continued search for second object after placing first. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### check required quantity and repeat'.
+- [inefficient_exploration] Agent limited search to cabinets and toiletpaperhanger, missing toiletpaper that may be on countertop or in drawers. | evidence: After checking cabinet4,3,2,1 and toiletpaperhanger (empty), it loops without examining countertop, sinkbasin, or drawers. | fix: Expand search to all surfaces and containers, including countertop and drawers. | skill_tree_gap: Incomplete search that does not cover all typical locations for toiletpaper. | patch_location: Under '## pick_two_obj_and_place', add a new subsection '### search all possible locations including countertop and drawers'.
+
+--- Node tree (per-node lifecycle, this version=v71) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=70 calls=1460 success=1000 rate=68.5%
+[STABLE              ] pick-two-obj-and-place/avoid-taking-non-target-objects level=2 stable_versions=4 calls=86 success=51 rate=59.3%
+[STABLE              ] pick-two-obj-and-place/counter           level=2 stable_versions=5 calls=86 success=51 rate=59.3%
+[NEW                 ] pick-two-obj-and-place/counter/confirm-object-identity-before-picking level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/critical-rules-for-transition level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=5 calls=1460 success=1000 rate=68.5%
+[STABLE              ] pick-two-obj-and-place/loop-detection-recovery level=2 stable_versions=1 calls=86 success=51 rate=59.3%
+[STABLE              ] pick-two-obj-and-place/phase-1-first-object-counter-0 level=2 stable_versions=1 calls=86 success=51 rate=59.3%
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1 level=2 stable_versions=1 calls=86 success=51 rate=59.3%
+[NEW                 ] pick-two-obj-and-place/phase-2-second-object-counter-1/after-placing-the-first-object-decision-branching level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1/full-restart-default-path level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1/shortcut-only-if-multiple-copies-were-at-the-same-source level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[MODIFIED            ] pick-two-obj-and-place/search-procedure-use-for-every-object level=2 stable_versions=0 calls=12 success=6 rate=50.0%
+
+--- Line diff vs previous version (v70 -> v71) ---
+--- v70
++++ v71
+@@ -9,13 +9,19 @@
+ - If counter == 2, task complete – stop. Never stop earlier.
+ - If counter < 2, you **must** search for the next object.
+ 
++### Confirm Object Identity Before Picking
++- **Always re-read the target object name from the task description before each pick.**
++- Only pick up an object whose name **exactly matches** the target type (e.g., if task says "soapbottle", do not pick "soapbar").
++- If you are unsure, use `look` to see the object name clearly or examine the task again.
++- If you accidentally take a wrong object, `drop` it immediately and resume search.
++
+ ## Search Procedure (Use for Every Object)
+ 1. Always start with `look` to get the full list of all furniture items in the room. This is your **search list** – remember its order.
+ 2. Immediately after that `look`, go to the first item on the list. Do not `look` again.
+-3. Visit **every** item on the list **in that exact order**. Do not skip any. All types must be checked: 
++3. Visit **every** item on the list **in that exact order**. Do not skip any. All types must be checked:
+    - Containers: cabinets, drawers, shelves, fridge, dresser, etc.
+-   - Surfaces: countertops, tables, desks, beds, sidetables, sofa, armchair, etc.
+-   - Special fixtures: toiletpaperhanger, sinkbasin, etc.
++   - Surfaces: countertops, tables, desks, beds, sidetables, sofa, armchair, sinkbasin, bathtubbasin, etc.
++   - Special fixtures: toiletpaperhanger, towelholder, etc.
+ 4. At each item:
+    - If closed, **open** it.
+    - Examine contents. If you see the **exact target object name**, **take it immediately**. Do not pick up any other object.
+@@ -42,11 +48,15 @@
+ - When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.
+ - If you complete two full passes of the fresh search list without finding a second target, task impossible – stop.
+ 
+-### Critical Rules for Transition
+-- Immediately after placing the first object, **do one of the following**:
+-  1. If the shortcut condition is met, go to the source and take the next copy.
+-  2. Otherwise, execute a **single `look`** and then **immediately go to the first item on the new list**.
+-- Do **not** perform multiple `look`s without moving, and do not go to a location where you previously found an object unless the shortcut condition holds.
++### After Placing the First Object – Decision Branching
++- Immediately after placing the first object, do **one of the following**:
++  1. If the shortcut condition is met (multiple copies at the same source), go to that source and take the next copy.
++  2. Otherwise, execute a **single `look`** and then **immediately go to the first item on the new list** – begin Full Restart.
++- Do **not** go back to a location where you previously found an object unless the shortcut condition holds.
++- Do **not** perform multiple `look`s without moving.
++
++## Critical Rules for Transition
++- (Already covered in the section above. This section is retained for clarity.)
+ 
+ ## Avoid Taking Non-Target Objects
+ - **Only touch objects whose name exactly matches the target type.** Do not pick up cloth, soapbar, book, candle, or anything else – they waste actions and disorient you.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specified object type into a target receptacle. Stop only when counter == 2.
+
+## Counter
+- Start at 0.
+- Increment after each successful placement.
+- If counter == 2, task complete – stop. Never stop earlier.
+- If counter < 2, you **must** search for the next object.
+
+### Confirm Object Identity Before Picking
+- **Always re-read the target object name from the task description before each pick.**
+- Only pick up an object whose name **exactly matches** the target type (e.g., if task says "soapbottle", do not pick "soapbar").
+- If you are unsure, use `look` to see the object name clearly or examine the task again.
+- If you accidentally take a wrong object, `drop` it immediately and resume search.
+
+## Search Procedure (Use for Every Object)
+1. Always start with `look` to get the full list of all furniture items in the room. This is your **search list** – remember its order.
+2. Immediately after that `look`, go to the first item on the list. Do not `look` again.
+3. Visit **every** item on the list **in that exact order**. Do not skip any. All types must be checked:
+   - Containers: cabinets, drawers, shelves, fridge, dresser, etc.
+   - Surfaces: countertops, tables, desks, beds, sidetables, sofa, armchair, sinkbasin, bathtubbasin, etc.
+   - Special fixtures: toiletpaperhanger, towelholder, etc.
+4. At each item:
+   - If closed, **open** it.
+   - Examine contents. If you see the **exact target object name**, **take it immediately**. Do not pick up any other object.
+   - If you accidentally take a wrong object, `drop` it and continue.
+5. If you complete the entire list without taking anything, **repeat the list once more**. After two full passes with no target found, the object is absent – task impossible, stop.
+
+## Phase 1 – First Object (counter = 0)
+- Execute the **Search Procedure** to find and take the first target object.
+- **After taking it, go directly to the target receptacle.** Do not place anywhere else.
+- At the target receptacle: open if closed, then use `move` to place the object. Counter becomes 1.
+- **While holding the object, do not drop it, move it elsewhere, or interact with any other object.**
+
+## Phase 2 – Second Object (counter = 1)
+After placing the first object, you need to find and place the second one. Choose exactly one of the following two paths:
+
+### Shortcut – Only If Multiple Copies Were at the Same Source
+- **Condition:** You saw **more than one** instance of the target object at the exact location where you found the first one (e.g., multiple plates on the same diningtable). If you saw only one copy there, do **not** use this shortcut – proceed to Full Restart.
+- **Action:** Go back to that same location, take the next copy of the target, then go to the target receptacle and place it. Counter becomes 2. Stop.
+
+### Full Restart (Default Path)
+- Execute a fresh `look` to get a new search list.
+- Immediately go to the first item on that new list.
+- Follow the **Search Procedure** exactly to find the second target.
+- When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.
+- If you complete two full passes of the fresh search list without finding a second target, task impossible – stop.
+
+### After Placing the First Object – Decision Branching
+- Immediately after placing the first object, do **one of the following**:
+  1. If the shortcut condition is met (multiple copies at the same source), go to that source and take the next copy.
+  2. Otherwise, execute a **single `look`** and then **immediately go to the first item on the new list** – begin Full Restart.
+- Do **not** go back to a location where you previously found an object unless the shortcut condition holds.
+- Do **not** perform multiple `look`s without moving.
+
+## Critical Rules for Transition
+- (Already covered in the section above. This section is retained for clarity.)
+
+## Avoid Taking Non-Target Objects
+- **Only touch objects whose name exactly matches the target type.** Do not pick up cloth, soapbar, book, candle, or anything else – they waste actions and disorient you.
+- If you already hold an irrelevant object, `drop` it immediately and resume the search plan.
+
+## Loop Detection & Recovery
+- If you ever perform three consecutive actions of the same type (e.g., `look`, `look`, `look` or `open`, `open`, `open` without moving), you are in a loop.
+- **Force a change**: immediately go to the next item on your current search list (or if you have no list, do a fresh `look` then go to the first item). Never repeat the same action more than twice in a row.
+- After placing an object, if you do `look` more than once without moving, treat it as a loop and immediately go to the first item on a fresh `look` list.

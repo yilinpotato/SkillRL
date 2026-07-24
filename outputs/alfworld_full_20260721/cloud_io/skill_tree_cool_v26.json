@@ -1,0 +1,127 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Phase 1: Find and take the object.\n\n### Step 1: Locate the object using systematic search.\n- Re-read the room description from the prompt. It lists every receptacle by type and number. Use this to plan your search.\n- Do not move until you have noted all surfaces and closed receptacles.\n\n### Step 2: Full Exploration Plan – do not skip any category.\n1. **Surface search order** – check every instance of each category in this exact sequence:\n   - First: **countertops** (all numbered instances)\n   - Second: **diningtables**\n   - Third: **sidetables**\n   - Fourth: **shelves**\n   - Fifth: **sinkbasin**\n   - Sixth: **stoveburners**\n2. For each instance:\n   - Go to it.\n   - If the object is visible on the surface, take it immediately and proceed to Phase 2.\n   - If the receptacle is open (e.g., sinkbasin), check inside and take if present.\n   - If the receptacle is closed, note it for later (do not open it now; closed receptacles are searched after all surfaces).\n3. **After finishing all surfaces** (i.e., you have visited every instance of the six categories above and the object is not found), then search **closed receptacles** in this order:\n   - fridge\n   - cabinets\n   - drawers\n   - microwave\n   Open each one, look inside, and take the object if present.\n4. **Critical rules for execution:**\n   - After finishing one category, you **must** move to the next category in the list. Do not skip ahead. If you realize you are at a category that is not the next one in sequence, stop and go back to the earliest missed category.\n   - Keep a mental checklist of which instances you have visited. Do not move to the next category until you have visited every instance of the current category.\n   - When examining a surface, read every object name listed. The target object name must match **exactly** (e.g., \"winebottle\" is not \"glassbottle\"). If you see an exact match, take it and go directly to the fridge.\n   - If you have searched all surfaces and all closed receptacles and still have not found the object, then and only then may you conclude the object is absent (but this should not happen in valid tasks).\n\n### Step 3: After picking up the object, go directly to the fridge to cool it.\n- Do not move to the target location first.\n\n## Phase 2: Cool the object using the fridge.\n- Go to fridge. If closed, open it.\n- Use `cool <object> with fridge`.\n\n## Phase 3: Move the cooled object to the target location.\n- Go to the target location.\n- If the target receptacle is closed, open it first.\n- Use `move <object> to <target>`.\n\n## Completion check: Object is cooled and placed at target.",
+  "level": 3,
+  "version": 26,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent did not follow the prescribed search order in the failures; it skipped countertop 2 and moved to diningtables prematurely, leading to missed objects. The current skill tree's search rules were not prominent enough to prevent this. The refined tree adds explicit execution rules and exact name matching to guide the agent.",
+  "changelog": "Refined Phase 1 Step 2 to include explicit critical rules for strict sequential category search, exact object name matching, and a termination condition to prevent premature abandonment.",
+  "round_failures": [
+    {
+      "failure_type": "gave_up",
+      "root_cause": "The agent wandered through many locations but never found a mug to cool and place; it stopped after opening the fridge without taking any action to complete the task.",
+      "skill_tree_gap": "Missing a robust search subroutine that covers all possible object locations and a termination condition that requires task completion.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent overlooked the glassbottle on countertop 1 and never located a winebottle, stopping after searching only a subset of locations.",
+      "skill_tree_gap": "Lack of a systematic exploration order that ensures all containers are checked and that visible objects are correctly matched to the target.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_3024",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 25,
+      "call_count": 434,
+      "success_when_used": 369,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-object": {
+      "title": "Phase 1: Find and take the object.",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 2,
+      "call_count": 30,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-object/step-1-locate-the-object-using-systematic-search": {
+      "title": "Step 1: Locate the object using systematic search.",
+      "level": 3,
+      "body_hash": "027e73b5b86d",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 2,
+      "call_count": 30,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-object/step-2-full-exploration-plan-do-not-skip-any-category": {
+      "title": "Step 2: Full Exploration Plan – do not skip any category.",
+      "level": 3,
+      "body_hash": "8d2a89c67757",
+      "created_version": 25,
+      "last_changed_version": 26,
+      "stable_versions": 0,
+      "call_count": 13,
+      "success_when_used": 11,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-1-find-and-take-the-object/step-3-after-picking-up-the-object-go-directly-to-the-fridge-to-cool-it": {
+      "title": "Step 3: After picking up the object, go directly to the fridge to cool it.",
+      "level": 3,
+      "body_hash": "270c2065baa2",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 2,
+      "call_count": 30,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge.",
+      "level": 2,
+      "body_hash": "d3f3ba7ae22f",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 2,
+      "call_count": 30,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location.",
+      "level": 2,
+      "body_hash": "ee2daf0b8a33",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 2,
+      "call_count": 30,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check-object-is-cooled-and-placed-at-target": {
+      "title": "Completion check: Object is cooled and placed at target.",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 2,
+      "call_count": 30,
+      "success_when_used": 27,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

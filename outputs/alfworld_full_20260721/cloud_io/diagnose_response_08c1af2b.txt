@@ -1,0 +1,145 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent stopped searching after only partially exploring cabinets and drawers, never finding the pot.",
+    "evidence": "After opening cabinet 5 (empty) and drawer 1 (empty), the agent returns to cabinet 1 and then goes to cabinet 6 without opening it, then goes back to cabinet 2 and stops.",
+    "corrective_rule": "Continue searching all cabinets, drawers, and other receptacles until the target object is found.",
+    "skill_tree_gap": "Missing a systematic exploration strategy that covers all possible locations for the target object.",
+    "patch_location": "Under '## clean', add a new subsection '### search_for_object' that enforces exhaustive search.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and ignored other surfaces like countertops or dining table where the apple might be.",
+    "evidence": "After opening many cabinets and finding no apple, the agent returns to cabinet 1 and performs 'look' without ever visiting countertops or other furniture.",
+    "corrective_rule": "When the target object is not found in cabinets, expand the search to countertops, dining table, fridge, and other exposed surfaces.",
+    "skill_tree_gap": "No branch for checking alternative, non-cabinet receptacles for food items.",
+    "patch_location": "Under '## clean' -> '### search_for_object', add a refinement '#### check_surfaces' to include countertops and tables.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "invalid_action",
+    "root_cause": "The agent attempted to open drawer 1 while still at cabinet 6, resulting in a navigation-only move that left the drawer closed, and then stopped without finding the pan.",
+    "evidence": "Action 'open drawer 1' produced observation 'You arrive at drawer 1. The drawer 1 is closed.' indicating the open did not occur because the agent was not at the drawer.",
+    "corrective_rule": "Always move to the receptacle first using 'go to' before attempting to open or interact with it.",
+    "skill_tree_gap": "Missing a precondition check that ensures the agent is at the correct location before performing manipulation actions.",
+    "patch_location": "Under '## clean', add a new subsection '### navigation_first' that enforces moving before opening.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#3",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not open cabinet 1 (the starting cabinet) and only searched a subset of cabinets, missing the kettle.",
+    "evidence": "After the consensus prefix 'go to cabinet 1', the agent never executed 'open cabinet 1', and later it returned to cabinet 1 without any further search.",
+    "corrective_rule": "Open every cabinet you arrive at, and systematically check all cabinets and surfaces including those initially visited.",
+    "skill_tree_gap": "No enforcement to open containers upon arrival; the agent may skip the open action.",
+    "patch_location": "Under '## clean' -> '### search_for_object', add a rule '#### always_open_containers' to ensure opened status.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#4",
+    "task_type": "clean",
+    "failure_type": "invalid_action",
+    "root_cause": "The agent attempted to open drawer 2 while still at drawer 1, causing the open to fail, and never found the ladle.",
+    "evidence": "Action 'open drawer 2' gave observation 'You arrive at drawer 2. The drawer 2 is closed.' showing the move happened but the open did not.",
+    "corrective_rule": "Always go to the target receptacle before opening it.",
+    "skill_tree_gap": "Lack of a navigation-before-manipulation guard.",
+    "patch_location": "Under '## clean', add a general subsection '### navigation_first' (same as clean#2).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#5",
+    "task_type": "clean",
+    "failure_type": "invalid_action",
+    "root_cause": "The agent tried to open cabinet 7 without being at it, resulting in a failed open, and never found a mug.",
+    "evidence": "Action 'open cabinet 7' produced 'You arrive at cabinet 7. The cabinet 7 is closed.' instead of opening it.",
+    "corrective_rule": "Ensure the agent's location matches the target container before attempting to open it.",
+    "skill_tree_gap": "Same as above; missing location precondition.",
+    "patch_location": "Under '## clean', add '### navigation_first' (consolidated fix).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never located a bowl; it visited many locations but never took any object, and stopped without checking all countertops or cabinets.",
+    "evidence": "After opening cabinet 1 and seeing no bowl, it returns to countertop 1 and then goes to cabinet 2, leaving many surfaces unvisited.",
+    "corrective_rule": "Search every countertop, cabinet, fridge, and other receptacle systematically until the target object is found.",
+    "skill_tree_gap": "No structured search plan for the 'cool' task type.",
+    "patch_location": "Under '## cool', add new subsection '### search_target' to guide exhaustive exploration.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not find any egg; it only searched a few cabinets and countertops, missing the fridge contents (egg was not in the opened fridge) and other potential spots like the dining table.",
+    "evidence": "After opening fridge and seeing no egg, the agent examined only countertop 1 and 2 and a few cabinets, then returned to fridge without expanding the search.",
+    "corrective_rule": "Search all possible receptacles including all countertops, cabinets, dining table, and the microwave (if applicable) for the food item.",
+    "skill_tree_gap": "Incomplete search coverage for heat tasks; eggs may be in multiple locations.",
+    "patch_location": "Under '## heat', add a subsection '### exhaustive_search' to specify all places to check.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only countertop 1 and drawers, missing the shelf, sinkbasin, and other areas where the dishsponge could be.",
+    "evidence": "After opening all drawers and finding nothing, the agent returns to toilet and goes to sinkbasin without examining it, then stops.",
+    "corrective_rule": "Search all receptacles in the room including shelves, sinkbasin, bathtubbasin, and handtowelholder.",
+    "skill_tree_gap": "Limited exploration routine; does not cover all possible containers in the bathroom-style scene.",
+    "patch_location": "Under '## pick_and_place', add '### search_all_receptacles' to enumerate all object holders.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched drawers and ignored countertops, where the butterknife is likely located.",
+    "evidence": "After opening drawer 5 (empty) and failing to open drawer 6, the agent stops without ever visiting countertops.",
+    "corrective_rule": "Expand the search to countertops, cabinets, and other flat surfaces where utensils are often placed.",
+    "skill_tree_gap": "No branch for checking open surfaces like countertops in the pick_and_place task.",
+    "patch_location": "Under '## pick_and_place' -> '### search_all_receptacles', add a refinement '#### check_countertops'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#2",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only a few cabinets and countertops, missing the fridge, stoveburner, and other cabinets where the kettle could be.",
+    "evidence": "After examining cabinet 2 and finding nothing, the agent returns to shelf 1 and stops without checking the fridge or stoveburner.",
+    "corrective_rule": "Search all potential locations including fridge, stoveburner, and all cabinets (not just the first few).",
+    "skill_tree_gap": "Incomplete search space; no systematic plan to cover all possible receptacles.",
+    "patch_location": "Under '## pick_and_place', add '### search_all_receptacles' with a checklist of areas.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only explored a few cabinets and countertops, not searching all cabinets or stoveburners where pans may be stored.",
+    "evidence": "After opening cabinet 5 (failed), the agent stops; it never visited cabinet 6, 7, stoveburners, or fridge.",
+    "corrective_rule": "Exhaustively search all cabinets, countertops, stoveburners, and fridge for the two pans.",
+    "skill_tree_gap": "No coverage of all storage areas for the pick_two_obj_and_place task.",
+    "patch_location": "Under '## pick_two_obj_and_place', add new subsection '### thorough_search' to ensure all objects are found.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed only one peppershaker and stopped, failing to find and place a second one.",
+    "evidence": "After moving peppershaker 3 to cabinet 1, the trajectory ends without any further action to find another peppershaker.",
+    "corrective_rule": "After placing the first object, continue searching for the second object of the same type and place it as well.",
+    "skill_tree_gap": "Missing a loop or check that the required count (two) has been fulfilled before stopping.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a subsection '### check_count' that verifies both objects are placed before concluding.",
+    "confidence": 0.95
+  }
+]

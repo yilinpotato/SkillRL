@@ -1,0 +1,117 @@
+=== Skill Tree Debug — scope=clean  v21 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent ignored the existing instruction to check all open surfaces first and jumped directly to cabinets, causing inefficient exploration. The skill tree's prior wording was not misleading, but it lacked explicit object-location priors and a stronger emphasis at the start of the Exploration section, which this refine addresses.
+changelog: Added 'Open Surface Priority' and 'Object-Specific Location Priors' subsections under Exploration to ensure surfaces are checked before containers and to guide search based on object type.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 8  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent prematurely focused on opening cabinets instead of searching countertops and diningtable where the soapbar is likely located. | evidence: After going to countertop2, the agent went directly to cabinet1 and opened multiple cabinets without ever checking other surfaces. | fix: Always first scan all visible surfaces (countertops, diningtable, sinkbasin) for the target object before opening storage containers. | skill_tree_gap: Missing a prioritized search order that surfaces are checked before containers. | patch_location: ### Exploration and Search > ### Prioritize Surface Search over Container Search
+- [inefficient_exploration] The agent wasted steps opening cabinets without first searching side tables and stoveburners where a kettle might be. | evidence: After initial movement, the agent opened cabinets 1-4 and then went to drawer instead of checking stoveburners. | fix: Search stoveburners, countertops, and side tables before opening cabinets. | skill_tree_gap: Lacks a mapping of where common objects are typically located (e.g., kettles on stoveburners). | patch_location: ### Exploration and Search > ### Object-Specific Location Priors
+- [inefficient_exploration] The agent searched many cabinets and drawers but never visited the stoveburners or sinkbasin where a pot might be. | evidence: After countertop3, it went to cabinets and diningtable but not to stoveburners. | fix: Check stoveburners for pots and pans before searching storage. | skill_tree_gap: No object-location knowledge for pots. | patch_location: ### Exploration and Search > ### Object-Specific Location Priors
+
+--- Node tree (per-node lifecycle, this version=v21) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=20 calls=414 success=304 rate=73.4%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=20 calls=414 success=304 rate=73.4%
+[MODIFIED            ] clean-task-skill-tree/exploration-search-strategy level=2 stable_versions=0 calls=131 success=110 rate=84.0%
+[MODIFIED            ] clean-task-skill-tree/exploration-search-strategy/comprehensive-search level=3 stable_versions=0 calls=131 success=110 rate=84.0%
+[NEW                 ] clean-task-skill-tree/exploration-search-strategy/object-specific-location-priors level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/exploration-search-strategy/open-surface-priority level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=14 calls=414 success=304 rate=73.4%
+[STABLE              ] clean-task-skill-tree/object-manipulation-pick-object level=2 stable_versions=1 calls=131 success=110 rate=84.0%
+[STABLE              ] clean-task-skill-tree/object-manipulation-pick-object/object-type-check level=3 stable_versions=1 calls=131 success=110 rate=84.0%
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=1 calls=414 success=304 rate=73.4%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=4 calls=414 success=304 rate=73.4%
+
+--- Line diff vs previous version (v20 -> v21) ---
+--- v20
++++ v21
+@@ -16,18 +16,25 @@
+ - Do not rely on functional similarity; only exact string match is acceptable.
+ 
+ ## Exploration / Search Strategy
+-- First, search all **open surfaces** (countertops, diningtables, sidetables, shelves, sinkbasins, etc.). These are visible without opening.
+-- List every open-surface receptacle from the initial description. Visit each one and read its observation. Do not skip any.
+-- Only after checking ALL open surfaces, start searching closed containers.
+-- For closed containers, systematically visit every instance of: cabinets, drawers, fridge (if present).
+-- For each closed container: go to it, open it, inspect its contents.
+-- Continue until the target object is found. Do not stop after checking only one container type.
++### Open Surface Priority
++- **Before opening any closed container (cabinet, drawer, fridge), you must have visited every open surface present in the environment.** Open surfaces include: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, and any other receptacle described as "on" something without a door.
++- List every such surface from the initial description and your observations. Visit each one in turn and inspect its contents.
++- Only after you have checked ALL open surfaces and the target object is not found, proceed to closed containers.
++
++### Object-Specific Location Priors
++- Use common sense about where objects typically appear:
++  - **Pots, pans, kettles, and cookware** are often on stoveburners, but also on countertops or in cabinets.
++  - **Food items** (lettuce, tomato, apple, etc.) frequently appear on diningtables, countertops, or in the fridge.
++  - **Utensils** (knife, fork, spoon, ladle) are commonly on countertops, diningtables, or in drawers.
++  - **Cleaning items** (soapbar, sponge, dishsponge) may be near sinkbasins or on countertops.
++  - **Dishes and bowls** can be in cabinets or on open surfaces.
++- These are hints, not constraints; always check all surfaces if the target is not in the expected spot.
+ 
+ ### Comprehensive Search
+ - After checking all open surfaces, proceed in this order:
+-    1. All cabinets – go to each, open, inspect.
+-    2. All drawers – go to each, open, inspect.
+-    3. Fridge (if present) – go to it, open, inspect.
++  1. All cabinets – go to each, open, inspect.
++  2. All drawers – go to each, open, inspect.
++  3. Fridge (if present) – go to it, open, inspect.
+ - Do not return to open surfaces or give up until every receptacle of every type has been examined.
+ - If the object is still not found, re-check open surfaces (rare, but possible).
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Object Manipulation / Pick Object
+- **Before taking any object, confirm its name matches the task target exactly.** Do not pick up similar objects (e.g., towel vs cloth, pan vs pot). Only the exact match can be cleaned and placed.
+- Once verified, take the object (e.g., `take [object] from [receptacle]`).
+- If you are already holding an object and it is not the target, put it down before searching for the correct one.
+
+### Object Type Check
+- Compare the object name as shown in the observation (e.g., "cloth", "knife", "kettle") against the target object from the task.
+- If they are identical, proceed to take it. If they differ — even slightly — do not take it. Continue searching.
+- Do not rely on functional similarity; only exact string match is acceptable.
+
+## Exploration / Search Strategy
+### Open Surface Priority
+- **Before opening any closed container (cabinet, drawer, fridge), you must have visited every open surface present in the environment.** Open surfaces include: countertops, diningtables, sidetables, shelves, sinkbasins, bathtubbasins, stoveburners, and any other receptacle described as "on" something without a door.
+- List every such surface from the initial description and your observations. Visit each one in turn and inspect its contents.
+- Only after you have checked ALL open surfaces and the target object is not found, proceed to closed containers.
+
+### Object-Specific Location Priors
+- Use common sense about where objects typically appear:
+  - **Pots, pans, kettles, and cookware** are often on stoveburners, but also on countertops or in cabinets.
+  - **Food items** (lettuce, tomato, apple, etc.) frequently appear on diningtables, countertops, or in the fridge.
+  - **Utensils** (knife, fork, spoon, ladle) are commonly on countertops, diningtables, or in drawers.
+  - **Cleaning items** (soapbar, sponge, dishsponge) may be near sinkbasins or on countertops.
+  - **Dishes and bowls** can be in cabinets or on open surfaces.
+- These are hints, not constraints; always check all surfaces if the target is not in the expected spot.
+
+### Comprehensive Search
+- After checking all open surfaces, proceed in this order:
+  1. All cabinets – go to each, open, inspect.
+  2. All drawers – go to each, open, inspect.
+  3. Fridge (if present) – go to it, open, inspect.
+- Do not return to open surfaces or give up until every receptacle of every type has been examined.
+- If the object is still not found, re-check open surfaces (rare, but possible).
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (sinkbasin or bathtubbasin).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

@@ -1,0 +1,199 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specified object type into a target receptacle. Stop only when counter == 2.\n\n## Critical Rules (violating any means failure)\n- **Always start a search with `look`** to get a full list of furniture. Never move before looking.\n- **At every item**: if it is closed, open it before examining contents. Do not skip.\n- **After placing the first object, you must immediately search for the second.** Do not stop or loop.\n- **Never perform the same action twice in a row without moving** – that is a loop. Force a move to the next item on your search list.\n- **Subgoal tracking**: Constantly remind yourself of the current counter value (0 or 1). After each placement, increment counter and immediately start Phase 2.\n\n### Multi-object tracking\n- **Counter starts at 0.** After each successful placement, increment counter. If counter == 2, stop. If counter < 2, you **must** continue searching for the next object.\n- **After placing the first object (counter=1), your only goal is to find the second object.** Do not pause, look around, or inspect non-target furniture. Immediately transition to Phase 2 below.\n- If you ever find yourself stuck (repeating the same action), re-read the goal: you need **two** objects. Use a fresh `look` to get a new search list and start moving.\n\n### Systematic search\n- **Initial `look` gives an ordered list of all furniture in the room.** That is your master search list. Visit **every** item in that exact order. Do not skip any.\n- At each item: open if closed, examine contents, take target object if present. If you reach the end without finding the target, repeat the list **once more**. After two full passes, the object is absent – stop.\n- **After placing the first object**, if you saw multiple copies at the same location, use the Shortcut path (see Phase 2). Otherwise, do **exactly one fresh `look`** to get a new search list and repeat the systematic search for the second object.\n- Do not stop searching until you have visited every item on the current list (or found the second target).\n\n## Confirm Object Identity Before Picking\n- Re-read the target object name from the task description before each pick.\n- Only pick up an object whose name exactly matches the target type.\n- If unsure, use `look` to see the name.\n- If you accidentally take a wrong object, `drop` it immediately and continue search.\n\n## Phase 1 – First Object (counter = 0)\n- Execute the **Systematic search** to find and take the first target object.\n- After taking it, **go directly to the target receptacle**. Do not place anywhere else.\n- At the target receptacle: open if closed, then use `move` to place the object. Counter becomes 1.\n- **While holding the object, do not drop it, move it elsewhere, or interact with any other object.**\n\n## Phase 2 – Second Object (counter = 1)\n**Immediately after placing the first object, you must find and place the second. Do not stop.** Choose one of two paths:\n\n### Shortcut – Only If Multiple Copies Were at the Same Source\n- **Condition:** You saw **more than one** instance of the target object at the exact location where you took the first one (e.g., multiple plates on the same table). If you saw only one copy there, do **not** use this shortcut.\n- **Action:** Go back to that same location, take the next copy, go to the target receptacle, and place it. Counter becomes 2. Stop.\n\n### Full Restart (Default Path) – Mandatory If Shortcut Not Applicable\n- **Exactly one `look`** to get a fresh search list.\n- Immediately go to the **first item** on that new list. Follow the **Systematic search** exactly to find the second target.\n- When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.\n- If you complete two full passes of the fresh list without finding a second target, task impossible – stop.\n\n### Loop Detection & Recovery\n- Two consecutive actions of the same type (e.g., `look`, `look` or `open`, `open`) without moving = loop.\n- Force a change: go to the next item on your current search list. If no list, do a fresh `look` and go to the first item.\n- Do not repeat the same action more than once without moving.\n\n## Avoid Taking Non-Target Objects\n- Only touch objects whose name exactly matches the target type.\n- If you hold an irrelevant object, drop it immediately and resume search.",
+  "level": 3,
+  "version": 77,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent repeatedly ignored explicit instructions to continue searching after placing the first object and to avoid repeating actions. The existing skill tree already contained these rules, but the agent's behavior suggests it may have stopped reading or misunderstood the flow. The refined tree adds prominent subgoal tracking and systematic search reminders to reduce the chance of oversight and make the critical rules more difficult to skip.",
+  "changelog": "Added '### Multi-object tracking' and '### Systematic search' subsections under Critical Rules, and reinforced the imperative to immediately continue searching after placing the first object, with explicit subgoal counter reminders.",
+  "round_failures": [
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent placed one pen and did not search for the second pen, then got stuck in a loop of look actions.",
+      "skill_tree_gap": "Missing subgoal tracking for multi-object tasks (needs to remember to find two objects).",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent placed one handtowel and did not search for the second handtowel, then got stuck in a loop of look actions.",
+      "skill_tree_gap": "Missing subgoal tracking for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent placed one statue and did not search for the second statue, then got stuck in a loop of look actions.",
+      "skill_tree_gap": "Missing subgoal tracking for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent searched only bathtubbasin, drawers, and garbagecan, but never found any spraybottle, then got stuck in a loop of look actions.",
+      "skill_tree_gap": "No systematic object search routine for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent placed one soapbottle and did not search for the second soapbottle, then got stuck in a loop of look actions.",
+      "skill_tree_gap": "Missing subgoal tracking for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "Agent searched only cabinets and armchairs, missed other locations, never found any keychain, then got stuck.",
+      "skill_tree_gap": "No systematic object search routine for multi-object tasks.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_6984",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 76,
+      "call_count": 1572,
+      "success_when_used": 1031,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "796e12c71418",
+      "created_version": 1,
+      "last_changed_version": 66,
+      "stable_versions": 11,
+      "call_count": 1572,
+      "success_when_used": 1031,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-violating-any-means-failure": {
+      "title": "Critical Rules (violating any means failure)",
+      "level": 2,
+      "body_hash": "e337d506401a",
+      "created_version": 74,
+      "last_changed_version": 77,
+      "stable_versions": 0,
+      "call_count": 55,
+      "success_when_used": 16,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-violating-any-means-failure/multi-object-tracking": {
+      "title": "Multi-object tracking",
+      "level": 3,
+      "body_hash": "a05605af2e01",
+      "created_version": 77,
+      "last_changed_version": 77,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-violating-any-means-failure/systematic-search": {
+      "title": "Systematic search",
+      "level": 3,
+      "body_hash": "6c195bbbc475",
+      "created_version": 77,
+      "last_changed_version": 77,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/confirm-object-identity-before-picking": {
+      "title": "Confirm Object Identity Before Picking",
+      "level": 2,
+      "body_hash": "168af9b8414c",
+      "created_version": 74,
+      "last_changed_version": 77,
+      "stable_versions": 0,
+      "call_count": 55,
+      "success_when_used": 16,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-counter-0": {
+      "title": "Phase 1 – First Object (counter = 0)",
+      "level": 2,
+      "body_hash": "3c2dd6fd8a22",
+      "created_version": 65,
+      "last_changed_version": 77,
+      "stable_versions": 0,
+      "call_count": 198,
+      "success_when_used": 82,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1": {
+      "title": "Phase 2 – Second Object (counter = 1)",
+      "level": 2,
+      "body_hash": "57b95f75fa64",
+      "created_version": 65,
+      "last_changed_version": 75,
+      "stable_versions": 2,
+      "call_count": 198,
+      "success_when_used": 82,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/shortcut-only-if-multiple-copies-were-at-the-same-source": {
+      "title": "Shortcut – Only If Multiple Copies Were at the Same Source",
+      "level": 3,
+      "body_hash": "ade0515c8dcf",
+      "created_version": 70,
+      "last_changed_version": 74,
+      "stable_versions": 3,
+      "call_count": 124,
+      "success_when_used": 37,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/full-restart-default-path-mandatory-if-shortcut-not-applicable": {
+      "title": "Full Restart (Default Path) – Mandatory If Shortcut Not Applicable",
+      "level": 3,
+      "body_hash": "aaa2b8f657cd",
+      "created_version": 74,
+      "last_changed_version": 77,
+      "stable_versions": 0,
+      "call_count": 55,
+      "success_when_used": 16,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-counter-1/loop-detection-recovery": {
+      "title": "Loop Detection & Recovery",
+      "level": 3,
+      "body_hash": "028a605b1c92",
+      "created_version": 76,
+      "last_changed_version": 76,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 5,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/avoid-taking-non-target-objects": {
+      "title": "Avoid Taking Non-Target Objects",
+      "level": 2,
+      "body_hash": "292143ac8717",
+      "created_version": 65,
+      "last_changed_version": 74,
+      "stable_versions": 3,
+      "call_count": 198,
+      "success_when_used": 82,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

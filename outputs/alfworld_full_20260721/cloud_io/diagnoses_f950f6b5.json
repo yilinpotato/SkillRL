@@ -1,0 +1,156 @@
+{
+  "batch_id": "f950f6b5-4f7c-4beb-831b-b681271b98c7",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "[ref=clean#0]",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched cabinets and countertops but never located a dishsponge to clean and place in cabinet.",
+        "evidence": "At cabinet 1 it saw 'candle 2' instead of a dishsponge, and then wandered to handtowelholder, towelholder, and other cabinets without ever finding the target object.",
+        "corrective_rule": "Systematically search all visible receptacles (countertops, cabinets, drawers) in a breadth-first manner before moving to distant, unrelated locations.",
+        "skill_tree_gap": "Missing a general-purpose object-search strategy that prioritizes nearby and likely locations (e.g., where dishsponges are typically found).",
+        "patch_location": "Exploration Strategy -> Systematic Search (new subsection ### under Exploration Strategy)",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "[ref=clean#1]",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent explored stoves, cabinets, and dining tables but never found a ladle to clean and place in a drawer.",
+        "evidence": "At cabinet 1 it observed 'mug 1' instead of a ladle, and then returned to countertop1 after an unfruitful search.",
+        "corrective_rule": "Before leaving a room, ensure all containers (cabinets, drawers, stovetops) are opened and inspected for the target object.",
+        "skill_tree_gap": "No systematic procedure for exhaustively searching receptacles in a room before moving on.",
+        "patch_location": "Exploration Strategy -> Exhaustive Room Search (new subsection ### under Exploration Strategy)",
+        "confidence": 0.95
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "[ref=cool#0]",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent visited many countertops and stoveburners but never found a mug to cool and place in a cabinet.",
+        "evidence": "At stoveburner 3 it saw 'kettle 1' instead of a mug, and later returned to the starting counter without having picked up anything.",
+        "corrective_rule": "Keep a mental list of locations already searched and prioritize unexplored containers (like cabinets, drawers, and shelves) that may hold the object.",
+        "skill_tree_gap": "Lack of a visited-set memory to avoid redundant exploration and ensure full coverage.",
+        "patch_location": "Exploration Strategy -> Visited-Set Tracking (new subsection ### under Exploration Strategy)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "[ref=cool#1]",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched stoves and cabinets but never found a potato to cool and place in the microwave.",
+        "evidence": "At the fridge it saw 'apple 3' instead of a potato, and after opening the fridge it returned to the starting counter without finding the object.",
+        "corrective_rule": "When the target object is a common food item, check all countertops, dining tables, and the fridge before exploring stoves.",
+        "skill_tree_gap": "No domain-specific heuristic about where typical objects (like potatoes) are likely to be found.",
+        "patch_location": "Exploration Strategy -> Domain-Specific Priors (new subsection ### under Exploration Strategy)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "[ref=cool#2]",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent wandered through multiple rooms but never found a bowl to cool and place in a cabinet.",
+        "evidence": "At diningtable 1 it saw 'mug 1' instead of a bowl, and after checking stoveburners it returned to countertop1 without success.",
+        "corrective_rule": "After failing to find the object in the current room, teleport systematically to every other reachable location before giving up.",
+        "skill_tree_gap": "Missing a global exploration plan that covers all accessible rooms/locations.",
+        "patch_location": "Exploration Strategy -> Global Room Coverage (new subsection ### under Exploration Strategy)",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "[ref=pick_and_place#0]",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent inspected sink basins and cabinets but never found a soapbottle to place on the toilet.",
+        "evidence": "At cabinet 1 it found a 'soapbar 1' instead of a soapbottle, and later returned to countertop1 without having picked up anything.",
+        "corrective_rule": "Check all countertops first (they are the most common location for bottles), then open all cabinets and drawers in the same room before moving elsewhere.",
+        "skill_tree_gap": "No prioritized search order for common object types (soapbottles are typically on countertops).",
+        "patch_location": "Exploration Strategy -> Object-Type Location Heuristics (new subsection ### under Exploration Strategy)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "[ref=pick_and_place#1]",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched shelves and cabinets but never found a kettle to place on a shelf.",
+        "evidence": "At shelf 1 it saw 'cup 1' instead of a kettle, and after opening cabinets it returned to countertop1 without success.",
+        "corrective_rule": "When searching for a kettle, check dining tables and stovetops in addition to shelves and cabinets.",
+        "skill_tree_gap": "Lack of a flexible search strategy that adapts based on the object's likely locations.",
+        "patch_location": "Exploration Strategy -> Adaptive Search (new subsection ### under Exploration Strategy)",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "[ref=pick_two_obj_and_place#0]",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent picked up only one keychain from the coffeetable and then stopped, failing to find a second keychain and place both in the armchair.",
+        "evidence": "After 'take keychain 1 from coffeetable 1' the trajectory ends; no attempt to search for another keychain.",
+        "corrective_rule": "After acquiring the first required object, continue searching for the second object of the same type before performing any placement.",
+        "skill_tree_gap": "No multi-object task logic that tracks how many objects have been collected and continues the search until the quota is met.",
+        "patch_location": "Multi-Object Handling -> Sequential Collection (new subsection ### under Multi-Object Handling)",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "[ref=pick_two_obj_and_place#1]",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent picked up only one creditcard from the coffeetable and then stopped, failing to find a second creditcard.",
+        "evidence": "Trajectory ends with 'take creditcard 2 from coffeetable 1' and no further actions.",
+        "corrective_rule": "After collecting the first object, systematically check all other potential locations (other tables, cabinets) for a second instance before stopping.",
+        "skill_tree_gap": "No mechanism to enforce that the required count of objects is achieved before declaring the task complete.",
+        "patch_location": "Multi-Object Handling -> Count Enforcement (new subsection ### under Multi-Object Handling)",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "[ref=pick_two_obj_and_place#2]",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "gave_up",
+        "root_cause": "The agent opened a few drawers, found no alarmclock, and then stopped without exploring the remaining drawers, shelves, or sidetable.",
+        "evidence": "After opening drawer 2 (which was closed) the trajectory ends; no alarmclock was ever seen.",
+        "corrective_rule": "Do not stop exploring until all receptacles in the room (and adjacent rooms) have been exhaustively checked.",
+        "skill_tree_gap": "Lack of a persistence heuristic that prevents early termination when the target object is not immediately found.",
+        "patch_location": "Persistence -> Exhaustive Search Before Giving Up (new subsection ### under Persistence)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "[ref=pick_two_obj_and_place#3]",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one spraybottle in the drawer and then wandered without locating a second spraybottle to complete the task.",
+        "evidence": "After moving spraybottle 2 to drawer 1, it went to bathtubbasin and countertop2 but never found another spraybottle, then the trajectory ends.",
+        "corrective_rule": "After placing the first object, continue searching for the second object; do not revert to wandering without a search plan.",
+        "skill_tree_gap": "No continuation mechanism after a placement action in a multi-object task.",
+        "patch_location": "Multi-Object Handling -> Post-Placement Search (new subsection ### under Multi-Object Handling)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "[ref=pick_two_obj_and_place#4]",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched only cabinets and dining tables, never finding any saltshaker, and then terminated the episode.",
+        "evidence": "After opening cabinet 1 saw 'bowl 2' instead of a saltshaker, and then went to diningtable1 and diningtable2 (both empty) before stopping.",
+        "corrective_rule": "After exhausting the initial set of locations (cabinets), expand the search to all other receptacles (countertops, drawers, shelves) before giving up.",
+        "skill_tree_gap": "No fallback search strategy when the target is not in the most obvious places.",
+        "patch_location": "Persistence -> Fallback Search (new subsection ### under Persistence)",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "[ref=pick_two_obj_and_place#5]",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "After placing one cellphone on the bed, the agent repeatedly moved between the bed and desk without exploring new locations for a second cellphone.",
+        "evidence": "After moving cellphone 1 to bed, it went 'go to desk 1', then 'go to bed 1', then 'go to desk 1' again, forming a cyclic pattern.",
+        "corrective_rule": "When revisiting the same location twice without finding a new object, break the loop by forcing exploration of an unvisited location.",
+        "skill_tree_gap": "No loop detection or avoidance mechanism in navigation decisions.",
+        "patch_location": "Loop Avoidance -> Cycle Detection (new subsection ### under Loop Avoidance)",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

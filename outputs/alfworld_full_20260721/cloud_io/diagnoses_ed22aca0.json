@@ -1,0 +1,156 @@
+{
+  "batch_id": "ed22aca0-7657-46c9-b275-cb210df17c7a",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent prematurely focused on opening cabinets instead of searching countertops and diningtable where the soapbar is likely located.",
+        "evidence": "After going to countertop2, the agent went directly to cabinet1 and opened multiple cabinets without ever checking other surfaces.",
+        "corrective_rule": "Always first scan all visible surfaces (countertops, diningtable, sinkbasin) for the target object before opening storage containers.",
+        "skill_tree_gap": "Missing a prioritized search order that surfaces are checked before containers.",
+        "patch_location": "### Exploration and Search > ### Prioritize Surface Search over Container Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent wasted steps opening cabinets without first searching side tables and stoveburners where a kettle might be.",
+        "evidence": "After initial movement, the agent opened cabinets 1-4 and then went to drawer instead of checking stoveburners.",
+        "corrective_rule": "Search stoveburners, countertops, and side tables before opening cabinets.",
+        "skill_tree_gap": "Lacks a mapping of where common objects are typically located (e.g., kettles on stoveburners).",
+        "patch_location": "### Exploration and Search > ### Object-Specific Location Priors",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#2",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched many cabinets and drawers but never visited the stoveburners or sinkbasin where a pot might be.",
+        "evidence": "After countertop3, it went to cabinets and diningtable but not to stoveburners.",
+        "corrective_rule": "Check stoveburners for pots and pans before searching storage.",
+        "skill_tree_gap": "No object-location knowledge for pots.",
+        "patch_location": "### Exploration and Search > ### Object-Specific Location Priors",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not search cabinets or drawers for a bowl, instead focusing on stoveburners and fridge.",
+        "evidence": "It went to multiple stoveburners and fridge but never opened any cabinet or drawer (except fridge).",
+        "corrective_rule": "After checking stoveburners, also open cabinets and drawers to find bowls.",
+        "skill_tree_gap": "Incomplete coverage of storage locations.",
+        "patch_location": "### Exploration and Search > ### Systematic Container Check After Surface Scan",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never visited diningtable or cabinets where apples are likely stored.",
+        "evidence": "It went to shelves, sinkbasin, stoveburners, and fridge, but not diningtable or cabinets.",
+        "corrective_rule": "Search diningtable and cabinets for produce like apples.",
+        "skill_tree_gap": "Missing location priors for apples.",
+        "patch_location": "### Exploration and Search > ### Object-Specific Location Priors",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#2",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not open cabinets to find a mug; it only checked stoveburner and fridge.",
+        "evidence": "After opening fridge, it went to cabinet1 but did not open it, then backtracked to countertops.",
+        "corrective_rule": "When searching for a mug, open cabinets after scanning surfaces.",
+        "skill_tree_gap": "Incomplete search pattern.",
+        "patch_location": "### Exploration and Search > ### Systematic Container Check After Surface Scan",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only opened cabinets and never searched countertops or side tables for a kettle.",
+        "evidence": "It opened many cabinets but never went to countertop1 after initial movement, missing a potential kettle location.",
+        "corrective_rule": "Search countertops and side tables before opening cabinets.",
+        "skill_tree_gap": "Lack of surface-first search.",
+        "patch_location": "### Exploration and Search > ### Prioritize Surface Search over Container Search",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only a subset of shelves and drawers, missing other furniture like dresser or sidetable that might contain CDs.",
+        "evidence": "It examined shelves 1-9 and drawer1, but did not go to dresser or sidetable.",
+        "corrective_rule": "For multi-object tasks, systematically visit all furniture types in the room.",
+        "skill_tree_gap": "No systematic room coverage algorithm.",
+        "patch_location": "### Multi-Object Tasks > ### Systematic Room Sweep After First Object",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched drawers and bathtubbasin, ignoring other locations like handtowelholder or sinkbasin where spraybottles might be.",
+        "evidence": "It never checked handtowelholder or sinkbasin.",
+        "corrective_rule": "Search all surfaces and containers, including handtowelholder and sinkbasin.",
+        "skill_tree_gap": "Incomplete search pattern for spraybottles.",
+        "patch_location": "### Exploration and Search > ### Object-Specific Location Priors",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing the first creditcard, the agent only revisited already searched areas instead of exploring new locations like shelves or sidetable.",
+        "evidence": "After placing, it went to armchair and coffeetable again, not to new furniture.",
+        "corrective_rule": "After placing one object, systematically search all remaining unexplored locations for the second.",
+        "skill_tree_gap": "No strategy for continued search after first object placed.",
+        "patch_location": "### Multi-Object Tasks > ### Post-Placement Search Expansion",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing one pot, the agent revisited only cabinet1 and countertop1, missing other countertops and cabinets that might contain a second pot.",
+        "evidence": "It went back to countertop1 and cabinet1, but not to countertop3 or other cabinets.",
+        "corrective_rule": "After placing first pot, search all countertops and cabinets systematically.",
+        "skill_tree_gap": "Incomplete search coverage.",
+        "patch_location": "### Multi-Object Tasks > ### Systematic Room Sweep After First Object",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing one pencil, the agent only went to shelf2 but did not search other drawers or desks for a second pencil.",
+        "evidence": "It went to shelf2 (no action) and then stopped.",
+        "corrective_rule": "After placing first pencil, search all desks, drawers, and shelves for the second.",
+        "skill_tree_gap": "No systematic search.",
+        "patch_location": "### Multi-Object Tasks > ### Systematic Room Sweep After First Object",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing one remotecontrol, the agent revisited only the same locations and opened one drawer, but did not search other drawers or sidetable.",
+        "evidence": "It went back to coffeetable and armchair and opened drawer1, but not other drawers or sidetable.",
+        "corrective_rule": "After placing first remote, search all drawers and other furniture.",
+        "skill_tree_gap": "Incomplete search.",
+        "patch_location": "### Multi-Object Tasks > ### Systematic Room Sweep After First Object",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

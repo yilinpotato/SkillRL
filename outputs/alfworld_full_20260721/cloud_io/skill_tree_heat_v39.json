@@ -1,0 +1,181 @@
+{
+  "content": "```markdown\n# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location.\n- The heating appliance is the microwave.\n- The object must be heated before placing; do not place raw.\n\n## 2. Locate the object\n- Start at the fridge and open it. If the target object is inside, take it and go directly to Section 3.\n- If the object is NOT in the fridge, you must conduct a **complete systematic search** (Section 2.2). Do not stop until every receptacle type has been exhausted.\n\n### 2.1 Immediate pick-up rule\n- **If you see the target object on any surface or inside an already-open container, take it immediately.** But do **not** let a lucky find cut the search short — only stop when the object is in your hand.\n\n### 2.2 Exhaustive Search Protocol (Mandatory – follow exactly, no shortcuts)\n**Critical: The #1 cause of failure is stopping too early. You must continue until the environment returns an error for each receptacle type. Do not assume the object is absent after checking only a few items.**\n\n1. **Check all countertops first.** Start with `countertop 1`, then `countertop 2`, etc. At each, look and take if found. Continue until you get an error (e.g., \"That location does not exist\").\n2. **Then check all dining tables** (`diningtable 1`, `diningtable 2`, ...) in the same way – do not skip this step even if none appeared in your initial look.\n3. **Then check all cabinets.** Start with `cabinet 1`, then `cabinet 2`, etc. **You must try each number in sequence until you get an error.** For each, open it, look inside, and take if found. Do not stop after opening only two or three cabinets – continue until the environment says that cabinet number does not exist.\n4. **Then check all drawers** (`drawer 1`, `drawer 2`, ...). Open each, look inside, take if found. Continue until error.\n5. **Then check other openable containers** (sinkbasin, garbagecan, microwave, coffeemachine, toaster, etc.) – try each type incrementally (e.g., `sinkbasin 1`, `garbagecan 1`) until error.\n6. **If you still have not found the object, perform a `look` again.** If new receptacles become visible, repeat the entire sequence from step 1. If another room is accessible, go there and repeat.\n\n**Important:** Do **not** go to the target placement location during this search. Only go there after heating the object. If you return to the target location without the heated object, you have failed.\n\n### 2.3 Object-specific search hints (use only as a guide – always fall back to the exhaustive search)\n- **Plates, cups, mugs, bowls, utensils**: often in cabinets or on dining tables. Check those early after the fridge.\n- **Food items (apple, tomato, potato, egg, bread, etc.)**: often in the fridge or on countertops.\n- **Small objects (peppershaker, saltshaker, etc.)**: can be anywhere – do not rely on heuristics alone.\n- If you have checked likely locations and still not found the object, do **not** assume it is absent – continue the exhaustive search from step 1.\n\n### 2.4 Avoid premature movement to the target location\n- Do not go to the target placement location (e.g., sidetable, fridge, cabinet) while searching for the object. The target location is only for placing the heated object.\n\n## 3. Heat the object\n### 3.1 Direct heating from inventory\n- Once the object is in your inventory, go to the microwave.\n- Use action `heat <object> with microwave` while holding it. This works reliably.\n- If that fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.\n- After heating, the object is ready. Do not return it to the microwave.\n\n### 3.2 Prerequisite: Object must be in inventory\n- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to Section 2 and perform the exhaustive search again.\n\n### 3.3 Critical: Do not drop or place the object before heating\n- Once you have picked up the target object, go directly to the microwave and heat it. Do NOT move the object to any other location before heating.\n\n## 4. Place the heated object\n- Go to the receptacle specified in the task.\n- If it is openable (cabinet, drawer, fridge, garbagecan), open it first.\n- Put the object into/onto the receptacle: `move <object> to <receptacle>`.\n- **Critical**: Do not take the object back after placing it. Stop.\n\n## 5. Completion check and termination\n- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.\n- If the object is there, the task is complete. Do not perform any further actions.\n- **Termination rule**: Once placed at the target, stop all actions immediately.\n```",
+  "level": 3,
+  "version": 39,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "The agent did not follow the exhaustive search protocol; it stopped after checking cabinets and returned to the fridge (target location) prematurely. The skill tree's wording was clear but the heuristics section may have been given too much emphasis, leading the agent to treat it as a shortcut. Refinement strengthens the exhaustive search as the primary method and adds an explicit warning against early return to the target location.",
+  "changelog": "Refined the 'Locate the object' section by reordering the exhaustive search protocol before the heuristics, and added a strong warning to not return to the target location until the object is found and heated.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent searched only a few cabinets and countertops without finding the potato, then returned to fridge without checking other locations.",
+      "skill_tree_gap": "Lack of a systematic search routine for objects not in expected starter location.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_6840",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 38,
+      "call_count": 880,
+      "success_when_used": 781,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "14e2bfab74e3",
+      "created_version": 1,
+      "last_changed_version": 29,
+      "stable_versions": 10,
+      "call_count": 880,
+      "success_when_used": 781,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "3d52fac1991c",
+      "created_version": 1,
+      "last_changed_version": 39,
+      "stable_versions": 0,
+      "call_count": 880,
+      "success_when_used": 781,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-1-immediate-pick-up-rule": {
+      "title": "2.1 Immediate pick-up rule",
+      "level": 3,
+      "body_hash": "0c72287a43a8",
+      "created_version": 38,
+      "last_changed_version": 39,
+      "stable_versions": 0,
+      "call_count": 24,
+      "success_when_used": 23,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-2-exhaustive-search-protocol-mandatory-follow-exactly-no-shortcuts": {
+      "title": "2.2 Exhaustive Search Protocol (Mandatory – follow exactly, no shortcuts)",
+      "level": 3,
+      "body_hash": "0320253e5751",
+      "created_version": 39,
+      "last_changed_version": 39,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-3-object-specific-search-hints-use-only-as-a-guide-always-fall-back-to-the-exhaustive-search": {
+      "title": "2.3 Object-specific search hints (use only as a guide – always fall back to the exhaustive search)",
+      "level": 3,
+      "body_hash": "0b59d19a568f",
+      "created_version": 39,
+      "last_changed_version": 39,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-4-avoid-premature-movement-to-the-target-location": {
+      "title": "2.4 Avoid premature movement to the target location",
+      "level": 3,
+      "body_hash": "a1c18be4f280",
+      "created_version": 35,
+      "last_changed_version": 38,
+      "stable_versions": 1,
+      "call_count": 121,
+      "success_when_used": 114,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 31,
+      "call_count": 880,
+      "success_when_used": 781,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-1-direct-heating-from-inventory": {
+      "title": "3.1 Direct heating from inventory",
+      "level": 3,
+      "body_hash": "181b32ec0934",
+      "created_version": 38,
+      "last_changed_version": 38,
+      "stable_versions": 1,
+      "call_count": 24,
+      "success_when_used": 23,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory": {
+      "title": "3.2 Prerequisite: Object must be in inventory",
+      "level": 3,
+      "body_hash": "6730c40a70ff",
+      "created_version": 10,
+      "last_changed_version": 38,
+      "stable_versions": 1,
+      "call_count": 742,
+      "success_when_used": 689,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-3-critical-do-not-drop-or-place-the-object-before-heating": {
+      "title": "3.3 Critical: Do not drop or place the object before heating",
+      "level": 3,
+      "body_hash": "96efb6510168",
+      "created_version": 19,
+      "last_changed_version": 38,
+      "stable_versions": 1,
+      "call_count": 510,
+      "success_when_used": 482,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object": {
+      "title": "4. Place the heated object",
+      "level": 2,
+      "body_hash": "9a64fd2916e3",
+      "created_version": 8,
+      "last_changed_version": 38,
+      "stable_versions": 1,
+      "call_count": 770,
+      "success_when_used": 713,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check-and-termination": {
+      "title": "5. Completion check and termination",
+      "level": 2,
+      "body_hash": "a78aa3bfd84c",
+      "created_version": 2,
+      "last_changed_version": 36,
+      "stable_versions": 3,
+      "call_count": 873,
+      "success_when_used": 779,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

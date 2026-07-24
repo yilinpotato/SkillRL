@@ -1,0 +1,72 @@
+=== Skill Tree Debug — scope=pick_and_place  v17 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent misused the skill tree by ignoring the explicit ordering rule that open surfaces must be visited before closed containers; the tree itself was clear, but the agent skipped that instruction and went straight to cabinets, causing the failure.
+changelog: Added new sub-section '### Prioritize Surface Search over Container Search' under '## Exploration: Systematic Object Search' to reinforce that open surfaces must be checked before any closed containers, addressing the failure diagnosis's patch_location.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 17  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent only opened cabinets and never searched countertops or side tables for a kettle. | evidence: It opened many cabinets but never went to countertop1 after initial movement, missing a potential kettle location. | fix: Search countertops and side tables before opening cabinets. | skill_tree_gap: Lack of surface-first search. | patch_location: ### Exploration and Search > ### Prioritize Surface Search over Container Search
+
+--- Node tree (per-node lifecycle, this version=v17) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=16 calls=509 success=461 rate=90.6%
+[STABLE              ] pick-and-place-skill-tree/common-mistakes level=2 stable_versions=1 calls=18 success=17 rate=94.4%
+[STABLE              ] pick-and-place-skill-tree/exploration-systematic-object-search level=2 stable_versions=1 calls=18 success=17 rate=94.4%
+[STABLE              ] pick-and-place-skill-tree/exploration-systematic-object-search/1-create-a-checklist level=3 stable_versions=1 calls=18 success=17 rate=94.4%
+[STABLE              ] pick-and-place-skill-tree/exploration-systematic-object-search/2-visit-receptacles-in-order level=3 stable_versions=1 calls=18 success=17 rate=94.4%
+[STABLE              ] pick-and-place-skill-tree/exploration-systematic-object-search/3-after-completing-the-list level=3 stable_versions=1 calls=18 success=17 rate=94.4%
+[NEW                 ] pick-and-place-skill-tree/exploration-systematic-object-search/prioritize-surface-search-over-container-search level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=1 calls=509 success=461 rate=90.6%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=1 calls=509 success=461 rate=90.6%
+
+--- Line diff vs previous version (v16 -> v17) ---
+--- v16
++++ v17
+@@ -11,6 +11,9 @@
+ 5. **Terminate** after placement.
+ 
+ ## Exploration: Systematic Object Search
++### Prioritize Surface Search over Container Search
++Before opening any closed container, you must have visited every open surface (tables, countertops, shelves, sidetables, etc.). If you arrive at a closed container, do not open it yet – go to an open surface first. Only after all open surfaces have been checked should you start opening closed containers (drawers, cabinets, etc.).
++
+ ### 1. Create a checklist
+ From the **first room observation** (after `look` or upon arrival), list every receptacle name exactly as it appears. Write them down. Include ALL furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, etc. Do not skip any.
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the object and the target receptacle.
+
+## Sub-Goal Flow
+1. **Parse the task** – identify the target object and target receptacle exactly as written.
+2. **Locate the target object** – search every visible receptacle systematically.
+3. **Verify and take** – only take the object if its name matches exactly.
+4. **Navigate to target receptacle** and move the object there.
+5. **Terminate** after placement.
+
+## Exploration: Systematic Object Search
+### Prioritize Surface Search over Container Search
+Before opening any closed container, you must have visited every open surface (tables, countertops, shelves, sidetables, etc.). If you arrive at a closed container, do not open it yet – go to an open surface first. Only after all open surfaces have been checked should you start opening closed containers (drawers, cabinets, etc.).
+
+### 1. Create a checklist
+From the **first room observation** (after `look` or upon arrival), list every receptacle name exactly as it appears. Write them down. Include ALL furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, etc. Do not skip any.
+
+### 2. Visit receptacles in order
+Start with the **target receptacle** (the object might already be there). Then visit **all open surfaces** (tables, shelves, countertops, etc.) before moving to closed containers. For each receptacle:
+- Use `go to <receptacle>`. The observation appears automatically.
+- If the receptacle is closed, `open <receptacle>` first.
+- Read the observation. If you see the target object, `take <object> from <receptacle>` and proceed to step 3.
+- If not found, mentally check it off and go to the next.
+
+### 3. After completing the list
+If you have visited every receptacle and not found the object, **repeat the entire sequence** once more. Pay special attention to items you might have overlooked. Only give up after two full passes.
+
+## Common Mistakes
+- **Skipping any receptacle** – all must be checked, even if unlikely.
+- **Using wrong action** – never `examine` or `look` to move; use `go to`.
+- **Taking wrong object** – confirm exact name (e.g., "handtowel" ≠ "cloth").
+- **Failing to open** closed containers before reading contents.
+- **Forgetting to place** – after taking, go to target and `move <object> to <receptacle>` immediately.
+- **Wasting time** – do not close containers or perform extra actions.

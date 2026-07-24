@@ -1,0 +1,145 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specified object and place it into or onto a specified receptacle.\n\n## Sub-Goal Flow\n1. **Extract the full list of every receptacle** (noun + number) from the initial observation. If the observation is truncated (ends abruptly), use `look` once *before* any movement to get the full list. Mentally note the list.\n2. **Check the target receptacle first** – go to it, open if closed, inspect contents. If the target object is there, take it and skip to Placement.\n3. **If not found, systematically visit every other receptacle on your list, one by one, without revisiting any.**\n4. **For each receptacle:**\n   - If closed, `open` it immediately (next action must be `open`). Do **not** use `examine`, `look`, `inventory`, or any other action first.\n   - Inspect contents. If the target is present, take it and go to Placement.\n   - Leave it open; do not close.\n5. **After visiting all receptacles** and still not finding the object, the object may be in another room – go to a doorway and repeat the search.\n\n## Object Search (Mandatory)\n\n### Step 1: Extract all receptacles (BEFORE any movement)\n- Every noun phrase followed by a number (e.g., bed 1, drawer 2, shelf 3, cabinet 4, bathtubbasin 1, toilet 1, sink 1, table 1, countertop 1, etc.) is a potential location. Include **all** types: beds, shelves, drawers, cabinets, tables, counters, sofas, armchairs, dressers, garbage cans, holders, basins, toilets – any furniture item with a number.\n- **Critical:** If initial observation is cut off (e.g., ends with \"a sideta...\"), you **must** use `look` once before any `go to` action. Then avoid further `look` or `inventory` during search.\n\n### Step 2: Visit every receptacle in turn\n- Create a mental checklist (e.g., \"bed 1–2, shelf 1–14, drawer 1–4, cabinet 1–4, ...\").\n- **Open immediately:** When you arrive at a closed container, your very next action **must** be `open <container>`. Do not `examine`, `look`, `inventory`, or move elsewhere first. Using `examine` instead of `open` is invalid – you must physically open the container to see inside.\n- After opening, read the contents. If the target is there, take it and proceed to Placement. Otherwise, move to the next unvisited receptacle.\n- **Do not revisit any receptacle** until you have visited every single one on your list. If you catch yourself moving to an already visited place, stop and consult your list to pick the next unvisited one.\n- **Common failures:** Skipping furniture types like beds, shelves, or tables because they are not in the initial 'obvious' list. The object can be on any furniture – treat all numbered items as receptacles.\n\n### Step 3: If still missing after full list\n- Re-examine the initial observation – you may have missed a receptacle (e.g., handtowelholder, garbagecan). If none is missed, move through a doorway to another room and repeat the systematic search.\n\n## Object Acquisition\n- **Name match:** Only take an object if its exact base noun (without number) matches the target. \"Knife\" is not \"butterknife\".\n- **Action:** `take <object> from <receptacle>`.\n\n## Placement\n- Go to the target receptacle. If closed, open it. Then `move <object> to <receptacle>`.\n- **Stop immediately after the move action** – do not perform any further actions.\n\n## Common Mistakes to Avoid\n- **Not extracting all receptacles before moving** – leads to missing entire furniture categories.\n- **Not opening closed containers on arrival** – you must open before inspecting; `examine` is not a substitute.\n- **Revisiting already-checked receptacles** – wastes steps and causes missed ones.\n- **Stopping search early** – only conclude object missing after every receptacle on the list has been visited.\n- **Taking without exact name match** – always compare base nouns.\n- **Unnecessary `look` or `inventory`** – only use `look` once if initial observation truncated; otherwise stick to `go to`, `open`, `take`, `move`.",
+  "level": 3,
+  "version": 58,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent ignored the mandatory search steps (especially the exhaustive list extraction) and only visited a few locations. The skill tree's example list omitted common types like beds and shelves, which may have misled the agent to not consider them; the refined tree explicitly includes all furniture types.",
+  "changelog": "Refined 'Object Search (Mandatory)' section to explicitly list common furniture types (beds, shelves, tables, etc.) and generalize the extraction rule, fixing omission that led to incomplete search.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent limited its search to drawers and sidetable, ignoring beds and shelves where a book could be present.",
+      "skill_tree_gap": "Incomplete search strategy that does not cover all reachable locations in pick_and_place.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_6552",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 57,
+      "call_count": 1436,
+      "success_when_used": 1291,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "80ee3303fa3c",
+      "created_version": 1,
+      "last_changed_version": 34,
+      "stable_versions": 24,
+      "call_count": 1436,
+      "success_when_used": 1291,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "e713b0c23bb6",
+      "created_version": 1,
+      "last_changed_version": 57,
+      "stable_versions": 1,
+      "call_count": 1436,
+      "success_when_used": 1291,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory": {
+      "title": "Object Search (Mandatory)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 38,
+      "last_changed_version": 49,
+      "stable_versions": 9,
+      "call_count": 417,
+      "success_when_used": 363,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory/step-1-extract-all-receptacles-before-any-movement": {
+      "title": "Step 1: Extract all receptacles (BEFORE any movement)",
+      "level": 3,
+      "body_hash": "4d3ad9b40c30",
+      "created_version": 56,
+      "last_changed_version": 58,
+      "stable_versions": 0,
+      "call_count": 54,
+      "success_when_used": 50,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory/step-2-visit-every-receptacle-in-turn": {
+      "title": "Step 2: Visit every receptacle in turn",
+      "level": 3,
+      "body_hash": "5e3e19b18138",
+      "created_version": 56,
+      "last_changed_version": 58,
+      "stable_versions": 0,
+      "call_count": 54,
+      "success_when_used": 50,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-search-mandatory/step-3-if-still-missing-after-full-list": {
+      "title": "Step 3: If still missing after full list",
+      "level": 3,
+      "body_hash": "626fb03cbf68",
+      "created_version": 56,
+      "last_changed_version": 56,
+      "stable_versions": 2,
+      "call_count": 54,
+      "success_when_used": 50,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/object-acquisition": {
+      "title": "Object Acquisition",
+      "level": 2,
+      "body_hash": "148836d37765",
+      "created_version": 26,
+      "last_changed_version": 56,
+      "stable_versions": 2,
+      "call_count": 717,
+      "success_when_used": 638,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/placement": {
+      "title": "Placement",
+      "level": 2,
+      "body_hash": "03d2e3710240",
+      "created_version": 26,
+      "last_changed_version": 56,
+      "stable_versions": 2,
+      "call_count": 717,
+      "success_when_used": 638,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/common-mistakes-to-avoid": {
+      "title": "Common Mistakes to Avoid",
+      "level": 2,
+      "body_hash": "7ef12ec927bc",
+      "created_version": 31,
+      "last_changed_version": 57,
+      "stable_versions": 1,
+      "call_count": 598,
+      "success_when_used": 528,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

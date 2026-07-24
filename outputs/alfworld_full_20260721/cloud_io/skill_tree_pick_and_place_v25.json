@@ -1,0 +1,163 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specific object and place it into or onto a specified receptacle (e.g., \"put a book in sofa\"). The task names both the target object and the target receptacle.\n\n## Sub-Goal Flow\n1. **Parse the task** – identify the target object and target receptacle exactly as written.\n2. **Locate the target object** – search every visible receptacle systematically.\n   - **2a. Create a receptacle checklist** – from the first room observation, list every receptacle name exactly as it appears. Include all furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, fridges, microwaves, ovens, dishwashers, bathtubs, toilets, garbage cans – any container that could hold objects. Do not skip any. This list is your master checklist. Keep it in mind and tick off each receptacle as you visit it.\n3. **Verify and take** – only take the object if its type matches the task (ignore numerals).\n4. **Navigate to target receptacle** and move the object there.\n5. **Terminate** after placement.\n\n## Exploration: Systematic Object Search\n### 1. Create and Follow a Complete Receptacle Checklist\nImmediately after the initial room observation (the welcome text), mentally list every receptacle. Do not start moving until you have that list. This list is your master checklist. Keep it in mind and tick off each receptacle as you visit it.\n\n### 2. Full Surface Search\nIdentify all receptacles that are **open surfaces** (tables, shelves, countertops, desks, sidetables, sofas, armchairs, beds, dresser tops, sinkbasins, toilet tops, bathtubs, etc.). Start at the target receptacle if it is an open surface; otherwise start with any open surface. Then systematically visit **every other open surface** from your list using `go to <receptacle>` and reading the observation. Do not skip any, even if unlikely. If the target object is present, immediately `take <object> from <receptacle>`. Do not postpone taking it.\n\n### 3. Closed Container Search\nOnce every open surface has been checked and the object is not found, move to **closed containers** (drawers, cabinets, fridges, microwaves, ovens, dishwashers, etc.). For each from your checklist: `go to <receptacle>`, `open <receptacle>`, then read contents. If you see the target object, `take <object> from <receptacle>` immediately. Do not close the container.\n\n### 4. Exhaustive Search Strategy (If Not Found)\n- **After first pass:** Immediately repeat the entire sequence – start from the beginning and visit each receptacle again. Pay special attention to receptacles you might have overlooked.\n- **After two passes:** Check all closed containers again, especially fridges, microwaves, ovens, dishwashers, and any cabinet/drawer not yet opened.\n- Re-read your initial observation to ensure you did not miss any receptacle name. If still missing, start a third pass – do not give up early.\n\n### 5. Common Mistakes\n- Skipping any open surface – all must be checked.\n- Not proceeding to closed containers – after open surfaces, open every closed container.\n- Using wrong action – never `examine` or `look` to move; use `go to`.\n- Taking wrong object – verify the object's type matches the task exactly. Ignore numerals.\n- Failing to open closed containers before reading contents.\n- Forgetting to place – after taking, go to target and `move <object> to <receptacle>` immediately.\n\n### 6. Object Verification & Identification\nBefore taking, verify that the object's **type** matches the task exactly (e.g., \"spraybottle\" not \"soapbottle\"). Ignore numeric suffixes. Read the observation list carefully; do not assume based on partial word matches.\n\n### 7. Object Acquisition\nOnce you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.",
+  "level": 3,
+  "version": 25,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent did not follow the existing skill tree's exploration checklist, skipping receptacles like tvstand and garbagecan, which led to failure. The tree's wording is clear, but the agent may have been overwhelmed by length; the refinement adds a mandatory checklist creation step at the start of search.",
+  "changelog": "Added explicit step 2a to sub-goal flow to create a receptacle checklist immediately after first observation, and consolidated exploration sections to emphasize systematic search.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not explore all receptacles (e.g., tvstand, garbagecan) and never found the box.",
+      "skill_tree_gap": "Lack of a comprehensive exploration list for pick_and_place tasks.",
+      "task_type": "pick_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent visited many shelves but missed other receptacles (e.g., tvstand, armchair) and never located a remotecontrol.",
+      "skill_tree_gap": "Lack of a comprehensive exploration list for pick_and_place tasks.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_3240",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 24,
+      "call_count": 707,
+      "success_when_used": 643,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cd5aaa6edf3a",
+      "created_version": 1,
+      "last_changed_version": 19,
+      "stable_versions": 6,
+      "call_count": 707,
+      "success_when_used": 643,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "3c439bbe4080",
+      "created_version": 1,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 707,
+      "success_when_used": 643,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search": {
+      "title": "Exploration: Systematic Object Search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 9,
+      "call_count": 216,
+      "success_when_used": 199,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/1-create-and-follow-a-complete-receptacle-checklist": {
+      "title": "1. Create and Follow a Complete Receptacle Checklist",
+      "level": 3,
+      "body_hash": "5591d31a1628",
+      "created_version": 25,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/2-full-surface-search": {
+      "title": "2. Full Surface Search",
+      "level": 3,
+      "body_hash": "c78ac0a07380",
+      "created_version": 25,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/3-closed-container-search": {
+      "title": "3. Closed Container Search",
+      "level": 3,
+      "body_hash": "7fea0cbc54f5",
+      "created_version": 25,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/4-exhaustive-search-strategy-if-not-found": {
+      "title": "4. Exhaustive Search Strategy (If Not Found)",
+      "level": 3,
+      "body_hash": "150b2b6d611a",
+      "created_version": 25,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/5-common-mistakes": {
+      "title": "5. Common Mistakes",
+      "level": 3,
+      "body_hash": "a6b7d143204e",
+      "created_version": 25,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/6-object-verification-identification": {
+      "title": "6. Object Verification & Identification",
+      "level": 3,
+      "body_hash": "a2e71c4057da",
+      "created_version": 25,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/7-object-acquisition": {
+      "title": "7. Object Acquisition",
+      "level": 3,
+      "body_hash": "65acb7af1a33",
+      "created_version": 25,
+      "last_changed_version": 25,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,233 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a potato because it did not search the fridge, a likely storage location for a potato.",
+    "evidence": "After exploring countertop, diningtables, sidetable, cabinets, and sinkbasin, no potato was seen; the fridge was never visited.",
+    "corrective_rule": "Always check the fridge when the target object is not found on initial surfaces.",
+    "skill_tree_gap": "Missing systematic search strategy that includes all container types (fridge, microwave, cabinets, drawers).",
+    "patch_location": "## clean -> ### Search Strategy for Missing Objects",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate a mug because it did not search cabinets and drawers where mugs are commonly stored.",
+    "evidence": "After opening fridge and seeing only cups, it stopped searching and returned to countertop; no cabinets or drawers were opened.",
+    "corrective_rule": "If target object not in initial view, open and check all cabinets and drawers.",
+    "skill_tree_gap": "Lacks explicit instruction to open containers when object is missing.",
+    "patch_location": "## cool -> ### Search Strategy for Cool Tasks",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a potato because it did not search all countertops and drawers.",
+    "evidence": "After opening multiple cabinets and finding nothing, it stopped without checking countertop2 or any drawers.",
+    "corrective_rule": "When potato not in fridge, search all countertops and drawers.",
+    "skill_tree_gap": "Missing systematic search plan for heat tasks.",
+    "patch_location": "## heat -> ### Search Strategy for Heat Tasks",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "heat#1",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a cup because it did not search all possible locations (e.g., drawers, other cabinets) and stopped after opening a few cabinets.",
+    "evidence": "After opening fridge (saw mugs, not cups) and several cabinets (empty or contained non-cup objects), the trajectory ends without finding a cup.",
+    "corrective_rule": "When cup not in initial locations, systematically search all drawers and remaining containers.",
+    "skill_tree_gap": "Missing exhaustive search routine for heat tasks.",
+    "patch_location": "## heat -> ### Search Strategy for Heat Tasks",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "heat#2",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a cup because it did not search the fridge (which contained no cup) or other locations after checking countertops and cabinets.",
+    "evidence": "After seeing mugs on countertops (ignored correctly as not cups) and opening cabinets with no cup, it never checked the fridge or drawers.",
+    "corrective_rule": "When cup not on countertops or cabinets, check fridge and drawers.",
+    "skill_tree_gap": "Missing inclusion of fridge and drawers in search for cups.",
+    "patch_location": "## heat -> ### Search Strategy for Heat Tasks",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "heat#3",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a plate because it did not search the microwave, a common location for plates.",
+    "evidence": "After checking fridge, countertops, diningtable, and cabinets and finding no plate, it never went to the microwave.",
+    "corrective_rule": "When plate not found, check the microwave.",
+    "skill_tree_gap": "Missing inclusion of microwave in search for heat tasks.",
+    "patch_location": "## heat -> ### Search Strategy for Heat Tasks",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#4",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate a mug because it did not search all countertops and the microwave.",
+    "evidence": "After searching fridge (saw cup, not mug) and countertop1, it only checked cabinets, missing other possible locations like countertop2 and microwave.",
+    "corrective_rule": "Search all countertops and the microwave when mug not found.",
+    "skill_tree_gap": "Missing comprehensive search for mugs in heat tasks.",
+    "patch_location": "## heat -> ### Search Strategy for Heat Tasks",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#0",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a book because it did not search the bed, a likely location for a book.",
+    "evidence": "After exploring desk, dresser, shelf, and drawers, it did not go to the bed (which was present in initial observation).",
+    "corrective_rule": "When book not found, check the bed.",
+    "skill_tree_gap": "Missing bed in search plan for look_at_obj_in_light.",
+    "patch_location": "## look_at_obj_in_light -> ### Search Strategy for Target Objects",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#1",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a book because it only searched shelves and a drawer, missing the bed and desk where books are often found.",
+    "evidence": "After turning on lamp, it checked shelves (empty) and a drawer (closed), but never visited the bed or desk.",
+    "corrective_rule": "Search the bed and desk when looking for a book.",
+    "skill_tree_gap": "Missing systematic search covering all furniture types.",
+    "patch_location": "## look_at_obj_in_light -> ### Search Strategy for Target Objects",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#2",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a laptop because it did not search the bed or desk (laptop likely on desk).",
+    "evidence": "After turning on lamp, it visited sidetables and dresser, but never checked the desk (which had no laptop in initial observation but could have been overlooked) or bed.",
+    "corrective_rule": "When laptop not found, check the desk and bed.",
+    "skill_tree_gap": "Missing specific search pattern for laptops.",
+    "patch_location": "## look_at_obj_in_light -> ### Search Strategy for Target Objects",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#3",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a newspaper because it did not search the sofa or desk where newspapers are often placed.",
+    "evidence": "After exploring coffeetables, dressers, drawer, and ottoman, it never visited the sofa or desk.",
+    "corrective_rule": "Search the sofa and desk when looking for a newspaper.",
+    "skill_tree_gap": "Missing furniture coverage for newspaper search.",
+    "patch_location": "## look_at_obj_in_light -> ### Search Strategy for Target Objects",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a winebottle because it did not search the fridge or microwave, where winebottles might be stored.",
+    "evidence": "After checking countertops, cabinets, and sinkbasin, it never visited the fridge or microwave.",
+    "corrective_rule": "When winebottle not found, check the fridge and microwave.",
+    "skill_tree_gap": "Missing search strategy for pick_and_place that includes all containers.",
+    "patch_location": "## pick_and_place -> ### Search Strategy for Missing Objects",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find toiletpaper because it did not search cabinets or drawers thoroughly.",
+    "evidence": "It checked countertops, sinkbasins, and a few drawers but found nothing; it did not open all cabinets.",
+    "corrective_rule": "Search all cabinets and drawers when toiletpaper not visible.",
+    "skill_tree_gap": "Missing exhaustive indoor search for toiletpaper.",
+    "patch_location": "## pick_and_place -> ### Search Strategy for Missing Objects",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_and_place#2",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a spraybottle because it did not open any cabinets.",
+    "evidence": "After checking countertops, sinkbasins, and bathtubbasin, it opened only drawers (which contained no spraybottle), but never opened a cabinet.",
+    "corrective_rule": "When spraybottle not found, open and check all cabinets.",
+    "skill_tree_gap": "Missing cabinet search in pick_and_place routine.",
+    "patch_location": "## pick_and_place -> ### Search Strategy for Missing Objects",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#3",
+    "task_type": "pick_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a tissuebox instead of a spraybottle, then never found the spraybottle.",
+    "evidence": "After opening drawer1, it took tissuebox 1 and later inventory showed carrying tissuebox, ignoring the target object.",
+    "corrective_rule": "Only pick up the object that matches the target description (spraybottle); avoid picking up irrelevant items.",
+    "skill_tree_gap": "Missing object verification before pickup action.",
+    "patch_location": "## pick_and_place -> ### Object Verification",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing the first remotecontrol, the agent did not continue searching for the second remotecontrol.",
+    "evidence": "After moving remotecontrol4 to armchair1, it explored cabinet4 and armchair2 but not other locations for a second remotecontrol.",
+    "corrective_rule": "After placing one object, immediately search for the second object in all possible locations.",
+    "skill_tree_gap": "Missing loop or continuation rule for multi-object tasks.",
+    "patch_location": "## pick_two_obj_and_place -> ### Two-Object Search Loop",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one peppershaker, the agent did not search for a second peppershaker.",
+    "evidence": "It went to cabinet21, cabinet20, cabinet2, and drawer1 but found no peppershaker; it did not check other countertops or cabinets where another might be.",
+    "corrective_rule": "After placing first object, systematically search all other locations for the second.",
+    "skill_tree_gap": "Missing systematic search after first placement.",
+    "patch_location": "## pick_two_obj_and_place -> ### Two-Object Search Loop",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one toiletpaper in cabinet, the agent did not search for a second toiletpaper.",
+    "evidence": "It then went to bathtubbasin and toiletpaperhanger, ignoring other storage like drawers or other cabinets.",
+    "corrective_rule": "After placing one object, search all remaining storage for the second.",
+    "skill_tree_gap": "Missing continuation after first placement.",
+    "patch_location": "## pick_two_obj_and_place -> ### Two-Object Search Loop",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one cup, the agent did not search for a second cup.",
+    "evidence": "It went to cabinet1 after placing the first cup, but did not explore other areas like fridge or other countertops.",
+    "corrective_rule": "After placing one cup, search all other possible locations for a second cup.",
+    "skill_tree_gap": "Missing multi-object completion loop.",
+    "patch_location": "## pick_two_obj_and_place -> ### Two-Object Search Loop",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one toiletpaper, the agent did not search for a second toiletpaper.",
+    "evidence": "It returned to bathtubbasin and toiletpaperhanger, but did not check drawers or other cabinets.",
+    "corrective_rule": "After placing one object, continue searching for the second in all remaining locations.",
+    "skill_tree_gap": "Missing post-placement search for multi-object tasks.",
+    "patch_location": "## pick_two_obj_and_place -> ### Two-Object Search Loop",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one tomato, the agent did not search for a second tomato.",
+    "evidence": "After moving the first tomato to countertop1, the trajectory ends without any further search for a second tomato.",
+    "corrective_rule": "After placing one tomato, search all other locations for a second tomato.",
+    "skill_tree_gap": "Missing two-object completion logic.",
+    "patch_location": "## pick_two_obj_and_place -> ### Two-Object Search Loop",
+    "confidence": 0.9
+  }
+]

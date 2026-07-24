@@ -1,0 +1,127 @@
+{
+  "content": "# Goal: Cool an object and move it to a specified target location.\n\n## Object Search and Retrieval\n\n### Surface Search\n- Start at **countertop** instances. Visit **every single countertop** one by one (do not skip any). For each, go to it and look at the objects listed. If the target object is present, take it and proceed to Phase 2.\n- After **all** countertops have been checked, move to **diningtable** instances – visit every one.\n- Then **sidetable** instances – every one.\n- Then **shelf** instances – every one.\n- Then **sinkbasin** instances – every one.\n- Finally **stoveburner** instances – every one.\n- **Strict order:** You must exhaust each surface type completely before moving to the next. Do not skip to a later type or to closed containers until all surface types have been fully searched. **Common failure: skipping a surface type (e.g., diningtable or sidetable) causes the agent to miss the object.**\n- If you finish all surfaces and still have not found the object, proceed to Closed Container Search.\n\n### Closed Container Search\n- Only start this phase AFTER you have inspected every single instance of every surface type listed above and the object was not found.\n- Search closed receptacles in this order:\n  1. **fridge** (all instances)\n  2. **cabinet** (all instances)\n  3. **drawer** (all instances)\n  4. **microwave** (all instances)\n- For each category, visit **every single instance** without exception.\n- For each instance: go to it, open it if closed, then look inside. If the target object is present, take it and proceed to Phase 2.\n- Do not stop prematurely – continue until all categories and all instances have been checked.\n\n### Object Verification before Picking\n- Before taking any object, **read its exact name** from the observation and compare it with the task's target object (e.g., if task says \"apple\", only take an object named \"apple 1\" or similar – not \"kettle\" or \"mug\").\n- If the object's type does not match the target, do not take it. Continue searching.\n- This prevents picking the wrong item, which would waste time and fail the task.\n\n## Phase 2: Cool the object using the fridge\n- After picking up the object, go directly to the fridge.\n- If the fridge is closed, open it.\n- Use `cool <object> with fridge`.\n\n## Phase 3: Move the cooled object to the target location\n- Go to the target location.\n- If the target receptacle is closed, open it first.\n- Use `move <object> to <target>`.\n\n## Completion check\n- Object is cooled and placed at the target location – task complete.",
+  "level": 3,
+  "version": 31,
+  "kind": "task_skill_tree",
+  "task_type": "cool",
+  "history": [],
+  "critique": "The agent did not follow the strict surface search order in the current skill tree, skipping diningtable and sidetable, and also picked a wrong object without verifying its name. The tree's wording was not misleading, but adding explicit object verification and reinforcing the search order could prevent these failures.",
+  "changelog": "Added '### Object Verification before Picking' under 'Object Search and Retrieval' to prevent picking the wrong object; strengthened the strict order reminder in 'Surface Search' to emphasize that skipping a surface type is a common failure mode.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent failed to locate an apple because it did not systematically search all receptacles after failing to find it on initial countertops.",
+      "skill_tree_gap": "There is no structured exploration strategy that covers all common object locations.",
+      "task_type": "cool"
+    },
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "Agent picked up a kettle instead of an apple, failing to verify that the object matches the task requirement.",
+      "skill_tree_gap": "Object verification against the task goal is missing.",
+      "task_type": "cool"
+    }
+  ],
+  "task_scope": "cool",
+  "updated_at": "step_3528",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location": {
+      "title": "Goal: Cool an object and move it to a specified target location.",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 30,
+      "call_count": 517,
+      "success_when_used": 442,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval": {
+      "title": "Object Search and Retrieval",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 4,
+      "call_count": 60,
+      "success_when_used": 52,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/surface-search": {
+      "title": "Surface Search",
+      "level": 3,
+      "body_hash": "ba28cc16b14a",
+      "created_version": 29,
+      "last_changed_version": 31,
+      "stable_versions": 0,
+      "call_count": 36,
+      "success_when_used": 33,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/closed-container-search": {
+      "title": "Closed Container Search",
+      "level": 3,
+      "body_hash": "0e568d4e0d93",
+      "created_version": 29,
+      "last_changed_version": 30,
+      "stable_versions": 1,
+      "call_count": 36,
+      "success_when_used": 33,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/object-search-and-retrieval/object-verification-before-picking": {
+      "title": "Object Verification before Picking",
+      "level": 3,
+      "body_hash": "262ec6a48981",
+      "created_version": 31,
+      "last_changed_version": 31,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-2-cool-the-object-using-the-fridge": {
+      "title": "Phase 2: Cool the object using the fridge",
+      "level": 2,
+      "body_hash": "de516de96541",
+      "created_version": 24,
+      "last_changed_version": 27,
+      "stable_versions": 4,
+      "call_count": 113,
+      "success_when_used": 100,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/phase-3-move-the-cooled-object-to-the-target-location": {
+      "title": "Phase 3: Move the cooled object to the target location",
+      "level": 2,
+      "body_hash": "ee2daf0b8a33",
+      "created_version": 24,
+      "last_changed_version": 24,
+      "stable_versions": 7,
+      "call_count": 113,
+      "success_when_used": 100,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check": {
+      "title": "Completion check",
+      "level": 2,
+      "body_hash": "68f9629c26b4",
+      "created_version": 27,
+      "last_changed_version": 27,
+      "stable_versions": 4,
+      "call_count": 60,
+      "success_when_used": 52,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

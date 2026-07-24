@@ -1,0 +1,134 @@
+{
+  "batch_id": "4ca25ec4-7559-4f7a-a305-a6fcf70627e4",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent moved to sinkbasin without first locating the mug, then wandered aimlessly without finding it.",
+        "evidence": "Action 'go to sinkbasin 1' before taking any object; later never picks up a mug.",
+        "corrective_rule": "Locate the target object by exploring all visible surfaces and containers before moving to the cleaning location.",
+        "skill_tree_gap": "Missing a subskill to locate and pick the target object before proceeding to clean.",
+        "patch_location": "Under '## clean', add a new subsection '### locate and take object'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent failed to find a soapbar because it only opened two cabinets and then stopped, ignoring other containers like drawers or shelves.",
+        "evidence": "After opening cabinet1 (spraybottle) and cabinet2 (empty), it goes to bathtubbasin and stops without ever seeing a soapbar.",
+        "corrective_rule": "Systematically search all reachable containers (cabinets, drawers, shelves) and surfaces for the required object.",
+        "skill_tree_gap": "Lack of a systematic search strategy for objects that may be inside containers.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#2",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent did not find a dishsponge because it only checked countertop, sinkbasin, bathtubbasin, and a few drawers, missing cabinets and shelves.",
+        "evidence": "After opening drawer3 (empty), it loops and gives up; no dishsponge observed anywhere.",
+        "corrective_rule": "Before concluding object is absent, search all container types (cabinets, shelves, etc.) and revisit initial locations.",
+        "skill_tree_gap": "Missing exhaustive search subroutine for rare or hidden objects.",
+        "patch_location": "Under '## clean', add a new subsection '### exhaustive search for object'.",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a plate because it did not search inside containers (e.g., cabinets, drawers) after checking counters, fridge, and shelves.",
+        "evidence": "After visiting countertop2, fridge, diningtable, shelves, and sink, no plate is seen; agent returns to countertop1 and stops without opening any cabinet or drawer.",
+        "corrective_rule": "When target object is not in plain sight, open containers (cabinets, drawers) that may contain it.",
+        "skill_tree_gap": "Missing a step to open and search containers for cooling tasks.",
+        "patch_location": "Under '## cool', add a new subsection '### search in containers for object'.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent limited its search to drawers and sidetable, ignoring beds and shelves where a book could be present.",
+        "evidence": "After checking all drawers (empty) and sidetable (houseplant), it returns to coffeetable and does inventory, never visiting bed1, bed2, or any shelf.",
+        "corrective_rule": "Search all furniture types (beds, shelves, etc.) when object is not in obvious places.",
+        "skill_tree_gap": "Incomplete search strategy that does not cover all reachable locations in pick_and_place.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### explore all reachable surfaces and containers'.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "Agent picked a soapbar instead of a soapbottle, confusing the object type.",
+        "evidence": "Action 'take soapbar 1 from cabinet 2' but task requires soapbottle.",
+        "corrective_rule": "Verify the object name exactly matches the required type before picking.",
+        "skill_tree_gap": "Missing object type verification step before picking.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### confirm object identity'.",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "Agent picked a soapbottle instead of a spraybottle, misidentifying the required object.",
+        "evidence": "Action 'take soapbottle 1 from countertop 2' but task requires spraybottle.",
+        "corrective_rule": "Ensure the object type matches the task requirement before picking.",
+        "skill_tree_gap": "Missing object name checking before picking.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### confirm object identity'.",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent failed to find any soapbottle because it only searched cabinets and ignored countertop, sinkbasin, and other surfaces.",
+        "evidence": "After opening cabinet5,4,3,2,1 and finding no soapbottle, it loops without checking countertop or other areas.",
+        "corrective_rule": "Search all containers and surfaces, including countertop, sinkbasin, and drawers.",
+        "skill_tree_gap": "Incomplete search routine for pick_two that omits open surfaces.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### systematic search across all furniture'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent picked only one soapbottle and moved to place it, without obtaining the required second soapbottle.",
+        "evidence": "After 'take soapbottle 2 from countertop 1', the next action is 'go to garbagecan 1' without picking a second soapbottle.",
+        "corrective_rule": "After picking one object, continue to find and pick the second before moving to the target location.",
+        "skill_tree_gap": "Missing loop to ensure both objects are collected before placing.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### repeat pick step until two obtained'.",
+        "confidence": 1.0
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent placed only one cellphone and then failed to find and place a second one, stopping after revisiting the empty bed.",
+        "evidence": "After moving first cellphone to diningtable, it goes back to bed2 but sees no second cellphone and loops.",
+        "corrective_rule": "After placing one, verify count and search other locations if the second is missing.",
+        "skill_tree_gap": "Missing count check and continued search for second object after placing first.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### check required quantity and repeat'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent limited search to cabinets and toiletpaperhanger, missing toiletpaper that may be on countertop or in drawers.",
+        "evidence": "After checking cabinet4,3,2,1 and toiletpaperhanger (empty), it loops without examining countertop, sinkbasin, or drawers.",
+        "corrective_rule": "Expand search to all surfaces and containers, including countertop and drawers.",
+        "skill_tree_gap": "Incomplete search that does not cover all typical locations for toiletpaper.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### search all possible locations including countertop and drawers'.",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

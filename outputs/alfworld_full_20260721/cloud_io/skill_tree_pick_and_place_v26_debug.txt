@@ -1,0 +1,120 @@
+=== Skill Tree Debug — scope=pick_and_place  v26 (level=3, tree_depth=3, 8 nodes) ===
+action: refine
+critique: The agent did not follow the exhaustive search procedure; it stopped after inspecting only a few shelves and drawers. The previous tree's detailed multi-pass strategy likely confused the agent or was ignored. Refinement simplifies the core rule to 'visit every receptacle exactly once' and removes redundant sub-steps to improve compliance.
+changelog: Restructured Object Search to a single mandatory rule (inspect every receptacle from the initial list exactly once) with clear sub-rules for open/closed containers, and removed complex multi-pass strategy to reduce cognitive load. Added emphasis on not stopping early.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 10  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] The agent stopped searching after opening only two drawers and a few shelves, never finding the tissuebox. | evidence: Last action: 'go to drawer 3' then stops; the tissuebox was not found anywhere. | fix: Continue exploring all available shelves and drawers until the target object is located. | skill_tree_gap: No exhaustive inventory of all storage locations before concluding object is missing. | patch_location: ### Object Search
+### Complete Container Search
+- [inefficient_exploration] The agent only searched shelves in a cycle and never checked other surfaces like coffeetables or diningtable where the remotecontrol might be. | evidence: Actions: shelf1→shelf2→...→shelf8→shelf1; never visited coffeetable2, diningtable, or drawers. | fix: After checking shelves, systematically inspect all other surfaces and containers (coffeetables, diningtable, drawers) in the room. | skill_tree_gap: Lacks a diversified search that includes all furniture types; agent fixates on one type. | patch_location: ### Object Search
+### Diversified Search Across All Furniture Types
+
+--- Node tree (per-node lifecycle, this version=v26) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=25 calls=719 success=653 rate=90.8%
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=7 calls=719 success=653 rate=90.8%
+[NEW                 ] pick-and-place-skill-tree/object-acquisition level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/object-search-mandatory-systematic-inspection level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/common-mistakes level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/critical-rule-you-must-visit-every-receptacle-in-the-initial-observation-exactly-once-before-concluding-the-object-is-missing-do-not-skip-any-even-if-it-seems-unlikely level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-and-place-skill-tree/placement      level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=0 calls=719 success=653 rate=90.8%
+
+--- Line diff vs previous version (v25 -> v26) ---
+--- v25
++++ v26
+@@ -6,36 +6,30 @@
+ ## Sub-Goal Flow
+ 1. **Parse the task** – identify the target object and target receptacle exactly as written.
+ 2. **Locate the target object** – search every visible receptacle systematically.
+-   - **2a. Create a receptacle checklist** – from the first room observation, list every receptacle name exactly as it appears. Include all furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, fridges, microwaves, ovens, dishwashers, bathtubs, toilets, garbage cans – any container that could hold objects. Do not skip any. This list is your master checklist. Keep it in mind and tick off each receptacle as you visit it.
+ 3. **Verify and take** – only take the object if its type matches the task (ignore numerals).
+ 4. **Navigate to target receptacle** and move the object there.
+ 5. **Terminate** after placement.
+ 
+-## Exploration: Systematic Object Search
+-### 1. Create and Follow a Complete Receptacle Checklist
+-Immediately after the initial room observation (the welcome text), mentally list every receptacle. Do not start moving until you have that list. This list is your master checklist. Keep it in mind and tick off each receptacle as you visit it.
++## Object Search – Mandatory Systematic Inspection
++### Critical Rule: You must visit every receptacle in the initial observation exactly once before concluding the object is missing. Do not skip any, even if it seems unlikely.
++1. From the first room observation, **mentally list every receptacle name** exactly as it appears (all furniture, containers, surfaces). This is your master checklist.
++2. **Start your search.** For each receptacle on your list:
++   - Go to it: `go to <receptacle>`.
++   - If it is closed (e.g., drawer, cabinet, safe, fridge, microwave, oven, dishwasher), first `open <receptacle>`, then read contents.
++   - If the target object is present, immediately `take <object> from <receptacle>`. Do not perform any other action first.
++   - Tick it off your mental list.
++3. **If you finish the list and did not find the object, repeat the entire process starting from the first receptacle again** – do not give up. Re-read the initial observation to ensure you did not miss any receptacle.
+ 
+-### 2. Full Surface Search
+-Identify all receptacles that are **open surfaces** (tables, shelves, countertops, desks, sidetables, sofas, armchairs, beds, dresser tops, sinkbasins, toilet tops, bathtubs, etc.). Start at the target receptacle if it is an open surface; otherwise start with any open surface. Then systematically visit **every other open surface** from your list using `go to <receptacle>` and reading the observation. Do not skip any, even if unlikely. If the target object is present, immediately `take <object> from <receptacle>`. Do not postpone taking it.
++### Common Mistakes
++- **Skipping any receptacle** – all must be inspected, including tables, chairs, shelves, drawers, cabinets, sinks, bathtubs, toilets, etc.
++- **Focusing only on one type** – e.g., only shelves or only closed containers. You must check every type.
++- **Using wrong action** – never `examine` or `look` to move; use `go to`.
++- **Taking wrong object** – verify the object's type matches the task exactly (ignore numerals).
++- **Forgetting to open closed containers** before reading their contents.
++- **Stopping early** – only stop after you have checked every receptacle (and repeated if necessary) and still not found the object. But in this environment the object will be found; keep searching until you find it.
+ 
+-### 3. Closed Container Search
+-Once every open surface has been checked and the object is not found, move to **closed containers** (drawers, cabinets, fridges, microwaves, ovens, dishwashers, etc.). For each from your checklist: `go to <receptacle>`, `open <receptacle>`, then read contents. If you see the target object, `take <object> from <receptacle>` immediately. Do not close the container.
++## Object Acquisition
++Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+ 
+-### 4. Exhaustive Search Strategy (If Not Found)
+-- **After first pass:** Immediately repeat the entire sequence – start from the beginning and visit each receptacle again. Pay special attention to receptacles you might have overlooked.
+-- **After two passes:** Check all closed containers again, especially fridges, microwaves, ovens, dishwashers, and any cabinet/drawer not yet opened.
+-- Re-read your initial observation to ensure you did not miss any receptacle name. If still missing, start a third pass – do not give up early.
+-
+-### 5. Common Mistakes
+-- Skipping any open surface – all must be checked.
+-- Not proceeding to closed containers – after open surfaces, open every closed container.
+-- Using wrong action – never `examine` or `look` to move; use `go to`.
+-- Taking wrong object – verify the object's type matches the task exactly. Ignore numerals.
+-- Failing to open closed containers before reading contents.
+-- Forgetting to place – after taking, go to target and `move <object> to <receptacle>` immediately.
+-
+-### 6. Object Verification & Identification
+-Before taking, verify that the object's **type** matches the task exactly (e.g., "spraybottle" not "soapbottle"). Ignore numeric suffixes. Read the observation list carefully; do not assume based on partial word matches.
+-
+-### 7. Object Acquisition
+-Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
++## Placement
++After taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
+
+## Sub-Goal Flow
+1. **Parse the task** – identify the target object and target receptacle exactly as written.
+2. **Locate the target object** – search every visible receptacle systematically.
+3. **Verify and take** – only take the object if its type matches the task (ignore numerals).
+4. **Navigate to target receptacle** and move the object there.
+5. **Terminate** after placement.
+
+## Object Search – Mandatory Systematic Inspection
+### Critical Rule: You must visit every receptacle in the initial observation exactly once before concluding the object is missing. Do not skip any, even if it seems unlikely.
+1. From the first room observation, **mentally list every receptacle name** exactly as it appears (all furniture, containers, surfaces). This is your master checklist.
+2. **Start your search.** For each receptacle on your list:
+   - Go to it: `go to <receptacle>`.
+   - If it is closed (e.g., drawer, cabinet, safe, fridge, microwave, oven, dishwasher), first `open <receptacle>`, then read contents.
+   - If the target object is present, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+   - Tick it off your mental list.
+3. **If you finish the list and did not find the object, repeat the entire process starting from the first receptacle again** – do not give up. Re-read the initial observation to ensure you did not miss any receptacle.
+
+### Common Mistakes
+- **Skipping any receptacle** – all must be inspected, including tables, chairs, shelves, drawers, cabinets, sinks, bathtubs, toilets, etc.
+- **Focusing only on one type** – e.g., only shelves or only closed containers. You must check every type.
+- **Using wrong action** – never `examine` or `look` to move; use `go to`.
+- **Taking wrong object** – verify the object's type matches the task exactly (ignore numerals).
+- **Forgetting to open closed containers** before reading their contents.
+- **Stopping early** – only stop after you have checked every receptacle (and repeated if necessary) and still not found the object. But in this environment the object will be found; keep searching until you find it.
+
+## Object Acquisition
+Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+
+## Placement
+After taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.

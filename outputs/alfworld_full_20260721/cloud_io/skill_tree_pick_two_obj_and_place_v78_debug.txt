@@ -1,0 +1,134 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v78 (level=3, tree_depth=3, 12 nodes) ===
+action: refine
+critique: The agent frequently failed to follow the existing rules: after placing the first object it did not perform a mandatory fresh look, and during search it skipped many furniture items (e.g., only opened cabinets for cups). The skill tree itself was not misleading, but the wording was not forceful enough to prevent these common deviations. The refinements add explicit mandatory steps and a highlighted warning against skipping furniture.
+changelog: Strengthened Phase 2 with a mandatory fresh look step after first placement, added a 'Do Not Skip Furniture' subsection under Systematic search to emphasize checking all items in order, and reinforced critical rules to combat premature stopping and selective searching.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 9  n_failure this round: 14
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] The agent placed only one remotecontrol in the armchair and then stopped, failing to retrieve and place the second. | evidence: action: look | obs: You are facing the armchair 1. (after moving one remotecontrol, no further object acquisition) | fix: After placing the first object, continue to find and place the second object until the count is met. | skill_tree_gap: Lack of count tracking for multi-object tasks. | patch_location: Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'
+- [inefficient_exploration] The agent searched only cabinets for saltshakers, ignoring countertops and shelves where they are commonly found, and never took any. | evidence: action: go to shelf 1 | obs: On the shelf 1, you see nothing. (no saltshaker found after extensive cabinet search) | fix: For saltshakers, first check countertops, diningtable, and shelves before opening cabinets. | skill_tree_gap: Object location knowledge for 'saltshaker'. | patch_location: Under 'pick_two_obj_and_place' as a new deeper subsection '### Object-specific search (saltshaker)'
+- [premature_stop] The agent placed only one cup on the countertop and then stopped, without retrieving the required second cup. | evidence: action: look | obs: You are facing the countertop 1. (after moving one cup, no further action to get second) | fix: After placing the first cup, search for and place the second cup. | skill_tree_gap: Lack of multi-object completion detection. | patch_location: Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'
+- [inefficient_exploration] The agent only searched cabinets for cups, missing common locations like countertops, diningtable, and shelves, and never took any cup. | evidence: action: open cabinet 5 | obs: ... you see nothing. (no cup found in cabinets) | fix: For cups, check countertops, diningtable, and shelves before opening cabinets. | skill_tree_gap: Object location knowledge for 'cup'. | patch_location: Under 'pick_two_obj_and_place' as a new deeper subsection '### Object-specific search (cup)'
+- [premature_stop] The agent took only one toiletpaper and then went to countertop without placing it (or placed only one), failing to get a second. | evidence: action: go to countertop 1 | obs: ... (dropped 4 looping actions after taking only one toiletpaper) | fix: After placing the first toiletpaper, retrieve and place the second. | skill_tree_gap: Multi-object count tracking. | patch_location: Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'
+- [premature_stop] The agent placed only one newspaper in the sofa and then stopped, without obtaining the second. | evidence: action: look | obs: You are facing the sofa 1. (after moving one newspaper, no further action) | fix: After placing the first newspaper, continue to find and place the second. | skill_tree_gap: Multi-object completion detection. | patch_location: Under 'pick_two_obj_and_place' as a new deeper subsection '### Multi-object count tracking'
+
+--- Node tree (per-node lifecycle, this version=v78) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=77 calls=1595 success=1040 rate=65.2%
+[STABLE              ] pick-two-obj-and-place/avoid-taking-non-target-objects level=2 stable_versions=4 calls=221 success=91 rate=41.2%
+[STABLE              ] pick-two-obj-and-place/confirm-object-identity-before-picking level=2 stable_versions=1 calls=78 success=25 rate=32.1%
+[MODIFIED            ] pick-two-obj-and-place/critical-rules-violating-any-means-failure level=2 stable_versions=0 calls=78 success=25 rate=32.1%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=12 calls=1595 success=1040 rate=65.2%
+[NEW                 ] pick-two-obj-and-place/multi-object-tracking level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/phase-1-first-object-counter-0 level=2 stable_versions=1 calls=221 success=91 rate=41.2%
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1 level=2 stable_versions=3 calls=221 success=91 rate=41.2%
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1/loop-detection-recovery level=3 stable_versions=2 calls=38 success=14 rate=36.8%
+[NEW                 ] pick-two-obj-and-place/phase-2-second-object-counter-1/mandatory-fresh-look-after-first-placement-unless-shortcut level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1/shortcut-only-if-multiple-copies-were-at-the-same-source level=3 stable_versions=4 calls=147 success=46 rate=31.3%
+[NEW                 ] pick-two-obj-and-place/systematic-search level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v77 -> v78) ---
+--- v77
++++ v78
+@@ -4,21 +4,23 @@
+ Place exactly two instances of a specified object type into a target receptacle. Stop only when counter == 2.
+ 
+ ## Critical Rules (violating any means failure)
+-- **Always start a search with `look`** to get a full list of furniture. Never move before looking.
++- **Always start the task with `look`** to get a full list of furniture. Never move before looking.
+ - **At every item**: if it is closed, open it before examining contents. Do not skip.
+-- **After placing the first object, you must immediately search for the second.** Do not stop or loop.
+-- **Never perform the same action twice in a row without moving** – that is a loop. Force a move to the next item on your search list.
++- **After placing the first object, your very next action must be `look`** (unless you saw multiple copies at the same source – then use the Shortcut). Do not go to any furniture before this look.
++- **Never perform the same action twice in a row without moving** – that is a loop. Force a move to the next item on your current search list.
++- **You must follow the search list exactly in order. Do not skip any furniture item**, even if you think it is unlikely to contain the target.
+ - **Subgoal tracking**: Constantly remind yourself of the current counter value (0 or 1). After each placement, increment counter and immediately start Phase 2.
+ 
+-### Multi-object tracking
++## Multi-object tracking
+ - **Counter starts at 0.** After each successful placement, increment counter. If counter == 2, stop. If counter < 2, you **must** continue searching for the next object.
+ - **After placing the first object (counter=1), your only goal is to find the second object.** Do not pause, look around, or inspect non-target furniture. Immediately transition to Phase 2 below.
+ - If you ever find yourself stuck (repeating the same action), re-read the goal: you need **two** objects. Use a fresh `look` to get a new search list and start moving.
+ 
+-### Systematic search
++## Systematic search
+ - **Initial `look` gives an ordered list of all furniture in the room.** That is your master search list. Visit **every** item in that exact order. Do not skip any.
+ - At each item: open if closed, examine contents, take target object if present. If you reach the end without finding the target, repeat the list **once more**. After two full passes, the object is absent – stop.
+ - **After placing the first object**, if you saw multiple copies at the same location, use the Shortcut path (see Phase 2). Otherwise, do **exactly one fresh `look`** to get a new search list and repeat the systematic search for the second object.
++- **Do not skip any furniture.** For example, if the target is a cup, you must check countertops, shelves, tables, and any other furniture on the list – not just cabinets. Every furniture item is a potential source.
+ - Do not stop searching until you have visited every item on the current list (or found the second target).
+ 
+ ## Confirm Object Identity Before Picking
+@@ -40,9 +42,9 @@
+ - **Condition:** You saw **more than one** instance of the target object at the exact location where you took the first one (e.g., multiple plates on the same table). If you saw only one copy there, do **not** use this shortcut.
+ - **Action:** Go back to that same location, take the next copy, go to the target receptacle, and place it. Counter becomes 2. Stop.
+ 
+-### Full Restart (Default Path) – Mandatory If Shortcut Not Applicable
+-- **Exactly one `look`** to get a fresh search list.
+-- Immediately go to the **first item** on that new list. Follow the **Systematic search** exactly to find the second target.
++### Mandatory Fresh Look After First Placement (unless Shortcut)
++- **If Shortcut does not apply, your very first action after placing the first object must be `look`.** This gives you a new, ordered list of furniture to search. Do not go to any furniture before this look.
++- After the look, immediately go to the **first item** on that new list. Follow the **Systematic search** exactly to find the second target.
+ - When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.
+ - If you complete two full passes of the fresh list without finding a second target, task impossible – stop.
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specified object type into a target receptacle. Stop only when counter == 2.
+
+## Critical Rules (violating any means failure)
+- **Always start the task with `look`** to get a full list of furniture. Never move before looking.
+- **At every item**: if it is closed, open it before examining contents. Do not skip.
+- **After placing the first object, your very next action must be `look`** (unless you saw multiple copies at the same source – then use the Shortcut). Do not go to any furniture before this look.
+- **Never perform the same action twice in a row without moving** – that is a loop. Force a move to the next item on your current search list.
+- **You must follow the search list exactly in order. Do not skip any furniture item**, even if you think it is unlikely to contain the target.
+- **Subgoal tracking**: Constantly remind yourself of the current counter value (0 or 1). After each placement, increment counter and immediately start Phase 2.
+
+## Multi-object tracking
+- **Counter starts at 0.** After each successful placement, increment counter. If counter == 2, stop. If counter < 2, you **must** continue searching for the next object.
+- **After placing the first object (counter=1), your only goal is to find the second object.** Do not pause, look around, or inspect non-target furniture. Immediately transition to Phase 2 below.
+- If you ever find yourself stuck (repeating the same action), re-read the goal: you need **two** objects. Use a fresh `look` to get a new search list and start moving.
+
+## Systematic search
+- **Initial `look` gives an ordered list of all furniture in the room.** That is your master search list. Visit **every** item in that exact order. Do not skip any.
+- At each item: open if closed, examine contents, take target object if present. If you reach the end without finding the target, repeat the list **once more**. After two full passes, the object is absent – stop.
+- **After placing the first object**, if you saw multiple copies at the same location, use the Shortcut path (see Phase 2). Otherwise, do **exactly one fresh `look`** to get a new search list and repeat the systematic search for the second object.
+- **Do not skip any furniture.** For example, if the target is a cup, you must check countertops, shelves, tables, and any other furniture on the list – not just cabinets. Every furniture item is a potential source.
+- Do not stop searching until you have visited every item on the current list (or found the second target).
+
+## Confirm Object Identity Before Picking
+- Re-read the target object name from the task description before each pick.
+- Only pick up an object whose name exactly matches the target type.
+- If unsure, use `look` to see the name.
+- If you accidentally take a wrong object, `drop` it immediately and continue search.
+
+## Phase 1 – First Object (counter = 0)
+- Execute the **Systematic search** to find and take the first target object.
+- After taking it, **go directly to the target receptacle**. Do not place anywhere else.
+- At the target receptacle: open if closed, then use `move` to place the object. Counter becomes 1.
+- **While holding the object, do not drop it, move it elsewhere, or interact with any other object.**
+
+## Phase 2 – Second Object (counter = 1)
+**Immediately after placing the first object, you must find and place the second. Do not stop.** Choose one of two paths:
+
+### Shortcut – Only If Multiple Copies Were at the Same Source
+- **Condition:** You saw **more than one** instance of the target object at the exact location where you took the first one (e.g., multiple plates on the same table). If you saw only one copy there, do **not** use this shortcut.
+- **Action:** Go back to that same location, take the next copy, go to the target receptacle, and place it. Counter becomes 2. Stop.
+
+### Mandatory Fresh Look After First Placement (unless Shortcut)
+- **If Shortcut does not apply, your very first action after placing the first object must be `look`.** This gives you a new, ordered list of furniture to search. Do not go to any furniture before this look.
+- After the look, immediately go to the **first item** on that new list. Follow the **Systematic search** exactly to find the second target.
+- When you find it, take it, go to the target receptacle, and place it. Counter becomes 2. Stop.
+- If you complete two full passes of the fresh list without finding a second target, task impossible – stop.
+
+### Loop Detection & Recovery
+- Two consecutive actions of the same type (e.g., `look`, `look` or `open`, `open`) without moving = loop.
+- Force a change: go to the next item on your current search list. If no list, do a fresh `look` and go to the first item.
+- Do not repeat the same action more than once without moving.
+
+## Avoid Taking Non-Target Objects
+- Only touch objects whose name exactly matches the target type.
+- If you hold an irrelevant object, drop it immediately and resume search.

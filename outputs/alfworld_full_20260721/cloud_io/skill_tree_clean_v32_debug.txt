@@ -1,0 +1,104 @@
+=== Skill Tree Debug — scope=clean  v32 (level=4, tree_depth=4, 11 nodes) ===
+action: refine
+critique: The agent did not follow the systematic search procedure described in the current tree: it skipped many closed containers (e.g., only opening 1–2 cabinets) and returned prematurely to countertops without ever picking up the target. The existing wording was not forceful enough to prevent early termination; the tree itself was not misleading, but it lacked explicit emphasis on exhaustive enumeration and a clear directive to not leave the search area until holding the object.
+changelog: Added a new subsection 'Exhaustive Container Search' under Phase 1 with explicit steps for listing all containers, opening each in order, and a rule to not move to cleaning until holding the target; also strengthened the self-check to warn against stopping early.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 10  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent failed to locate the tomato because it did not search all possible containers (cabinets, drawers, fridge) and returned to the starting location without finding the object. | evidence: After exploring countertop1, diningtables, sinkbasin, stoveburners, and cabinet1 (closed), it goes back to countertop1 without ever picking up a tomato. | fix: Before cleaning, systematically search all containers (cabinets, drawers, fridge) for the target object if not visible on countertops. | skill_tree_gap: Missing a systematic search strategy for objects not immediately visible in the initial area. | patch_location: ## clean -> new ### exhaustive object search
+- [inefficient_exploration] The agent did not locate the kettle because it only opened two cabinets and then gave up, missing other potential storage locations. | evidence: After opening cabinet1 (empty) and cabinet2 (plate1), it returns to countertop1 without having found a kettle. | fix: Search all cabinets and drawers before concluding the object is absent. | skill_tree_gap: Incomplete container search routine; the agent stopped after checking only a subset. | patch_location: ## clean -> new ### complete container search
+- [inefficient_exploration] The agent failed to find a plate because it only inspected two cabinets (both empty) and then stopped, ignoring many other cabinets. | evidence: After checking cabinet1 (nothing) and cabinet2 (nothing), it returns to countertop1 without having picked up any plate. | fix: Exhaustively open and inspect all cabinets and drawers in the room. | skill_tree_gap: The agent lacks a strategy to iterate over all storage containers systematically. | patch_location: ## clean -> new ### exhaustive cabinet search
+- [inefficient_exploration] The agent did not find a soapbar because it opened only three of the four cabinets, missing cabinet4 which likely contained the soapbar. | evidence: After opening cabinet1, cabinet2, cabinet3 (no soapbar), it goes back to countertop1 without checking cabinet4. | fix: Open and search every cabinet and drawer in the room before giving up. | skill_tree_gap: No systematic enumeration of all containers; the agent stopped prematurely. | patch_location: ## clean -> new ### visit all containers
+
+--- Node tree (per-node lifecycle, this version=v32) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=31 calls=686 success=553 rate=80.6%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=4 calls=686 success=553 rate=80.6%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=4 calls=686 success=553 rate=80.6%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object level=2 stable_versions=4 calls=79 success=70 rate=88.6%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-name-matching level=3 stable_versions=1 calls=79 success=70 rate=88.6%
+[STABLE              ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure level=3 stable_versions=1 calls=42 success=36 rate=85.7%
+[NEW                 ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure/exhaustive-container-search-must-cover-every-container level=4 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure/mandatory-order-open-surfaces-first-then-closed-containers level=4 stable_versions=0 calls=31 success=27 rate=87.1%
+[NEW                 ] clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-search-procedure/self-check-to-avoid-skipping level=4 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=1 calls=686 success=553 rate=80.6%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=4 calls=686 success=553 rate=80.6%
+
+--- Line diff vs previous version (v31 -> v32) ---
+--- v31
++++ v32
+@@ -22,11 +22,18 @@
+ - **Step 2 – All Closed Containers** (only after Step 1 is complete)
+   - Check cabinets, then drawers, then fridge, then microwave (if present).
+   - Open each, inspect contents. Do not skip any container type.
+-- **Step 3 – If still not found**, re-read the initial description to ensure you did not miss any open surface or closed container. Repeat Steps 1 and 2 systematically.
+ 
+-### Self-Check to Avoid Skipping
++#### Exhaustive Container Search (must cover every container)
++- After finishing open surfaces, **list every closed container you saw in the initial room description** (e.g., cabinet 1, cabinet 2, …, drawer 1, drawer 2, …).
++- Visit them **in any order, but do not leave any out**. Open each one with `open [container]`, then look inside (observation shows contents).
++- If the target is inside, pick it up. If not, move to the next container.
++- **Do not revisit containers you have already checked** unless you have finished all and still haven’t found the object. In that case, repeat the cycle.
++- **Never go to the cleaning source (sinkbasin, bathtubbasin) or any other location outside the search area until you are holding the target object.** That would waste time and break the systematic flow.
++
++#### Self-Check to Avoid Skipping
+ - If you ever find yourself moving between receptacles without a clear order, stop. List all receptacles you have seen and check off which ones you have visited. Do not proceed until you have a plan.
+ - The most common failure is jumping to closed containers before finishing open surfaces. Always finish Step 1 first.
++- Another common failure is stopping early (e.g., after checking only a few cabinets). Use the mental list to ensure you have opened **every** container before giving up.
+ 
+ ## Phase 2: Clean the Object
+ - **Prerequisite: You must be holding the target object.** If you are empty-handed, return to Phase 1.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- [cleaning_source] is a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Search and Acquire the Target Object
+- **This phase ends only when you are holding exactly the target object.** Do not attempt to clean or place until then.
+- If you are already holding something that is not the target, put it down immediately (e.g., `put [object] on/into [receptacle]`).
+
+### Object Name Matching
+- Compare the object name from the task with names in your observations. Only an exact string match counts.
+- Do not pick up similar items (e.g., cloth vs towel, pan vs pot). If the name differs, keep searching.
+
+### Systematic Search Procedure
+#### Mandatory order: open surfaces first, then closed containers
+- **Step 1 – All Open Surfaces** (e.g., countertops, tables, shelves, sinkbasins, bathtubbasins, stoveburners, etc.)
+  - Visit every individual instance listed in the room description. Do not skip any.
+  - At each, examine its contents. If you find the target, pick it up and proceed to Phase 2.
+  - **Do not move to Step 2 until every open receptacle instance has been visited.**
+- **Step 2 – All Closed Containers** (only after Step 1 is complete)
+  - Check cabinets, then drawers, then fridge, then microwave (if present).
+  - Open each, inspect contents. Do not skip any container type.
+
+#### Exhaustive Container Search (must cover every container)
+- After finishing open surfaces, **list every closed container you saw in the initial room description** (e.g., cabinet 1, cabinet 2, …, drawer 1, drawer 2, …).
+- Visit them **in any order, but do not leave any out**. Open each one with `open [container]`, then look inside (observation shows contents).
+- If the target is inside, pick it up. If not, move to the next container.
+- **Do not revisit containers you have already checked** unless you have finished all and still haven’t found the object. In that case, repeat the cycle.
+- **Never go to the cleaning source (sinkbasin, bathtubbasin) or any other location outside the search area until you are holding the target object.** That would waste time and break the systematic flow.
+
+#### Self-Check to Avoid Skipping
+- If you ever find yourself moving between receptacles without a clear order, stop. List all receptacles you have seen and check off which ones you have visited. Do not proceed until you have a plan.
+- The most common failure is jumping to closed containers before finishing open surfaces. Always finish Step 1 first.
+- Another common failure is stopping early (e.g., after checking only a few cabinets). Use the mental list to ensure you have opened **every** container before giving up.
+
+## Phase 2: Clean the Object
+- **Prerequisite: You must be holding the target object.** If you are empty-handed, return to Phase 1.
+- **Immediately after picking up the target, do not examine it or check inventory.** Go directly to [cleaning_source] (sinkbasin or bathtubbasin).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- If the destination is a closed container (e.g., microwave, fridge, drawer, cabinet), open it first.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends as soon as you have placed the clean object. Stop all other actions.
+- Do not continue searching or moving other objects.

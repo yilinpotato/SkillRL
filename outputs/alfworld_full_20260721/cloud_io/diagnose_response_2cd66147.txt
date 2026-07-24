@@ -1,0 +1,81 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "wrong_target",
+    "root_cause": "Agent picked up a pan instead of the required pot, then stopped without cleaning or placing.",
+    "evidence": "take pan 1 from diningtable 1",
+    "corrective_rule": "Only take the exact object type specified in the task; do not pick up similar objects.",
+    "skill_tree_gap": "Lack of object type verification before taking an object.",
+    "patch_location": "Under 'clean' task, add a new subsection '### Object verification before pick'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate the soapbar because it only searched cabinets and did not explore drawers or other surfaces.",
+    "evidence": "After opening all cabinets, it returns to countertop1 without finding soapbar.",
+    "corrective_rule": "Systematically search all surface types (countertops, drawers, shelves) and containers when looking for an object.",
+    "skill_tree_gap": "Incomplete search strategy; missing coverage of all possible object locations.",
+    "patch_location": "Under 'clean' task, add a new subsection '### Systematic search procedure'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate a spoon because it did not search drawers or other receptacles, only cabinets and countertops.",
+    "evidence": "After exploring cabinets, it returns to diningtable1 without ever seeing a spoon.",
+    "corrective_rule": "Expand search to include drawers, sinkbasin, and any other possible containers or surfaces.",
+    "skill_tree_gap": "Object search does not cover all receptacle types.",
+    "patch_location": "Under 'clean' task, add a new subsection '### Systematic search procedure'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent missed countertops (2 and 3) where a pot typically appears, instead wandering to dining tables and sidetables without finding a pot.",
+    "evidence": "Never encountered a pot in any visited location; last explored diningtable2.",
+    "corrective_rule": "When searching for a specific object, first visit all countertops and common surfaces before moving to other furniture.",
+    "skill_tree_gap": "Lack of prioritized search order for object types.",
+    "patch_location": "Under 'cool' task, add a new subsection '### Object search order'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate a cup because it did not check drawers, sinkbasin, or other containers after surveying countertops and cabinets.",
+    "evidence": "After visiting many locations, no cup was seen; last action opens cabinet2 with no object picked.",
+    "corrective_rule": "Always include drawers, sinkbasin, and garbagecan in the search for small objects.",
+    "skill_tree_gap": "Search routine does not include all possible container types.",
+    "patch_location": "Under 'heat' task, add a new subsection '### Object search expansion'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#1",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate a mug because it only searched a few surfaces and did not open drawers or check the sinkbasin.",
+    "evidence": "After going to cabinet3 without opening, no mug was ever seen or taken.",
+    "corrective_rule": "Thoroughly explore all surface types and open all containers during object search.",
+    "skill_tree_gap": "Insufficient breadth of search locations.",
+    "patch_location": "Under 'heat' task, add a new subsection '### Object search expansion'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent searched many shelves but never opened drawers or checked other furniture like bed or desk, missing the book.",
+    "evidence": "After going through shelves, goes to drawer1 but does not open it; no book found.",
+    "corrective_rule": "Open all drawers, cabinets, and other containers when searching for an object.",
+    "skill_tree_gap": "Search does not include container opening as a standard step.",
+    "patch_location": "Under 'pick_and_place' task, add a new subsection '### Search including containers'",
+    "confidence": 0.9
+  }
+]
+```

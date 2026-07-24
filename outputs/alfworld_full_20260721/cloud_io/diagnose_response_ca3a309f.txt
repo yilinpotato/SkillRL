@@ -1,0 +1,46 @@
+[
+  {
+    "traj_ref": "look_at_obj_in_light#0",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate the laptop because it did not search all receptacles before or after turning on the desklamp.",
+    "evidence": "After turning on the desklamp, it went to garbagecan and shelves, none contained a laptop.",
+    "corrective_rule": "Before using the desklamp, systematically explore all receptacles to find the target object.",
+    "skill_tree_gap": "Lack of a standard exploration routine for locating target objects in look_at_obj_in_light tasks.",
+    "patch_location": "Under '## look_at_obj_in_light', add a new subsection '### Search for target object first'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not find a winebottle because it only searched cabinets and drawers, missing the fridge and other potential locations.",
+    "evidence": "The agent visited diningtable, countertops, cabinets, sinkbasin, drawers but never checked fridge 1 or microwave 1.",
+    "corrective_rule": "When tasked to place an object, first locate the object by searching all receptacles in the room, including fridge and microwave.",
+    "skill_tree_gap": "Missing systematic search of all container types for pick_and_place tasks.",
+    "patch_location": "Under '## pick_and_place', add a new subsection '### Systematic search for target object'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a cellphone because it only searched shelves and one drawer, ignoring bed, dresser, and other drawers.",
+    "evidence": "The agent went to shelves 1-5 and drawer 1, but the cellphone could be on bed 1 or dresser 1.",
+    "corrective_rule": "Search all receptacles including bed, dresser, and all drawers.",
+    "skill_tree_gap": "Incomplete exploration strategy for pick_and_place tasks with many receptacles.",
+    "patch_location": "Under '## pick_and_place', add a new subsection '### Exhaustive receptacle search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find any glassbottle because it only searched cabinets, ignoring countertops and fridge.",
+    "evidence": "The agent opened cabinets 9 through 4 but never visited countertop 1, 2, 3 or fridge 1.",
+    "corrective_rule": "For two-object tasks, search all potential locations including countertops and fridge.",
+    "skill_tree_gap": "Lack of comprehensive search for multiple objects in pick_two_obj_and_place.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Search all possible container locations'.",
+    "confidence": 0.9
+  }
+]

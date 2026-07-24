@@ -1,0 +1,112 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate a soapbar because it only examined surfaces of drawers without opening them, and did not search other containers like the fridge.",
+    "evidence": "Actions: examine drawer 2, examine drawer 3, examine drawer 4 – never opened any drawer.",
+    "corrective_rule": "When searching for an object, open all containers (cabinets, drawers, fridge) rather than just examining their surfaces.",
+    "skill_tree_gap": "Lacks a systematic container-opening search strategy for finding objects.",
+    "patch_location": "## clean → new subsection ### Open containers when searching",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent restricted search to cabinets only and never attempted to go to the fridge where eggs are typically located.",
+    "evidence": "After opening several cabinets without finding an egg, they never went to fridge.",
+    "corrective_rule": "For perishable items like eggs, prioritize checking the fridge.",
+    "skill_tree_gap": "Missing domain knowledge about common object locations (fridge for food).",
+    "patch_location": "## clean → new subsection ### Prioritize fridge for food items",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not search the fridge for lettuce, instead only examined cabinets and surfaces.",
+    "evidence": "They opened cabinets 5 and 6 but never went to fridge.",
+    "corrective_rule": "Always check the fridge for food items like lettuce.",
+    "skill_tree_gap": "Missing domain knowledge about common object locations (fridge for food).",
+    "patch_location": "## clean → new subsection ### Prioritize fridge for food items",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to find a bowl because it looked only at surfaces and did not open cabinets or drawers that might contain a bowl.",
+    "evidence": "After opening fridge and seeing no bowl, they went to cabinet 1 but did not open it; cabinet 1 remained closed.",
+    "corrective_rule": "Open all cabinets and drawers when searching for an object, not just look at surfaces.",
+    "skill_tree_gap": "Lacks systematic container search for objects.",
+    "patch_location": "## cool → new subsection ### Open containers when searching",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not find a plate because it only observed surfaces of cabinets 1 and 2 without opening them.",
+    "evidence": "After going to cabinet 1 and cabinet 2, they only saw soapbottle on surface and nothing on cabinet 2, but never opened them.",
+    "corrective_rule": "Open containers to see inside; do not rely only on surface observations.",
+    "skill_tree_gap": "Lacks systematic container search for objects.",
+    "patch_location": "## cool → new subsection ### Open containers when searching",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#0",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not locate the book because it never visited desk 2, where the book was located.",
+    "evidence": "After using desklamp on desk 1, they searched many shelves but never went to desk 2.",
+    "corrective_rule": "When searching for a specific object mentioned in the task, check all locations with that object's type (e.g., all desks) before exploring less relevant places.",
+    "skill_tree_gap": "Lacks systematic navigation to all named locations.",
+    "patch_location": "## look_at_obj_in_light → new subsection ### Search all relevant locations",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one soapbar (none found) and then stopped; it opened only four drawers and did not search remaining containers for the required two soapbars.",
+    "evidence": "After opening drawers 1-4 and finding nothing, they returned to sinkbasin and countertop without further search.",
+    "corrective_rule": "When the task requires multiple items, continue searching all containers until the required count is obtained.",
+    "skill_tree_gap": "Lacks multi-object search persistence.",
+    "patch_location": "## pick_two_obj_and_place → new subsection ### Multi-object search continuation",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one candle in cabinet but failed to find the second candle, only checking a few locations before stopping.",
+    "evidence": "After placing first candle, they only looked at countertop 2 and cabinets 2-3, then stopped.",
+    "corrective_rule": "After placing one item, resume searching for the second item across all possible locations.",
+    "skill_tree_gap": "Lacks multi-object search persistence.",
+    "patch_location": "## pick_two_obj_and_place → new subsection ### Multi-object search continuation",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one candle in drawer but did not find a second candle, only searching a few empty drawers and then giving up.",
+    "evidence": "After placing first candle, they opened drawers 2 and 3 (empty), then moved to handtowelholder and countertop without finding another candle.",
+    "corrective_rule": "Continue searching all containers and surfaces until a second candle is found.",
+    "skill_tree_gap": "Lacks multi-object search persistence.",
+    "patch_location": "## pick_two_obj_and_place → new subsection ### Multi-object search continuation",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed one toiletpaper in toilet but could not find a second toiletpaper, only searching a limited set of locations.",
+    "evidence": "After placing first toiletpaper, they checked shelf 2 (empty), sinkbasin, countertop, drawer 1 (found candle), then went to toiletpaperhanger and handtowelholder without finding second toiletpaper.",
+    "corrective_rule": "Exhaustively search all containers and surfaces for the second toiletpaper.",
+    "skill_tree_gap": "Lacks multi-object search persistence.",
+    "patch_location": "## pick_two_obj_and_place → new subsection ### Multi-object search continuation",
+    "confidence": 0.95
+  }
+]

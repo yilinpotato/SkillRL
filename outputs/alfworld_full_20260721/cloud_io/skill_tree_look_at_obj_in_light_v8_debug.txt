@@ -1,0 +1,62 @@
+=== Skill Tree Debug — scope=look_at_obj_in_light  v8 (level=3, tree_depth=3, 5 nodes) ===
+action: refine
+critique: The agent followed the tree's general phases but failed to systematically search all common furniture types (e.g., bed, sofa), likely because 'surface receptacles' was too vague. The tree's wording did not mislead, but it lacked sufficient specificity to prevent inefficient exploration.
+changelog: Added a 'Search Strategy' subsection under Phase 2 with a prioritized furniture list and a rule against opening drawers, based on failure diagnoses showing missing coverage of beds and sofas.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 8  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent failed to find a book because it did not search the bed, a likely location for a book. | evidence: After exploring desk, dresser, shelf, and drawers, it did not go to the bed (which was present in initial observation). | fix: When book not found, check the bed. | skill_tree_gap: Missing bed in search plan for look_at_obj_in_light. | patch_location: ## look_at_obj_in_light -> ### Search Strategy for Target Objects
+- [inefficient_exploration] The agent failed to find a book because it only searched shelves and a drawer, missing the bed and desk where books are often found. | evidence: After turning on lamp, it checked shelves (empty) and a drawer (closed), but never visited the bed or desk. | fix: Search the bed and desk when looking for a book. | skill_tree_gap: Missing systematic search covering all furniture types. | patch_location: ## look_at_obj_in_light -> ### Search Strategy for Target Objects
+- [inefficient_exploration] The agent failed to find a laptop because it did not search the bed or desk (laptop likely on desk). | evidence: After turning on lamp, it visited sidetables and dresser, but never checked the desk (which had no laptop in initial observation but could have been overlooked) or bed. | fix: When laptop not found, check the desk and bed. | skill_tree_gap: Missing specific search pattern for laptops. | patch_location: ## look_at_obj_in_light -> ### Search Strategy for Target Objects
+- [inefficient_exploration] The agent failed to find a newspaper because it did not search the sofa or desk where newspapers are often placed. | evidence: After exploring coffeetables, dressers, drawer, and ottoman, it never visited the sofa or desk. | fix: Search the sofa and desk when looking for a newspaper. | skill_tree_gap: Missing furniture coverage for newspaper search. | patch_location: ## look_at_obj_in_light -> ### Search Strategy for Target Objects
+
+--- Node tree (per-node lifecycle, this version=v8) ---
+[STABLE              ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp level=1 stable_versions=7 calls=207 success=195 rate=94.2%
+[STABLE              ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp level=2 stable_versions=1 calls=12 success=8 rate=66.7%
+[MODIFIED            ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object level=2 stable_versions=0 calls=12 success=8 rate=66.7%
+[NEW                 ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/search-strategy-for-target-objects level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-3-completion level=2 stable_versions=1 calls=12 success=8 rate=66.7%
+
+--- Line diff vs previous version (v7 -> v8) ---
+--- v7
++++ v8
+@@ -7,8 +7,13 @@
+ - Important: You may encounter the target object before finding the lamp. If that happens, remember where it is and continue searching for the lamp. Do **not** take the object until the lamp is on.
+ 
+ ## Phase 2: Locate and take the target object
+-- After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then move to other surface receptacles one by one.
+-- Move to each receptacle (go to <receptacle>) and examine its contents. When you see the target object, take it (action: take <object> from <receptacle>).
++- After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then systematically move to other likely receptacles.
++
++### Search Strategy for Target Objects
++- Check receptacles in this priority order: desk, bed, dresser, sidetable, coffeetable, sofa, shelf, and any other surface you haven't visited.
++- Do **not** open drawers or cabinets; the target is always on an open surface (bed, desk, sofa, etc.). Opening unnecessary containers wastes steps.
++- When you arrive at a receptacle, read its contents (the observation lists items on it). If you see the target object, take it (action: take <object> from <receptacle>).
++- If you do not see the target, move to the next receptacle on the list. Continue until the target is found.
+ - If you already knew the target's location from earlier, go directly there and take it.
+ - The object is now in your inventory.
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Examine a target object using a light source (e.g., desklamp)
+
+## Phase 1: Find and turn on the desklamp
+- Search the surfaces you can see at your current location for a desklamp. If you see one, note its location and move there if necessary.
+- If no desklamp is visible, move to another surface receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) and check its contents. Continue moving among receptacles until you find a desklamp.
+- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.
+- Important: You may encounter the target object before finding the lamp. If that happens, remember where it is and continue searching for the lamp. Do **not** take the object until the lamp is on.
+
+## Phase 2: Locate and take the target object
+- After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then systematically move to other likely receptacles.
+
+### Search Strategy for Target Objects
+- Check receptacles in this priority order: desk, bed, dresser, sidetable, coffeetable, sofa, shelf, and any other surface you haven't visited.
+- Do **not** open drawers or cabinets; the target is always on an open surface (bed, desk, sofa, etc.). Opening unnecessary containers wastes steps.
+- When you arrive at a receptacle, read its contents (the observation lists items on it). If you see the target object, take it (action: take <object> from <receptacle>).
+- If you do not see the target, move to the next receptacle on the list. Continue until the target is found.
+- If you already knew the target's location from earlier, go directly there and take it.
+- The object is now in your inventory.
+
+## Phase 3: Completion
+- The task is complete once the target object is in your inventory and the desklamp is on. No further action is required.

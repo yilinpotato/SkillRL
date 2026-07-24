@@ -1,0 +1,137 @@
+=== Skill Tree Debug — scope=clean  v66 (level=3, tree_depth=3, 19 nodes) ===
+action: refine
+critique: The agent followed parts of the tree but failed to systematically search all open surfaces, often skipping countertops and moving to cabinets early. The tree's ambiguous phrase 'examine its contents' may have misled the agent into using the wasteful 'examine' action. The new refinement removes that ambiguity and adds a strong warning about skipping open surfaces, plus an explicit starting step to use 'look' for a full receptacle list.
+changelog: Renamed '## Search Phase' to '## Exploration Skills'; added a critical starting step to use 'look' for a full checklist; clarified inside the search order to 'read the observation' instead of 'examine'; added a new subsection '### Common Mistake: Skipping Open Surfaces' to reinforce the mandatory order; and adjusted Navigation to emphasize the initial 'look' for the receptacle list.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 9  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never located a plate because it only searched countertops 1-2 and diningtable 1, then wasted actions on empty cabinets rather than exploring other likely locations like countertop 3, fridge, or sinkbasin. | evidence: After 'go to diningtable 1' (no plate found), next actions were 'go to stoveburner 1' through 'open cabinet 3' – none of which led to a plate. | fix: When the target object is not found at the current location, systematically visit all receptacles (countertops, fridge, sinkbasin, cabinets, etc.) before repeating or giving up. | skill_tree_gap: Missing a systematic search routine that enumerates all possible object locations for the given task type. | patch_location: ## Exploration Skills
+- [inefficient_exploration] The agent never found an apple because it visited only countertops 1-2, stoveburners, garbagecan, sinkbasin, fridge, and a few cabinets – but did not check countertop 3, 4, or diningtable where apples often appear. | evidence: After 'open fridge 1' (no apple inside), the agent went to 'cabinet 1', 'cabinet 2', 'cabinet 3' instead of exploring other counters. | fix: After checking the fridge and immediate counters, continue to all remaining countertops and the diningtable before opening cabinets. | skill_tree_gap: Lack of a priority-ordered search: counters first, then fridge, then other receptacles. | patch_location: ## Exploration Skills
+
+--- Node tree (per-node lifecycle, this version=v66) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=65 calls=1300 success=1102 rate=84.8%
+[STABLE              ] clean-task-skill-tree/cleaning-phase     level=2 stable_versions=7 calls=103 success=91 rate=88.3%
+[STABLE              ] clean-task-skill-tree/cleaning-phase/clean-immediately level=3 stable_versions=7 calls=103 success=91 rate=88.3%
+[STABLE              ] clean-task-skill-tree/cleaning-phase/go-to-cleaning-source level=3 stable_versions=1 calls=103 success=91 rate=88.3%
+[STABLE              ] clean-task-skill-tree/cleaning-phase/prerequisite-you-must-be-holding-the-target-object level=3 stable_versions=7 calls=103 success=91 rate=88.3%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=26 calls=1300 success=1102 rate=84.8%
+[STABLE              ] clean-task-skill-tree/critical-rules-must-be-followed-without-exception level=2 stable_versions=2 calls=504 success=454 rate=90.1%
+[NEW                 ] clean-task-skill-tree/exploration-skills level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/exploration-skills/common-mistake-skipping-open-surfaces level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/exploration-skills/critical-starting-step level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/exploration-skills/exhaustive-search-rule level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/exploration-skills/goal-find-the-target-object level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/exploration-skills/order-of-search level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/exploration-skills/search-phase level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=2 calls=1300 success=1102 rate=84.8%
+[STABLE              ] clean-task-skill-tree/navigation         level=2 stable_versions=4 calls=63 success=58 rate=92.1%
+[MODIFIED            ] clean-task-skill-tree/navigation/using-the-observation-for-navigation level=3 stable_versions=0 calls=63 success=58 rate=92.1%
+[STABLE              ] clean-task-skill-tree/navigation/verify-target-location-reachability level=3 stable_versions=1 calls=63 success=58 rate=92.1%
+[STABLE              ] clean-task-skill-tree/placement-phase    level=2 stable_versions=4 calls=103 success=91 rate=88.3%
+
+--- Line diff vs previous version (v65 -> v66) ---
+--- v65
++++ v66
+@@ -18,20 +18,29 @@
+ 
+ ### Using the Observation for Navigation
+ - The `look` command gives a list of all receptacles in the current room (the full set you can move to). Always use it as a fresh map when you lose orientation.
++- **At the start of the episode**, after the initial move (e.g., to countertop 1), use `look` to obtain a complete list of all receptacles in the room. This list is your master checklist for systematic search.
+ - If a `go to` action produces an unexpected arrival location, treat it as a navigation error: stop the search sequence, use `look` to see your actual location, and plan a valid path to the intended target before continuing.
+ 
+-## Search Phase
++## Exploration Skills
++### Critical Starting Step
++- **Before any searching**, use `look` to record every receptacle in the room. Write them down mentally in two categories: open surfaces and closed containers. This checklist is the only reliable way to avoid missing a location.
++
++### Search Phase
+ ### Goal: Find the target object
+ - You must visit **every** receptacle in the current room until the target is found. Never assume a receptacle is empty without checking.
+-- Maintain a mental checklist of all receptacles from the initial `look` output. Work through them systematically.
++- Maintain your mental checklist and work through it systematically.
+ 
+ ### Order of Search
+-1. **Open surfaces** first: countertops, diningtables, stoveburners, shelves, garbagecan, handtowelholder, towelholder, sinkbasin, bathtubbasin, carts, and any other receptacle that is not a closed container. Visit each one exactly once. At each, examine its contents. If the target is present (verify name), pick it up and exit to Cleaning Phase. If not, move immediately to the next open surface. Do not look, examine, or perform any other action between open surfaces.
++1. **Open surfaces** first: countertops, diningtables, stoveburners, shelves, garbagecan, handtowelholder, towelholder, sinkbasin, bathtubbasin, carts, and any other receptacle that is not a closed container. Visit each one exactly once. At each location, **read the observation** (it will show contents automatically) – do NOT use the `examine` action. If the target is present (verify name), pick it up and exit to Cleaning Phase. If not, move immediately to the next open surface. Do not look, examine, or perform any other action between open surfaces. You must complete **all** open surfaces before moving to any closed container.
+    - **Cleaning sources (sinkbasin, bathtubbasin) are open surfaces and must be visited** – but follow Critical Rule 1.
+ 2. **Closed containers** after all open surfaces: cabinets, drawers, fridge, microwave, oven, etc. (any receptacle that requires opening).
+    - **For food targets** (e.g., lettuce, potato, tomato, apple, bread, egg): open fridge first, then cabinets, then drawers, then microwave, then oven, then other closed containers (e.g., coffeemachine if openable).
+    - **For non-food targets**: open cabinets first (numerical order if numbered), then drawers, then fridge, then microwave, then oven, then other closed containers.
+-   - At each closed container: `open [container]`. Look inside. If the target is inside, take it and exit to Cleaning Phase. If not, close the container (if possible) and **immediately** go to the next container in the prescribed order. Do not perform any other action between containers. Do not skip any container.
++   - At each closed container: `open [container]`. **Read the observation** to see what is inside – do NOT use `examine`. If the target is inside, take it and exit to Cleaning Phase. If not, close the container (if possible) and **immediately** go to the next container in the prescribed order. Do not perform any other action between containers. Do not skip any container.
++
++### Common Mistake: Skipping Open Surfaces
++- **Do not move to any closed container unless every open surface in the room has been visited.** This is the most frequent cause of failure. If you find yourself at a cabinet or drawer before checking all countertops, diningtables, sinkbasin, stoveburners, and other open surfaces, you are making a mistake. Immediately return to the open surface list.
++- If you ever use `examine` or `look` during the search phase (except at the very start or after a navigation error), you are wasting actions. The observation after moving or opening already shows everything you need.
+ 
+ ### Exhaustive Search Rule
+ - If you have checked all open surfaces and all closed containers and still have not found the target, **repeat the entire search cycle** (open surfaces again, then closed containers). This is rare but possible. Never stop searching until the target is found.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned at a sinkbasin or bathtubbasin before placing at [destination].
+
+## Critical Rules (must be followed without exception)
+1. **Never stay at or interact with the cleaning source unless you are holding the target object or you are searching for it there.** If you arrive at the cleaning source during search, immediately check whether the target is present. If yes, pick it up and proceed to the Cleaning Phase (you are already at the source). If not, leave immediately and resume the search. Do not clean, place, or examine unrelated items while there.
+2. **Once you are holding the target object, do not put it down, look, examine, inventory, or interact with any other object until after you have cleaned it and placed it at the destination. The only allowed actions while holding the target are: moving to the cleaning source, cleaning it, moving to the destination, and placing it.**
+3. **Do not go to the destination receptacle until after cleaning.**
+4. **Before picking any object, verify its name matches the target exactly.** If the name differs (e.g., "handtowel" vs "cloth"), do not pick it up.
+5. **If you are not holding the target object, you must be searching. Do not clean or place anything until you are holding the correct object.**
+
+## Navigation
+### Verify Target Location Reachability
+- Before issuing `go to [location]`, check the current observation (or use `look` if uncertain) to see if that location is listed as reachable. If not, do not attempt the move; instead, find an intermediate location that is reachable and proceed step by step.
+- After a move, **confirm you arrived at the intended location** by checking that the observation text contains "You arrive at [location]" or explicitly names the location you intended. If the observation shows a different location, the move did not work — reassess your current location and try an alternative route or use `look` to rediscover the graph.
+
+### Using the Observation for Navigation
+- The `look` command gives a list of all receptacles in the current room (the full set you can move to). Always use it as a fresh map when you lose orientation.
+- **At the start of the episode**, after the initial move (e.g., to countertop 1), use `look` to obtain a complete list of all receptacles in the room. This list is your master checklist for systematic search.
+- If a `go to` action produces an unexpected arrival location, treat it as a navigation error: stop the search sequence, use `look` to see your actual location, and plan a valid path to the intended target before continuing.
+
+## Exploration Skills
+### Critical Starting Step
+- **Before any searching**, use `look` to record every receptacle in the room. Write them down mentally in two categories: open surfaces and closed containers. This checklist is the only reliable way to avoid missing a location.
+
+### Search Phase
+### Goal: Find the target object
+- You must visit **every** receptacle in the current room until the target is found. Never assume a receptacle is empty without checking.
+- Maintain your mental checklist and work through it systematically.
+
+### Order of Search
+1. **Open surfaces** first: countertops, diningtables, stoveburners, shelves, garbagecan, handtowelholder, towelholder, sinkbasin, bathtubbasin, carts, and any other receptacle that is not a closed container. Visit each one exactly once. At each location, **read the observation** (it will show contents automatically) – do NOT use the `examine` action. If the target is present (verify name), pick it up and exit to Cleaning Phase. If not, move immediately to the next open surface. Do not look, examine, or perform any other action between open surfaces. You must complete **all** open surfaces before moving to any closed container.
+   - **Cleaning sources (sinkbasin, bathtubbasin) are open surfaces and must be visited** – but follow Critical Rule 1.
+2. **Closed containers** after all open surfaces: cabinets, drawers, fridge, microwave, oven, etc. (any receptacle that requires opening).
+   - **For food targets** (e.g., lettuce, potato, tomato, apple, bread, egg): open fridge first, then cabinets, then drawers, then microwave, then oven, then other closed containers (e.g., coffeemachine if openable).
+   - **For non-food targets**: open cabinets first (numerical order if numbered), then drawers, then fridge, then microwave, then oven, then other closed containers.
+   - At each closed container: `open [container]`. **Read the observation** to see what is inside – do NOT use `examine`. If the target is inside, take it and exit to Cleaning Phase. If not, close the container (if possible) and **immediately** go to the next container in the prescribed order. Do not perform any other action between containers. Do not skip any container.
+
+### Common Mistake: Skipping Open Surfaces
+- **Do not move to any closed container unless every open surface in the room has been visited.** This is the most frequent cause of failure. If you find yourself at a cabinet or drawer before checking all countertops, diningtables, sinkbasin, stoveburners, and other open surfaces, you are making a mistake. Immediately return to the open surface list.
+- If you ever use `examine` or `look` during the search phase (except at the very start or after a navigation error), you are wasting actions. The observation after moving or opening already shows everything you need.
+
+### Exhaustive Search Rule
+- If you have checked all open surfaces and all closed containers and still have not found the target, **repeat the entire search cycle** (open surfaces again, then closed containers). This is rare but possible. Never stop searching until the target is found.
+
+## Cleaning Phase
+### Prerequisite: You must be holding the target object
+- If empty-handed, return to Search Phase. If holding a different object, put it down first then return to Search Phase.
+
+### Go to Cleaning Source
+- Once holding the target, immediately go to the cleaning source (sinkbasin or bathtubbasin). Use Navigation rules to ensure you reach it correctly. If you are already there (from search), proceed directly to cleaning.
+- **Do not perform any other action (look, examine, inventory, or move elsewhere) while en route or after arriving. Only clean.**
+
+### Clean Immediately
+- **Upon arrival at the cleaning source, the only valid next action is `clean [object] with [cleaning_source]`.** Do NOT look, examine, inventory, or move anywhere else. If you ever arrive at the cleaning source and are not immediately cleaning, you have made a mistake. Correct it by performing the clean action now.
+- Confirm the observation says "You clean the [object] using the [cleaning_source]." Only then proceed to Placement Phase.
+
+## Placement Phase
+- Go to the destination receptacle (use Navigation rules). If it is a closed container, open it first.
+- Use `move [object] to [destination]`.
+- Confirm the object is now at the destination (observation will indicate placement).
+
+## Completion
+- Stop as soon as you have placed the clean object. Do not continue.

@@ -1,0 +1,115 @@
+=== Skill Tree Debug — scope=cool  v13 (level=4, tree_depth=4, 12 nodes) ===
+action: refine
+critique: The agent partially followed the skill tree but deviated from the mandatory flat-surface order (skipped shelves and stoveburners before fridge) and used 'examine' instead of 'open' to see inside a closed receptacle, causing the search to fail. The skill tree's wording was clarified to emphasize the exact action needed and the strictness of the search order.
+changelog: Refined the systematic search procedure to reinforce mandatory flat-surface order, explicitly state that 'open' is the correct action for closed receptacles, and add emphasis on continuing until all receptacles are checked.
+consensus prefix (folded, not re-taught this round): go to countertop 1
+n_success this round: 11  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent visited many locations but never searched drawers or additional cabinets, so it never found a tomato. | evidence: After examining cabinet 1 and countertop 1, the trajectory ends with no tomato in sight. | fix: Systematically search all receptacles in the room if the target object is not found in the first few locations. | skill_tree_gap: Missing a complete search procedure for objects that may be in less obvious places. | patch_location: ## cool / ### Object search strategy (new subsection)
+
+--- Node tree (per-node lifecycle, this version=v13) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=12 calls=189 success=153 rate=81.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=5 calls=189 success=153 rate=81.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool level=2 stable_versions=9 calls=189 success=153 rate=81.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/if-target-still-not-found-search-closed-receptacles-starting-with-the-fridge level=3 stable_versions=2 calls=78 success=72 rate=92.3%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/if-target-still-not-found-search-closed-receptacles-starting-with-the-fridge/systematic-search-of-all-other-closed-receptacles level=4 stable_versions=0 calls=49 success=45 rate=91.8%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/initial-assessment level=3 stable_versions=3 calls=78 success=72 rate=92.3%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-search-of-open-flat-surfaces-mandatory-order level=3 stable_versions=0 calls=100 success=89 rate=89.0%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-search-of-open-flat-surfaces-mandatory-order/exhaustive-enumeration-of-all-flat-surfaces level=4 stable_versions=0 calls=93 success=84 rate=90.3%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object level=2 stable_versions=5 calls=189 success=153 rate=81.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object/immediately-cool-after-picking-mandatory level=3 stable_versions=5 calls=126 success=107 rate=84.9%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-3-cool-the-object-using-the-fridge level=2 stable_versions=3 calls=189 success=153 rate=81.0%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-4-move-the-cooled-object-to-the-target-location level=2 stable_versions=5 calls=189 success=153 rate=81.0%
+
+--- Line diff vs previous version (v12 -> v13) ---
+--- v12
++++ v13
+@@ -9,6 +9,7 @@
+ 
+ ### Systematic search of open flat surfaces (mandatory order)
+ - The target is often on a flat surface (countertop, diningtable, sidetable, shelf, sinkbasin, stoveburner). Do not open closed receptacles until every flat surface has been checked.
++- **You must check every flat surface listed in the room description in this exact order, without skipping any.**
+ 
+ #### Exhaustive enumeration of all flat surfaces
+ - List all flat surface types from the room description: countertops, diningtables, sidetables, shelves, sinkbasin, stoveburners.
+@@ -17,7 +18,7 @@
+   1. Go to it.
+   2. Read the observation. If the target is present, take it immediately using `take <object> from <location>`.
+   3. If not, move to the next without extra actions.
+-- **Do not skip any flat surface.**
++- **Do not skip any flat surface, even if you have visited it earlier for another reason.**
+ 
+ ### If target still not found: search closed receptacles, starting with the fridge
+ - After every open flat surface has been checked, search closed receptacles. The fridge is both a likely hiding place for the object (if it needs cooling) and the appliance you will use to cool it. **Always check the fridge first among closed containers.**
+@@ -30,9 +31,9 @@
+ - After checking the fridge, identify every remaining closed receptacle from the room description: cabinets, drawers, microwave (any numbered instances of each type). **Do not stop after a few; you must check every numbered instance.**
+ - For each numbered instance:
+   1. Go to it.
+-  2. **Always open the receptacle, regardless of what you see on its top surface.** The top surface is separate from the interior. Only by opening can you see what is inside.
++  2. **Use the `open` action to open the receptacle** (do not use 'examine' or 'look' alone—only 'open' reveals the interior contents). The observation will then show what is inside.
+   3. If it is closed, open it.
+-  4. Look at its contents. If target present, take it.
++  4. Read the observation. If the target is present, take it.
+   5. If not, proceed to the next instance.
+ - **Do not skip any numbered instance of any closed receptacle type.** If one cabinet is empty, continue to the next cabinet. Only stop when you have checked every instance listed in the room description.
+ - If after all that the object is still not found, re-read the room description to ensure you have not overlooked any receptacle.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Sub-goal 1: Find the object to cool.
+- The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.
+
+### Initial assessment
+- Start by reading the room description from the `look` command. It lists all receptacles with their numbers.
+- Do not assume any receptacle contents are known until you have explicitly looked inside.
+
+### Systematic search of open flat surfaces (mandatory order)
+- The target is often on a flat surface (countertop, diningtable, sidetable, shelf, sinkbasin, stoveburner). Do not open closed receptacles until every flat surface has been checked.
+- **You must check every flat surface listed in the room description in this exact order, without skipping any.**
+
+#### Exhaustive enumeration of all flat surfaces
+- List all flat surface types from the room description: countertops, diningtables, sidetables, shelves, sinkbasin, stoveburners.
+- Visit each numbered instance in order: all countertops first, then diningtables, then sidetables, then shelves, then sinkbasin, then stoveburners.
+- For each:
+  1. Go to it.
+  2. Read the observation. If the target is present, take it immediately using `take <object> from <location>`.
+  3. If not, move to the next without extra actions.
+- **Do not skip any flat surface, even if you have visited it earlier for another reason.**
+
+### If target still not found: search closed receptacles, starting with the fridge
+- After every open flat surface has been checked, search closed receptacles. The fridge is both a likely hiding place for the object (if it needs cooling) and the appliance you will use to cool it. **Always check the fridge first among closed containers.**
+  1. Go to the fridge.
+  2. If it is closed, open it.
+  3. Look at its contents. If the target is present, take it. (You are already at the fridge; you can go straight to cooling.)
+  4. If not, move on to other closed receptacles.
+
+#### Systematic search of all other closed receptacles
+- After checking the fridge, identify every remaining closed receptacle from the room description: cabinets, drawers, microwave (any numbered instances of each type). **Do not stop after a few; you must check every numbered instance.**
+- For each numbered instance:
+  1. Go to it.
+  2. **Use the `open` action to open the receptacle** (do not use 'examine' or 'look' alone—only 'open' reveals the interior contents). The observation will then show what is inside.
+  3. If it is closed, open it.
+  4. Read the observation. If the target is present, take it.
+  5. If not, proceed to the next instance.
+- **Do not skip any numbered instance of any closed receptacle type.** If one cabinet is empty, continue to the next cabinet. Only stop when you have checked every instance listed in the room description.
+- If after all that the object is still not found, re-read the room description to ensure you have not overlooked any receptacle.
+
+## Sub-goal 2: Take the object.
+- Once you see the object, take it immediately with `take <object> from <location>`.
+
+### Immediately cool after picking (mandatory)
+- As soon as you have taken the object, cool it using the fridge before doing anything else. Do not move to the target location or do other actions.
+
+## Sub-goal 3: Cool the object using the fridge.
+- Ensure you are at the fridge (go there if not already).
+- If the fridge is closed, open it.
+- Use `cool <object> with fridge`.
+
+## Sub-goal 4: Move the cooled object to the target location.
+- Go to the target location (named in the task).
+- Use `move <object> to <target>`.
+
+## Completion check:
+- The task is complete when the object has been cooled and placed at the target location. Trust the sequence.

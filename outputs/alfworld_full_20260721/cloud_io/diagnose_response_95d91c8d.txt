@@ -1,0 +1,169 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and used 'examine' instead of 'open', never exploring countertops or other surfaces where the plate likely resides.",
+    "evidence": "After 'examine cabinet 1', observation: 'On the cabinet 1, you see nothing.' Then only opens cabinets; no plate found anywhere.",
+    "corrective_rule": "When searching for an object to clean, first inspect all open surfaces (countertops, sink, tables) before opening cabinets.",
+    "skill_tree_gap": "Lack of a search strategy that prioritizes open surfaces over closed containers.",
+    "patch_location": "## clean -> ### exploration priority (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and never examined countertops or other surfaces for the ladle.",
+    "evidence": "After opening multiple cabinets, only irrelevant items found; no ladle seen. Task requires cleaning a ladle, which is typically on a countertop.",
+    "corrective_rule": "When tasked with cleaning an object, begin by checking all open surfaces (countertops, sink) before opening containers.",
+    "skill_tree_gap": "Missing heuristic to search open surfaces first in 'clean' tasks.",
+    "patch_location": "## clean -> ### search open surfaces first (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and never went to countertops where the spatula was likely located.",
+    "evidence": "After opening many cabinets, no spatula found; countertops were never visited.",
+    "corrective_rule": "In 'clean' tasks, always inspect all countertops first as they commonly hold the target object.",
+    "skill_tree_gap": "Deficient exploration of open surfaces in the skill tree.",
+    "patch_location": "## clean -> ### search open surfaces first (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#3",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and never visited the diningtable or countertops to find the ladle.",
+    "evidence": "After opening cabinets, no ladle found; the agent never went to other locations like countertops or diningtable.",
+    "corrective_rule": "When the target destination is a specific surface (e.g., diningtable), also search that surface and nearby countertops for the object.",
+    "skill_tree_gap": "Lack of awareness that objects may be on the same surface as the target destination.",
+    "patch_location": "## clean -> ### search open surfaces first (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#4",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and a drawer, never checking countertops or sink for the plate.",
+    "evidence": "After opening cabinets and one drawer, no plate found; countertops never examined.",
+    "corrective_rule": "For 'clean plate', inspect countertops, sink, and tables before searching closed containers.",
+    "skill_tree_gap": "No systematic coverage of all common object locations in 'clean' tasks.",
+    "patch_location": "## clean -> ### search open surfaces first (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#5",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent explored shelves and bathroom fixtures but never checked countertops or drawers where the soapbar is typically found.",
+    "evidence": "After visiting many locations, inventory is empty and no soapbar was seen. Successful trajectories find soapbar on countertop.",
+    "corrective_rule": "When looking for a soapbar, prioritize countertop and drawer locations over shelves and bathroom fixtures.",
+    "skill_tree_gap": "Lack of object-specific location priors (soapbar on countertop).",
+    "patch_location": "## clean -> ### object-specific search patterns (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "loop",
+    "root_cause": "The agent entered a loop visiting stoveburners and back to countertop/sink, never exploring other countertops or picking up any object.",
+    "evidence": "Actions repeat: 'go to stoveburner 1' multiple times; no bowl ever found or taken.",
+    "corrective_rule": "Maintain a visited set and systematically explore all countertops in order before revisiting locations.",
+    "skill_tree_gap": "No exploration memory or systematic search pattern in 'cool' tasks.",
+    "patch_location": "## cool -> ### systematic exploration of countertops (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched countertops and a few cabinets, missing drawers and stove where a pan might be.",
+    "evidence": "After checking all countertops and three cabinets, no pan found; never opened drawers or examined stove.",
+    "corrective_rule": "For a pan, check stoves, drawers, and cabinets in addition to countertops.",
+    "skill_tree_gap": "Lack of domain knowledge about where pans are commonly stored (stove, drawers).",
+    "patch_location": "## pick_and_place -> ### search all container types for specific objects (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent visited only sidetables, shelves, and one drawer, missing keychain locations like coffeetable, other drawers, and furniture.",
+    "evidence": "After many steps, inventory empty; keychain not found on any visited surface.",
+    "corrective_rule": "When searching for a small object like keychain, check all horizontal surfaces and open all closed containers across the room.",
+    "skill_tree_gap": "Incomplete search algorithm that does not cover all receptacles.",
+    "patch_location": "## pick_and_place -> ### systematic search of all containers (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#2",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent explored many shelves and one drawer but missed other drawers, countertops, or furniture that could contain the tissuebox.",
+    "evidence": "After extensive shelf search and opening one drawer, no tissuebox found.",
+    "corrective_rule": "Systematically search all drawers and shelves in the room, and also check open surfaces like counters.",
+    "skill_tree_gap": "Lack of a complete exploration strategy covering all container types.",
+    "patch_location": "## pick_and_place -> ### systematic search of all containers (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a soapbottle instead of a spraybottle and stopped after finding only one object, failing to identify the correct type.",
+    "evidence": "Takes 'soapbottle 1' from cabinet 3, but task requires two spraybottles. Later inventory shows only soapbottle.",
+    "corrective_rule": "Before picking up an object, verify its exact name matches the task description (e.g., 'spraybottle' not 'soapbottle').",
+    "skill_tree_gap": "No object name verification step before pickup.",
+    "patch_location": "## pick_two_obj_and_place -> ### object verification before pickup (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched one countertop and a few drawers, missing other surfaces where peppershakers are likely located.",
+    "evidence": "After visiting countertop 1 and opening three drawers, no peppershaker seen; countertop 2 and other cabinets not explored.",
+    "corrective_rule": "Search all countertops and cabinets thoroughly when looking for multiple objects like peppershakers.",
+    "skill_tree_gap": "Incomplete search coverage for multi-object tasks.",
+    "patch_location": "## pick_two_obj_and_place -> ### thorough search of all receptacles (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one soapbottle, the agent revisited already-searched locations instead of continuing to explore new areas for the second soapbottle.",
+    "evidence": "After moving first soapbottle to toilet, next actions go to countertop 1 (already seen) and cabinet 1 (already opened); second soapbottle never found.",
+    "corrective_rule": "After placing the first object, continue systematic search in unexplored areas for the second object.",
+    "skill_tree_gap": "Lack of a continuation plan after first object placement.",
+    "patch_location": "## pick_two_obj_and_place -> ### continuation after first placement (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only checked a few cabinets, coffeetables, and drawers, missing shelves, armchairs, and sofas where remotecontrols may be.",
+    "evidence": "After checking limited locations, no remotecontrol found; successful trajectories show remotes on shelves and sofas.",
+    "corrective_rule": "For remotecontrol, search shelves, sofas, armchairs, and tables thoroughly.",
+    "skill_tree_gap": "Lack of object-specific location knowledge and broad exploration.",
+    "patch_location": "## pick_two_obj_and_place -> ### thorough search of all receptacles (new subsection)",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a soapbar instead of a soapbottle, confusing similar names, and then placed it on the target countertop.",
+    "evidence": "Actions: 'take soapbar 2 from countertop 1', 'take soapbar 1 from drawer 1'; task requires soapbottle.",
+    "corrective_rule": "Double-check the object name against the task before picking up; 'soapbar' and 'soapbottle' are distinct.",
+    "skill_tree_gap": "No semantic verification of object types.",
+    "patch_location": "## pick_two_obj_and_place -> ### object name verification (new subsection)",
+    "confidence": 0.9
+  }
+]
+```

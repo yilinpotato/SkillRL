@@ -1,0 +1,102 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v8 (level=3, tree_depth=3, 10 nodes) ===
+action: refine
+critique: The agent misused the current skill tree by failing to execute the exhaustive search after placing the first object, and by focusing only on drawers/shelves instead of checking all furniture types. The skill tree's wording may have been ambiguous in the 'After Placing the First Object' section by allowing re-checking of previously opened containers, which contributed to the looping behavior.
+changelog: Refined '## Multi-Object Handling' section to add explicit anti-loop instructions and emphasize switching to new locations; added '### Systematic Search' subsection under '## Search Strategy' to stress checking all furniture types (tables, cabinets, shelves, beds, etc.) and not just drawers/shelves.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 10  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [loop] After placing the first candle, agent repeatedly revisited the same location (countertop 2 and drawer 2) instead of searching elsewhere for the second candle. | evidence: After moving candle 1 to drawer 1, it went to drawer 2, then countertop 1, then drawer 2, then countertop 2, then drawer 2 again. | fix: After placing one object, systematically search all other possible locations for the second object, and avoid revisiting already checked spots without new information. | skill_tree_gap: The agent lacks a strategy for handling multiple objects; it falls into a loop instead of expanding search. | patch_location: Under heading 'task_type: pick_two_obj_and_place', add new subsection '## Multi-Object Search'
+- [inefficient_exploration] Agent only opened drawers and never explored other locations (coffeetable, diningtable, cabinets) to find creditcards. | evidence: After opening drawer 6 and seeing nothing, it stopped without searching any other furniture. | fix: Search all types of containers and surfaces (cabinets, tables, shelves) for the creditcards. | skill_tree_gap: The agent's search strategy is limited to drawers; it does not consider other common locations for small objects. | patch_location: Under heading 'task_type: pick_two_obj_and_place', add new subsection '## Systematic Search'
+- [inefficient_exploration] Agent only searched shelves and drawers and never explored other locations (desk, dresser, bed) to find bowls. | evidence: After opening drawer 3 and seeing nothing, it stopped without searching the desk or other containers. | fix: Search all containers and surfaces in the room, including desks and dressers, for the bowls. | skill_tree_gap: The agent's search strategy is limited to shelves and drawers; it does not explore all furniture types. | patch_location: Under heading 'task_type: pick_two_obj_and_place', add new subsection '## Systematic Search'
+
+--- Node tree (per-node lifecycle, this version=v8) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=7 calls=168 success=132 rate=78.6%
+[STABLE              ] pick-two-obj-and-place/completion-detection level=2 stable_versions=1 calls=168 success=132 rate=78.6%
+[STABLE              ] pick-two-obj-and-place/critical-initial-steps level=2 stable_versions=1 calls=13 success=10 rate=76.9%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=1 calls=168 success=132 rate=78.6%
+[STABLE              ] pick-two-obj-and-place/multi-object-handling level=2 stable_versions=1 calls=13 success=10 rate=76.9%
+[MODIFIED            ] pick-two-obj-and-place/multi-object-handling/after-placing-the-first-object level=3 stable_versions=0 calls=13 success=10 rate=76.9%
+[STABLE              ] pick-two-obj-and-place/multi-object-handling/finding-and-placing-the-second-object level=3 stable_versions=1 calls=13 success=10 rate=76.9%
+[STABLE              ] pick-two-obj-and-place/multi-object-handling/finding-the-first-object level=3 stable_versions=1 calls=13 success=10 rate=76.9%
+[STABLE              ] pick-two-obj-and-place/search-strategy   level=2 stable_versions=1 calls=168 success=132 rate=78.6%
+[NEW                 ] pick-two-obj-and-place/search-strategy/systematic-search level=3 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v7 -> v8) ---
+--- v7
++++ v8
+@@ -24,6 +24,10 @@
+   - Statues, candles, vases, etc.: often on tables, shelves, countertops, or dressers.
+ - **If you are searching for spraybottle, be sure to check shelves and cabinets, not just countertops and drawers.**
+ 
++### Systematic Search
++- After initial open of containers, check ALL furniture types: tables, cabinets, shelves, beds, dressers, sofas, armchairs, desks, etc. Do not assume the object is only in drawers or shelves.
++- If you have only searched one type (e.g., only drawers), immediately expand to other types before re-checking any location.
++
+ ## Multi-Object Handling
+ ### Finding the First Object
+ - When you see the object of the required type, take it.
+@@ -32,9 +36,9 @@
+ 
+ ### After Placing the First Object
+ - **Immediately begin a fresh exhaustive search for the second object.** Do not stop, do not get distracted.
+-- Your next action should be to go to a location that might contain the second object (e.g., the same surface, another receptacle). Do not open containers or examine items until you are actively searching.
+-- Conduct a second full sweep of ALL receptacles, including those you already checked. Objects may appear after moving the first one.
+-- Open every closed container you have not opened yet. If you already opened it, check again if it could have been missed.
++- **Do NOT revisit any location you have already searched until you have checked ALL other possible locations in the room.**
++- If you start revisiting the same place (like the same countertop or drawer), you are in a loop – force yourself to go to a new furniture type you haven't examined.
++- Open every closed container you have not opened yet. If you have already opened a container, do NOT re-open it unless you have no other unsearched locations left.
+ 
+ ### Finding and Placing the Second Object
+ - Use the same search strategy as for the first.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+- Put exactly two instances of a specific object into a specified target receptacle.
+- Object type must match exactly. Do not pick up objects that are not the exact type.
+- You need both. Do not stop after one.
+
+## Critical Initial Steps
+- Read the task and note the object type and target.
+- If you are in a room, list all furniture items from the description.
+- Open all closed containers (drawers, cabinets, dressers, safes, etc.) systematically. Do not skip any.
+- Check open surfaces (countertops, tables, shelves, etc.) as you go.
+
+## Search Strategy
+- Exhaustive sweep: check every furniture item once. Do not repeat until you have checked all.
+- Use object-specific location priors to guide order, but never skip a container type.
+- For common object types:
+  - Food/consumables: fridge, countertop, diningtable, cabinet.
+  - Electronics/remotecontrols: sofa, armchair, tvstand, coffeetable, sidetable.
+  - Boxes/packages: dresser, sidetable, armchair, closet.
+  - Watches/jewelry: diningtable, sidetable, drawers.
+  - Toiletries (tissuebox, soapbottle, toiletpaper, spraybottle): shelf, sinkbasin, countertop, cabinet, handtowelholder, toiletpaperhanger.
+  - Books/pens/paper: shelves, desk, sidetable, drawers.
+  - Statues, candles, vases, etc.: often on tables, shelves, countertops, or dressers.
+- **If you are searching for spraybottle, be sure to check shelves and cabinets, not just countertops and drawers.**
+
+### Systematic Search
+- After initial open of containers, check ALL furniture types: tables, cabinets, shelves, beds, dressers, sofas, armchairs, desks, etc. Do not assume the object is only in drawers or shelves.
+- If you have only searched one type (e.g., only drawers), immediately expand to other types before re-checking any location.
+
+## Multi-Object Handling
+### Finding the First Object
+- When you see the object of the required type, take it.
+- If the source is closed, open it first.
+- Go to the target and move the object there.
+
+### After Placing the First Object
+- **Immediately begin a fresh exhaustive search for the second object.** Do not stop, do not get distracted.
+- **Do NOT revisit any location you have already searched until you have checked ALL other possible locations in the room.**
+- If you start revisiting the same place (like the same countertop or drawer), you are in a loop – force yourself to go to a new furniture type you haven't examined.
+- Open every closed container you have not opened yet. If you have already opened a container, do NOT re-open it unless you have no other unsearched locations left.
+
+### Finding and Placing the Second Object
+- Use the same search strategy as for the first.
+- Once you pick up the second object, go directly to the target and move it there. Do not perform any other actions (opening, taking other objects) in between.
+
+## Completion Detection
+- After moving the second object, the environment will indicate success. If not, continue searching – you may have missed one or the object may have been relocated.
+- Do not assume success after one placement. Keep searching until you have placed two.

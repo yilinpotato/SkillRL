@@ -1,0 +1,187 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\n- Your task is to put exactly two instances of a specific object (e.g., book, soapbottle, handtowel) into a specified target receptacle (e.g., bed, garbagecan, countertop).\n- **Object type must match exactly.** For example, 'cup' is not the same as 'mug', 'cloth' is not the same as 'handtowel'. Do not pick up an object unless its type name matches the task exactly.\n- You must collect and move **both** items. Do not stop after placing only one.\n\n### Critical Rule: Re-read the task before every object pickup\n- Before taking any object, **re-read the task** to confirm the exact required object type (e.g., 'pencil' not 'pen').\n- Compare the object's type name letter-for-letter with the task's target word. If they differ, leave the object and continue searching.\n- Do not assume any similar object substitutes; only a perfect name match is sufficient.\n- **After placing the first object, re-read the task again** before you start searching for the second. This prevents accidentally picking a different object type later.\n\n## Search Strategy\n- Start by reading the room description: list every furniture item (table, shelf, drawer, cabinet, holder, etc.) that could contain the object.\n- First check open surfaces (shelf, desk, countertop, coffeetable, handtowelholder, etc.) — objects there are visible immediately.\n- For closed containers (drawer, cabinet, dresser, safe), go to each one and open it to see its contents. Do not skip any.\n- Move on to the next receptacle if the object is not found; do not repeatedly check the same place.\n- **Perform an exhaustive sweep: check every furniture item listed in the room description**, especially those that commonly hold small objects: dresser, bed, desk, shelf, cabinet, drawer, handtowelholder, towelholder, sinkbasin, bathtubbasin, countertop, sidetable, coffeetable, diningtable, cart, etc. Do not restrict your search to a subset.\n\n### Exhaustive Multi-Object Search\n- You need **two** identical objects. After finding the first, do **not** stop; immediately begin a fresh search for the second.\n- Conduct a second full sweep of all receptacles, including those you already checked — some objects may become visible after moving the first one.\n\n### All Container Types Search\n- Open **every** closed container: drawers, cabinets, dressers, safes, etc. Do not focus only on one type (e.g., only drawers or only cabinets).\n- If a container is empty, close it and move on. Do not revisit it unless you have reason to.\n\n## Placement Process\n- When you see an object of the required type, take it: `take <object> from <source>`.\n- If the source is closed, open it first.\n- Then go to the target receptacle (`go to <target>`).\n- Move the object to the target (`move <object> to <target>`).\n\n### Persistence after first placement\n- After placing the first object, **immediately begin a new exhaustive search for the second instance.** Do not stop, do not get sidetracked by unrelated containers.\n- If you have placed one object but the environment has not declared success, you must still be holding zero objects and need to search again.\n- **Immediate action after placing first:** Your next action should be to go to a location that might contain the second object (e.g., the same surface where you found the first, or another receptacle). Do not open containers or take other actions until you are actively searching.\n\n### Collect and place the second object\n- Find the second object using the same search strategy.\n- **Once you pick up the second object, your next actions must be:** go to target receptacle, then move the object to the target. Do not perform any other actions (e.g., opening containers, taking other objects) in between.\n\n## Extended Search After Initial Failure\n- If you have checked every furniture item once and still have not found two objects, perform a **second full sweep** of the room. Look in locations you might have overlooked (e.g., ottoman, fridge, under beds? Actually, check every container listed in the initial room description again).\n- Also re-examine open surfaces: sometimes objects are initially hidden by other objects or were not listed because you were not at that location.\n- **Do not give up** until you have searched every possible receptacle twice.\n\n## Completion Detection\n- After moving the second object, the environment will indicate task success. If unsure, you can check your last observation.\n- If you have moved two objects but the task is not marked complete, search again — you may have missed one (e.g., two different instances of the same object type).\n- **Do not assume success after one placement.** Keep searching until you have placed two.",
+  "level": 3,
+  "version": 5,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent ignored the existing instructions to re-read the task and to immediately search after first placement, leading to picking the wrong object and stopping early. The skill tree's wording was not misleading, but the critical reminders were buried; adding explicit subheadings at decision points should improve adherence.",
+  "changelog": "Added '### Critical Rule: Re-read the task before every object pickup' with a reminder after first placement, and '### Immediate action after placing first' under Persistence, to reinforce steps the agent skipped in the failures.",
+  "round_failures": [
+    {
+      "failure_type": "wrong_target",
+      "root_cause": "After placing the first spraybottle, the agent took a soapbottle instead of searching for the second spraybottle.",
+      "skill_tree_gap": "Object type matching for two-object tasks; agent confused soapbottle with spraybottle.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed one pot on the shelf and then went to countertop2 but did not take another pot, effectively stopping after one placement.",
+      "skill_tree_gap": "Incomplete two-object placement loop.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only shelves and a few drawers, never finding any cellphone; it missed dresser and sidetable.",
+      "skill_tree_gap": "Cellphone location search incomplete.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed one candle in drawer and then returned to countertop1 where there was no second candle, then stopped without searching elsewhere.",
+      "skill_tree_gap": "Lack of follow-up search for second object.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched shelves and drawers but did not find any cellphone; it never visited the safe or desk.",
+      "skill_tree_gap": "Cellphone search missing safe and desk.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent found only one dishsponge and took it, then went to cart without placing it and without finding a second dishsponge.",
+      "skill_tree_gap": "Incomplete collection of two objects; stopped after finding one.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_576",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 126,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "6a7a98fa34f0",
+      "created_version": 1,
+      "last_changed_version": 3,
+      "stable_versions": 2,
+      "call_count": 126,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/critical-rule-re-read-the-task-before-every-object-pickup": {
+      "title": "Critical Rule: Re-read the task before every object pickup",
+      "level": 3,
+      "body_hash": "dc24981c16ab",
+      "created_version": 5,
+      "last_changed_version": 5,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy": {
+      "title": "Search Strategy",
+      "level": 2,
+      "body_hash": "51a07268e117",
+      "created_version": 1,
+      "last_changed_version": 5,
+      "stable_versions": 0,
+      "call_count": 126,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy/exhaustive-multi-object-search": {
+      "title": "Exhaustive Multi-Object Search",
+      "level": 3,
+      "body_hash": "eba2b4f31443",
+      "created_version": 4,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 60,
+      "success_when_used": 50,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/search-strategy/all-container-types-search": {
+      "title": "All Container Types Search",
+      "level": 3,
+      "body_hash": "7d5201dc9acf",
+      "created_version": 4,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 60,
+      "success_when_used": 50,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/placement-process": {
+      "title": "Placement Process",
+      "level": 2,
+      "body_hash": "ca6592165f06",
+      "created_version": 1,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 126,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/placement-process/persistence-after-first-placement": {
+      "title": "Persistence after first placement",
+      "level": 3,
+      "body_hash": "21e6948c51a9",
+      "created_version": 3,
+      "last_changed_version": 5,
+      "stable_versions": 0,
+      "call_count": 81,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/placement-process/collect-and-place-the-second-object": {
+      "title": "Collect and place the second object",
+      "level": 3,
+      "body_hash": "bbaa40602756",
+      "created_version": 3,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 81,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/extended-search-after-initial-failure": {
+      "title": "Extended Search After Initial Failure",
+      "level": 2,
+      "body_hash": "b8e506cc9634",
+      "created_version": 4,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 60,
+      "success_when_used": 50,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/completion-detection": {
+      "title": "Completion Detection",
+      "level": 2,
+      "body_hash": "aeeb9db8782c",
+      "created_version": 1,
+      "last_changed_version": 4,
+      "stable_versions": 1,
+      "call_count": 126,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

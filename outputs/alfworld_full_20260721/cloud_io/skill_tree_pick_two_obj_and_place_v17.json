@@ -1,0 +1,181 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\n- Place exactly two instances of a specific object into a specified target receptacle.\n\n## Multi-Object Tasks\n### Count and Repeat\n- Keep a counter: start at 0. After placing the first object, update to 1. Do not stop until counter is 2.\n- After placing one object, immediately begin a fresh, systematic search for the second object. Do not assume the task is done.\n- If you cannot find a second object after thorough search, re-check every furniture type (see Full Room Coverage) – you may have missed a location.\n\n## Exploration Strategy\n### Full Room Coverage\n- From the initial room description, list every visible furniture item (e.g., cabinet, drawer, shelf, countertop, dresser, sink, fridge, bathtub, toilet, etc.). Do not skip any type.\n- Visit each item exactly once in your first pass. For each:\n  - Go to it.\n  - If it is a container (closed drawer, cabinet, etc.), open it.\n  - Examine its contents (on surfaces or inside).\n- Common misses: dressers, garbage cans, bathtub basins, handtowel holders, toiletpaperhangers, etc.\n- If after visiting all items you still lack one or both objects, repeat the list but check opened containers again (objects may have been moved).\n\n### Object-Specific Hints\n- Some objects are often found near their functional location. For example:\n  - toiletpaper is commonly on a toiletpaperhanger or in a cabinet near the toilet.\n  - soapbottle may be on a sink or counter.\n  - newspaper might be on a sidetable or sofa.\n- Use these hints to prioritize search, but do not skip any furniture type – always eventually check all.\n- Do not assume an object is absent just because its typical location is empty; a second copy may be elsewhere.\n\n## Procedure (step-by-step algorithm)\n1. **Identify task**: Note the required object type and target receptacle.\n2. **List all furniture**: From the initial room description, write down every visible furniture item. This is your master list.\n3. **First object search**: For each item on the list:\n   - Go to it.\n   - If closed, open it.\n   - Examine its contents.\n   - If you see an object whose exact name matches the required type, take it and go to step 4.\n   - Otherwise, move to next item.\n   - If you exhaust the list without finding the object, re-check any missed items or re-open containers.\n4. **Place the first object**: Go directly to the target receptacle. Use \"move <object> to <target>\" immediately. Do not perform any other actions.\n5. **Second object search**: Reset your mental list to the master list from step 2. Repeat step 3 exactly, but now you need only one more object. Do not skip any furniture type – re-visit all.\n6. **Continue until done**: After placing the second object, the task is complete. If you have placed only one, keep searching.\n\n## Common Failure Patterns\n### thorough_search\n- Ensure you visited every furniture item from the initial list. Do not skip any cabinet, drawer, shelf, counter, stove burner, fridge, etc.\n- If an item is closed, open it before checking contents.\n- After checking all, if still short, revisit any missed items or recheck opened containers.\n- Common oversight: checking only one type of furniture. Spread search across all categories.\n\n### check_count\n- After placing the first object, immediately begin the second search. Do not interpret any intermediate success message as task completion.\n- Confirm that you have placed exactly two objects before concluding.\n- If you have placed only one, continue searching.\n\n## Critical warnings (avoid these failures)\n- **Insufficient search**: You must visit every furniture type. Checking only a few will cause failure.\n- **Premature stop**: After placing the first object, immediately start searching for the second. Do not rest.\n- **Not opening containers**: Always open before looking inside. \"Examine\" does not open.\n- **Wrong object identity**: Verify exact name before taking. No partial matches.\n- **Intervening actions**: At target receptacle with correct object, use move action immediately – no delays.",
+  "level": 3,
+  "version": 17,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent used the skill tree but failed to follow the systematic exploration and counting instructions, leading to premature stops and missed locations. The tree itself was not misleading; the agent missed key steps due to its length. Our refinements make those steps more prominent and add object-specific hints.",
+  "changelog": "Refined Multi-Object Tasks section by renaming to 'Count and Repeat' for clarity, added new 'Object-Specific Hints' subsection under Exploration Strategy, and clarified the second search procedure and full room coverage.",
+  "round_failures": [
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent placed only one remotecontrol and then stopped searching for the second one.",
+      "skill_tree_gap": "The multi-object task skill lacks a loop or counter to ensure both objects are collected and placed.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched beds, diningtable, drawers, and shelves but never found any keychain, likely missing the dresser or other locations.",
+      "skill_tree_gap": "The search routine does not cover all possible furniture types present in the room.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only drawers and countertop but never looked at the toiletpaperhanger (which might hold toiletpaper) or cabinets.",
+      "skill_tree_gap": "Lack of context-aware search that considers the likely location of specific objects (e.g., toiletpaper on hanger).",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_1656",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 16,
+      "call_count": 354,
+      "success_when_used": 284,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "1bd0fc947f84",
+      "created_version": 1,
+      "last_changed_version": 13,
+      "stable_versions": 4,
+      "call_count": 354,
+      "success_when_used": 284,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-tasks": {
+      "title": "Multi-Object Tasks",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 1,
+      "call_count": 25,
+      "success_when_used": 22,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/multi-object-tasks/count-and-repeat": {
+      "title": "Count and Repeat",
+      "level": 3,
+      "body_hash": "3de6fa369451",
+      "created_version": 17,
+      "last_changed_version": 17,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/exploration-strategy": {
+      "title": "Exploration Strategy",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 1,
+      "call_count": 25,
+      "success_when_used": 22,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/exploration-strategy/full-room-coverage": {
+      "title": "Full Room Coverage",
+      "level": 3,
+      "body_hash": "5c2b5f5fe4c2",
+      "created_version": 17,
+      "last_changed_version": 17,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/exploration-strategy/object-specific-hints": {
+      "title": "Object-Specific Hints",
+      "level": 3,
+      "body_hash": "d07d89eaf106",
+      "created_version": 17,
+      "last_changed_version": 17,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/procedure-step-by-step-algorithm": {
+      "title": "Procedure (step-by-step algorithm)",
+      "level": 2,
+      "body_hash": "35209cfa6bd9",
+      "created_version": 13,
+      "last_changed_version": 17,
+      "stable_versions": 0,
+      "call_count": 67,
+      "success_when_used": 54,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns": {
+      "title": "Common Failure Patterns",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 14,
+      "last_changed_version": 14,
+      "stable_versions": 3,
+      "call_count": 56,
+      "success_when_used": 45,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns/thorough-search": {
+      "title": "thorough_search",
+      "level": 3,
+      "body_hash": "7bece1c80b16",
+      "created_version": 14,
+      "last_changed_version": 17,
+      "stable_versions": 0,
+      "call_count": 56,
+      "success_when_used": 45,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-patterns/check-count": {
+      "title": "check_count",
+      "level": 3,
+      "body_hash": "9c14803d028c",
+      "created_version": 14,
+      "last_changed_version": 17,
+      "stable_versions": 0,
+      "call_count": 56,
+      "success_when_used": 45,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-warnings-avoid-these-failures": {
+      "title": "Critical warnings (avoid these failures)",
+      "level": 2,
+      "body_hash": "152a80a4da38",
+      "created_version": 13,
+      "last_changed_version": 17,
+      "stable_versions": 0,
+      "call_count": 67,
+      "success_when_used": 54,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

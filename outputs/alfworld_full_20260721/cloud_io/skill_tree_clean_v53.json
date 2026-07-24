@@ -1,0 +1,181 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- [cleaning_source] is a sinkbasin or bathtubbasin.\n\n## Critical Rules (must be followed without exception)\n- You may go to sinkbasin or bathtubbasin to search for the target object. If the target object is there, pick it up. Once you are holding it, you can clean it immediately using the same sinkbasin/bathtubbasin. Do not go to the sinkbasin solely to clean until you are holding the object.\n- Do not go to the destination receptacle until after cleaning.\n- Search open surfaces first, then closed containers. **Never revisit an open surface** after you have checked it off. If you ever find yourself at a receptacle you already visited, stop and use `look` to refresh your mental list, then go to the next unchecked receptacle.\n- If you are already holding something that is not the target, put it down immediately.\n- After arriving at the cleaning source, perform the clean action immediately – do not examine, look, or inventory before cleaning.\n- Before picking any object, confirm its name matches the target exactly. Do not pick similar-named objects.\n- **Do not begin searching closed containers until you have visited every open surface in the room description.** Do not skip any open surface.\n\n## Phase 1: Search and Acquire the Target Object\n**Prerequisite: None – begin with a fresh `look` to get the room description.**\n\n### Object Identity Verification\n- When you see an object that might be the target, stop and compare the exact name from the task.\n- Do not pick up any object whose name is different.\n- If unsure, do not pick; continue searching.\n\n### Systematic Open Surface Search\n1. After receiving the initial room description, make a **complete mental list** of **all open surfaces** (receptacles that are not closed containers: e.g., countertops, diningtables, stoveburners, shelves, sinkbasins, bathtubbasins, garbagecans, handtowelholders, towelholders, carts, etc.). Include every one that appears in the description.\n2. Visit each open surface **exactly once** in any order. At each, examine contents. If the target is present (verify name), pick it up and go to Phase 2.\n3. After each open surface, mentally check it off. **Do not revisit any checked open surface.** If you are tempted to go back to an already-visited open surface, stop – you must not do that until after all closed containers have been checked.\n4. When the last open surface is checked and the target is not found, **immediately proceed to closed containers** – do not revisit any open surface.\n\n### Systematic Container Search\n**When you have exhausted all open surfaces, you must search every closed container in the room.**\n- Closed containers include: cabinets, drawers, fridge, microwave, oven, etc. Any receptacle that is listed in the room description but is not an open surface.\n- **Critical rule: When you arrive at a closed container, you will see an observation like \"On the [container], you see ...\". This describes items sitting on top of the container – it does NOT tell you what is inside. You must open the container to see its contents. Do not be misled by the top-surface observation.**\n- Open each closed container and look inside. If the target is not inside, close it (if necessary) and proceed to the next closed container.\n- **Do not skip any closed container. You must open and look inside every single one.**\n- The order for searching closed containers is given in the next subsection.\n\n### Transition to Closed Containers\n- **When you have exhausted all open surfaces, go to the first closed container in the room description (lowest-numbered cabinet, then drawer, etc.).**\n- If you are at a closed container and it is time to search closed containers, **open it and look inside immediately** – do not walk away without opening. Remember that the top-surface observation is irrelevant.\n- **Do not skip any closed container.** You must open and look inside every single closed container listed in the room description. If you are unsure which ones remain, re-read the room description using `look` and continue.\n\n### Closed Container Search Order\n- **If the target is a food item** (e.g., lettuce, potato, tomato, apple, bread, egg, etc.): go directly to the fridge first. Open it, look inside, and take the target if present.\n  - If not found in fridge, continue to cabinets (numerical order), then drawers (numerical order), then microwave, oven, etc.\n- **For non-food targets:** check all cabinets (numerical order), then all drawers (numerical order), then the fridge, then microwave, oven, etc.\n- **Execution rules for all closed containers:**\n  - Open each one, look inside. If the target is not inside, immediately close it (if necessary) and move to the next container in numerical order.\n  - **You must check every single container of that type** – do not stop after a few. If you have not found the target after checking all closed containers, you have not exhausted all possibilities.\n  - If still not found after all closed containers, **repeat the entire search cycle from open surfaces again** – this is rare, but do it. Never give up.\n\n### If Stuck or Lost\n- Use `look` to re-read the room description and reconstruct your mental list. Then resume from the first unchecked receptacle (if any) or continue with closed containers. If you have checked everything and still lack the target, repeat the whole cycle from open surfaces.\n- **If you find yourself at a receptacle you have already visited and you have not yet checked all closed containers, you have made a mistake.** Stop, use `look` to refresh your list, then go to the next unchecked closed container (or the next unchecked open surface only if all closed containers have been exhausted). Do not revisit an open surface prematurely.\n\n## Phase 2: Clean the Object\n- **Prerequisite: You must be holding the target object.** If empty-handed, return to Phase 1. If holding a different object, put it down first.\n- Immediately go to [cleaning_source] (sinkbasin or bathtubbasin).\n- Upon arrival, immediately execute `clean [object] with [cleaning_source]`. Do not examine, look, inventory, or move elsewhere until you have performed the clean action and confirmed the observation says cleaned.\n- Confirm observation says cleaned.\n\n## Phase 3: Place the Clean Object at Destination\n- Go to [destination]. If it is a closed container, open it first.\n- Use `move [object] to [destination]`.\n- Confirm the object is now at destination.\n\n## Completion\n- Stop as soon as you have placed the clean object. Do not continue.",
+  "level": 4,
+  "version": 53,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent followed the open surface search correctly but when it reached cabinet1 it did not open it, likely misinterpreting the top-surface observation 'On the cabinet 1, you see nothing' as indicating the cabinet was empty. The skill tree already contained the rule to open closed containers, but the wording did not explicitly warn that top-surface observations are irrelevant, leading the agent to skip the opening action.",
+  "changelog": "Added a new '### Systematic Container Search' subsection under Phase 1 that explicitly warns that top-surface observations on closed containers must be ignored, and clarified in the 'Transition to Closed Containers' section that opening is mandatory regardless of what is seen on top.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent did not open any cabinets or drawers to find a plate, which was not visible on any surfaces.",
+      "skill_tree_gap": "Missing strategy for searching inside closed containers when objects are not in plain sight.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_6120",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 52,
+      "call_count": 1098,
+      "success_when_used": 925,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "cd684c45dd60",
+      "created_version": 1,
+      "last_changed_version": 40,
+      "stable_versions": 13,
+      "call_count": 1098,
+      "success_when_used": 925,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/critical-rules-must-be-followed-without-exception": {
+      "title": "Critical Rules (must be followed without exception)",
+      "level": 2,
+      "body_hash": "6fe40994a725",
+      "created_version": 38,
+      "last_changed_version": 52,
+      "stable_versions": 1,
+      "call_count": 302,
+      "success_when_used": 277,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object": {
+      "title": "Phase 1: Search and Acquire the Target Object",
+      "level": 2,
+      "body_hash": "95a71dc20e7d",
+      "created_version": 28,
+      "last_changed_version": 43,
+      "stable_versions": 10,
+      "call_count": 491,
+      "success_when_used": 442,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-identity-verification": {
+      "title": "Object Identity Verification",
+      "level": 3,
+      "body_hash": "c1c9dda40d84",
+      "created_version": 43,
+      "last_changed_version": 50,
+      "stable_versions": 3,
+      "call_count": 168,
+      "success_when_used": 153,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-open-surface-search": {
+      "title": "Systematic Open Surface Search",
+      "level": 3,
+      "body_hash": "383425cec65d",
+      "created_version": 50,
+      "last_changed_version": 52,
+      "stable_versions": 1,
+      "call_count": 64,
+      "success_when_used": 59,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/systematic-container-search": {
+      "title": "Systematic Container Search",
+      "level": 3,
+      "body_hash": "7dc69aa17a05",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/transition-to-closed-containers": {
+      "title": "Transition to Closed Containers",
+      "level": 3,
+      "body_hash": "3e655e746246",
+      "created_version": 50,
+      "last_changed_version": 53,
+      "stable_versions": 0,
+      "call_count": 64,
+      "success_when_used": 59,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/closed-container-search-order": {
+      "title": "Closed Container Search Order",
+      "level": 3,
+      "body_hash": "1129fab28b9b",
+      "created_version": 50,
+      "last_changed_version": 51,
+      "stable_versions": 2,
+      "call_count": 64,
+      "success_when_used": 59,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/if-stuck-or-lost": {
+      "title": "If Stuck or Lost",
+      "level": 3,
+      "body_hash": "7d2dcf859042",
+      "created_version": 50,
+      "last_changed_version": 52,
+      "stable_versions": 1,
+      "call_count": 64,
+      "success_when_used": 59,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "4fe13ea957df",
+      "created_version": 1,
+      "last_changed_version": 50,
+      "stable_versions": 3,
+      "call_count": 1098,
+      "success_when_used": 925,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "f0c1bd6feeeb",
+      "created_version": 1,
+      "last_changed_version": 40,
+      "stable_versions": 13,
+      "call_count": 1098,
+      "success_when_used": 925,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "80d2b9b4d634",
+      "created_version": 1,
+      "last_changed_version": 40,
+      "stable_versions": 13,
+      "call_count": 1098,
+      "success_when_used": 925,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

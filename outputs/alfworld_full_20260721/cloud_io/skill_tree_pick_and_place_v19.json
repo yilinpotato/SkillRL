@@ -1,0 +1,133 @@
+{
+  "content": "# pick_and_place skill tree\n\n## Goal\nPick up a specific object and place it into or onto a specified receptacle (e.g., \"put a book in sofa\"). The task names both the target object and the target receptacle.\n\n## Sub-Goal Flow\n1. **Parse the task** – identify the target object and target receptacle exactly as written.\n2. **Locate the target object** – search every visible receptacle systematically.\n3. **Verify and take** – only take the object if its name matches exactly.\n4. **Navigate to target receptacle** and move the object there.\n5. **Terminate** after placement.\n\n## Exploration: Systematic Object Search\n### Rule: Visit Every Receptacle – No Skipping\nFrom the **first room observation** (after `look` or upon arrival), list every receptacle name exactly as it appears. Include ALL furniture: tables, cabinets, drawers, shelves, countertops, sofas, armchairs, ottomans, dressers, sidetables, desks, sinks, bathtubs, holders, fridges, microwaves, ovens, dishwashers – any container that could hold objects. Do not skip any, even if they seem unlikely.\n\n### Step-by-step search order\n1. **Start at the target receptacle** (the object might already be there).\n2. Then visit **all open surfaces** (tables, shelves, countertops, sidetables, etc.) – these are quick to check and often contain the object.\n3. After exhausting open surfaces, **open and inspect every closed container** (drawers, cabinets, fridges, etc.).\n4. For each receptacle:\n   - Use `go to <receptacle>`. The observation appears automatically.\n   - If the receptacle is closed, `open <receptacle>` first.\n   - Read the observation. If you see the target object, `take <object> from <receptacle>` and proceed to step 3 of the sub-goal flow.\n   - If not found, mentally check it off and go to the next.\n\n### If not found after first pass\n- **Immediately repeat the entire sequence** – do not assume the object is absent. Pay special attention to receptacles you might have overlooked.\n- After two full passes, **check all closed containers again**, especially fridges, microwaves, ovens, dishwashers, and any cabinet/drawer not yet opened. These are common hiding spots.\n- Re-read your initial observation to ensure you did not miss any receptacle name. If still missing, start a third pass – **do not give up early**.\n\n### Common Mistakes\n- **Skipping any receptacle** – all must be checked, even if unlikely.\n- **Using wrong action** – never `examine` or `look` to move; use `go to`.\n- **Taking wrong object** – confirm exact name (e.g., \"handtowel\" ≠ \"cloth\").\n- **Failing to open** closed containers before reading contents.\n- **Forgetting to place** – after taking, go to target and `move <object> to <receptacle>` immediately.\n- **Wasting time** – do not close containers or perform extra actions.\n\n### Object Verification\nBefore using `take`, always verify that the object's name matches the target exactly. Read the observation carefully. If the name is even slightly different (e.g., target is \"spraybottle\" but you see \"tissuebox\"), **do not take it**. Picking up the wrong object wastes time and may make the task impossible. If you accidentally pick the wrong object, you cannot place it as required; you must drop it or continue searching – but prevention is far better.",
+  "level": 4,
+  "version": 19,
+  "kind": "task_skill_tree",
+  "task_type": "pick_and_place",
+  "history": [],
+  "critique": "The agent did not follow the skill tree's systematic search instructions – it only visited a few receptacles (countertop, sinkbasin, bathtubbasin, some drawers) and skipped open surfaces like handtowelholder, toilet, towelholder, etc. The skill tree wording was not misleading; the failure stems from the agent not executing the listed steps (no checklist, no full pass).",
+  "changelog": "Restructured the Exploration section into a clearer step-by-step numbered list, emphasized visiting every receptacle from first observation, and added explicit 'do not skip' rule to prevent the partial-search failure seen in the unsuccessful trajectory.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found a spraybottle because it only examined sinkbasin, bathtubbasin, and a few drawers, ignoring other possible locations.",
+      "skill_tree_gap": "Lack of a comprehensive exploration strategy for locating a target object.",
+      "task_type": "pick_and_place"
+    }
+  ],
+  "task_scope": "pick_and_place",
+  "updated_at": "step_2592",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-and-place-skill-tree": {
+      "title": "pick_and_place skill tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 18,
+      "call_count": 577,
+      "success_when_used": 524,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cd5aaa6edf3a",
+      "created_version": 1,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 577,
+      "success_when_used": 524,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/sub-goal-flow": {
+      "title": "Sub-Goal Flow",
+      "level": 2,
+      "body_hash": "37d875b92f99",
+      "created_version": 1,
+      "last_changed_version": 16,
+      "stable_versions": 3,
+      "call_count": 577,
+      "success_when_used": 524,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search": {
+      "title": "Exploration: Systematic Object Search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 16,
+      "last_changed_version": 16,
+      "stable_versions": 3,
+      "call_count": 86,
+      "success_when_used": 80,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/rule-visit-every-receptacle-no-skipping": {
+      "title": "Rule: Visit Every Receptacle – No Skipping",
+      "level": 3,
+      "body_hash": "6e10cd1695e8",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/step-by-step-search-order": {
+      "title": "Step-by-step search order",
+      "level": 3,
+      "body_hash": "7ba6206e6ff9",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/if-not-found-after-first-pass": {
+      "title": "If not found after first pass",
+      "level": 3,
+      "body_hash": "2ad75d0632eb",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/common-mistakes": {
+      "title": "Common Mistakes",
+      "level": 3,
+      "body_hash": "15ec66fc38d1",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-and-place-skill-tree/exploration-systematic-object-search/object-verification": {
+      "title": "Object Verification",
+      "level": 3,
+      "body_hash": "093d6a993711",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

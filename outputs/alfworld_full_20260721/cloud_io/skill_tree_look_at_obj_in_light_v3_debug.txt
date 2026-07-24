@@ -1,0 +1,90 @@
+=== Skill Tree Debug — scope=look_at_obj_in_light  v3 (level=3, tree_depth=2, 5 nodes) ===
+action: refine
+critique: The agent followed the skill tree in spirit but in trajectory 4 it searched for the lamp after already moving to several receptacles, which caused extra steps. The current skill tree did not explicitly guide how to locate the lamp when not immediately visible, so the agent had to improvise. The wording was not misleading, but it lacked a systematic search sub-procedure for the light source.
+changelog: Added a sub-procedure under Phase 1 for systematically locating the desklamp when its location is unknown, and clarified that 'use desklamp' must be done at its receptacle.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v3) ---
+[STABLE              ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp level=1 stable_versions=2 calls=20 success=19 rate=95.0%
+[MODIFIED            ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-1-locate-the-light-source level=2 stable_versions=0 calls=20 success=19 rate=95.0%
+[MODIFIED            ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-2-turn-on-the-light level=2 stable_versions=0 calls=20 success=19 rate=95.0%
+[MODIFIED            ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-3-locate-the-target-object level=2 stable_versions=0 calls=20 success=19 rate=95.0%
+[STABLE              ] goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-4-take-and-examine-the-target-object level=2 stable_versions=2 calls=20 success=19 rate=95.0%
+
+--- Line diff vs previous version (v2 -> v3) ---
+--- v2
++++ v3
+@@ -1,21 +1,27 @@
+ # Goal: Examine a target object using a light source (e.g., desklamp)
+ 
+ ## Phase 1: Locate the light source
+-- Identify the light source (typically a desklamp) from your current observations or initial room description.
+-- If you are not already at its location, move there (e.g., go to the receptacle containing the desklamp).
++- Identify a desklamp from the objects visible on surfaces in your current location. If you see a desklamp, note its receptacle.
++- If no desklamp is visible at your current location, systematically search all receptacles you observed in the initial room description.
++  ### Systematic search for desklamp
++  - List each receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) from the room description.
++  - Move to each receptacle (action: go to <receptacle>) and examine its contents.
++  - Stop as soon as you find a desklamp. That receptacle is now the lamp's location.
++- Once you know a receptacle that contains a desklamp, move there if not already present.
+ 
+ ## Phase 2: Turn on the light
+-- Use the desklamp (action: use desklamp) to turn it on.
+-- Confirm the light is on (observation will say "You turn on the desklamp").
++- Ensure you are at the same receptacle as the desklamp (if not already, go there).
++- Use the desklamp (action: use desklamp <number>). The observation will confirm: "You turn on the desklamp".
++- The light is now on. This precondition must be satisfied before examining the target object.
+ 
+ ## Phase 3: Locate the target object
+-- After turning on the lamp, check what is on the same surface (the lamp's receptacle). If the target object is there, proceed to Phase 4.
+-- If the target object is NOT on the lamp's surface, systematically search all other common furniture in the room (bed, dresser, sidetable, shelf, desk, etc.). 
+-  ### Systematic search procedure
+-  - List each piece of furniture you have observed (from the initial room description) that could hold objects. Prioritize surfaces you haven't visited yet.
+-  - For each candidate surface, go to it (action: go to <receptacle>) and examine its contents.
+-  - If the target object is found on that surface, proceed to Phase 4.
+-  - If not, move to the next candidate. Do not open drawers or containers unless no surface holds the object; the task expects the object to be in plain sight on a surface.
++- After turning on the lamp, check the lamp's receptacle for the target object. If present, proceed to Phase 4.
++- If not, systematically search all other common furniture in the room (bed, dresser, sidetable, shelf, desk, etc.).
++  ### Systematic search for target object
++  - List each receptacle you have observed (from the initial room description) that could hold objects, excluding the lamp's receptacle (already checked).
++  - For each candidate receptacle, go to it and examine its contents.
++  - If the target object is found, proceed to Phase 4.
++  - If not, move to the next. Do not open drawers or containers unless all surfaces have been checked.
+ - Only after all visible surfaces have been checked should you consider opening closed containers (drawers, cabinets) as a last resort.
+ 
+ ## Phase 4: Take and examine the target object
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Examine a target object using a light source (e.g., desklamp)
+
+## Phase 1: Locate the light source
+- Identify a desklamp from the objects visible on surfaces in your current location. If you see a desklamp, note its receptacle.
+- If no desklamp is visible at your current location, systematically search all receptacles you observed in the initial room description.
+  ### Systematic search for desklamp
+  - List each receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) from the room description.
+  - Move to each receptacle (action: go to <receptacle>) and examine its contents.
+  - Stop as soon as you find a desklamp. That receptacle is now the lamp's location.
+- Once you know a receptacle that contains a desklamp, move there if not already present.
+
+## Phase 2: Turn on the light
+- Ensure you are at the same receptacle as the desklamp (if not already, go there).
+- Use the desklamp (action: use desklamp <number>). The observation will confirm: "You turn on the desklamp".
+- The light is now on. This precondition must be satisfied before examining the target object.
+
+## Phase 3: Locate the target object
+- After turning on the lamp, check the lamp's receptacle for the target object. If present, proceed to Phase 4.
+- If not, systematically search all other common furniture in the room (bed, dresser, sidetable, shelf, desk, etc.).
+  ### Systematic search for target object
+  - List each receptacle you have observed (from the initial room description) that could hold objects, excluding the lamp's receptacle (already checked).
+  - For each candidate receptacle, go to it and examine its contents.
+  - If the target object is found, proceed to Phase 4.
+  - If not, move to the next. Do not open drawers or containers unless all surfaces have been checked.
+- Only after all visible surfaces have been checked should you consider opening closed containers (drawers, cabinets) as a last resort.
+
+## Phase 4: Take and examine the target object
+- Take the target object from its receptacle (action: take <object> from <receptacle>).
+- The task is considered complete once the object is in your inventory and the light is on.

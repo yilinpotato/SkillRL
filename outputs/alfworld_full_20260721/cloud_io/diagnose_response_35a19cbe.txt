@@ -1,0 +1,224 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "gave_up",
+    "root_cause": "The agent stopped searching after finding no kettle in cabinets and countertop 1, never looking in other receptacles like fridge or other countertops.",
+    "evidence": "Last action 'go to countertop 1' yielded no kettle and no further actions.",
+    "corrective_rule": "Search all receptacles (countertops, fridge, sinkbasin, etc.) for the target object before giving up.",
+    "skill_tree_gap": "Lack of systematic exploration strategy for objects not found in initial cabinet search.",
+    "patch_location": "Under '## clean', add a new subsection '### Object Search Strategy' for exhaustive search.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only cabinets and countertops but never opened the fridge, where the apple was likely located.",
+    "evidence": "After searching countertops, the agent attempted to go to fridge but observation shows it arrived at countertop 4 instead, missing the fridge.",
+    "corrective_rule": "Always check the fridge for perishable items like apples.",
+    "skill_tree_gap": "Incomplete knowledge of likely object locations (fridge for produce).",
+    "patch_location": "Under '## clean', add a new subsection '### Object Location Knowledge' for common object placements.",
+    "confidence": 0.8
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only opened one cabinet (cabinet 2) and did not search all cabinets, drawers, or other receptacles for the pan.",
+    "evidence": "Agent visited cabinet 2 and opened it (empty), but never opened cabinets 3,4,5 or checked sinkbasin.",
+    "corrective_rule": "Systematically open and check every cabinet, drawer, and container in the environment.",
+    "skill_tree_gap": "Lack of exhaustive inventory of all containers.",
+    "patch_location": "Under '## clean', add a new subsection '### Exhaustive Container Search'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "clean#3",
+    "task_type": "clean",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent took a 'mug' instead of the required 'cup', confusing two similar object types.",
+    "evidence": "Action: 'take mug 1 from cabinet 3' – task required a cup.",
+    "corrective_rule": "Verify the exact object name from the task before picking up; mug is not a cup.",
+    "skill_tree_gap": "Insufficient object type discrimination between cup and mug.",
+    "patch_location": "Under '## clean', add a new subsection '### Object Name Verification'.",
+    "confidence": 1.0
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not open cabinet 4 and missed other potential locations for the bowl, ending the search prematurely.",
+    "evidence": "Last action 'go to cabinet 4' but never opened it; no bowl observed anywhere.",
+    "corrective_rule": "Open every cabinet you visit and check all countertops and sinks for the target object.",
+    "skill_tree_gap": "Incomplete search routine: visiting a cabinet does not guarantee inspection.",
+    "patch_location": "Under '## cool', add a new subsection '### Systematic Cabinet Inspection'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent wasted steps on 'look' and 'examine' actions instead of systematically visiting all countertops and cabinets to find the tomato.",
+    "evidence": "Actions 'look' and 'examine cabinet 2' produced no useful information and delayed search; tomato was never found.",
+    "corrective_rule": "Avoid look/examine; focus on navigation and open actions to cover all receptacles quickly.",
+    "skill_tree_gap": "Lack of efficient search protocol; unnecessary actions waste steps.",
+    "patch_location": "Under '## cool', add a new subsection '### Efficient Search Protocol' (avoid non-navigation actions).",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#2",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only opened three cabinets and did not search the fridge or other countertops thoroughly for the bowl.",
+    "evidence": "After opening cabinet 3 (empty), agent went to fridge (no bowl) then stopped; bowl was not found.",
+    "corrective_rule": "Extend search to all cabinets, drawers, and the fridge before concluding the object is absent.",
+    "skill_tree_gap": "Search coverage insufficient for large environments.",
+    "patch_location": "Under '## cool', add a new subsection '### Broaden Search Coverage'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#3",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate a mug; it only checked a few cabinets and countertops, missing other potential locations.",
+    "evidence": "Visited countertop 2, sinkbasin, cabinet 1 (found cup, not mug), then stopped; no mug anywhere.",
+    "corrective_rule": "Search every countertop and open every cabinet in the room for the mug.",
+    "skill_tree_gap": "Incomplete search of all receptacle types.",
+    "patch_location": "Under '## cool', add a new subsection '### All Receptacle Search'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#4",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not search all cabinets; it only opened cabinet 1 (empty) and then went to cabinet 2 without opening it, missing the mug.",
+    "evidence": "Last action 'go to cabinet 2' without opening; no mug seen in any visited location.",
+    "corrective_rule": "Open all cabinets you encounter and systematically check their contents.",
+    "skill_tree_gap": "Failure to inspect cabinets after navigating to them.",
+    "patch_location": "Under '## cool', add a new subsection '### Mandatory Cabinet Opening'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#5",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not open cabinets 1 and 2 (only viewed their tops) and missed the pan which was likely inside a closed cabinet.",
+    "evidence": "Agent went to cabinet 1 and cabinet 2 but only saw items on top, never opened them; pan not found.",
+    "corrective_rule": "Always open closed cabinets to see their interior contents.",
+    "skill_tree_gap": "Misunderstanding that cabinets have interiors that must be opened.",
+    "patch_location": "Under '## cool', add a new subsection '### Open Cabinet Interiors'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "other",
+    "root_cause": "The agent heated the plate and placed it back on the same countertop it was taken from, resulting in no effective placement; the task likely expects a destination different from the source.",
+    "evidence": "Action: 'move plate 1 to countertop 1' after taking plate from countertop 1.",
+    "corrective_rule": "Ensure the target receptacle for placement is not the same as the source receptacle.",
+    "skill_tree_gap": "Lack of awareness that placing an object back where it came from is not a valid 'put'.",
+    "patch_location": "Under '## heat', add a new subsection '### Placement Destination Rule' (must be different from origin).",
+    "confidence": 0.7
+  },
+  {
+    "traj_ref": "heat#1",
+    "task_type": "heat",
+    "failure_type": "other",
+    "root_cause": "The tomato was taken from the fridge, heated, and then placed back into the same fridge, meaning its location did not change; the task likely requires a different final location.",
+    "evidence": "Action: 'move tomato 1 to fridge 1' after taking tomato from fridge 1.",
+    "corrective_rule": "Place the heated object into a receptacle different from its original location.",
+    "skill_tree_gap": "No distinction between moving within same receptacle and moving to a new one.",
+    "patch_location": "Under '## heat', add a new subsection '### Different Destination Requirement'.",
+    "confidence": 0.7
+  },
+  {
+    "traj_ref": "heat#2",
+    "task_type": "heat",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent heated the apple and then went to the garbagecan but did not place it inside; the trajectory ends without a move action.",
+    "evidence": "Last action 'go to garbagecan 1' with no subsequent 'move apple 2 to garbagecan 1'.",
+    "corrective_rule": "After heating, always execute a 'move' action to place the object into the target receptacle.",
+    "skill_tree_gap": "Missing final placement step after achieving the heated state.",
+    "patch_location": "Under '## heat', add a new subsection '### Complete Placement After Heating'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#3",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a potato; it searched several countertops and cabinets but missed the location where the potato was (likely in a different cabinet or fridge).",
+    "evidence": "No potato observed in any visited location; agent gave up after opening cabinet 2.",
+    "corrective_rule": "Systematically search all receptacles including the fridge, all cabinets, and all countertops for the target object.",
+    "skill_tree_gap": "Incomplete exploration of all possible object locations.",
+    "patch_location": "Under '## heat', add a new subsection '### Full Exploration Routine'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "heat#4",
+    "task_type": "heat",
+    "failure_type": "wrong_order",
+    "root_cause": "The agent moved the plate into cabinet 1 without opening it first, so the plate was placed on top of the cabinet rather than inside.",
+    "evidence": "No 'open cabinet 1' action occurred before 'move plate 1 to cabinet 1'.",
+    "corrective_rule": "Always open a closed container before moving an object into it.",
+    "skill_tree_gap": "Missing precondition check for placing objects into closed containers.",
+    "patch_location": "Under '## heat', add a new subsection '### Open Container Before Placement'.",
+    "confidence": 1.0
+  },
+  {
+    "traj_ref": "heat#5",
+    "task_type": "heat",
+    "failure_type": "other",
+    "root_cause": "The agent moved the egg to the sidetable, but the observation after the move shows the same state as before, indicating the move may not have taken effect (possibly due to sidetable already containing an egg).",
+    "evidence": "Observation after 'move egg 4 to sidetable 1' is identical to the previous observation of sidetable contents, suggesting no change.",
+    "corrective_rule": "After a move action, verify the object appears in the target receptacle's inventory.",
+    "skill_tree_gap": "Lack of verification that placement succeeded.",
+    "patch_location": "Under '## heat', add a new subsection '### Post-Placement Verification'.",
+    "confidence": 0.6
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent repeatedly visited the desk and shelves but never searched drawers or cabinets for pencils, and mistook pens for pencils.",
+    "evidence": "Agent saw pens on desk but did not pick them up; never opened any drawers or cabinets.",
+    "corrective_rule": "Search all container types (drawers, cabinets, shelves) and verify the object name matches exactly (pencil, not pen).",
+    "skill_tree_gap": "Incomplete search across all receptacle types and object name confusion.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Exhaustive Multi-Object Search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked up a soapbottle instead of a spraybottle, and only found one object instead of two.",
+    "evidence": "Action: 'take soapbottle 1 from countertop 1' – task required spraybottle.",
+    "corrective_rule": "Double-check the object type against the task; pick only objects that match exactly.",
+    "skill_tree_gap": "Insufficient object type discrimination (soapbottle vs spraybottle).",
+    "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Object Type Matching'.",
+    "confidence": 1.0
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only cabinets and found no soapbottle, then gave up without checking other locations like sinkbasin or other countertops.",
+    "evidence": "After opening cabinet 4 (cloth), agent went back to countertop 1 and sinkbasin, but never took any object; no soapbottle was seen.",
+    "corrective_rule": "If target object not in cabinets, continue searching in other rooms or on countertops and sinks.",
+    "skill_tree_gap": "Lack of fallback search areas after initial cabinet sweep.",
+    "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Extended Search After Initial Failure'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only some drawers and one countertop, missing the cabinets where spatulas might be located.",
+    "evidence": "Agent opened drawers 1-5 but saw no spatula; never opened any cabinets beyond visiting cabinet 1.",
+    "corrective_rule": "Open and search all cabinets in addition to drawers and countertops.",
+    "skill_tree_gap": "Incomplete coverage of all container types (cabinets missing).",
+    "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### All Container Types Search'.",
+    "confidence": 0.9
+  }
+]
+```

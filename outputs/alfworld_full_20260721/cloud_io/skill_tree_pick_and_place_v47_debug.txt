@@ -1,0 +1,130 @@
+=== Skill Tree Debug — scope=pick_and_place  v47 (level=4, tree_depth=4, 15 nodes) ===
+action: refine
+critique: The agent did not follow the systematic search instructions; it only searched shelves and one drawer, ignoring many other receptacles. The skill tree already contained instructions to visit all receptacles, but it lacked an explicit warning against focusing only on the target receptacle type. The new 'Diverse Furniture Search' subsection addresses this bias.
+changelog: Added '### Diverse Furniture Search' subsection under Object Search to explicitly warn against focusing only on the target receptacle type.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 12  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent only searched shelves for the cd, ignoring other furniture (e.g., tables, desks) where the cd might be located. | evidence: First action is 'go to shelf 2' and then the agent visits nine different shelves and a drawer, never finding a cd. | fix: Before focusing on the target receptacle, first search all types of furniture (tables, desks, beds, etc.) for the object. | skill_tree_gap: No strategy to diversify search across different furniture types; over-focuses on receptacle type. | patch_location: Object Search and Identification: add new subsection '### Diverse Furniture Search'
+
+--- Node tree (per-node lifecycle, this version=v47) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=46 calls=1235 success=1123 rate=90.9%
+[MODIFIED            ] pick-and-place-skill-tree/common-mistakes-to-avoid level=2 stable_versions=0 calls=397 success=360 rate=90.7%
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=13 calls=1235 success=1123 rate=90.9%
+[STABLE              ] pick-and-place-skill-tree/object-acquisition level=2 stable_versions=5 calls=516 success=470 rate=91.1%
+[STABLE              ] pick-and-place-skill-tree/object-acquisition/name-matching-check-mandatory-before-taking level=3 stable_versions=5 calls=92 success=79 rate=85.9%
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory level=2 stable_versions=3 calls=216 success=195 rate=90.3%
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory/complete-container-search-reinforced-steps level=3 stable_versions=2 calls=26 success=24 rate=92.3%
+[NEW                 ] pick-and-place-skill-tree/object-search-mandatory/diverse-furniture-search level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory/exhaustive-multi-room-exploration-if-object-is-still-missing level=3 stable_versions=2 calls=26 success=24 rate=92.3%
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory/forced-systematic-search-follow-strictly level=3 stable_versions=2 calls=72 success=62 rate=86.1%
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory/forced-systematic-search-follow-strictly/exhaustive-search-checklist level=4 stable_versions=1 calls=13 success=12 rate=92.3%
+[STABLE              ] pick-and-place-skill-tree/object-type-location-heuristics level=2 stable_versions=9 calls=216 success=195 rate=90.3%
+[STABLE              ] pick-and-place-skill-tree/placement      level=2 stable_versions=8 calls=516 success=470 rate=91.1%
+[STABLE              ] pick-and-place-skill-tree/placement/confirm-task-completion-after-placement level=3 stable_versions=8 calls=175 success=157 rate=89.7%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=8 calls=1235 success=1123 rate=90.9%
+
+--- Line diff vs previous version (v46 -> v47) ---
+--- v46
++++ v47
+@@ -14,6 +14,11 @@
+ - From the initial observation, **extract every receptacle noun** – any word followed by a number is a receptacle. **Write them down mentally**. You must visit **every single one** before concluding the object is missing.
+ - If the initial observation is truncated, use `look` once to get the full room description. After that, avoid further `look` or `inventory`.
+ - **Do not skip any receptacle.** Even if you find the object early, take it and proceed to placement – but the search rule applies until the object is found. If you have not found it, you must continue until every receptacle has been visited.
++
++### Diverse Furniture Search
++- **Do not confine your search to receptacles whose type matches the target receptacle.** For example, if the target receptacle is a shelf, you must still check tables, drawers, desks, beds, counters, and all other receptacles on your list. The object can be on any type of furniture.
++- **The initial list of every receptacle (nouns with numbers) is your master plan.** Follow it in any order but without bias toward the target type.
++- **If you find yourself repeatedly visiting only one type of receptacle (e.g., shelves), stop and consult your list.** You are likely missing many other receptacles.
+ 
+ ### Forced Systematic Search (Follow strictly)
+ 1. **Visit every open-surface receptacle first** (tables, countertops, shelves, beds, sofas, chairs, dresser tops, sidetables, etc.). For each, go to it and inspect its contents.
+@@ -73,3 +78,4 @@
+ - **Skipping open surfaces** – they are quick to check and often contain the target.
+ - **Revisiting before finishing the full list** – this wastes steps and may cause you to miss the object.
+ - **Not terminating after placement** – after moving the object to the target, stop. Any further action is unnecessary and wastes steps.
++- **Focusing only on the target receptacle's type** – do not assume the object is only on receptacles similar to the target. The object can be on any furniture type; follow the full list of all receptacles.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specified object and place it into or onto a specified receptacle.
+
+## Sub-Goal Flow
+1. **Identify target object and target receptacle** from the task description.
+2. **Locate the target object** by searching all listed receptacles systematically.
+3. **Take the object only if its name exactly matches** the target (base noun, ignore numerals).
+4. **Navigate to target receptacle**, open if closed, then place the object there.
+5. **Terminate immediately after successful placement** – do not perform any further actions.
+
+## Object Search (Mandatory)
+- From the initial observation, **extract every receptacle noun** – any word followed by a number is a receptacle. **Write them down mentally**. You must visit **every single one** before concluding the object is missing.
+- If the initial observation is truncated, use `look` once to get the full room description. After that, avoid further `look` or `inventory`.
+- **Do not skip any receptacle.** Even if you find the object early, take it and proceed to placement – but the search rule applies until the object is found. If you have not found it, you must continue until every receptacle has been visited.
+
+### Diverse Furniture Search
+- **Do not confine your search to receptacles whose type matches the target receptacle.** For example, if the target receptacle is a shelf, you must still check tables, drawers, desks, beds, counters, and all other receptacles on your list. The object can be on any type of furniture.
+- **The initial list of every receptacle (nouns with numbers) is your master plan.** Follow it in any order but without bias toward the target type.
+- **If you find yourself repeatedly visiting only one type of receptacle (e.g., shelves), stop and consult your list.** You are likely missing many other receptacles.
+
+### Forced Systematic Search (Follow strictly)
+1. **Visit every open-surface receptacle first** (tables, countertops, shelves, beds, sofas, chairs, dresser tops, sidetables, etc.). For each, go to it and inspect its contents.
+2. **Then visit every closed-container receptacle** (cabinets, drawers, fridge, microwave, safe, sinkbasin, etc.). For each, go to it, open it, inspect contents, and leave it open.
+3. **Pay special attention to drawers and dresser drawers** – they are separate receptacles (e.g., drawer 1, drawer 2, ...). You must go to each one individually.
+4. **Do not stop early.** If you have visited only a few receptacles and not found the object, continue. Only stop when you have exhausted the entire list.
+5. **Mark each receptacle as visited mentally.** If you ever revisit a location before finishing the full list, stop and go to the next unvisited receptacle.
+6. **If you have visited every receptacle and still not found the object, you missed a receptacle.** Re-read the initial observation and check if any noun with a number was omitted. The object is always present.
+
+#### Exhaustive Search Checklist
+- **Before starting**, mentally list every receptacle noun from the initial observation (e.g., cabinet 1, cabinet 2, countertop 1, sinkbasin 1, ...). Write them down if possible.
+- **Then, for each item on that list**, in any order, go to it and fully inspect its contents (open if needed). Do not skip any.
+- **Do not move on** to the next receptacle until you have completed inspection of the current one.
+- **After visiting every item** on your list, if the object is still missing, re-examine the initial observation for any receptacle you might have missed (e.g., towelholder, handtowelholder, garbagecan, toilet, etc.). They are all receptacles.
+- **Never revisit a receptacle** before the entire list is exhausted – that wastes steps and risks missing a never-visited one.
+- **If you find the object mid-search**, take it and then navigate to the target receptacle – you do not need to finish the list once the object is in hand.
+
+### Complete container search (Reinforced steps)
+- When you arrive at a closed container (drawer, cabinet, dresser, safe, etc.), **your very next action must be to open it** using `open <receptacle>`. Do **not** use `look` or any other command before opening.
+- After opening, inspect the contents from the observation. If the target object is inside, take it. If not, proceed immediately to the next unvisited receptacle – do not linger.
+- If you ever find yourself at a closed container and you are not sure if it is open, assume it is closed and attempt `open`. It wastes only one step if already open.
+- Never skip a container because you think it is unlikely – open every single one on your list.
+
+### Exhaustive multi-room exploration (If object is still missing)
+- After you have visited **every receptacle** listed in the initial observation and still not found the object, consider that the object might be in **another room**. The observation might have mentioned other rooms (e.g., "you see a doorway to the kitchen") or the task may involve leaving the current room.
+- In that case, use `go to <doorway>` to enter the next room, then repeat the same systematic search for all receptacles in that new room.
+- If no doorway is mentioned, re-examine the initial observation – you may have missed a receptacle. The object is always present somewhere.
+
+## Object-Type Location Heuristics
+Use these to prioritize the order of search within open surfaces or closed containers, but **never skip a receptacle**.
+- Bottles and cans (soapbottle, glassbottle, winebottle, etc.) are often on **countertops**, then shelves or tables.
+- Small electronics (cellphone, laptop, alarmclock) are often on **tables, desks, beds, or shelves**.
+- Kitchen tools (knife, fork, pan, kettle) are often on **counters, stovetops, or dining tables**.
+- Books and papers (book, creditcard) are often on **shelves, tables, or desks**.
+- If the object is not in any expected common location, continue with the full systematic search – do not assume it is missing.
+
+## Object Acquisition
+### Name Matching Check (Mandatory Before Taking)
+- When you see an object that might be the target, **first verify its name exactly** against the task. The exact type must match (e.g., "soapbottle" vs "soapbar" are different; ignore numerals like "book 1" matches "book").
+- **Do not substitute synonyms or categories** – for example, "handtowel" is NOT "cloth", "towel" is NOT "paper towel roll". Only take if the base noun (the word without number) is identical to the task target.
+- **Mentally state the target name and compare** before executing `take`. If the observed object name does not match, continue searching.
+- If the name matches, take it with `take <object> from <receptacle>`.
+- If the name does not match, **do not take it** – even if it seems similar or is the only object on that receptacle.
+
+## Placement
+- After taking the correct object, go to the target receptacle. If it is closed, open it first. Then `move <object> to <receptacle>`.
+- **After executing the move action, stop immediately. Do not take any further actions (no inventory, look, or any other command). The task will be marked complete.**
+
+### Confirm task completion after placement
+- The only action after a successful move should be **nothing**. If the environment does not give an explicit "task complete" signal, you must still terminate. Do not continue to explore or check inventory.
+
+## Common Mistakes to Avoid
+- **Taking without verifying** – always check object name before taking.
+- **Stopping search early** – do not assume the object is gone until you have checked every receptacle on the initial list. Especially do not skip drawers and dresser drawers.
+- **Failing to list all receptacles** – you must actively extract every noun that is followed by a number from the initial observation; the object may be on a receptacle not mentioned in the examples.
+- **Unnecessary look/inventory actions** – use `look` only once at the start if you need the full room description; after that, stick to `go to`, `open`, `close`, `take`, `move`.
+- **Skipping open surfaces** – they are quick to check and often contain the target.
+- **Revisiting before finishing the full list** – this wastes steps and may cause you to miss the object.
+- **Not terminating after placement** – after moving the object to the target, stop. Any further action is unnecessary and wastes steps.
+- **Focusing only on the target receptacle's type** – do not assume the object is only on receptacles similar to the target. The object can be on any furniture type; follow the full list of all receptacles.

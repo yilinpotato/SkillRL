@@ -1,0 +1,133 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specific object type into a specified target receptacle.\n\n### Count Tracking\n- Keep a mental counter of objects placed: start at 0. After each successful placement, increment by 1.\n- **Never stop until counter == 2.** If counter == 1, you must immediately search for and place the second object.\n- If after two complete passes through all furniture you still have only 1 placed, the task may be impossible — but only then may you stop.\n\n### Critical Rule (Overrides All Others)\n- **After taking any matching object, immediately go to the target and place it. Do not take any other action (including searching for the second object) until this placement is complete.**\n- **When you arrive at the target receptacle, if it is closed (e.g., drawer, cabinet, fridge), open it first, then place the object.**\n- **Whenever you see a matching object during any search, take it immediately before anything else (except if you are already carrying an object that must be placed first).**\n\n### Object Type Verification\n- Before taking any object, compare its exact name to the required type. Only take exact matches.\n- Do **not** assume similar objects (e.g., mug vs cup, soapbottle vs soapbar) are acceptable. If the name differs, skip it and continue the search.\n- If you accidentally take a non-matching object, do not waste actions moving it; use `inventory` to check, then drop it or leave it and resume search immediately.\n\n### Systematic Object Search\n1. **Create Master List**: After the initial room description, write down every furniture item exactly as listed. This includes all surfaces (countertops, tables, sidetables, etc.) and containers (drawers, cabinets, fridge, etc.). Do not miss any item.\n2. **Visit Each Furniture Item Systematically**: Pick any unvisited item from your master list. Go to it. If closed, open it. Examine its contents (inside if container, on top if surface). If you see an object whose exact name matches the required type, **take it immediately**. Check off that item as visited. Repeat for every item on the list.\n3. **Immediate Placement**: With a matching object in hand, go directly to the target receptacle. If the target is closed, open it. Use `move <object> to <target>` immediately. No other actions in between. After placing, increment your mental counter.\n\n### Multi-Object Placement Loop\n- Collect and place two objects. After placing the first, mental counter = 1.\n- **Immediately begin a second systematic search** (repeat the Systematic Object Search steps from scratch, including reopening all previously opened containers).\n- If during the first search you saw a second matching object at the same location (e.g., on same countertop or inside same open container), return directly there and take it.\n- Otherwise, perform a full second pass of the master list. Do not skip any furniture item.\n- If after completing two full passes you still have only one object placed, you may stop (task likely impossible).\n\n### Common Failure Patterns (Avoid These)\n- **Premature stop after taking first object without placing it**: You must place it immediately before doing anything else.\n- **Stopping after first placement**: Immediately restart the search loop. Do not wander or explore unrelated items.\n- **Incomplete master list**: Omitting any furniture item leads to missing objects. Ensure you list every item from the initial observation.\n- **Not reopening containers during second pass**: New objects may appear inside.\n- **Stopping early due to frustration**: Complete at least two full passes before concluding impossibility.\n- **Picking wrong object**: Verify exact name before taking (see Object Type Verification).\n- **Skipping surfaces (countertops, sidetables, etc.)**: Visit every furniture item in the master list, including surfaces. Do not assume an object is only inside containers.\n- **Not opening the target receptacle before placing**: If the target is a closed container, you must open it before moving the object in.",
+  "level": 3,
+  "version": 31,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent largely ignored the existing skill tree's instructions: it failed to execute the Persistent Search Loop systematically, picked a wrong object without exact type verification, and stopped after placing only one object. The skill tree's wording was not misleading but may have been too dense; the new subsections reinforce the critical checks in a more prominent, action-oriented format.",
+  "changelog": "Replaced existing sections 'Persistent Search Loop', 'Multi-Object Collection Protocol', and 'Exact Type Matching Reminder' with three new subsections: 'Systematic Object Search', 'Object Type Verification', and 'Multi-Object Placement Loop', to make the required behaviors more explicit and directly actionable.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only a few drawers and a coffeetable, missing other surfaces and containers that might hold creditcards.",
+      "skill_tree_gap": "No systematic multiple-object search strategy.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "misread_state",
+      "root_cause": "The agent picked up a mug (thinking it was a cup) and then moved it back, failing to identify the correct object type and not searching for actual cups.",
+      "skill_tree_gap": "Object type discrimination is not handled; the agent confuses similar objects.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "After placing one saltshaker, the agent stopped searching and did not locate a second saltshaker to complete the task.",
+      "skill_tree_gap": "Lack of a loop or count-check to ensure both objects are placed before ending.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_3240",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 30,
+      "call_count": 722,
+      "success_when_used": 570,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cecaaea52d6c",
+      "created_version": 1,
+      "last_changed_version": 21,
+      "stable_versions": 10,
+      "call_count": 722,
+      "success_when_used": 570,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/count-tracking": {
+      "title": "Count Tracking",
+      "level": 3,
+      "body_hash": "ca929b5dcc98",
+      "created_version": 29,
+      "last_changed_version": 29,
+      "stable_versions": 2,
+      "call_count": 39,
+      "success_when_used": 29,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/critical-rule-overrides-all-others": {
+      "title": "Critical Rule (Overrides All Others)",
+      "level": 3,
+      "body_hash": "aefdf443ce35",
+      "created_version": 28,
+      "last_changed_version": 31,
+      "stable_versions": 0,
+      "call_count": 55,
+      "success_when_used": 44,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 3,
+      "body_hash": "3e2e60be0609",
+      "created_version": 31,
+      "last_changed_version": 31,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/systematic-object-search": {
+      "title": "Systematic Object Search",
+      "level": 3,
+      "body_hash": "334c368d83e0",
+      "created_version": 31,
+      "last_changed_version": 31,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/multi-object-placement-loop": {
+      "title": "Multi-Object Placement Loop",
+      "level": 3,
+      "body_hash": "f18cce92027b",
+      "created_version": 31,
+      "last_changed_version": 31,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal/common-failure-patterns-avoid-these": {
+      "title": "Common Failure Patterns (Avoid These)",
+      "level": 3,
+      "body_hash": "a1e19a180265",
+      "created_version": 28,
+      "last_changed_version": 31,
+      "stable_versions": 0,
+      "call_count": 55,
+      "success_when_used": 44,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

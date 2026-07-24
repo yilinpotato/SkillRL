@@ -1,0 +1,109 @@
+=== Skill Tree Debug — scope=heat  v23 (level=3, tree_depth=3, 12 nodes) ===
+action: refine
+critique: The agent followed the early steps but prematurely terminated the exhaustive search after checking only some containers. The skill tree correctly instructed to open all containers and not stop early, but the agent did not adhere to that. No wording issues; the failure was due to lack of persistence.
+changelog: Added a new subheading '### Exhaustive search order' under '2. Locate the object' to explicitly list every receptacle category with a verification step before moving to retry, and deepened the persistence section with a mandatory check that all containers have been opened.
+consensus prefix (folded, not re-taught this round): go to fridge 1 → open fridge 1
+n_success this round: 8  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [gave_up] Agent stopped searching for a mug after checking only a few cabinets and drawers, never locating the required object. | evidence: After opening cabinet 3 and seeing nothing, agent performed two 'look' actions and then ended the trajectory. | fix: Continue searching all receptacles (cabinets, drawers, countertops, shelves, etc.) until the required object is found; do not stop prematurely. | skill_tree_gap: Persistence and a comprehensive search plan are lacking in the heating skill. | patch_location: Under 'heat' as a new deeper subsection '### exhaustive object search'.
+
+--- Node tree (per-node lifecycle, this version=v23) ---
+[STABLE              ] heat                                     level=1 stable_versions=22 calls=443 success=368 rate=83.1%
+[STABLE              ] heat/1-interpret-the-task                level=2 stable_versions=6 calls=443 success=368 rate=83.1%
+[STABLE              ] heat/2-locate-the-object                 level=2 stable_versions=16 calls=443 success=368 rate=83.1%
+[STABLE              ] heat/2-locate-the-object/consensus-start-at-fridge-already-open level=3 stable_versions=3 calls=37 success=34 rate=91.9%
+[MODIFIED            ] heat/2-locate-the-object/exhaustive-search-order-only-if-object-not-in-fridge level=3 stable_versions=0 calls=37 success=34 rate=91.9%
+[MODIFIED            ] heat/2-locate-the-object/persistence-and-retry level=3 stable_versions=0 calls=91 success=84 rate=92.3%
+[STABLE              ] heat/3-heat-the-object                   level=2 stable_versions=15 calls=443 success=368 rate=83.1%
+[STABLE              ] heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory level=3 stable_versions=10 calls=333 success=300 rate=90.1%
+[STABLE              ] heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory level=3 stable_versions=9 calls=305 success=276 rate=90.5%
+[STABLE              ] heat/3-heat-the-object/3-3-critical-do-not-drop-or-place-the-object-before-heating level=3 stable_versions=4 calls=73 success=69 rate=94.5%
+[STABLE              ] heat/4-place-the-heated-object           level=2 stable_versions=10 calls=333 success=300 rate=90.1%
+[STABLE              ] heat/5-completion-check-and-termination  level=2 stable_versions=10 calls=436 success=366 rate=83.9%
+
+--- Line diff vs previous version (v22 -> v23) ---
+--- v22
++++ v23
+@@ -9,7 +9,7 @@
+ - If object is inside, take it and go directly to heating (skip rest of search).
+ 
+ ### Exhaustive search order (only if object NOT in fridge)
+-Follow this list strictly. Do not skip any category. **You must check every single item in the list. Stopping early will cause failure.**
++Follow this list strictly. **You must check every single item in the list. Stopping early will cause failure.**
+ 
+ 1. **Countertops** – go to each countertop you can see (e.g., countertop 1, 2, …). Look and take if object is present.
+ 2. **Flat surfaces** – perform a `look` from a central location to see all flat surfaces (diningtable, sidetables, shelves, desk, coffee table, etc.). **Visit each one** – look and take if found. Do NOT proceed to containers until every flat surface has been examined.
+@@ -23,10 +23,11 @@
+ 
+    **Critical**: For each container, you **must open it** (if it is closed) before you can see its contents. If you arrive at a cabinet and see "nothing" on its surface, that does **not** mean it is empty – you must still use the `open` action. Then check the interior. If the target object is not inside, immediately proceed to the next container on the list. Do not stop after only a few containers. Continue until either the object is found or **every container in the list has been checked**.
+ 
+-4. **If still not found** – see "Persistence and retry" below.
++4. **After the full list** – if you have checked every countertop, every flat surface, and every container in the exact order above and still not found the object, only then proceed to "Persistence and retry" below.
+ 
+ ### Persistence and retry
+-- If the object is nowhere in the room after the full search, perform a `look` again. If new receptacles appear, repeat the entire search from step 1.
++- **Verify you have truly finished the exhaustive list**: before moving on, mentally confirm you opened every cabinet, drawer, sink, garbage, microwave, and any other openable container. If you skipped any, go back and open it.
++- If the object is nowhere in the room after the full search, perform a `look` again. If new receptacles appear, repeat the entire search from step 1 (countertops).
+ - Otherwise, re-read the task to confirm object type. If another room is available, go there and repeat the search.
+ - **Never return to the fridge or give up until you have exhausted every possible receptacle.**
+ 
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location.
+- The heating appliance is the microwave.
+
+## 2. Locate the object
+### Consensus: start at fridge (already open)
+- If object is inside, take it and go directly to heating (skip rest of search).
+
+### Exhaustive search order (only if object NOT in fridge)
+Follow this list strictly. **You must check every single item in the list. Stopping early will cause failure.**
+
+1. **Countertops** – go to each countertop you can see (e.g., countertop 1, 2, …). Look and take if object is present.
+2. **Flat surfaces** – perform a `look` from a central location to see all flat surfaces (diningtable, sidetables, shelves, desk, coffee table, etc.). **Visit each one** – look and take if found. Do NOT proceed to containers until every flat surface has been examined.
+3. **Openable containers** – after all flat surfaces, open and look inside every container in this strict order:
+   - Cabinets (all of them)
+   - Drawers (all of them)
+   - Sinkbasin
+   - Garbagecan
+   - Microwave (even though it is the heating appliance)
+   - Any other openable container (e.g., coffeemaker, toaster)
+
+   **Critical**: For each container, you **must open it** (if it is closed) before you can see its contents. If you arrive at a cabinet and see "nothing" on its surface, that does **not** mean it is empty – you must still use the `open` action. Then check the interior. If the target object is not inside, immediately proceed to the next container on the list. Do not stop after only a few containers. Continue until either the object is found or **every container in the list has been checked**.
+
+4. **After the full list** – if you have checked every countertop, every flat surface, and every container in the exact order above and still not found the object, only then proceed to "Persistence and retry" below.
+
+### Persistence and retry
+- **Verify you have truly finished the exhaustive list**: before moving on, mentally confirm you opened every cabinet, drawer, sink, garbage, microwave, and any other openable container. If you skipped any, go back and open it.
+- If the object is nowhere in the room after the full search, perform a `look` again. If new receptacles appear, repeat the entire search from step 1 (countertops).
+- Otherwise, re-read the task to confirm object type. If another room is available, go there and repeat the search.
+- **Never return to the fridge or give up until you have exhausted every possible receptacle.**
+
+## 3. Heat the object
+### 3.1 Efficient heating method (direct from inventory)
+- Once the object is in your inventory, go to the microwave.
+- Use action `heat <object> with microwave` while holding it. This works reliably.
+- If direct heat fails, you can open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is first choice.
+- After heating, the object is ready. Do not return it to the microwave.
+
+### 3.2 Prerequisite: Object must be in inventory
+- Before attempting to heat, check your inventory (`inventory`). If you are not holding the exact target object, return to section 2 and perform the exhaustive search again.
+
+### 3.3 Critical: Do not drop or place the object before heating
+- Once you have picked up the target object, you must go directly to the microwave and heat it. Do NOT move the object to any other location (countertop, shelf, etc.) before heating. Dropping it back onto a surface or placing it elsewhere will cause a loop and waste steps. The heating action must be performed while the object is in your inventory and you are at the microwave.
+
+## 4. Place the heated object
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, etc.).
+- The destination must be different from the source where the object originally came from.
+- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.
+- Put the object into/onto the receptacle: `move <object> to <receptacle>`.
+- **Critical**: Do not take the object back after placing it. Stop.
+
+## 5. Completion check and termination
+- After placing the object, verify: examine the receptacle (`examine <receptacle>`) and check inventory (`inventory`). Your inventory should be empty, and the object should be visible on/in the receptacle.
+- If the object is there, the task is complete. Do not perform any further actions.
+- **Termination rule**: Once placed at the target, stop all actions immediately.

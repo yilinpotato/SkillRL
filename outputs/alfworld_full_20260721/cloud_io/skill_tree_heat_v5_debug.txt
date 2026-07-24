@@ -1,0 +1,96 @@
+=== Skill Tree Debug — scope=heat  v5 (level=3, tree_depth=2, 6 nodes) ===
+action: refine
+critique: The agent followed the current skill tree literally, believing that closing and opening the microwave would heat the object, but the game requires an explicit 'heat' action. The skill tree's wording was ambiguous and misleading, causing the agent to skip the necessary heating step. Additionally, in one case the agent stopped after removing the object, failing to proceed to the target placement.
+changelog: Refined section '## 3. Heat the object' to include an explicit 'heat' action after closing the microwave, and added a note to proceed directly to placement after taking the heated object.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 0  n_failure this round: 7
+
+--- Failure diagnoses feeding this round ---
+- [wrong_order] The agent placed the mug in the microwave and closed it, but never performed the 'heat' action before opening and taking it out. | evidence: After 'close microwave 1', the next action is 'open microwave 1' without any 'heat' command, then the mug is taken out. | fix: After closing the microwave with the object inside, always execute the 'heat' action on the microwave before opening it. | skill_tree_gap: The heat task sequence is incomplete; the heating step is missing from the agent's plan. | patch_location: New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.
+- [wrong_order] The agent moved the apple into the microwave, closed, then opened and took it out without ever heating it. | evidence: Similar pattern: after 'close microwave 1', the next action is 'open microwave 1' with no heat command. | fix: After closing the microwave, always use the 'heat' action before opening. | skill_tree_gap: The heating step is not included in the agent's behavioural sequence for heat tasks. | patch_location: New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.
+- [wrong_order] The agent placed the potato in the microwave, closed, then opened and took it out without heating. | evidence: After 'close microwave 1', the next action is 'open microwave 1' with no heat command. | fix: After closing the microwave, always use the 'heat' action before opening. | skill_tree_gap: The heating step is missing from the agent's plan. | patch_location: New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.
+- [wrong_order] The agent moved the apple into the microwave, closed, then opened and took it out without heating, later placing it in the fridge unheated. | evidence: After 'close microwave 1', the next action is 'open microwave 1' with no heat command, and then the apple is moved to fridge. | fix: After closing the microwave, always use the 'heat' action before opening. | skill_tree_gap: The heating step is not enforced in the heat task sequence. | patch_location: New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.
+- [premature_stop] The agent took the plate from the microwave without heating it and then stopped, never proceeding to place it in the fridge. | evidence: The last action is 'take plate 4 from microwave 1' with no subsequent move to the fridge. | fix: After removing the object from the microwave, always move it to the target receptacle to complete the task. | skill_tree_gap: The agent's plan ends prematurely after removing the object; it lacks the final placement step. | patch_location: New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.
+- [wrong_order] The agent placed the apple in the microwave, closed, then opened and took it out without heating, then moved it to the fridge unheated. | evidence: After 'close microwave 1', the next action is 'open microwave 1' with no heat command, then the apple is moved to fridge. | fix: After closing the microwave, always use the 'heat' action before opening. | skill_tree_gap: The heating step is missing from the agent's plan. | patch_location: New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.
+
+--- Node tree (per-node lifecycle, this version=v5) ---
+[STABLE              ] heat                                     level=1 stable_versions=4 calls=33 success=8 rate=24.2%
+[STABLE              ] heat/1-interpret-the-task                level=2 stable_versions=4 calls=33 success=8 rate=24.2%
+[STABLE              ] heat/2-locate-the-object                 level=2 stable_versions=1 calls=33 success=8 rate=24.2%
+[MODIFIED            ] heat/3-heat-the-object                   level=2 stable_versions=0 calls=33 success=8 rate=24.2%
+[MODIFIED            ] heat/4-place-the-heated-object-in-the-target-location level=2 stable_versions=0 calls=33 success=8 rate=24.2%
+[MODIFIED            ] heat/5-completion-check-and-termination  level=2 stable_versions=0 calls=26 success=6 rate=23.1%
+
+--- Line diff vs previous version (v4 -> v5) ---
+--- v4
++++ v5
+@@ -18,23 +18,21 @@
+ - Once the object is in your inventory, go to the microwave.
+ - Open the microwave.
+ - Move the object from inventory into the microwave (action: 'move <object> to microwave').
+-- Close the microwave. (This starts the heating process.)
+-- Open the microwave again. The object is now heated. (You may also use a 'heat <object> with microwave' action if desired, but closing then opening is sufficient.)
++- Close the microwave.
++- **Now explicitly heat the object**: perform action 'heat <object> with microwave'. This is required; closing alone does not heat it.
++- Open the microwave again. The object is now heated.
+ - Take the heated object from the microwave (action: 'take <object> from microwave').
+-- 
+-  **Important**: After taking from the microwave, do not perform any other actions (e.g., go elsewhere, examine) until you are ready to go directly to the target location.
++- **After taking, proceed immediately to the target location** (do not stop or perform any other actions).
+ 
+ ## 4. Place the heated object in the target location
+ - Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).
+ - **Destination must be different** from the source receptacle where the object originally came from. Returning the object to its original location is invalid.
+ - If the receptacle is a container that can be opened (e.g., cabinet, fridge, drawer, garbagecan), open it first.
+ - Put the object into/onto the receptacle (action: 'move <object> to <receptacle>').
+-- 
+-  **Critical: Do not take the object back after placing it. Stop.**
++- **Critical: Do not take the object back after placing it. Stop.**
+ 
+ ## 5. Completion check and termination
+ - After placing the object, verify that it is at the target: examine the receptacle (action: 'examine <receptacle>') and check your inventory (action: 'inventory'). Your inventory should be empty, and the object should be visible on/in the receptacle.
+ - If the object is there, **the task is complete. Do not perform any further actions.**
+ - Resist any impulse to pick up the object again. If you ever find yourself holding the object after having placed it, that is a mistake — do not continue; stop and end the episode.
+-- 
+-  **Termination rule**: Once placed at the target, stop all actions immediately. No more moving, heating, or searching.
++- **Termination rule**: Once placed at the target, stop all actions immediately. No more moving, heating, or searching.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location from the task description.
+- The heating appliance is typically the microwave.
+
+## 2. Locate the object
+- Start with a 'look' action to see all receptacles in the room. Write down every receptacle name you see.
+- Systematically check each receptacle in this order:
+  1. Fridge (go, open, look inside). If object is there, take it.
+  2. Countertops (go to each, look at contents, take object if present).
+  3. Sidetables, diningtables, shelves, and other flat surfaces (check each).
+  4. Cabinets, drawers, garbagecan, sinkbasin, and other containers (open each, look inside).
+- If you have checked every receptacle you saw initially and still haven't found the object, perform a 'look' again to refresh the list. New receptacles may appear (e.g., coffee machine, dresser). Continue searching any you missed.
+- Do not skip any receptacle. If you lose track of what you have visited, use 'look' and recount.
+
+## 3. Heat the object
+- Once the object is in your inventory, go to the microwave.
+- Open the microwave.
+- Move the object from inventory into the microwave (action: 'move <object> to microwave').
+- Close the microwave.
+- **Now explicitly heat the object**: perform action 'heat <object> with microwave'. This is required; closing alone does not heat it.
+- Open the microwave again. The object is now heated.
+- Take the heated object from the microwave (action: 'take <object> from microwave').
+- **After taking, proceed immediately to the target location** (do not stop or perform any other actions).
+
+## 4. Place the heated object in the target location
+- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).
+- **Destination must be different** from the source receptacle where the object originally came from. Returning the object to its original location is invalid.
+- If the receptacle is a container that can be opened (e.g., cabinet, fridge, drawer, garbagecan), open it first.
+- Put the object into/onto the receptacle (action: 'move <object> to <receptacle>').
+- **Critical: Do not take the object back after placing it. Stop.**
+
+## 5. Completion check and termination
+- After placing the object, verify that it is at the target: examine the receptacle (action: 'examine <receptacle>') and check your inventory (action: 'inventory'). Your inventory should be empty, and the object should be visible on/in the receptacle.
+- If the object is there, **the task is complete. Do not perform any further actions.**
+- Resist any impulse to pick up the object again. If you ever find yourself holding the object after having placed it, that is a mistake — do not continue; stop and end the episode.
+- **Termination rule**: Once placed at the target, stop all actions immediately. No more moving, heating, or searching.

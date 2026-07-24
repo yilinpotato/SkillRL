@@ -1,0 +1,103 @@
+{
+  "batch_id": "72689200-40f5-453d-855c-d441db0f2274",
+  "diagnoses": {
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent stopped searching after opening a few cabinets, failing to locate the pan needed for cooling.",
+        "evidence": "Last action: 'open cabinet 3' with no further actions; the pan was never taken.",
+        "corrective_rule": "Continue searching all countertops, cabinets, drawers, and other containers until the target object is found.",
+        "skill_tree_gap": "Lacks a systematic search strategy that exhaustively checks all possible object locations before giving up.",
+        "patch_location": "### Object Search\n### Systematic Search of All Surfaces and Containers",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent stopped after checking only a few cabinets and never found the plate needed for heating.",
+        "evidence": "Last action: 'open cabinet 4' then no further actions; the plate was never located.",
+        "corrective_rule": "Systematically open all cabinets, drawers, and check all surfaces (countertops, diningtable) until the object is found.",
+        "skill_tree_gap": "No exhaustive search routine for target objects; agent prematurely terminates after partial exploration.",
+        "patch_location": "### Object Search\n### Systematic Search of All Surfaces and Containers",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent never found the tissuebox because it only examined visible surfaces and did not open drawers or cabinets.",
+        "evidence": "After turning on desklamp, the agent went to bed, shelves, and desk but never found tissuebox; last action 'go to shelf 3' saw nothing.",
+        "corrective_rule": "When target object is not on visible surfaces, open all drawers and cabinets in the room.",
+        "skill_tree_gap": "Missing a step to search inside containers when the target object is not immediately visible.",
+        "patch_location": "### Object Search\n### Open Containers if Object Not Visible",
+        "confidence": 0.85
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent stopped searching after opening only two drawers and a few shelves, never finding the tissuebox.",
+        "evidence": "Last action: 'go to drawer 3' then stops; the tissuebox was not found anywhere.",
+        "corrective_rule": "Continue exploring all available shelves and drawers until the target object is located.",
+        "skill_tree_gap": "No exhaustive inventory of all storage locations before concluding object is missing.",
+        "patch_location": "### Object Search\n### Complete Container Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched shelves in a cycle and never checked other surfaces like coffeetables or diningtable where the remotecontrol might be.",
+        "evidence": "Actions: shelf1→shelf2→...→shelf8→shelf1; never visited coffeetable2, diningtable, or drawers.",
+        "corrective_rule": "After checking shelves, systematically inspect all other surfaces and containers (coffeetables, diningtable, drawers) in the room.",
+        "skill_tree_gap": "Lacks a diversified search that includes all furniture types; agent fixates on one type.",
+        "patch_location": "### Object Search\n### Diversified Search Across All Furniture Types",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one pencil and then stopped exploring, despite needing a second pencil.",
+        "evidence": "After moving pencil1 to desk, the agent goes to shelf4 and shelf5 (empty) then stops; no attempt to find second pencil.",
+        "corrective_rule": "After placing the first object, continue searching all remaining locations for the second target object.",
+        "skill_tree_gap": "Missing a loop or continuation mechanism to ensure both required objects are found before stopping.",
+        "patch_location": "### Multi-Object Tasks\n### Continue Search Until All Objects Placed",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent never located any spraybottle; it opened some drawers and took a cloth, then stopped without searching other surfaces.",
+        "evidence": "After moving cloth back to drawer, the agent ends; no spraybottle ever seen or taken.",
+        "corrective_rule": "If target objects are not in the first few locations, expand search to all countertops, shelves, cabinets, and drawers in the room.",
+        "skill_tree_gap": "No exhaustive search strategy for target objects; agent gets sidetracked by irrelevant items.",
+        "patch_location": "### Object Search\n### Systematically Check All Possible Locations",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent stopped after opening a few cabinets and shelves, failing to find any spraybottle.",
+        "evidence": "Last action: 'open cabinet 3' sees nothing, then stops; no spraybottle ever found.",
+        "corrective_rule": "Continue opening all remaining cabinets, drawers, and check all surfaces until spraybottles are located.",
+        "skill_tree_gap": "No exhaustive container search; agent gives up too early.",
+        "patch_location": "### Object Search\n### Complete Container Search",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

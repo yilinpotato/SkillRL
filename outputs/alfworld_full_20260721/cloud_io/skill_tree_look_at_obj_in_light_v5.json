@@ -1,0 +1,85 @@
+{
+  "content": "# Goal: Examine a target object using a light source (e.g., desklamp)\n\n## Phase 1: Locate the light source\n- Identify a desklamp from the objects visible on surfaces in your current location. If you see a desklamp, note its receptacle.\n- If no desklamp is visible at your current location, systematically search all receptacles you observed in the initial room description.\n  ### Systematic search for desklamp\n  - List each receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) from the room description.\n  - Move to each receptacle (action: go to <receptacle>) and examine its contents.\n  - Stop as soon as you find a desklamp. That receptacle is now the lamp's location.\n- Once you know a receptacle that contains a desklamp, move there if not already present.\n\n## Phase 2: Turn on the light\n- Ensure you are at the same receptacle as the desklamp (if not already, go there).\n- Use the desklamp (action: use desklamp <number>). The observation will confirm: \"You turn on the desklamp\".\n- The light is now on. This precondition must be satisfied before examining the target object.\n\n## Phase 3: Locate the target object\n- After turning on the lamp, first check the lamp's receptacle for the target object. If present, proceed to Phase 4.\n- If not, recall the initial room description (the first observation) and list every receptacle it mentioned (e.g., bed, desk, dresser, sidetable, shelf, armchair, sofa, etc.). Do not rely on memory of what you have already seen; use the full list.\n  ### Search all desks and shelves for target\n  - Include all surface types from the initial list: desks, shelves, sidetables, dressers, cabinets, etc. Do **not** restrict your search to only one type (e.g., only shelves).\n  - If you have visited several similar receptacles (like multiple shelves) without success, pause and re-check the initial description for any surfaces you may have omitted (e.g., a desk that was mentioned).\n  - Exclude the lamp's receptacle (already checked). Then visit each remaining receptacle in any order. For each, use the 'go to <receptacle>' action and examine its contents.\n- If you find the target object on any receptacle, proceed to Phase 4.\n- After visiting all listed receptacles (surfaces) and not finding the target, then and only then consider opening closed containers (drawers, cabinets, etc.). For each closed container, go to it, open it, and examine its contents.\n- If you have exhausted all containers without success, you may have missed a receptacle; re-check the initial description for any receptacles you omitted.\n\n## Phase 4: Take and examine the target object\n- Take the target object from its receptacle (action: take <object> from <receptacle>).\n- The task is considered complete once the object is in your inventory and the light is on.",
+  "level": 3,
+  "version": 5,
+  "kind": "task_skill_tree",
+  "task_type": "look_at_obj_in_light",
+  "history": [],
+  "critique": "The agent used the skill tree's Phase 3 instruction to list all receptacles, but it focused only on shelves and sidetables, omitting desk 2 where the target was located. The tree wording was not misleading, but it lacked an explicit reminder to include all surface types and to double-check the list if only one type has been visited.",
+  "changelog": "Added a clarifying subsection under Phase 3 to explicitly remind the agent to include all surface types (desks, shelves, etc.) and to re-check the initial room description if only one type of receptacle has been visited.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent turned on the desklamp but then searched only shelves, never visiting desk 2 where the book was located.",
+      "skill_tree_gap": "Search pattern for examine task lacks inclusion of all desk locations.",
+      "task_type": "look_at_obj_in_light"
+    }
+  ],
+  "task_scope": "look_at_obj_in_light",
+  "updated_at": "step_936",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp": {
+      "title": "Goal: Examine a target object using a light source (e.g., desklamp)",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 70,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-1-locate-the-light-source": {
+      "title": "Phase 1: Locate the light source",
+      "level": 2,
+      "body_hash": "5a69523e2bb4",
+      "created_version": 1,
+      "last_changed_version": 3,
+      "stable_versions": 2,
+      "call_count": 70,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-2-turn-on-the-light": {
+      "title": "Phase 2: Turn on the light",
+      "level": 2,
+      "body_hash": "6d48447aae63",
+      "created_version": 1,
+      "last_changed_version": 3,
+      "stable_versions": 2,
+      "call_count": 70,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-3-locate-the-target-object": {
+      "title": "Phase 3: Locate the target object",
+      "level": 2,
+      "body_hash": "1a925ce2520f",
+      "created_version": 1,
+      "last_changed_version": 5,
+      "stable_versions": 0,
+      "call_count": 70,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-4-take-and-examine-the-target-object": {
+      "title": "Phase 4: Take and examine the target object",
+      "level": 2,
+      "body_hash": "95d615ebe584",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 4,
+      "call_count": 70,
+      "success_when_used": 67,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

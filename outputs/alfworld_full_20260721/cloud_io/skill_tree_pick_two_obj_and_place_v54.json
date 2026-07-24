@@ -1,0 +1,199 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2, or after two exhaustive full passes without finding a second instance.\n\n## Phase 1: First Object Search\n### Procedure\n1. Re‑read the initial observation and list every furniture item in order (use `look` if needed).\n2. Visit each item exactly once, in that order. If closed, open it. Examine contents (surface or interior).\n3. For each object seen, check if its exact name matches the required type. If yes, take it.\n4. After taking, immediate next action: `go to [target receptacle]`. Open if closed, then place the object. Increment counter by 1.\n5. If you accidentally take a non‑matching object, drop it immediately and resume search from the current furniture item.\n6. If you finish the list without taking any object, perform a second full pass (repeat step 2 from first item). After two full passes and counter still 0, task impossible – stop.\n\n## Phase 2: Second Object Search (After First Placement)\n### Must Restart Full Search\n- Immediately after placing the first object, re‑read the observation (use `look`) and list every furniture item again.\n- Visit every item in that list, exactly as in Phase 1, in order. Do not rely on memory of where you found the first object.\n- Continue until counter reaches 2, or until you have completed two full passes after the first placement with no second object.\n- If you catch yourself revisiting the same few locations without finding a second object, stop, re‑read the observation, restart the systematic search from the first item.\n\n## Critical Rules (Must Follow)\n- **Object name must match exactly.** E.g., if target is \"soapbottle\" and you see \"soapbar\", do NOT take it.\n- **After taking a matching object, next action must be `go to [target receptacle]`.** No exceptions.\n- **After placing an object, restart search from the first furniture item in the observation.** Do not continue searching from your current location.\n- **Counter:** Start at 0. Increment by 1 after each successful placement. Stop when counter == 2.\n\n## Failure Prevention\n### Exhaustive Search\n- Before any search (first or second object), list all furniture items from the current observation. Then visit each in order, one by one.\n- Open all closed receptacles (drawers, cabinets, etc.) when you visit them. Do not skip any.\n- Check every furniture type listed – surfaces, containers, shelves, etc. Do not focus only on one type.\n- If you have visited all items and found nothing, do a second full pass before giving up.\n### Object Type Verification\n- Before taking any object, read its exact name. Compare it to the task's target type character by character. Only take if they match exactly.\n- If you take a non‑matching object by mistake, drop it immediately (`drop [object]`) and resume searching from the same furniture item.\n### Multi‑Object Count Completion\n- After placing one object, you must find a second. Do not stop until counter == 2, or until two full searches after the first placement yield nothing.\n- If you have placed one object and then complete two full passes without finding a second, the task is impossible – stop.\n\n## Stop Condition\n- counter == 2 → success (task complete).\n- counter == 1 after two full passes following first placement → impossible (stop).\n- counter == 0 after two full passes in initial search → impossible (stop).",
+  "level": 3,
+  "version": 54,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent used the current skill tree but failed to follow the systematic search procedure, particularly after placing the first object—it skipped furniture items and did not complete full passes. The skill tree's wording was not misleading, but the instructions may have been too easily overlooked; refining to include explicit list-creation and order-following steps should improve adherence.",
+  "changelog": "Refined Phase 2 and Failure Prevention sections to add explicit list-creation before each search and emphasize visiting every item in order, addressing the premature-stop failures seen in the trajectories.",
+  "round_failures": [
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "After placing the first cellphone, the agent did not conduct a thorough search for the second cellphone and stopped prematurely.",
+      "skill_tree_gap": "Lack of systematic re-search after placing first object.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent failed to locate a second newspaper after placing the first, and stopped searching.",
+      "skill_tree_gap": "Lack of systematic search for second object.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent did not find any creditcards and stopped searching after opening a few drawers, failing to explore other areas.",
+      "skill_tree_gap": "Lack of broad exploration strategy.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "After placing one spraybottle, the agent could not find a second and stopped searching.",
+      "skill_tree_gap": "Lack of systematic search for second object.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent obtained one spraybottle but then stopped before placing it or finding a second.",
+      "skill_tree_gap": "Lack of task completion monitoring.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "premature_stop",
+      "root_cause": "The agent could not locate a second newspaper and stopped searching after only checking armchairs.",
+      "skill_tree_gap": "Lack of systematic search for second object.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_5184",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 53,
+      "call_count": 1158,
+      "success_when_used": 880,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "aac7f0141200",
+      "created_version": 1,
+      "last_changed_version": 54,
+      "stable_versions": 0,
+      "call_count": 1158,
+      "success_when_used": 880,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-search": {
+      "title": "Phase 1: First Object Search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 1,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-1-first-object-search/procedure": {
+      "title": "Procedure",
+      "level": 3,
+      "body_hash": "9ede45eff44f",
+      "created_version": 53,
+      "last_changed_version": 54,
+      "stable_versions": 0,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-after-first-placement": {
+      "title": "Phase 2: Second Object Search (After First Placement)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 1,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/phase-2-second-object-search-after-first-placement/must-restart-full-search": {
+      "title": "Must Restart Full Search",
+      "level": 3,
+      "body_hash": "d8f2dc33e4b9",
+      "created_version": 53,
+      "last_changed_version": 54,
+      "stable_versions": 0,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-rules-must-follow": {
+      "title": "Critical Rules (Must Follow)",
+      "level": 2,
+      "body_hash": "18f7925badf4",
+      "created_version": 53,
+      "last_changed_version": 54,
+      "stable_versions": 0,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention": {
+      "title": "Failure Prevention",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 48,
+      "last_changed_version": 53,
+      "stable_versions": 1,
+      "call_count": 132,
+      "success_when_used": 91,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/exhaustive-search": {
+      "title": "Exhaustive Search",
+      "level": 3,
+      "body_hash": "1a0f685ce276",
+      "created_version": 53,
+      "last_changed_version": 54,
+      "stable_versions": 0,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/object-type-verification": {
+      "title": "Object Type Verification",
+      "level": 3,
+      "body_hash": "7997f6715caf",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 1,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/failure-prevention/multi-object-count-completion": {
+      "title": "Multi‑Object Count Completion",
+      "level": 3,
+      "body_hash": "1581d0b4be17",
+      "created_version": 53,
+      "last_changed_version": 53,
+      "stable_versions": 1,
+      "call_count": 16,
+      "success_when_used": 7,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/stop-condition": {
+      "title": "Stop Condition",
+      "level": 2,
+      "body_hash": "b564c42510ec",
+      "created_version": 48,
+      "last_changed_version": 53,
+      "stable_versions": 1,
+      "call_count": 132,
+      "success_when_used": 91,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

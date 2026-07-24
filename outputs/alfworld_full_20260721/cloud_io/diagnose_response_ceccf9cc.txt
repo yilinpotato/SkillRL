@@ -1,0 +1,167 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never located a plate because it only searched countertops 1-2 and diningtable 1, then wasted actions on empty cabinets rather than exploring other likely locations like countertop 3, fridge, or sinkbasin.",
+    "evidence": "After 'go to diningtable 1' (no plate found), next actions were 'go to stoveburner 1' through 'open cabinet 3' – none of which led to a plate.",
+    "corrective_rule": "When the target object is not found at the current location, systematically visit all receptacles (countertops, fridge, sinkbasin, cabinets, etc.) before repeating or giving up.",
+    "skill_tree_gap": "Missing a systematic search routine that enumerates all possible object locations for the given task type.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found an apple because it visited only countertops 1-2, stoveburners, garbagecan, sinkbasin, fridge, and a few cabinets – but did not check countertop 3, 4, or diningtable where apples often appear.",
+    "evidence": "After 'open fridge 1' (no apple inside), the agent went to 'cabinet 1', 'cabinet 2', 'cabinet 3' instead of exploring other counters.",
+    "corrective_rule": "After checking the fridge and immediate counters, continue to all remaining countertops and the diningtable before opening cabinets.",
+    "skill_tree_gap": "Lack of a priority-ordered search: counters first, then fridge, then other receptacles.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a mug because it only looked on countertops 1-3 and sinkbasin (where a cup but not mug was seen), then never opened the fridge or cabinets that might contain a mug.",
+    "evidence": "After 'go to sinkbasin 1' (saw cup, not mug), the agent did 'look' three times and then 'go to cabinet 1' without opening it, then 'go to fridge 1' without opening it.",
+    "corrective_rule": "Always open closed containers (fridge, cabinets) when searching for an object that can be stored in them, and check all countertops.",
+    "skill_tree_gap": "Missing action to open containers during search; agent treats closed containers as dead ends.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never located a pan because it visited only countertops 1-2, diningtable, sinkbasin, stoveburners 1-3, and three empty cabinets – but did not check stoveburner 4, countertop 3, or the fridge where pans are often found.",
+    "evidence": "After 'go to stoveburner 3' (nothing), the agent went to 'cabinet 1', 'cabinet 2', 'cabinet 3' instead of continuing to stoveburner 4 or other receptacles.",
+    "corrective_rule": "Search all stoveburners, all countertops, and the fridge before concluding a pan is absent.",
+    "skill_tree_gap": "Incomplete enumeration of stoveburner indices and failure to search fridge for coolable objects.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a mug because it only looked in fridge (cup found), countertops 1-2, diningtable, and then opened two empty cabinets and two empty drawers – never checking microwave or other cabinets that might contain a mug.",
+    "evidence": "After 'go to diningtable 1' (no mug), the agent wasted actions on 'open cabinet 1', 'open cabinet 2', then drawers, and finally 'go to sinkbasin 1' where it stopped.",
+    "corrective_rule": "When searching for a mug, check all countertops, diningtable, fridge, and especially the microwave (since the task involves heating) and all cabinets.",
+    "skill_tree_gap": "No strategy to search for objects that are heatable; missing microwave as a possible source.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never picked up a soapbottle because it only went to cabinet 4, opened it, and then looped on 'look' without visiting any other receptacle where soapbottles are commonly found (e.g., countertop, sinkbasin).",
+    "evidence": "After 'open cabinet 4' (empty), the agent repeatedly used 'look' instead of moving to other locations.",
+    "corrective_rule": "When a container is empty, immediately move to another likely location (countertop, sinkbasin, etc.) rather than looping on look.",
+    "skill_tree_gap": "Missing a 'move on from empty container' rule; agent gets stuck in local loops.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a spraybottle because it only visited toilet, toiletpaperhanger, towelholder, bathtubbasin, sinkbasin, and countertop 1 – but did not check countertop 2, cabinets, or drawers where spraybottles are often kept.",
+    "evidence": "After 'go to sinkbasin 1' (cloth seen), the agent went to 'go to countertop 1' and then stopped, never exploring countertop 2 or other receptacles.",
+    "corrective_rule": "Search all countertops and cabinets in the bathroom environment; spraybottles are typically on countertops or in drawers.",
+    "skill_tree_gap": "Incomplete coverage of receptacles in the bathroom; agent missed multiple countertops.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#2",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a kettle because it only opened cabinets (all empty) and went to countertop 1 (empty) – never visiting stoveburners, countertop 2, or the fridge where kettles are often located.",
+    "evidence": "After 'open cabinet 1' (empty), the agent proceeded to open cabinets 10,9,8,9,7 instead of moving to stoveburners or other countertops.",
+    "corrective_rule": "Kettles are commonly on stoveburners or countertops; prioritize those over cabinets.",
+    "skill_tree_gap": "No awareness of typical object locations; agent treats all receptacles as equally likely.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#3",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a cd because it only looked on shelves, sidetables, and armchair – never checking drawers, diningtable, or other shelves where cds are often placed.",
+    "evidence": "After 'go to armchair 1' (pillow), the agent picked up the pillow and moved it, completely abandoning the cd search.",
+    "corrective_rule": "When searching for a cd, systematically check all shelves, sidetables, drawers, and desks before interacting with irrelevant objects.",
+    "skill_tree_gap": "Agent gets distracted by non-target objects and fails to continue searching for the target.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a pencil because it only checked bed, desk, and opened four empty drawers – but did not search sidetable, shelf, or other drawers that might contain pencils.",
+    "evidence": "After 'open drawer 3' (empty), the agent looped on 'look' instead of opening remaining drawers (1,2) or moving to other furniture.",
+    "corrective_rule": "Open all drawers in sequence and check all furniture surfaces (sidetable, shelf) before giving up.",
+    "skill_tree_gap": "Incomplete drawer exploration and missing other relevant locations.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed one toiletpaper but failed to find a second one because it only returned to the same countertop 2 (now empty) and then stopped searching, never checking countertop 1, cabinets, or drawers.",
+    "evidence": "After 'go to countertop 2' (only candle3 and cloth1 left), the agent did 'look' twice and then stopped, never moving to other locations.",
+    "corrective_rule": "After placing one instance, immediately search other receptacles for the second instance; do not assume the second will be at the same location.",
+    "skill_tree_gap": "No explicit rule to continue searching for a second object after placing the first.",
+    "patch_location": "## Task Completion Logic",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent placed one tissuebox but never found a second because it only revisited the diningtable and armchair, ignoring other locations like sidetable, shelf, or other drawers.",
+    "evidence": "After 'go to diningtable 1' (no second tissuebox), the agent went to 'armchair 1' and then 'drawer 1' without checking other receptacles.",
+    "corrective_rule": "When the second object is not at the first location, widen the search to all other furniture (sidetable, shelf, drawers).",
+    "skill_tree_gap": "Search scope too narrow after initial placement; no expansion strategy.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found any spatula because it only opened cabinets (all empty) and never visited countertops, stoveburners, or drawers where spatulas are commonly stored.",
+    "evidence": "After 'open cabinet 1' (empty), the trajectory ends; no effort to search countertops or other receptacles.",
+    "corrective_rule": "Spatulas are often on countertops or in drawers; search those before cabinets.",
+    "skill_tree_gap": "No prioritization of likely object locations; agent incorrectly focuses on cabinets.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent found and took one creditcard but never placed it or searched for a second, as the trajectory looped after taking the first without continuing the search.",
+    "evidence": "After 'take creditcard 2 from coffeetable 1', the note '(dropped 1 looping actions)' indicates the agent stopped before completing the task.",
+    "corrective_rule": "Immediately after picking up the first creditcard, record its location and continue searching for the second before placing any.",
+    "skill_tree_gap": "No memory of how many instances are needed; agent picks up one and then stalls.",
+    "patch_location": "## Task Completion Logic",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found any creditcard because it only checked armchair (box), coffeetable, and three drawers, but did not inspect sidetable, dresser, or other common locations for creditcards.",
+    "evidence": "After 'go to drawer 2' (nothing), the agent did 'look' and stopped, never exploring sidetable or dresser.",
+    "corrective_rule": "Creditcards are often on sidetables or in dressers; ensure those are searched before concluding absence.",
+    "skill_tree_gap": "Missing coverage of sidetable and dresser as possible object locations.",
+    "patch_location": "## Exploration Skills",
+    "confidence": 0.9
+  }
+]

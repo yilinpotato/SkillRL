@@ -1,0 +1,115 @@
+=== Skill Tree Debug — scope=clean  v19 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent used the skill tree but failed to follow the object verification rule (took pan instead of pot) and did not complete the systematic search (skipped drawers while searching for spoon and soapbar). The skill tree's existing instructions were clear enough, but the agent did not adhere to them; however, making these rules more prominent as dedicated subsections should improve compliance.
+changelog: Added 'Object Verification Before Pick' subsection to reinforce exact name matching before taking, and 'Systematic Search Procedure' subsection to explicitly mandate covering every closed container type in order, preventing premature termination.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 14  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [wrong_target] Agent picked up a pan instead of the required pot, then stopped without cleaning or placing. | evidence: take pan 1 from diningtable 1 | fix: Only take the exact object type specified in the task; do not pick up similar objects. | skill_tree_gap: Lack of object type verification before taking an object. | patch_location: Under 'clean' task, add a new subsection '### Object verification before pick'
+- [inefficient_exploration] Agent failed to locate the soapbar because it only searched cabinets and did not explore drawers or other surfaces. | evidence: After opening all cabinets, it returns to countertop1 without finding soapbar. | fix: Systematically search all surface types (countertops, drawers, shelves) and containers when looking for an object. | skill_tree_gap: Incomplete search strategy; missing coverage of all possible object locations. | patch_location: Under 'clean' task, add a new subsection '### Systematic search procedure'
+- [inefficient_exploration] Agent failed to locate a spoon because it did not search drawers or other receptacles, only cabinets and countertops. | evidence: After exploring cabinets, it returns to diningtable1 without ever seeing a spoon. | fix: Expand search to include drawers, sinkbasin, and any other possible containers or surfaces. | skill_tree_gap: Object search does not cover all receptacle types. | patch_location: Under 'clean' task, add a new subsection '### Systematic search procedure'
+
+--- Node tree (per-node lifecycle, this version=v19) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=18 calls=267 success=180 rate=67.4%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=18 calls=267 success=180 rate=67.4%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=12 calls=267 success=180 rate=67.4%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object level=2 stable_versions=5 calls=267 success=180 rate=67.4%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/navigation-and-opening-rules level=3 stable_versions=1 calls=32 success=26 rate=81.2%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/object-verification-before-pick level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/search-closed-containers-if-not-found-on-open-surfaces level=3 stable_versions=0 calls=32 success=26 rate=81.2%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/search-open-surfaces-first level=3 stable_versions=2 calls=32 success=26 rate=81.2%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search-procedure level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=2 calls=267 success=180 rate=67.4%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=2 calls=267 success=180 rate=67.4%
+
+--- Line diff vs previous version (v18 -> v19) ---
+--- v18
++++ v19
+@@ -12,18 +12,27 @@
+ - List every open-surface receptacle from the initial description. For each, go to it and read the observation (no need to open). If the target object is present, take it and go to Phase 2.
+ - If the destination in the task is an open surface (e.g., diningtable, countertop), check that surface early—the object may already be there.
+ 
++### Object Verification Before Pick
++- **Before taking any object, verify its exact name matches the task target.** Compare the object's name as shown (e.g., "pan", "pot", "soapbar", "knife") against the target object name from the task. If they are identical, take it. If they differ (even slightly, e.g., "pan" vs "pot", "soapbar" vs "soapbottle"), do not take it. Continue searching.
++- Do not pick up similar objects hoping they will work; only the exact match can be cleaned and placed.
++
+ ### Search Closed Containers (if not found on open surfaces)
+ - Only after checking all open surfaces, begin opening closed containers.
+ - Systematically search **all** instances of these types in this order:
+   1. **Cabinets** – go to each, open, inspect contents.
+   2. **Drawers** – go to each, open, inspect.
+   3. **Fridge** – if present, go to it, open, inspect.
+-- Continue until the target object is found. Do not stop after the first container type; finish every type.
++- Continue until the target object is found. **Do not stop after the first container type; finish every type.**
+ - **IMPORTANT**: Whenever you move to a closed container (e.g., cabinet 2) and see "The [container] is closed.", **immediately open it** by issuing `open [container]`. Do not walk away without opening it.
+ 
+-### Object Handling Rules (During Search)
+-- **Object Type Verification**: Before taking any object, verify its name matches the task target exactly (e.g., "soapbar" ≠ "soapbottle"; "pan" ≠ "pot"). If the exact match is present, take it. If only similar objects are present, continue searching.
+-- **Immediate Pickup of Target Object**: If you see an object that exactly matches the target (e.g., you see a pan and the task says "clean some pan"), pick it up immediately. Do not delay or explore other locations first.
++### Systematic Search Procedure
++- After exhausting open surfaces, execute this step-by-step:
++  1. List all closed containers of each type from the initial description (e.g., cabinet 1...drawer 1...).
++  2. Start with all cabinets: go to the first cabinet, open, inspect; move to next cabinet until all are opened and inspected.
++  3. Then proceed to all drawers: go to the first drawer, open, inspect; continue until all drawers are done.
++  4. If a fridge exists, do the same.
++- **Do not return to open surfaces or give up until you have opened and inspected every instance of every closed container type.**
++- If you still cannot find the object after all closed containers, re-check the open surfaces (sometimes objects spawn later) but this is rare.
+ 
+ ### Navigation and Opening Rules
+ - Always move to a receptacle before interacting. Sequence: `go to <receptacle>`, then `open <receptacle>` (or `take <object>` if already seen).
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Locate and Take the Target Object
+
+### Search Open Surfaces First
+- Open surfaces (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) are visible without opening. Check these first—they often hold the target object.
+- List every open-surface receptacle from the initial description. For each, go to it and read the observation (no need to open). If the target object is present, take it and go to Phase 2.
+- If the destination in the task is an open surface (e.g., diningtable, countertop), check that surface early—the object may already be there.
+
+### Object Verification Before Pick
+- **Before taking any object, verify its exact name matches the task target.** Compare the object's name as shown (e.g., "pan", "pot", "soapbar", "knife") against the target object name from the task. If they are identical, take it. If they differ (even slightly, e.g., "pan" vs "pot", "soapbar" vs "soapbottle"), do not take it. Continue searching.
+- Do not pick up similar objects hoping they will work; only the exact match can be cleaned and placed.
+
+### Search Closed Containers (if not found on open surfaces)
+- Only after checking all open surfaces, begin opening closed containers.
+- Systematically search **all** instances of these types in this order:
+  1. **Cabinets** – go to each, open, inspect contents.
+  2. **Drawers** – go to each, open, inspect.
+  3. **Fridge** – if present, go to it, open, inspect.
+- Continue until the target object is found. **Do not stop after the first container type; finish every type.**
+- **IMPORTANT**: Whenever you move to a closed container (e.g., cabinet 2) and see "The [container] is closed.", **immediately open it** by issuing `open [container]`. Do not walk away without opening it.
+
+### Systematic Search Procedure
+- After exhausting open surfaces, execute this step-by-step:
+  1. List all closed containers of each type from the initial description (e.g., cabinet 1...drawer 1...).
+  2. Start with all cabinets: go to the first cabinet, open, inspect; move to next cabinet until all are opened and inspected.
+  3. Then proceed to all drawers: go to the first drawer, open, inspect; continue until all drawers are done.
+  4. If a fridge exists, do the same.
+- **Do not return to open surfaces or give up until you have opened and inspected every instance of every closed container type.**
+- If you still cannot find the object after all closed containers, re-check the open surfaces (sometimes objects spawn later) but this is rare.
+
+### Navigation and Opening Rules
+- Always move to a receptacle before interacting. Sequence: `go to <receptacle>`, then `open <receptacle>` (or `take <object>` if already seen).
+- For closed containers, you **must** open them to see contents—`look` or `examine` will not reveal inside.
+- If you open a container and see nothing, move to the next container. Persist through all instances.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (usually sinkbasin 1).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it; if not, retry or verify you are at the correct source.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

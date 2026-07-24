@@ -1,0 +1,167 @@
+{
+  "batch_id": "ba1f9a05-16bb-4d46-b438-6b41784efe48",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not search all receptacles (e.g., bathtubbasin, sinkbasin 2) and never located a soapbar.",
+        "evidence": "After exploring shelf, countertop, handtowelholder, towelholder, garbagecan, sinkbasin, and several cabinets, no soapbar was seen; last action at cabinet 4 shows nothing.",
+        "corrective_rule": "When target object not found, systematically visit and open every receptacle listed in the initial observation.",
+        "skill_tree_gap": "Lack of a systematic fallback exploration strategy when target object is not immediately visible.",
+        "patch_location": "## clean\n### Systematic search for target object",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent picked up a handtowel instead of the required object 'cloth', misunderstanding the target object name.",
+        "evidence": "Action 'take handtowel 1 from handtowelholder 2' while task is 'put a clean cloth in toilet'.",
+        "corrective_rule": "Only pick up objects that exactly match the target object name specified in the task.",
+        "skill_tree_gap": "Missing object name verification step before picking; agent uses a generic heuristic.",
+        "patch_location": "## clean\n### Object name verification before picking",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#2",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not search all possible locations (e.g., sinkbasin, stoveburner, other cabinets) and never found a kettle.",
+        "evidence": "After visiting countertops and several cabinets, no kettle was observed.",
+        "corrective_rule": "Expand search to all receptacles, especially those commonly holding cookware.",
+        "skill_tree_gap": "Incomplete exploration; lacks knowledge of typical object locations.",
+        "patch_location": "## clean\n### Systematic search for target object",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "clean#3",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched countertops and cabinets but never visited other receptacles (e.g., stoveburner, sinkbasin) where a pan might be.",
+        "evidence": "After exploring countertops 1-3 and cabinets 1-5, no pan was seen.",
+        "corrective_rule": "Search all receptacles, especially those where pans are commonly found.",
+        "skill_tree_gap": "Lack of object location reasoning and systematic exploration.",
+        "patch_location": "## clean\n### Object location reasoning and exhaustive search",
+        "confidence": 0.8
+      },
+      {
+        "traj_ref": "clean#4",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only visited a few locations (countertop 1, diningtable 1, fridge, some cabinets) and missed other receptacles where lettuce might be.",
+        "evidence": "After exploring those locations, no lettuce was found; no visit to sinkbasin, diningtable 2, or other countertops.",
+        "corrective_rule": "Systematically visit all receptacles from the initial observation list.",
+        "skill_tree_gap": "Incomplete initial exploration strategy.",
+        "patch_location": "## clean\n### Systematic search for target object",
+        "confidence": 0.85
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent did not search all receptacles for a tomato; it visited countertops, fridge, diningtables, sinkbasin, stoveburners but missed potential locations like a third countertop or cabinet.",
+        "evidence": "No tomato was ever observed after visiting those locations.",
+        "corrective_rule": "Ensure all receptacles are searched when target object is not immediately found.",
+        "skill_tree_gap": "Incomplete exploration; no fallback to search all areas.",
+        "patch_location": "## cool\n### Systematic search for target object",
+        "confidence": 0.85
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only garbagecan, countertop, and a few drawers, missing other receptacles (e.g., handtowelholder, sinkbasin) where a spraybottle might be.",
+        "evidence": "After those locations, no spraybottle was seen.",
+        "corrective_rule": "Systematically search all receptacles listed in the initial observation.",
+        "skill_tree_gap": "Lack of exhaustive search for target object.",
+        "patch_location": "## pick_and_place\n### Systematic search for target object",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched armchairs and cabinets, missing other receptacles like coffeetable, dresser, sofa where a box might be.",
+        "evidence": "After opening cabinets and visiting armchairs, no box was found.",
+        "corrective_rule": "Expand search to all visible receptacles, not just those near the starting position.",
+        "skill_tree_gap": "Limited exploration scope; misses many potential object locations.",
+        "patch_location": "## pick_and_place\n### Systematic search for target object",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched armchair, coffeetable, and drawers, never visiting desk, dresser, or bed where creditcards might be.",
+        "evidence": "No creditcard was found after those searches.",
+        "corrective_rule": "When searching for two objects, systematically visit all receptacles, not just those initially near.",
+        "skill_tree_gap": "Narrow search pattern for multiple objects.",
+        "patch_location": "## pick_two_obj_and_place\n### Broad search for multiple objects",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched countertop and a few drawers, missing receptacles like bathtubbasin or cart where spraybottles are commonly found.",
+        "evidence": "No spraybottle was found after those searches.",
+        "corrective_rule": "Search all areas, especially those where spraybottles are commonly stored (e.g., cart).",
+        "skill_tree_gap": "Lack of object location knowledge and exhaustive search.",
+        "patch_location": "## pick_two_obj_and_place\n### Object location knowledge and exhaustive search",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched armchair, bed, and a few cabinets, missing desk, dresser, coffeetable where keychains often appear.",
+        "evidence": "No keychain was found after those searches.",
+        "corrective_rule": "Systematically search all receptacles, especially those that commonly hold small items.",
+        "skill_tree_gap": "Incomplete search strategy for multiple objects.",
+        "patch_location": "## pick_two_obj_and_place\n### Systematic multiple-object search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one alarmclock and then stopped exploring for the second, getting stuck in a look loop.",
+        "evidence": "After moving alarmclock 2 to dresser, repeated 'look' actions without seeking a second alarmclock.",
+        "corrective_rule": "After placing one object, continue searching for the second object until both are placed.",
+        "skill_tree_gap": "No step in the skill tree to check if both objects have been placed and to continue search.",
+        "patch_location": "## pick_two_obj_and_place\n### Verify two objects placed and continue search",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one newspaper and then returned to the same location expecting another, failing to search elsewhere for the second.",
+        "evidence": "After moving newspaper 2 to coffeetable, it returns to armchair 2 and loops looking, but no second newspaper is there.",
+        "corrective_rule": "After picking the first object, continue exploring other receptacles for the second object.",
+        "skill_tree_gap": "Lack of a mechanism to expand search after placing the first object.",
+        "patch_location": "## pick_two_obj_and_place\n### Continue search after first object placement",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only armchair, diningtable, drawer, garbagecan, ottoman, missing sofa and other receptacles where pillows might be.",
+        "evidence": "No pillow was found after those searches.",
+        "corrective_rule": "Search all receptacles, including sofa and other furniture.",
+        "skill_tree_gap": "Incomplete exploration; missed potential pillow locations.",
+        "patch_location": "## pick_two_obj_and_place\n### Systematic search for pillows",
+        "confidence": 0.85
+      }
+    ]
+  }
+}

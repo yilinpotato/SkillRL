@@ -1,0 +1,193 @@
+{
+  "content": "# heat\n\n## 1. Interpret the task\n- Identify the object to heat and the target placement location from the task description.\n- The heating appliance is the microwave.\n\n## 2. Locate the object\n### 2.1 After any move: look\n- Perform a 'look' action to refresh the list of all receptacles in the current room.\n- Write down every receptacle name you see. Do not skip this.\n\n### 2.2 Exhaustive search of all receptacle types\n- Follow this exact order, checking **every single instance** of each type:\n  1. **Fridge**: go to it, open, look inside. Take the target object if present. Close after.\n  2. **Countertops**: go to each countertop one by one, look at contents, take if found.\n  3. **Other flat surfaces**: sidetables, diningtables, shelves (and any other flat surface listed). Go to each, look at its contents.\n  4. **Cabinets**: open each cabinet, look inside. Do not skip any.\n  5. **Drawers**: open every drawer individually. They are often overlooked. Look inside each one.\n  6. **Garbagecan**: open and look inside.\n  7. **Sinkbasin**: open and look inside.\n  8. **All other containers** (e.g., coffeemachine, microwave? — only if openable; typically microwave is not a container for objects): open and look.\n- **Persistence rule**: After opening a container and finding it empty, do not pause or assume the object is absent; immediately move to the next container on your list. Continue until every container is checked.\n- **Important**: Do not stop after checking only a few items. You must visit every receptacle from your list. If you have not found the object after finishing this list, perform another 'look' (action: look) to see if new receptacles have appeared. Then repeat the search on any that were previously missed or newly appeared.\n\n### 2.3 Object identification and selection\n- Before picking up any object, read the task description again to know the exact target object type (e.g., \"mug\", \"cup\", \"apple\", \"egg\"). \n- Only pick up an object if it **exactly matches** that type. For example, if the task says \"cup\", do not pick up a \"mug\" – continue searching.\n- If you are unsure, examine the object (action: examine <object>) to see its name.\n- After picking up, verify in your inventory that the object is the correct one.\n\n### 2.4 Persistence and common hiding spots\n- Small kitchen items (mugs, cups, bowls, etc.) are often stored in cabinets or drawers, not on open surfaces. \n- If you have searched flat surfaces and the fridge without success, immediately focus on opening and looking into every cabinet and drawer. Do not give up after one or two empties.\n\n### 2.5 Object search expansion (drawers and sinkbasin are critical)\n- **Drawers are a frequent location for small objects like cups, mugs, forks, etc.** If you have checked all cabinets and flat surfaces but still not found the object, you must open every drawer in the room. Do not assume drawers are empty because cabinets were empty.\n- **Sinkbasin**: also check inside the sinkbasin – objects are sometimes placed there.\n- **Garbagecan**: even if you opened it earlier, double-check if the object might have been inside (some tasks require taking from garbagecan).\n- **Rule**: Before declaring the object missing, you must have opened all drawers, the sinkbasin, and the garbagecan. If you skipped any of these, go back and open it now.\n\n### Broad area search (step-by-step)\nUse this numbered sequence as a concrete checklist. After each step, if the object is not found, immediately proceed to the next step. Do not skip any step.\n1. Go to fridge → open → take target object if present.\n2. Go to each countertop one by one → look at contents → take if found.\n3. Go to each other flat surface (sidetable, diningtable, shelf) → look → take if found.\n4. Go to each cabinet → open → look inside → take if found.\n5. Go to each drawer → open → look inside → take if found.\n6. Go to garbagecan → open → look inside → take if found.\n7. Go to sinkbasin → open → look inside → take if found.\n8. Go to any other openable container (e.g., coffeemachine if openable) → open → look → take if found.\n- After finishing step 8, if still not found, do another 'look' to refresh the room description. If new receptacles appear, repeat the entire sequence from step 1. Otherwise, re-read the task to ensure you are searching for the correct object type.\n\n## 3. Heat the object\n### 3.1 Efficient heating method (direct from inventory)\n- Once the object is in your inventory, go to the microwave.\n- You can heat it while holding it: perform action 'heat <object> with microwave'. This is the simplest method and works reliably.\n- If you prefer or if direct heat fails, you can follow the longer sequence: open microwave, move object inside, close, open, take object out, then heat while holding. But direct heat is the first choice.\n- After heating, the object is ready. Do not return it to the microwave.\n\n### 3.2 Prerequisite: Object must be in inventory\n- Before attempting to heat, check your inventory (action: inventory). If you are not holding the exact target object, you have not completed the locate phase.\n- In that case, return to section 2 (Locate the object) and perform the full exhaustive search of all containers. Do not try to heat until you have the correct object.\n\n## 4. Place the heated object\n- Go to the receptacle specified in the task (e.g., countertop, cabinet, diningtable, fridge, garbagecan, shelf, sidetable, coffeemachine, etc.).\n- The destination must be different from the source where the object originally came from.\n- If the target receptacle is openable (cabinet, drawer, fridge, garbagecan), open it first.\n- Put the object into/onto the receptacle: action 'move <object> to <receptacle>'.\n- **Critical**: Do not take the object back after placing it. Stop.\n\n## 5. Completion check and termination\n- After placing the object, verify: examine the receptacle (action: 'examine <receptacle>') and check your inventory (action: 'inventory'). Your inventory should be empty, and the object should be visible on/in the receptacle.\n- If the object is there, the task is complete. Do not perform any further actions.\n- If you ever find yourself holding the object after having placed it, that is a mistake — do not continue; stop and end the episode.\n- **Termination rule**: Once placed at the target, stop all actions immediately. No more moving, heating, or searching.",
+  "level": 3,
+  "version": 12,
+  "kind": "task_skill_tree",
+  "task_type": "heat",
+  "history": [],
+  "critique": "The agent followed the tree's initial steps but halted after checking only cabinet 1-4 without proceeding to drawers, violating the exhaustive search rule. The existing tree clearly instructs to check all containers including drawers, but the agent did not apply it. The refinement adds an explicit step-by-step sequence to reduce the chance of skipping.",
+  "changelog": "Added '### Broad area search' subsection under '## Locate the object' with a numbered step list of all receptacle types to check in order, reinforcing the exhaustive search strategy and preventing early termination.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to locate a cup because it only checked the fridge (which had no cup) and then opened a few cabinets without exploring other common locations like countertops or drawers.",
+      "skill_tree_gap": "Lack of a fallback search strategy that covers all furniture types when the first expected location fails.",
+      "task_type": "heat"
+    }
+  ],
+  "task_scope": "heat",
+  "updated_at": "step_2160",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "heat": {
+      "title": "heat",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 11,
+      "call_count": 249,
+      "success_when_used": 192,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/1-interpret-the-task": {
+      "title": "1. Interpret the task",
+      "level": 2,
+      "body_hash": "ba00fe4c40c0",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 4,
+      "call_count": 249,
+      "success_when_used": 192,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object": {
+      "title": "2. Locate the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 5,
+      "call_count": 249,
+      "success_when_used": 192,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-1-after-any-move-look": {
+      "title": "2.1 After any move: look",
+      "level": 3,
+      "body_hash": "3cc0bbff60e8",
+      "created_version": 9,
+      "last_changed_version": 9,
+      "stable_versions": 3,
+      "call_count": 126,
+      "success_when_used": 114,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-2-exhaustive-search-of-all-receptacle-types": {
+      "title": "2.2 Exhaustive search of all receptacle types",
+      "level": 3,
+      "body_hash": "9104e0a5c067",
+      "created_version": 9,
+      "last_changed_version": 11,
+      "stable_versions": 1,
+      "call_count": 126,
+      "success_when_used": 114,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-3-object-identification-and-selection": {
+      "title": "2.3 Object identification and selection",
+      "level": 3,
+      "body_hash": "3425bf6f32c2",
+      "created_version": 9,
+      "last_changed_version": 9,
+      "stable_versions": 3,
+      "call_count": 126,
+      "success_when_used": 114,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-4-persistence-and-common-hiding-spots": {
+      "title": "2.4 Persistence and common hiding spots",
+      "level": 3,
+      "body_hash": "efc6e487af21",
+      "created_version": 9,
+      "last_changed_version": 9,
+      "stable_versions": 3,
+      "call_count": 126,
+      "success_when_used": 114,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/2-5-object-search-expansion-drawers-and-sinkbasin-are-critical": {
+      "title": "2.5 Object search expansion (drawers and sinkbasin are critical)",
+      "level": 3,
+      "body_hash": "444984d44365",
+      "created_version": 11,
+      "last_changed_version": 11,
+      "stable_versions": 1,
+      "call_count": 72,
+      "success_when_used": 64,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/2-locate-the-object/broad-area-search-step-by-step": {
+      "title": "Broad area search (step-by-step)",
+      "level": 3,
+      "body_hash": "d9b9bd2a195b",
+      "created_version": 12,
+      "last_changed_version": 12,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object": {
+      "title": "3. Heat the object",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 8,
+      "stable_versions": 4,
+      "call_count": 249,
+      "success_when_used": 192,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-1-efficient-heating-method-direct-from-inventory": {
+      "title": "3.1 Efficient heating method (direct from inventory)",
+      "level": 3,
+      "body_hash": "5b6736bc7991",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 4,
+      "call_count": 139,
+      "success_when_used": 124,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/3-heat-the-object/3-2-prerequisite-object-must-be-in-inventory": {
+      "title": "3.2 Prerequisite: Object must be in inventory",
+      "level": 3,
+      "body_hash": "3c3cd9f25db0",
+      "created_version": 10,
+      "last_changed_version": 10,
+      "stable_versions": 2,
+      "call_count": 111,
+      "success_when_used": 100,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/4-place-the-heated-object": {
+      "title": "4. Place the heated object",
+      "level": 2,
+      "body_hash": "198c9df99bb3",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 4,
+      "call_count": 139,
+      "success_when_used": 124,
+      "deprecated": false,
+      "internalized": false
+    },
+    "heat/5-completion-check-and-termination": {
+      "title": "5. Completion check and termination",
+      "level": 2,
+      "body_hash": "81dbacb278d4",
+      "created_version": 2,
+      "last_changed_version": 8,
+      "stable_versions": 4,
+      "call_count": 242,
+      "success_when_used": 190,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

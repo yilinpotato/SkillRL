@@ -1,0 +1,103 @@
+{
+  "content": "# Goal: Examine a target object using a light source (e.g., desklamp)\n\n## Phase 1: Find and turn on the desklamp\n- Search the surfaces you can see at your current location for a desklamp. If you see one, note its location and move there if necessary.\n- If no desklamp is visible, move to another surface receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) and check its contents. Continue moving among receptacles until you find a desklamp.\n- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.\n- Important: You may encounter the target object before finding the lamp. If that happens, remember where it is and continue searching for the lamp. Do **not** take the object until the lamp is on.\n\n## Phase 2: Locate and take the target object\n- After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then systematically move to other likely receptacles.\n\n### Search Strategy for Target Objects\n- Check receptacles in this priority order: desk, bed, dresser, sidetable, coffeetable, sofa, shelf, and any other surface you haven't visited.\n- Do **not** open drawers or cabinets; the target is always on an open surface (bed, desk, sofa, etc.). Opening unnecessary containers wastes steps.\n- When you arrive at a receptacle, read its contents (the observation lists items on it). If you see the target object, take it (action: take <object> from <receptacle>).\n- If you do not see the target, move to the next receptacle on the list. Continue until the target is found.\n- If you already knew the target's location from earlier, go directly there and take it.\n- The object is now in your inventory.\n\n## Phase 3: Completion\n- The task is complete once the target object is in your inventory and the desklamp is on. No further action is required.",
+  "level": 3,
+  "version": 8,
+  "kind": "task_skill_tree",
+  "task_type": "look_at_obj_in_light",
+  "history": [],
+  "critique": "The agent followed the tree's general phases but failed to systematically search all common furniture types (e.g., bed, sofa), likely because 'surface receptacles' was too vague. The tree's wording did not mislead, but it lacked sufficient specificity to prevent inefficient exploration.",
+  "changelog": "Added a 'Search Strategy' subsection under Phase 2 with a prioritized furniture list and a rule against opening drawers, based on failure diagnoses showing missing coverage of beds and sofas.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to find a book because it did not search the bed, a likely location for a book.",
+      "skill_tree_gap": "Missing bed in search plan for look_at_obj_in_light.",
+      "task_type": "look_at_obj_in_light"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to find a book because it only searched shelves and a drawer, missing the bed and desk where books are often found.",
+      "skill_tree_gap": "Missing systematic search covering all furniture types.",
+      "task_type": "look_at_obj_in_light"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to find a laptop because it did not search the bed or desk (laptop likely on desk).",
+      "skill_tree_gap": "Missing specific search pattern for laptops.",
+      "task_type": "look_at_obj_in_light"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent failed to find a newspaper because it did not search the sofa or desk where newspapers are often placed.",
+      "skill_tree_gap": "Missing furniture coverage for newspaper search.",
+      "task_type": "look_at_obj_in_light"
+    }
+  ],
+  "task_scope": "look_at_obj_in_light",
+  "updated_at": "step_2448",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp": {
+      "title": "Goal: Examine a target object using a light source (e.g., desklamp)",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 7,
+      "call_count": 207,
+      "success_when_used": 195,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp": {
+      "title": "Phase 1: Find and turn on the desklamp",
+      "level": 2,
+      "body_hash": "1eed99f3a847",
+      "created_version": 7,
+      "last_changed_version": 7,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 8,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object": {
+      "title": "Phase 2: Locate and take the target object",
+      "level": 2,
+      "body_hash": "0f9b107a397c",
+      "created_version": 7,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 12,
+      "success_when_used": 8,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object/search-strategy-for-target-objects": {
+      "title": "Search Strategy for Target Objects",
+      "level": 3,
+      "body_hash": "3159e029afe1",
+      "created_version": 8,
+      "last_changed_version": 8,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-a-target-object-using-a-light-source-e-g-desklamp/phase-3-completion": {
+      "title": "Phase 3: Completion",
+      "level": 2,
+      "body_hash": "ee3b7d8dcf7c",
+      "created_version": 7,
+      "last_changed_version": 7,
+      "stable_versions": 1,
+      "call_count": 12,
+      "success_when_used": 8,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

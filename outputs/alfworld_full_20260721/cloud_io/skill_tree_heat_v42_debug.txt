@@ -1,0 +1,87 @@
+=== Skill Tree Debug — scope=heat  v42 (level=5, tree_depth=3, 8 nodes) ===
+action: refine
+critique: The agent partially followed the skill tree's search order but stopped prematurely after only two cabinets and two drawers, not exhausting numbers until error as instructed. The tree's wording 'Continue until error' may have been misinterpreted; the agent appeared to move to the next type before receiving an error, indicating need for more explicit step-by-step enforcement.
+changelog: Refined section 2.2 (Systematic Exhaustive Search) to emphasize that you must try every number of a receptacle type sequentially until you receive an error message before moving to the next type, and added a checklist for each number.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 5  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent never found a mug because it only looked in fridge (cup found), countertops 1-2, diningtable, and then opened two empty cabinets and two empty drawers – never checking microwave or other cabinets that might contain a mug. | evidence: After 'go to diningtable 1' (no mug), the agent wasted actions on 'open cabinet 1', 'open cabinet 2', then drawers, and finally 'go to sinkbasin 1' where it stopped. | fix: When searching for a mug, check all countertops, diningtable, fridge, and especially the microwave (since the task involves heating) and all cabinets. | skill_tree_gap: No strategy to search for objects that are heatable; missing microwave as a possible source. | patch_location: ## Exploration Skills
+
+--- Node tree (per-node lifecycle, this version=v42) ---
+[STABLE              ] heat                                     level=1 stable_versions=41 calls=915 success=812 rate=88.7%
+[STABLE              ] heat/1-interpret-the-task                level=2 stable_versions=13 calls=915 success=812 rate=88.7%
+[STABLE              ] heat/2-locate-the-object                 level=2 stable_versions=1 calls=915 success=812 rate=88.7%
+[STABLE              ] heat/2-locate-the-object/2-1-immediate-check-fridge level=3 stable_versions=1 calls=6 success=5 rate=83.3%
+[MODIFIED            ] heat/2-locate-the-object/2-2-systematic-exhaustive-search-mandatory-follow-exactly-in-order level=3 stable_versions=0 calls=6 success=5 rate=83.3%
+[STABLE              ] heat/3-heat-the-object                   level=2 stable_versions=1 calls=915 success=812 rate=88.7%
+[STABLE              ] heat/4-place-the-heated-object           level=2 stable_versions=1 calls=805 success=744 rate=92.4%
+[STABLE              ] heat/5-completion-check-and-termination  level=2 stable_versions=1 calls=908 success=810 rate=89.2%
+
+--- Line diff vs previous version (v41 -> v42) ---
+--- v41
++++ v42
+@@ -12,13 +12,13 @@
+ - If not, **immediately start the exhaustive search below. Do not go anywhere else first.**
+ 
+ ### 2.2 Systematic Exhaustive Search (mandatory, follow exactly in order)
+-You must try every receptacle type in the fixed order below. For each type, try numbers sequentially (e.g., countertop 1, countertop 2, ...) until you receive an error that the location does not exist. At each, look and take if found. **Do not skip any type; do not return to a previously checked type.**
++You must try every receptacle type in the fixed order below. For each type, try numbers sequentially (e.g., countertop 1, countertop 2, ...) until you receive an error that the location does not exist. **Do not stop after a few empty ones; you must receive the error to move on.** At each receptacle, look and take if found. **Do not skip any type; do not return to a previously checked type.**
+ 
+ 1. **Countertops**: Check all countertop numbers until error.
+-2. **Dining tables**: Check all diningtable numbers until error. (Do not skip even if none were visible initially.)
+-3. **Cabinets**: For each cabinet number, open it, look inside, take if found. Continue until error.
+-4. **Drawers**: For each drawer number, open it, look inside, take if found. Continue until error.
+-5. **Other openable containers**: Check sinkbasin 1, garbagecan 1, microwave 1, coffeemachine 1, toaster 1, etc. – try each type incrementally until error.
++2. **Dining tables**: Check all diningtable numbers until error.
++3. **Cabinets**: For each cabinet number, open it, look inside, take if found. Continue increasing the number until you receive an error (e.g., "cabinet 27 does not exist") before moving to the next type.
++4. **Drawers**: Same as cabinets: open, look, take, and increment until error.
++5. **Other openable containers**: Check sinkbasin 1, garbagecan 1, microwave 1, coffeemachine 1, toaster 1, etc. – try each type incrementally until error. For each, open and look inside.
+ 6. **Repeat look**: If still not found, perform a `look`. If new receptacles become visible, repeat the entire sequence from step 1. If another room is accessible, go there and repeat.
+ 
+ **Critical rules:**
+
+--- Rendered content actually shown to the agent (post-prune) ---
+```markdown
+# heat
+
+## 1. Interpret the task
+- Identify the object to heat and the target placement location.
+- The heating appliance is the microwave.
+- The object must be heated before placing; do not place raw.
+
+## 2. Locate the object
+### 2.1 Immediate check: fridge
+- Open the fridge. If the target object is inside, take it and go directly to Section 3 (Heat).
+- If not, **immediately start the exhaustive search below. Do not go anywhere else first.**
+
+### 2.2 Systematic Exhaustive Search (mandatory, follow exactly in order)
+You must try every receptacle type in the fixed order below. For each type, try numbers sequentially (e.g., countertop 1, countertop 2, ...) until you receive an error that the location does not exist. **Do not stop after a few empty ones; you must receive the error to move on.** At each receptacle, look and take if found. **Do not skip any type; do not return to a previously checked type.**
+
+1. **Countertops**: Check all countertop numbers until error.
+2. **Dining tables**: Check all diningtable numbers until error.
+3. **Cabinets**: For each cabinet number, open it, look inside, take if found. Continue increasing the number until you receive an error (e.g., "cabinet 27 does not exist") before moving to the next type.
+4. **Drawers**: Same as cabinets: open, look, take, and increment until error.
+5. **Other openable containers**: Check sinkbasin 1, garbagecan 1, microwave 1, coffeemachine 1, toaster 1, etc. – try each type incrementally until error. For each, open and look inside.
+6. **Repeat look**: If still not found, perform a `look`. If new receptacles become visible, repeat the entire sequence from step 1. If another room is accessible, go there and repeat.
+
+**Critical rules:**
+- If you ever find yourself at the target placement location (e.g., fridge, diningtable) without the object, you have made a mistake. Immediately stop and resume the exhaustive search from the next unchecked receptacle type.
+- Do not drop or place the object before heating.
+- Once you pick up the object, go directly to the microwave (Section 3).
+
+## 3. Heat the object
+- Go to the microwave.
+- Use `heat <object> with microwave` while holding it. Optionally open microwave first if direct heat fails.
+- After heating, the object is ready. Do not return it to the microwave.
+
+## 4. Place the heated object
+- Go to the target receptacle specified in the task.
+- If it is openable (cabinet, drawer, fridge, garbagecan), open it first.
+- Use `move <object> to <receptacle>`.
+- Do not take the object back after placing.
+
+## 5. Completion check and termination
+- After placing, verify: check inventory (must be empty) and examine the receptacle (must contain the object).
+- If both conditions hold, task complete. Stop immediately. Do not loop.
+```

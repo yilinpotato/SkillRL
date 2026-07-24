@@ -1,0 +1,90 @@
+{
+  "content": "# Goal: Examine or look at a target object using a light source (e.g., desklamp)\n\n## Phase 1: Find and turn on the desklamp\n- Start by moving to a receptacle (e.g., desk, dresser, sidetable) to see its contents. Search surfaces at your current receptacle for a desklamp. If seen, that receptacle now holds the lamp.\n- If not visible, move to another surface receptacle (from the initial room description) and check its contents. Continue until you find a desklamp.\n- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.\n- If you encounter the target object before the lamp, remember its location and continue searching for the lamp. Do **not** take the object until the lamp is on.\n\n## Phase 2: Locate and take the target object (after lamp is on)\n\n### Efficient Search (stop when found)\n1. **Check the current receptacle first** – if the target object is on the same receptacle where you turned on the lamp, take it immediately (action: take <object> from <receptacle>).\n2. **If not present, systematically visit other receptacles** – use the initial room description as a list of all furniture/receptacles (with numbers). For each receptacle (in any order, but do not skip any):\n   - Go to it.\n   - Read the arrival observation. If the target object's exact name appears among the items on the surface, take it (action: take <object> from <receptacle>) and stop searching — the task is done after taking.\n   - If the target is not on the surface, check if this receptacle has any containers (e.g., a drawer built into a dresser, a cabinet). Open each container (action: open <container>) and inspect its contents. If found, take it and stop.\n3. **Exhaustive fallback:** If after visiting all receptacles and opening all containers the target is still missing, re-read the initial description to verify you did not overlook any receptacle or container. Go back and open any containers you missed. Persist.\n4. **No unnecessary actions** – do not use 'look' or 'inventory' except as needed to open containers; arrival observations give sufficient information.\n\n### Action Precondition Check\n- **Only take an object that is explicitly listed in the current observation.** Never guess or assume an object's location. If the observation does not show the target, do not attempt to take it from that receptacle — continue searching.\n- If you try to take an object not present, you will waste an action and potentially break the task. Always verify before acting.\n\n## Phase 3: Task completion\n- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required. (Optionally use examine, but not necessary.)",
+  "level": 3,
+  "version": 20,
+  "kind": "task_skill_tree",
+  "task_type": "look_at_obj_in_light",
+  "history": [],
+  "critique": "The agent followed the skill tree's phases correctly and achieved success in all trajectories. However, the original wording in Phase 2 'Systematic Search' implied that all receptacles must be visited even after finding the target, which could lead to wasteful actions; the refined version clarifies that you stop as soon as the target is found, and recommends checking the current receptacle first.",
+  "changelog": "Refined Phase 2 to explicitly state that search stops upon finding the target object, added a priority check for the current receptacle after turning on the lamp, and merged the action precondition check within the search steps for clarity.",
+  "round_failures": [],
+  "task_scope": "look_at_obj_in_light",
+  "updated_at": "step_4824",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp": {
+      "title": "Goal: Examine or look at a target object using a light source (e.g., desklamp)",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 10,
+      "last_changed_version": 10,
+      "stable_versions": 10,
+      "call_count": 164,
+      "success_when_used": 149,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp": {
+      "title": "Phase 1: Find and turn on the desklamp",
+      "level": 2,
+      "body_hash": "ed0ae947afd7",
+      "created_version": 10,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 164,
+      "success_when_used": 149,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object-after-lamp-is-on": {
+      "title": "Phase 2: Locate and take the target object (after lamp is on)",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 15,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 96,
+      "success_when_used": 89,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object-after-lamp-is-on/efficient-search-stop-when-found": {
+      "title": "Efficient Search (stop when found)",
+      "level": 3,
+      "body_hash": "653ed51e6f78",
+      "created_version": 20,
+      "last_changed_version": 20,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object-after-lamp-is-on/action-precondition-check": {
+      "title": "Action Precondition Check",
+      "level": 3,
+      "body_hash": "285aab78d0b4",
+      "created_version": 19,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 9,
+      "success_when_used": 9,
+      "deprecated": false,
+      "internalized": false
+    },
+    "goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-3-task-completion": {
+      "title": "Phase 3: Task completion",
+      "level": 2,
+      "body_hash": "6646caf13be8",
+      "created_version": 10,
+      "last_changed_version": 19,
+      "stable_versions": 1,
+      "call_count": 164,
+      "success_when_used": 149,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "batch_id": "edf265e8-54a8-4f53-972d-8dab35beb963",
+  "diagnoses": {
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a bowl to cool; it wandered through multiple locations (countertops, diningtable, sinkbasin, stoveburners) without ever picking up a bowl.",
+        "evidence": "After 'go to countertop 3' (obs: 'see a apple 2, a butterknife 2, and a cup 2'), the agent goes to diningtable, sinkbasin, stoveburners, and eventually back to countertop 1 without taking any bowl.",
+        "corrective_rule": "When the bowl is not on the first few countertops, systematically check all countertops and receptacles (e.g., sinkbasin, stoveburner) before moving to unrelated areas.",
+        "skill_tree_gap": "Lacks a systematic object-search routine that covers all likely locations for the target object.",
+        "patch_location": "Object Search and Identification: add new subsection '### Systematic Search Procedure'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched shelves for the cd, ignoring other furniture (e.g., tables, desks) where the cd might be located.",
+        "evidence": "First action is 'go to shelf 2' and then the agent visits nine different shelves and a drawer, never finding a cd.",
+        "corrective_rule": "Before focusing on the target receptacle, first search all types of furniture (tables, desks, beds, etc.) for the object.",
+        "skill_tree_gap": "No strategy to diversify search across different furniture types; over-focuses on receptacle type.",
+        "patch_location": "Object Search and Identification: add new subsection '### Diverse Furniture Search'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Only one tissuebox was placed in the drawer; the agent stopped after placing the first and never searched for a second tissuebox.",
+        "evidence": "After moving tissuebox 2 to drawer 1, the agent goes to armchair 1 and then repeatedly issues 'look' actions without searching for another tissuebox.",
+        "corrective_rule": "After placing one object, continue searching for the second required object until both are placed.",
+        "skill_tree_gap": "Missing a count-based loop that ensures all required objects are placed before stopping.",
+        "patch_location": "Multi-Object Handling: add new subsection '### Count-based Completion Loop'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Only one creditcard was placed in the armchair; after placing it, the agent did not search for a second creditcard and fell into a loop.",
+        "evidence": "After moving creditcard 3 to armchair 3, the agent repeatedly looks and then goes to coffeetable without picking up another creditcard.",
+        "corrective_rule": "After placing one creditcard, immediately search for the second creditcard in other locations (e.g., tables, drawers).",
+        "skill_tree_gap": "Lacks a strategy to find and place all instances of a required object type.",
+        "patch_location": "Multi-Object Handling: add new subsection '### Instance Search After First Placement'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found any creditcard; it only visited bed, diningtable, drawers, and garbagecan, missing likely locations like desks or sidetables.",
+        "evidence": "At diningtable 1, the obs shows no creditcard; then the agent opens empty drawers and goes to garbagecan, never taking any object.",
+        "corrective_rule": "Perform an exhaustive search of all possible furniture (including dressers, sidetables, desks) when the object is not in the first few places.",
+        "skill_tree_gap": "No exhaustive search routine that covers all furniture types in the room.",
+        "patch_location": "Object Search and Identification: add new subsection '### Exhaustive Search of All Receptacles'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Only one keychain was placed in the sofa; after placing it, the agent returned to the armchair (where the first was found) but found no second keychain and stopped searching.",
+        "evidence": "After moving keychain 2 to sofa 1, the agent goes to armchair 1, sees only a cellphone, and then repeatedly looks without searching elsewhere.",
+        "corrective_rule": "After placing one keychain, search all other furniture (not just the original location) for the second keychain.",
+        "skill_tree_gap": "No mechanism to broaden the search after finding the first object; assumes both are at the same location.",
+        "patch_location": "Multi-Object Handling: add new subsection '### Post-Placement Expanded Search'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Only one spraybottle was placed in the garbagecan, even though a second spraybottle was visible on the same countertop; the agent did not pick it up.",
+        "evidence": "At countertop 1, obs shows 'spraybottle 2, spraybottle 1'. The agent took spraybottle 1, placed it, and then never returned for spraybottle 2.",
+        "corrective_rule": "When multiple required objects are present at the same location, pick up all of them before going to the target receptacle.",
+        "skill_tree_gap": "Lacks bulk pickup logic; agent sees multiple objects but only takes one.",
+        "patch_location": "Multi-Object Handling: add new subsection '### Bulk Pickup from Same Location'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Only one candle was placed in the drawer; after placing it, the agent returned to previous locations (bathtubbasin, countertop) but found no second candle and stopped.",
+        "evidence": "After moving candle 4 to drawer 1, the agent goes to bathtubbasin and then countertop 2; obs at countertop 2 shows only spraybottle and toiletpaper, then loops.",
+        "corrective_rule": "After placing one candle, systematically search all other furniture (e.g., cabinets, tables) for the second candle.",
+        "skill_tree_gap": "No post-placement search strategy for finding additional instances of the same object type.",
+        "patch_location": "Multi-Object Handling: add new subsection '### Post-Placement Search for Remaining Objects'",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

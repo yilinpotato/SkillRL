@@ -1,0 +1,136 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never located a soapbar because it only examined surfaces and never opened drawers or cabinets where the soapbar might be stored.",
+    "evidence": "After many steps, the agent arrives at countertop 1 and sees no soapbar: 'You arrive at countertop 1. On the countertop 1, you see a candle 1, a soapbottle 3, a soapbottle 2, a spraybottle 2, a spraybottle 1, and a toiletpaper 3.' No soapbar is taken throughout the trajectory.",
+    "corrective_rule": "Systematically search all surfaces and containers (drawers, cabinets) for the target object.",
+    "skill_tree_gap": "Missing a subskill for exhaustive container and surface exploration when the target is not immediately visible.",
+    "patch_location": "Under the '## clean' heading, add a new subsection '### Container and surface search strategy'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found an egg because it did not open the fridge or check other containers; it only visited surfaces and stopped after a loop.",
+    "evidence": "After going to the fridge, the agent only looks at it without opening: 'action: go to fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.' Then it wanders back to countertop 3 without ever taking an egg.",
+    "corrective_rule": "When the target object is not on surfaces, open containers (fridge, drawers, cabinets) and inspect their contents.",
+    "skill_tree_gap": "Lacks a strategy for searching inside containers, especially the fridge for cool tasks.",
+    "patch_location": "Under the '## cool' heading, add a new subsection '### Container search (including fridge) for cool tasks'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a pan because it did not visit all accessible surfaces (e.g., countertop 3) and gave up after opening empty cabinets.",
+    "evidence": "After opening cabinets and finding no pan, the agent returns to countertop 1 without ever taking a pan: 'action: go to countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a knife 1.' No pan is visible or taken.",
+    "corrective_rule": "Systematically explore every reachable surface (countertops, diningtables, sidetables) before concluding the object is absent.",
+    "skill_tree_gap": "Incomplete surface exploration; the agent skipped some potential locations.",
+    "patch_location": "Under the '## cool' heading, add a new subsection '### Systematic surface exploration'.",
+    "confidence": 0.8
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not open most drawers or the dresser to search for the cellphone; it only opened drawer 1 and then stopped.",
+    "evidence": "After opening drawer 1 and seeing keychain and pencil, the agent goes to drawer 2 but only 'look's without opening it: 'action: look  | obs: You arrive at drawer 2. The drawer 2 is closed.' No cellphone is ever taken.",
+    "corrective_rule": "Open all containers (drawers, cabinets, dressers) in the room to find the target object.",
+    "skill_tree_gap": "Missing a subskill for systematically opening all containers in a room.",
+    "patch_location": "Under the '## pick_and_place' heading, add a new subsection '### Complete container search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent never found a spraybottle because it only visited a few locations and did not check all containers or other rooms.",
+    "evidence": "After reaching the toilet and seeing soapbottles but no spraybottle, the agent loops: 'action: go to towelholder 2  | obs: You arrive at towelholder 2. On the towelholder 2, you see nothing.' No spraybottle is taken.",
+    "corrective_rule": "Search every room and every container (drawers, cabinets, shelves) for the target object.",
+    "skill_tree_gap": "Lacks a broader exploration strategy covering all rooms and containers.",
+    "patch_location": "Under the '## pick_and_place' heading, add a new subsection '### Cross-room and container search'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_and_place#2",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only explored countertop 1 and a few drawers, missing other surfaces and containers where a spraybottle might be.",
+    "evidence": "After opening multiple drawers and finding nothing, the agent returns to countertop 1: 'action: go to countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a papertowelroll 1, a soapbar 2, a soapbottle 2, ...' No spraybottle ever taken.",
+    "corrective_rule": "Do not restrict search to the immediate area; check all rooms, surfaces, and containers.",
+    "skill_tree_gap": "The agent's exploration is too narrow; it does not consider other rooms or furniture.",
+    "patch_location": "Under the '## pick_and_place' heading, add a new subsection '### Exhaustive multi-room exploration'.",
+    "confidence": 0.8
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one keychain in the drawer, the agent stopped searching for a second keychain and entered a loop.",
+    "evidence": "After moving keychain 3 to drawer 1, the agent looks and then goes back to bed: 'action: go to bed 1  | obs: You arrive at bed 1. On the bed 1, you see a cellphone 3, a laptop 2, a laptop 1, and a pillow 1.' It never searches for another keychain.",
+    "corrective_rule": "After placing the first object, continue searching for a second object of the same type until the task is complete.",
+    "skill_tree_gap": "Missing logic to track how many objects have been placed and to persist in searching for the remaining ones.",
+    "patch_location": "Under the '## pick_two_obj_and_place' heading, add a new subsection '### Multi-object continuation and tracking'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched cabinets and never examined countertops or the fridge where lettuce is typically found.",
+    "evidence": "After opening cabinet 5 and seeing only a cup, the agent stops: 'action: look  | obs: You open the cabinet 5. The cabinet 5 is open. In it, you see a cup 1.' No lettuce is taken anywhere.",
+    "corrective_rule": "For food items like lettuce, prioritize searching countertops, dining tables, and the fridge over cabinets.",
+    "skill_tree_gap": "Lacks object-specific search heuristics (e.g., food items are often on countertops or in the fridge).",
+    "patch_location": "Under the '## pick_two_obj_and_place' heading, add a new subsection '### Object-type aware search (e.g., food items)'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only visited a few spots (bathtubbasin, cart, garbagecan, shelves) and never checked drawers or cabinets for spraybottles.",
+    "evidence": "After inspecting shelf 1 and finding nothing, the agent goes to sinkbasin and then loops: 'action: look  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.' No spraybottle is ever taken.",
+    "corrective_rule": "Search all containers (drawers, cabinets) and all rooms systematically; do not limit to a few surfaces.",
+    "skill_tree_gap": "Incomplete exploration; the agent missed many potential locations.",
+    "patch_location": "Under the '## pick_two_obj_and_place' heading, add a new subsection '### Full coverage search'.",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one creditcard on the sidetable, the agent stopped searching for a second creditcard and entered a loop.",
+    "evidence": "After moving creditcard 1 to sidetable, the agent goes back to bed 2: 'action: go to bed 2  | obs: You arrive at bed 2. On the bed 2, you see a pillow 2, and a pillow 1.' It never searches for another creditcard.",
+    "corrective_rule": "After placing the first creditcard, continue searching for a second creditcard (e.g., in drawers, other rooms).",
+    "skill_tree_gap": "Missing multi-object tracking and continuation logic.",
+    "patch_location": "Under the '## pick_two_obj_and_place' heading, add a new subsection '### Multi-object continuation and tracking' (same as #0).",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#4",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "After placing one kettle in the cabinet, the agent stopped looking for a second kettle and looped.",
+    "evidence": "After moving kettle 1 to cabinet 1, the agent looks and then repeats: 'action: look  | obs: You are facing the cabinet 1. Next to it, you see nothing.' It does not search for another kettle.",
+    "corrective_rule": "After placing the first kettle, search other locations (other countertops, drawers) for a second kettle.",
+    "skill_tree_gap": "Missing logic to continue searching after placing one of multiple required objects.",
+    "patch_location": "Under the '## pick_two_obj_and_place' heading, add a new subsection '### Multi-object continuation and tracking'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#5",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "misread_state",
+    "root_cause": "The agent saw a peppershaker on countertop 2 but repeatedly walked away without taking it, confusing the visible object with the task requirement.",
+    "evidence": "At countertop 2, the agent sees 'a peppershaker 4' but then goes to diningtable 1 and back without taking it: 'action: go to diningtable 1  | obs: You arrive at diningtable 1. ...' It continues this loop.",
+    "corrective_rule": "When a needed object is visible, take it immediately rather than continuing to move around.",
+    "skill_tree_gap": "Lacks immediate object prioritization when the target is in view; the agent does not recognize the opportunity to act.",
+    "patch_location": "Under the '## pick_two_obj_and_place' heading, add a new subsection '### Immediate action on visible target objects'.",
+    "confidence": 0.9
+  }
+]
+```

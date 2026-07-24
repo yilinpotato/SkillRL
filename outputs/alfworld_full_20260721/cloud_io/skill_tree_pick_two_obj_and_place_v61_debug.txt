@@ -1,0 +1,152 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v61 (level=3, tree_depth=3, 15 nodes) ===
+action: refine
+critique: The agent did not follow the tree's directive to perform a `look` and list furniture before moving, leading to narrow searches and loops. The tree's previous wording was insufficiently emphatic about this mandatory step; the refined tree now explicitly requires a look and list before any movement, and adds a loop detection mechanism.
+changelog: Refined Phase 1 and Phase 2 to enforce mandatory `look` and list creation before movement; added Loop Detection and Breaking subsection under Failure Prevention; clarified that after first placement, if the source is exhausted, must perform a full systematic search of all furniture.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 4  n_failure this round: 16
+
+--- Failure diagnoses feeding this round ---
+- [loop] The agent got stuck in a loop of opening cabinets without finding spoons because it never checked other receptacles like countertops or drawers. | evidence: Sequence of 'go to cabinet X' and 'open cabinet X' repeated many times without variation, as noted by '(dropped 6 looping actions)'. | fix: After opening a few cabinets without success, change search strategy to other locations. | skill_tree_gap: No mechanism to break out of a repetition when not finding the target. | patch_location: Under '## Exploration', add a new subsection '### Detect and break loops by switching search areas'.
+- [inefficient_exploration] After placing the first pencil, the agent did not search for the second pencil in other locations and instead repeated looking at the empty desk. | evidence: After moving pencil 1 to drawer, it goes to bed, then desk, and looks repeatedly, never venturing to other containers. | fix: When the known source is exhausted, search other receptacles for the remaining object. | skill_tree_gap: No logic to search for remaining instances after one is found. | patch_location: Under '## Multi-Object Tasks', add a new subsection '### Search for remaining objects in different locations'.
+- [inefficient_exploration] The agent only searched drawers and did not explore other furniture like shelves, cabinets, or the dresser where CDs might be located. | evidence: Sequence of opening drawers only, never visiting other receptacles such as shelves or cabinets. | fix: When target object not found in drawers, expand search to other furniture types. | skill_tree_gap: Lack of diversity in search locations. | patch_location: Under '## Exploration', add a new subsection '### Search all furniture types (shelves, cabinets, dressers, etc.)'.
+- [inefficient_exploration] The agent restricted search to armchairs and cabinets, missing likely locations like the bed or sofa where pillows are commonly found. | evidence: After examining armchairs and cabinets, it loops without visiting bed or sofa. | fix: Consider common object locations; pillows are often on beds or sofas. | skill_tree_gap: No context-aware search based on object type. | patch_location: Under '## Exploration', add a new subsection '### Use object type to prioritize search locations'.
+- [inefficient_exploration] The agent only searched drawers and a cabinet, not checking other common places like sidetables or shelves for the remote control. | evidence: Repeated drawer openings without success, and never visiting sidetables or shelves. | fix: Expand search to include sidetables, shelves, and other surfaces. | skill_tree_gap: Lack of systematic coverage of all receptacle types. | patch_location: Under '## Exploration', add a new subsection '### Cover all receptacles systematically before repeating'.
+- [inefficient_exploration] The agent searched only cabinets, while peppershakers are often on countertops or tables, which were never visited. | evidence: Sequence of opening cabinets only, never going to countertops or dining tables. | fix: Search countertops and tables as primary locations for small items like peppershakers. | skill_tree_gap: Lack of consideration for typical object placements. | patch_location: Under '## Exploration', add a new subsection '### Prioritize countertops and tables for small objects'.
+
+--- Node tree (per-node lifecycle, this version=v61) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=60 calls=1296 success=928 rate=71.6%
+[STABLE              ] pick-two-obj-and-place/counter-completion-rules level=2 stable_versions=1 calls=20 success=4 rate=20.0%
+[MODIFIED            ] pick-two-obj-and-place/critical-rules-must-follow level=2 stable_versions=0 calls=154 success=55 rate=35.7%
+[STABLE              ] pick-two-obj-and-place/failure-prevention level=2 stable_versions=8 calls=270 success=139 rate=51.5%
+[MODIFIED            ] pick-two-obj-and-place/failure-prevention/immediate-action-on-visible-target level=3 stable_versions=0 calls=80 success=23 rate=28.8%
+[NEW                 ] pick-two-obj-and-place/failure-prevention/loop-detection-and-breaking level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/failure-prevention/multi-object-count-completion level=3 stable_versions=1 calls=154 success=55 rate=35.7%
+[STABLE              ] pick-two-obj-and-place/failure-prevention/object-type-verification level=3 stable_versions=1 calls=154 success=55 rate=35.7%
+[STABLE              ] pick-two-obj-and-place/failure-prevention/systematic-search level=3 stable_versions=1 calls=20 success=4 rate=20.0%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=1 calls=1296 success=928 rate=71.6%
+[MODIFIED            ] pick-two-obj-and-place/phase-1-first-object-search level=2 stable_versions=0 calls=154 success=55 rate=35.7%
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-search-after-first-placement level=2 stable_versions=8 calls=154 success=55 rate=35.7%
+[MODIFIED            ] pick-two-obj-and-place/phase-2-second-object-search-after-first-placement/decision-where-to-look-next level=3 stable_versions=0 calls=20 success=4 rate=20.0%
+[MODIFIED            ] pick-two-obj-and-place/phase-2-second-object-search-after-first-placement/immediate-action-after-placement level=3 stable_versions=0 calls=37 success=10 rate=27.0%
+[MODIFIED            ] pick-two-obj-and-place/phase-2-second-object-search-after-first-placement/important level=3 stable_versions=0 calls=37 success=10 rate=27.0%
+
+--- Line diff vs previous version (v60 -> v61) ---
+--- v60
++++ v61
+@@ -12,13 +12,14 @@
+ 
+ ## Critical Rules (Must Follow)
+ - **Object name must match exactly.** Compare character by character. Do not take mismatched objects.
++- **Before any movement, you MUST perform `look`** to get the current observation. Then list every furniture item in the order they appear. This list is your search plan. Deviating from this plan leads to loops and missing objects.
+ - **After taking a matching object, next action must be `go to [target receptacle]`.** No exceptions.
+ - **After placing an object, immediately restart search for the next object.** Do not loop in place or repeat non‑productive actions.
+ - **If you see the target object at your current location, take it immediately before moving away.**
+ 
+ ## Phase 1: First Object Search
+-1. Use `look` to get the current observation. List every furniture item visible. Include ALL types: cabinets, drawers, shelves, counters, tables, fridge, sinkbasin, stoveburners, armchairs, beds, etc. Do not skip any.
+-2. Visit each item exactly once, in that order. When you arrive:
++1. Execute `look` immediately. Do not move until you have listed all visible furniture. Then visit each in that exact order.
++2. When you arrive at a furniture item:
+    - If the item is closed (e.g., cabinet, drawer, fridge), **open it** first.
+    - Examine its contents for the target object.
+ 3. For each object seen, check exact name match. If yes, **take it** immediately.
+@@ -28,19 +29,18 @@
+ ## Phase 2: Second Object Search (After First Placement)
+ ### Immediate Action After Placement
+ - Increment counter. If counter == 2, stop – success.
+-- If counter == 1, you **must** find the second object. Do not stop or loop. Proceed to the decision below.
++- If counter == 1, you **must** find the second object. Do not stop or loop.
+ 
+ ### Decision: Where to Look Next
+ 1. **Assess whether you saw multiple instances at the pickup location** (e.g., "cellphone 3, cellphone 4"). If yes, go back to that same location immediately and take the next instance. Then go place it.
+ 2. **Otherwise, perform a Full Restart:**
+-   - Use `look` to get a **fresh** observation.
+-   - List every furniture item in the order they appear. Include all types.
++   - Execute `look` to get a **fresh** observation. List every furniture item in the order they appear.
++   - Do not revisit only the previous location or a few spots. Follow the list exactly.
+    - Visit each item in that exact order, opening closed receptacles and checking contents.
+    - When you find a second target object, take it, go to target receptacle, open if needed, place it. Increment counter to 2. Stop.
+ 3. If you complete the full restart list without finding a second object, perform a second full pass. If after two full passes counter is still 1, task impossible – stop.
+ 
+ ### Important
+-- Do not revisit only a few locations. Use the full list from `look`.
+ - If you return to the original pickup location and find no second object there, continue with the full restart list – do not stop.
+ 
+ ## Failure Prevention
+@@ -61,3 +61,7 @@
+ 
+ ### Immediate Action on Visible Target
+ - Whenever you are at a furniture item and see an object whose name exactly matches the target, take it immediately. Do not move away before picking it up.
++
++### Loop Detection and Breaking
++- If you find yourself repeatedly visiting the same few furniture items without covering the full list, you are in a loop. Stop immediately and perform a fresh `look` to rebuild your search plan.
++- Always ensure your search covers all furniture types – not just one category (e.g., only cabinets or only drawers).
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specified object type into a target receptacle. Stop when counter equals 2.
+
+## Counter & Completion Rules
+- Start counter at 0.
+- After each successful placement, increment counter by 1.
+- If counter == 2, task complete – stop immediately.
+- If counter < 2, you MUST continue searching for the next object. Never stop after a single placement.
+- After two exhaustive full passes (in either Phase 1 or Phase 2) without finding a needed object, task is impossible – stop.
+
+## Critical Rules (Must Follow)
+- **Object name must match exactly.** Compare character by character. Do not take mismatched objects.
+- **Before any movement, you MUST perform `look`** to get the current observation. Then list every furniture item in the order they appear. This list is your search plan. Deviating from this plan leads to loops and missing objects.
+- **After taking a matching object, next action must be `go to [target receptacle]`.** No exceptions.
+- **After placing an object, immediately restart search for the next object.** Do not loop in place or repeat non‑productive actions.
+- **If you see the target object at your current location, take it immediately before moving away.**
+
+## Phase 1: First Object Search
+1. Execute `look` immediately. Do not move until you have listed all visible furniture. Then visit each in that exact order.
+2. When you arrive at a furniture item:
+   - If the item is closed (e.g., cabinet, drawer, fridge), **open it** first.
+   - Examine its contents for the target object.
+3. For each object seen, check exact name match. If yes, **take it** immediately.
+4. After taking, go to target receptacle. Open if closed, then place the object. Increment counter.
+5. **Exhaustive Search:** If you finish the list without taking any object, perform a second full pass (repeat step 2 from first item). After two full passes and counter still 0, task impossible – stop.
+
+## Phase 2: Second Object Search (After First Placement)
+### Immediate Action After Placement
+- Increment counter. If counter == 2, stop – success.
+- If counter == 1, you **must** find the second object. Do not stop or loop.
+
+### Decision: Where to Look Next
+1. **Assess whether you saw multiple instances at the pickup location** (e.g., "cellphone 3, cellphone 4"). If yes, go back to that same location immediately and take the next instance. Then go place it.
+2. **Otherwise, perform a Full Restart:**
+   - Execute `look` to get a **fresh** observation. List every furniture item in the order they appear.
+   - Do not revisit only the previous location or a few spots. Follow the list exactly.
+   - Visit each item in that exact order, opening closed receptacles and checking contents.
+   - When you find a second target object, take it, go to target receptacle, open if needed, place it. Increment counter to 2. Stop.
+3. If you complete the full restart list without finding a second object, perform a second full pass. If after two full passes counter is still 1, task impossible – stop.
+
+### Important
+- If you return to the original pickup location and find no second object there, continue with the full restart list – do not stop.
+
+## Failure Prevention
+### Systematic Search
+- Before any search, list all furniture from the current `look` output. Then visit each in order.
+- **Open all closed receptacles** when you visit them. Do not skip any.
+- Check every furniture type – surfaces, containers, shelves, tables, basins, stoveburners, armchairs, beds, etc.
+- If you have visited all items and found nothing, do a second full pass before giving up. Double‑check that you included all types.
+- If unsure, re‑read the observation to ensure you have the complete list.
+
+### Object Type Verification
+- Before taking any object, read its exact name. Compare to the target type character by character. Only take if they match exactly.
+- If you take a non‑matching object by mistake, drop it immediately (`drop [object]`) and resume searching from the same furniture item.
+
+### Multi‑Object Count Completion
+- After placing one object, you must find a second. Do not stop until counter == 2, or until two full searches after the first placement yield nothing.
+- If you have placed one object and then complete two full passes without finding a second, task impossible – stop.
+
+### Immediate Action on Visible Target
+- Whenever you are at a furniture item and see an object whose name exactly matches the target, take it immediately. Do not move away before picking it up.
+
+### Loop Detection and Breaking
+- If you find yourself repeatedly visiting the same few furniture items without covering the full list, you are in a loop. Stop immediately and perform a fresh `look` to rebuild your search plan.
+- Always ensure your search covers all furniture types – not just one category (e.g., only cabinets or only drawers).

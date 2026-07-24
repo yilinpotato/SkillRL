@@ -1,0 +1,96 @@
+=== Skill Tree Debug — scope=pick_and_place  v28 (level=3, tree_depth=3, 10 nodes) ===
+action: refine
+critique: The agent failed to follow the systematic inspection procedure and the object type verification rule present in the skill tree, leading to incomplete exploration and taking the wrong object. The skill tree wording was not misleading; the agent simply did not apply the rules.
+changelog: Added 'Drawer Search Protocol' subsection under Object Search and 'Object Type Verification' subsection under Object Acquisition to provide more explicit guidance based on failure diagnoses.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 18  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent stopped searching for creditcard after only checking a few drawers without opening all drawers or exploring other surfaces like sidetables. | evidence: After opening drawer 2 and seeing remotecontrol, it goes to drawer 1 but does not open it, then returns to armchair. | fix: When searching for an object in drawers, open all drawers and check their contents before moving to other locations. | skill_tree_gap: Incomplete drawer exploration routine in 'pick_and_place' tasks. | patch_location: Under 'pick_and_place' section, add new subsection '### Drawer Search Protocol'
+- [wrong_target] The agent picked a winebottle instead of a glassbottle because it did not correctly identify the required object type. | evidence: Action: 'take winebottle 3 from cabinet 5' while task is to put 'some glassbottle' on diningtable. | fix: Only pick up objects that exactly match the task's target type (e.g., glassbottle, not winebottle). | skill_tree_gap: Lack of precise object identification or filtering when picking. | patch_location: Under 'pick_and_place' section, add new subsection '### Object Type Verification'
+
+--- Node tree (per-node lifecycle, this version=v28) ---
+[STABLE              ] pick-and-place-skill-tree                level=1 stable_versions=27 calls=757 success=686 rate=90.6%
+[STABLE              ] pick-and-place-skill-tree/goal           level=2 stable_versions=9 calls=757 success=686 rate=90.6%
+[STABLE              ] pick-and-place-skill-tree/object-acquisition level=2 stable_versions=2 calls=38 success=33 rate=86.8%
+[NEW                 ] pick-and-place-skill-tree/object-acquisition/object-type-verification level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory-systematic-inspection level=2 stable_versions=2 calls=38 success=33 rate=86.8%
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/common-mistakes-to-avoid level=3 stable_versions=1 calls=20 success=18 rate=90.0%
+[NEW                 ] pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/drawer-search-protocol level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-and-place-skill-tree/object-search-mandatory-systematic-inspection/step-by-step-procedure level=3 stable_versions=1 calls=20 success=18 rate=90.0%
+[STABLE              ] pick-and-place-skill-tree/placement      level=2 stable_versions=2 calls=38 success=33 rate=86.8%
+[STABLE              ] pick-and-place-skill-tree/sub-goal-flow  level=2 stable_versions=2 calls=757 success=686 rate=90.6%
+
+--- Line diff vs previous version (v27 -> v28) ---
+--- v27
++++ v28
+@@ -20,6 +20,11 @@
+    - Tick it off your mental list.
+ 3. **After you have visited every receptacle on your list** and did not find the object, **repeat the entire list again** – start from the first receptacle once more. The object is always somewhere; keep searching until you find it.
+ 
++### Drawer Search Protocol
++- When you encounter a drawer (e.g., drawer 1, drawer 2, etc.), always open it and check its contents before moving to the next receptacle. Do not skip or leave a drawer unopened.
++- Drawers are common hiding places for small objects; treat them as critical inspection points.
++- After opening a drawer, if the target object is not inside, close it (optional but tidy) and proceed to the next receptacle on your list.
++
+ ### Common Mistakes to Avoid
+ - **Skipping any receptacle** – all must be inspected, including tables, chairs, shelves, drawers, cabinets, sinks, bathtubs, toilets, sofas, dressers, countertops, etc. Do not assume only containers hold objects.
+ - **Focusing only on one type** – e.g., only shelves or only closed containers. You must check every type.
+@@ -31,5 +36,10 @@
+ ## Object Acquisition
+ Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+ 
++### Object Type Verification
++- Before taking, compare the object's name (as shown in the observation) with the target object type from the task. They must match at the base noun level (e.g., "glassbottle" vs. "winebottle" are different types; "soapbottle" vs. "soapbottle" is a match).
++- Ignore numerals (e.g., "book 2" matches the target "book").
++- If you are unsure, re-read the task and the observed object name carefully. Picking the wrong object wastes time and fails the task.
++
+ ## Placement
+ After taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_and_place skill tree
+
+## Goal
+Pick up a specific object and place it into or onto a specified receptacle (e.g., "put a book in sofa"). The task names both the target object and the target receptacle.
+
+## Sub-Goal Flow
+1. **Parse the task** – identify the target object and target receptacle exactly as written.
+2. **Locate the target object** – search every visible receptacle systematically.
+3. **Verify and take** – only take the object if its type matches the task (ignore numerals).
+4. **Navigate to target receptacle** and move the object there.
+5. **Terminate** after placement.
+
+## Object Search – Mandatory Systematic Inspection
+### Step-by-Step Procedure
+1. **Before moving**, reread the initial observation and mentally list **every receptacle name** exactly as it appears (all furniture, containers, surfaces). This is your master checklist.
+2. **Visit each receptacle in turn.** You may choose any order, but you must visit each one exactly once before concluding. For each receptacle on your list:
+   - `go to <receptacle>`
+   - If it is closed (e.g., drawer, cabinet, safe, fridge, microwave, oven, dishwasher), first `open <receptacle>`, then read contents.
+   - If the target object is present, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+   - Tick it off your mental list.
+3. **After you have visited every receptacle on your list** and did not find the object, **repeat the entire list again** – start from the first receptacle once more. The object is always somewhere; keep searching until you find it.
+
+### Drawer Search Protocol
+- When you encounter a drawer (e.g., drawer 1, drawer 2, etc.), always open it and check its contents before moving to the next receptacle. Do not skip or leave a drawer unopened.
+- Drawers are common hiding places for small objects; treat them as critical inspection points.
+- After opening a drawer, if the target object is not inside, close it (optional but tidy) and proceed to the next receptacle on your list.
+
+### Common Mistakes to Avoid
+- **Skipping any receptacle** – all must be inspected, including tables, chairs, shelves, drawers, cabinets, sinks, bathtubs, toilets, sofas, dressers, countertops, etc. Do not assume only containers hold objects.
+- **Focusing only on one type** – e.g., only shelves or only closed containers. You must check every type.
+- **Using wrong action** – never `examine` or `look` to move; use `go to`.
+- **Taking wrong object** – verify the object's type matches the task exactly (ignore numerals).
+- **Forgetting to open closed containers** before reading their contents.
+- **Stopping early** – only stop after you have checked every receptacle (and repeated if necessary) and still not found the object. But in this environment the object will be found; keep searching until you find it.
+
+## Object Acquisition
+Once you locate an object whose type matches the target, immediately `take <object> from <receptacle>`. Do not perform any other action first.
+
+### Object Type Verification
+- Before taking, compare the object's name (as shown in the observation) with the target object type from the task. They must match at the base noun level (e.g., "glassbottle" vs. "winebottle" are different types; "soapbottle" vs. "soapbottle" is a match).
+- Ignore numerals (e.g., "book 2" matches the target "book").
+- If you are unsure, re-read the task and the observed object name carefully. Picking the wrong object wastes time and fails the task.
+
+## Placement
+After taking the object, go to the target receptacle and `move <object> to <receptacle>` (or `open <receptacle>` first if it is closed). Then terminate.

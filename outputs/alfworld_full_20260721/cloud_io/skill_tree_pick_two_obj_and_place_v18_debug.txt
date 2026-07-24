@@ -1,0 +1,170 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v18 (level=3, tree_depth=3, 13 nodes) ===
+action: refine
+critique: The agent had the current skill tree but did not follow its instructions, especially the listing of all furniture and the count verification; this is partly because these rules were less prominent. The skill tree's own wording was not misleading, but its organization allowed key checks to be missed. The refinement makes them explicit sections.
+changelog: Reorganized the skill tree by adding dedicated sections for Multi-object search, Counting and collection, and Object identification to house the full location coverage, count verification, and exact type matching rules respectively, ensuring they are easy to find and follow.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 11  n_failure this round: 3
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent restricted its search to cabinets only and never checked other potential storage areas like drawers, fridge, or stove for pans. | evidence: It visits only cabinets (1-8) and countertop1 (briefly), ignoring drawers and other appliances; no pan is ever picked up. | fix: For pans, search all cabinets, drawers, and kitchen appliances (fridge, stove) – not just cabinets. | skill_tree_gap: Search routine too narrow; does not include drawers and appliances that commonly hold pans. | patch_location: Under '# pick_two_obj_and_place' > '## Multi-object search', add a new subsection '### All location coverage' that forces checking of cabinets, drawers, fridge, and stove for pans.
+- [premature_stop] After picking up one saltshaker, the agent stopped without searching for a second one, failing to satisfy the 'two' requirement. | evidence: After 'take saltshaker 1 from countertop 1', the trajectory ends; no further action to find another saltshaker or place them. | fix: For tasks requiring multiple objects, after picking the first, continue searching until the required count is reached, then place all. | skill_tree_gap: Lack of a loop that checks remaining quantity needed before terminating the search. | patch_location: Under '# pick_two_obj_and_place' > '## Counting and collection', add a new subsection '### Verify count before stopping' that uses a counter to ensure the required number is collected.
+- [wrong_target] The agent picked up a soapbottle instead of a soapbar, and also stopped prematurely without finding a second soapbar. | evidence: Step 'take soapbottle 1 from cabinet 1' while task requires 'soapbar'; no second object is obtained. | fix: Check the object type exactly against the task specification (soapbar vs soapbottle) before picking; if incorrect, continue searching. | skill_tree_gap: No exact type matching step; also missing count check for multiple objects. | patch_location: Under '# pick_two_obj_and_place' > '## Object identification', add a new subsection '### Exact type matching' that compares object type strings with the task requirement before taking.
+
+--- Node tree (per-node lifecycle, this version=v18) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=17 calls=474 success=384 rate=81.0%
+[MODIFIED            ] pick-two-obj-and-place/common-failure-patterns level=2 stable_versions=0 calls=176 success=145 rate=82.4%
+[NEW                 ] pick-two-obj-and-place/counting-and-collection level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/counting-and-collection/keep-a-counter level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/counting-and-collection/verify-count-before-stopping level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/critical-warnings-avoid-these-failures level=2 stable_versions=0 calls=187 success=154 rate=82.4%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=5 calls=474 success=384 rate=81.0%
+[NEW                 ] pick-two-obj-and-place/multi-object-search level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/multi-object-search/full-location-coverage level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/multi-object-search/object-specific-hints level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/object-identification level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] pick-two-obj-and-place/object-identification/exact-type-matching level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] pick-two-obj-and-place/procedure-step-by-step-algorithm level=2 stable_versions=0 calls=187 success=154 rate=82.4%
+
+--- Line diff vs previous version (v17 -> v18) ---
+--- v17
++++ v18
+@@ -3,59 +3,49 @@
+ ## Goal
+ - Place exactly two instances of a specific object into a specified target receptacle.
+ 
+-## Multi-Object Tasks
+-### Count and Repeat
+-- Keep a counter: start at 0. After placing the first object, update to 1. Do not stop until counter is 2.
+-- After placing one object, immediately begin a fresh, systematic search for the second object. Do not assume the task is done.
+-- If you cannot find a second object after thorough search, re-check every furniture type (see Full Room Coverage) – you may have missed a location.
++## Multi-object search
+ 
+-## Exploration Strategy
+-### Full Room Coverage
++### Full Location Coverage
+ - From the initial room description, list every visible furniture item (e.g., cabinet, drawer, shelf, countertop, dresser, sink, fridge, bathtub, toilet, etc.). Do not skip any type.
+ - Visit each item exactly once in your first pass. For each:
+   - Go to it.
+   - If it is a container (closed drawer, cabinet, etc.), open it.
+   - Examine its contents (on surfaces or inside).
+-- Common misses: dressers, garbage cans, bathtub basins, handtowel holders, toiletpaperhangers, etc.
++- Common misses: dressers, garbage cans, bathtub basins, handtowel holders, toiletpaperhangers, stove burners, fridge interiors.
+ - If after visiting all items you still lack one or both objects, repeat the list but check opened containers again (objects may have been moved).
+ 
+ ### Object-Specific Hints
+-- Some objects are often found near their functional location. For example:
+-  - toiletpaper is commonly on a toiletpaperhanger or in a cabinet near the toilet.
+-  - soapbottle may be on a sink or counter.
+-  - newspaper might be on a sidetable or sofa.
++- Some objects are often found near their functional location, e.g., toiletpaper on toiletpaperhanger or nearby cabinet, soapbottle on sink or counter, newspaper on sidetable or sofa.
+ - Use these hints to prioritize search, but do not skip any furniture type – always eventually check all.
+-- Do not assume an object is absent just because its typical location is empty; a second copy may be elsewhere.
++
++## Counting and collection
++
++### Keep a counter
++- Start a counter at 0. After placing the first object, update to 1. Do not stop until counter is 2.
++### Verify count before stopping
++- After placing an object, immediately check your counter. If it is not 2, begin a fresh, systematic search for the next object. Do not assume the task is complete.
++
++## Object identification
++
++### Exact type matching
++- Before taking any object, compare its exact name (as it appears in the observation) to the required object type from the task. Do not take if the names differ (e.g., soapbottle vs soapbar). Only take when names match exactly.
+ 
+ ## Procedure (step-by-step algorithm)
+ 1. **Identify task**: Note the required object type and target receptacle.
+ 2. **List all furniture**: From the initial room description, write down every visible furniture item. This is your master list.
+-3. **First object search**: For each item on the list:
+-   - Go to it.
+-   - If closed, open it.
+-   - Examine its contents.
+-   - If you see an object whose exact name matches the required type, take it and go to step 4.
+-   - Otherwise, move to next item.
+-   - If you exhaust the list without finding the object, re-check any missed items or re-open containers.
++3. **First object search**: Follow the Multi-object search section. When you find an object that matches the required type exactly, take it.
+ 4. **Place the first object**: Go directly to the target receptacle. Use "move <object> to <target>" immediately. Do not perform any other actions.
+-5. **Second object search**: Reset your mental list to the master list from step 2. Repeat step 3 exactly, but now you need only one more object. Do not skip any furniture type – re-visit all.
+-6. **Continue until done**: After placing the second object, the task is complete. If you have placed only one, keep searching.
++5. **Second object search**: Reset your mental list to the master list. Repeat step 3 exactly, but now you need only one more object. Do not skip any furniture type – re-visit all.
++6. **Place the second object**: Repeat step 4. After placing, verify count (see Counting and collection). The task is complete when counter reaches 2.
+ 
+ ## Common Failure Patterns
+-### thorough_search
+-- Ensure you visited every furniture item from the initial list. Do not skip any cabinet, drawer, shelf, counter, stove burner, fridge, etc.
+-- If an item is closed, open it before checking contents.
+-- After checking all, if still short, revisit any missed items or recheck opened containers.
+-- Common oversight: checking only one type of furniture. Spread search across all categories.
+-
+-### check_count
+-- After placing the first object, immediately begin the second search. Do not interpret any intermediate success message as task completion.
+-- Confirm that you have placed exactly two objects before concluding.
+-- If you have placed only one, continue searching.
++- **insufficient_exploration**: You did not visit every furniture type. Use the Full Location Coverage section to ensure no type is missed.
++- **premature_stop**: You stopped after picking or placing one object. Use the Counting and collection section to continue until count is 2.
++- **wrong_object**: You took an object that does not match the required type exactly. Use the Exact type matching section before taking.
+ 
+ ## Critical warnings (avoid these failures)
+-- **Insufficient search**: You must visit every furniture type. Checking only a few will cause failure.
+-- **Premature stop**: After placing the first object, immediately start searching for the second. Do not rest.
+-- **Not opening containers**: Always open before looking inside. "Examine" does not open.
+-- **Wrong object identity**: Verify exact name before taking. No partial matches.
+-- **Intervening actions**: At target receptacle with correct object, use move action immediately – no delays.
++- **List all furniture at the start** – failing to do so leads to missed locations.
++- **Do not stop after one object** – always search for the second.
++- **Open containers before checking** – "examine" does not open.
++- **Verify exact name** – no partial matches.
++- **At target receptacle with correct object, use move action immediately – no delays.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+- Place exactly two instances of a specific object into a specified target receptacle.
+
+## Multi-object search
+
+### Full Location Coverage
+- From the initial room description, list every visible furniture item (e.g., cabinet, drawer, shelf, countertop, dresser, sink, fridge, bathtub, toilet, etc.). Do not skip any type.
+- Visit each item exactly once in your first pass. For each:
+  - Go to it.
+  - If it is a container (closed drawer, cabinet, etc.), open it.
+  - Examine its contents (on surfaces or inside).
+- Common misses: dressers, garbage cans, bathtub basins, handtowel holders, toiletpaperhangers, stove burners, fridge interiors.
+- If after visiting all items you still lack one or both objects, repeat the list but check opened containers again (objects may have been moved).
+
+### Object-Specific Hints
+- Some objects are often found near their functional location, e.g., toiletpaper on toiletpaperhanger or nearby cabinet, soapbottle on sink or counter, newspaper on sidetable or sofa.
+- Use these hints to prioritize search, but do not skip any furniture type – always eventually check all.
+
+## Counting and collection
+
+### Keep a counter
+- Start a counter at 0. After placing the first object, update to 1. Do not stop until counter is 2.
+### Verify count before stopping
+- After placing an object, immediately check your counter. If it is not 2, begin a fresh, systematic search for the next object. Do not assume the task is complete.
+
+## Object identification
+
+### Exact type matching
+- Before taking any object, compare its exact name (as it appears in the observation) to the required object type from the task. Do not take if the names differ (e.g., soapbottle vs soapbar). Only take when names match exactly.
+
+## Procedure (step-by-step algorithm)
+1. **Identify task**: Note the required object type and target receptacle.
+2. **List all furniture**: From the initial room description, write down every visible furniture item. This is your master list.
+3. **First object search**: Follow the Multi-object search section. When you find an object that matches the required type exactly, take it.
+4. **Place the first object**: Go directly to the target receptacle. Use "move <object> to <target>" immediately. Do not perform any other actions.
+5. **Second object search**: Reset your mental list to the master list. Repeat step 3 exactly, but now you need only one more object. Do not skip any furniture type – re-visit all.
+6. **Place the second object**: Repeat step 4. After placing, verify count (see Counting and collection). The task is complete when counter reaches 2.
+
+## Common Failure Patterns
+- **insufficient_exploration**: You did not visit every furniture type. Use the Full Location Coverage section to ensure no type is missed.
+- **premature_stop**: You stopped after picking or placing one object. Use the Counting and collection section to continue until count is 2.
+- **wrong_object**: You took an object that does not match the required type exactly. Use the Exact type matching section before taking.
+
+## Critical warnings (avoid these failures)
+- **List all furniture at the start** – failing to do so leads to missed locations.
+- **Do not stop after one object** – always search for the second.
+- **Open containers before checking** – "examine" does not open.
+- **Verify exact name** – no partial matches.
+- **At target receptacle with correct object, use move action immediately – no delays.

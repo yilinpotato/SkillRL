@@ -1,0 +1,123 @@
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent stopped searching after opening only four cabinets and examining a few drawers, never locating the soapbar which likely resides in a cabinet or on a countertop not explored.",
+    "evidence": "After opening cabinet 4 (empty), it went to drawers and countertop, then back to cabinet 1 without finding soapbar.",
+    "corrective_rule": "Systematically open all cabinets (1-6) and check countertops before exploring drawers.",
+    "skill_tree_gap": "Missing a subskill for exhaustive cabinet enumeration under the clean task.",
+    "patch_location": "## clean: add new subsection ### Exhaustive cabinet search after initial cabinet 1",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only cabinets and then moved to the fridge without opening it, missing the egg which is typically on a countertop or in a sinkbasin.",
+    "evidence": "It opened cabinets 3,4,5,8 (none contained egg) and went to fridge but never opened it; no countertops were examined.",
+    "corrective_rule": "After checking cabinets, always search countertops and sinkbasin for food items like eggs.",
+    "skill_tree_gap": "No explicit step to check countertops and sinkbasin for perishable objects under clean task.",
+    "patch_location": "## clean: add new subsection ### Search countertops and sinkbasin for target object",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent explored only a few cabinets and drawers, then went to the fridge without opening it, never checking countertops where lettuce might be.",
+    "evidence": "Opened cabinet 5 (glassbottle) and cabinet 6 (soapbottle), then drawers, then arrived at fridge (did not open); countertops were never inspected.",
+    "corrective_rule": "Always check all countertops and open the fridge when searching for produce like lettuce.",
+    "skill_tree_gap": "No instruction to inspect countertops and fridge during clean task object search.",
+    "patch_location": "## clean: add new subsection ### Search countertops and fridge for produce",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After extensively exploring surfaces (countertops, diningtable, sinkbasin, stoveburners) and the fridge, the agent only opened one cabinet and failed to search remaining cabinets where the bowl might be.",
+    "evidence": "It visited many locations but never found a bowl; only cabinet 1 was opened at the end, with no further search.",
+    "corrective_rule": "If the target object is not on visible surfaces, systematically open all cabinets to find it.",
+    "skill_tree_gap": "Under the cool task, the search pattern does not include exhaustive cabinet checking after surface search.",
+    "patch_location": "## cool: add new subsection ### Exhaustive cabinet search after surface check",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent opened the fridge and checked only two cabinets, missing the plate which is likely in an unopened cabinet.",
+    "evidence": "After opening fridge (no plate), it went to cabinet 1 (soapbottle) and cabinet 2 (empty) and stopped; no other cabinets were opened.",
+    "corrective_rule": "After checking fridge, open all remaining cabinets to locate a plate.",
+    "skill_tree_gap": "No explicit step to check all cabinets for plate under cool task.",
+    "patch_location": "## cool: add new subsection ### Open all cabinets when searching for dishware",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#0",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent turned on the desklamp but then searched only shelves, never visiting desk 2 where the book was located.",
+    "evidence": "After using desklamp, it went to shelves 1-8 and sidetable, but never went to desk 2; book was on desk 2 in successful reference.",
+    "corrective_rule": "After turning on the lamp, check all desks and shelves for the target object, not just shelves.",
+    "skill_tree_gap": "Search pattern for examine task lacks inclusion of all desk locations.",
+    "patch_location": "## look_at_obj_in_light: add new subsection ### Search all desks and shelves for target",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched only sidetables and a few drawers, never exploring cabinets or countertops where a box might be.",
+    "evidence": "After arriving at dresser, it visited sidetables 1-5 and drawers 1-4, but did not go to any cabinet or countertop.",
+    "corrective_rule": "When the target object is not immediately visible, systematically explore all receptacles including cabinets and countertops.",
+    "skill_tree_gap": "No comprehensive search procedure for pick_and_place tasks covering all common object locations.",
+    "patch_location": "## pick_and_place: add new subsection ### Systematic exploration of all receptacles",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent found no soapbar on countertop or in drawers, but did not check cabinets where soapbars are often stored.",
+    "evidence": "It checked countertop (no soapbar), opened drawers 1-3 (all empty), but never opened any cabinet.",
+    "corrective_rule": "If soapbar is not on countertop or in drawers, search cabinets thoroughly.",
+    "skill_tree_gap": "Missing cabinet search step in the two-object placement task.",
+    "patch_location": "## pick_two_obj_and_place: add new subsection ### Search cabinets for missing objects",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After placing the first candle, the agent only checked one other countertop and cabinets 2-4, failing to search other common locations for a second candle.",
+    "evidence": "It went to countertop 2 (no candle) and opened cabinets 2-4 (cabinets 2 empty, 3 had spraybottles, 4 opened but no further action), then stopped.",
+    "corrective_rule": "After placing the first object, continue searching all receptacles including remaining countertops, drawers, and shelves for the second object.",
+    "skill_tree_gap": "No systematic continuation search after placing the first item in two-object tasks.",
+    "patch_location": "## pick_two_obj_and_place: add new subsection ### Continue exhaustive search after placing first object",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After placing the first candle in drawer 1, the agent only searched other drawers, never checking cabinets or countertops for the second candle.",
+    "evidence": "It opened drawers 2-4 (all empty) and stopped; no other receptacles were visited.",
+    "corrective_rule": "After placing the first candle, search all possible locations (cabinets, countertops, etc.), not just similar containers.",
+    "skill_tree_gap": "No diversification of search after placing first object in two-object tasks.",
+    "patch_location": "## pick_two_obj_and_place: add new subsection ### Diversify search after placing first object",
+    "confidence": 0.85
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "After placing the first toiletpaper, the agent only checked shelf 2, countertop, and two drawers, missing cabinets and other shelves that could hold a second toiletpaper.",
+    "evidence": "It went to shelf 2 (empty), countertop (no toiletpaper), drawer 1 (candle), drawer 2 (empty), then back to toiletpaperhanger; no cabinets were examined.",
+    "corrective_rule": "After placing the first toiletpaper, systematically search all cabinets and remaining shelves for the second one.",
+    "skill_tree_gap": "No comprehensive search pattern for second object including cabinets.",
+    "patch_location": "## pick_two_obj_and_place: add new subsection ### Include cabinets in second-object search",
+    "confidence": 0.85
+  }
+]

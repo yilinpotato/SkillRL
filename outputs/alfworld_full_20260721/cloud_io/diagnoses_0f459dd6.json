@@ -1,0 +1,123 @@
+{
+  "batch_id": "0f459dd6-0f56-414e-adfa-9ecf08f308f0",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to locate the ladle because it did not search inside cabinets or drawers where ladles are typically stored.",
+        "evidence": "After many steps, it examines countertop1 and then ends without ever taking a ladle.",
+        "corrective_rule": "When searching for an object, systematically open and check all cabinets and drawers.",
+        "skill_tree_gap": "Lack of a systematic search strategy for objects not immediately visible.",
+        "patch_location": "## Navigation and Exploration / ### Systematic Container Search",
+        "confidence": 0.8
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent incorrectly cleaned the soapbar instead of cleaning the handtowel (cloth) as required by the task.",
+        "evidence": "After picking up handtowel 1, it later cleans soapbar 2 rather than cleaning the handtowel.",
+        "corrective_rule": "Before cleaning, identify which object matches the task description (e.g., 'cloth' means a handtowel or cloth, not a soapbar).",
+        "skill_tree_gap": "Task interpretation: understanding that 'clean some cloth' refers to cleaning the cloth itself, not a different object.",
+        "patch_location": "## Task Understanding / ### Object Matching",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to find the book because it did not search all possible containers (drawers, shelves) after turning on the desklamp.",
+        "evidence": "It turned on the desklamp, then examined shelves and opened only drawer 1, finding nothing, and then stopped.",
+        "corrective_rule": "After turning on the light, systematically search all drawers and shelves for the target object.",
+        "skill_tree_gap": "Incomplete search strategy for look_at_obj_in_light tasks; did not exhaustively check all receptacles.",
+        "patch_location": "## Navigation and Exploration / ### Systematic Container Search",
+        "confidence": 0.8
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never picked up a soapbottle because it did not search all likely locations (e.g., countertop3, fridge) and gave up prematurely.",
+        "evidence": "After opening cabinet 4 and seeing a peppershaker, it performed a 'look' and then stopped without finding a soapbottle.",
+        "corrective_rule": "Continue searching all accessible receptacles until the target object is found.",
+        "skill_tree_gap": "Lack of exhaustive search across all rooms and containers.",
+        "patch_location": "## Navigation and Exploration / ### Exhaustive Search",
+        "confidence": 0.8
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to find a tissuebox because it only searched a few shelves and one drawer, missing other containers.",
+        "evidence": "After opening drawer 1 and seeing a pen, it returned to the dresser and stopped without finding a tissuebox.",
+        "corrective_rule": "When the target object is not found in initial locations, continue searching all remaining containers.",
+        "skill_tree_gap": "Incomplete search strategy; did not check all drawers or shelves.",
+        "patch_location": "## Navigation and Exploration / ### Exhaustive Search",
+        "confidence": 0.8
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found a book because it only checked the coffeetable and a few drawers, ignoring other furniture like dresser or sidetables.",
+        "evidence": "After opening drawer 4 and seeing nothing, it returned to armchair and checked inventory, then stopped.",
+        "corrective_rule": "Conduct a comprehensive search of all furniture and containers before concluding the object is missing.",
+        "skill_tree_gap": "Incomplete search strategy; did not exhaust all possible locations.",
+        "patch_location": "## Navigation and Exploration / ### Exhaustive Search",
+        "confidence": 0.8
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one cloth and then stopped, failing to retrieve the second cloth required by the task.",
+        "evidence": "After moving cloth 2 to the toilet, it performed repeated 'look' actions without searching for a second cloth.",
+        "corrective_rule": "After placing the first object, continue searching for and placing the second object until the task's count is satisfied.",
+        "skill_tree_gap": "Task counting: the agent does not track the required number of objects.",
+        "patch_location": "## Task Execution / ### Multi-Object Handling",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to find any newspaper because it only searched the coffeetable and two drawers, missing other locations like sidetables or tvstand.",
+        "evidence": "After opening drawer 6 and seeing nothing, it entered a loop of looking and examining without finding a newspaper.",
+        "corrective_rule": "When the target object is not found, systematically search all receptacles without looping.",
+        "skill_tree_gap": "Incomplete search strategy and inability to recover from dead ends.",
+        "patch_location": "## Navigation and Exploration / ### Exhaustive Search",
+        "confidence": 0.8
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one remotecontrol and then stopped, failing to retrieve the second remotecontrol required by the task.",
+        "evidence": "After moving remotecontrol 1 to the ottoman, it performed repeated 'look' actions without searching for a second remotecontrol.",
+        "corrective_rule": "After placing the first remotecontrol, continue to search for and place the second.",
+        "skill_tree_gap": "Task counting: the agent does not track the required number of objects.",
+        "patch_location": "## Task Execution / ### Multi-Object Handling",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to find any spraybottle because it only searched a few cabinets, ignoring countertops, shelves, and other containers.",
+        "evidence": "After opening cabinet 1 and seeing nothing, it looked and then went to countertop 1, but never picked up a spraybottle.",
+        "corrective_rule": "When searching for spraybottles, check all possible containers and surfaces.",
+        "skill_tree_gap": "Incomplete exploration of the environment; missed many locations.",
+        "patch_location": "## Navigation and Exploration / ### Exhaustive Search",
+        "confidence": 0.8
+      }
+    ]
+  }
+}

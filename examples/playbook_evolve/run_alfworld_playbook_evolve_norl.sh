@@ -92,6 +92,15 @@ DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-$NUM_VISIBLE_GPUS}"
 ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
 DEFAULT_TP=1
 TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-$DEFAULT_TP}"
+# Eager mode is retained as the launcher default for compatibility.  Production
+# A800 runs can set VLLM_ENFORCE_EAGER=0 to enable CUDA Graphs after warm-up.
+# VLLM_MAX_NUM_SEQS=0 resolves to each data-parallel worker's actual batch.
+VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-1}"
+VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-0}"
+if [[ "$VLLM_ENFORCE_EAGER" != "0" && "$VLLM_ENFORCE_EAGER" != "1" ]]; then
+    echo "VLLM_ENFORCE_EAGER must be 0 or 1." >&2
+    exit 1
+fi
 
 # ── 自动判断运行环境：超算 vs 本地3090（与训练脚本一致）─────────────────────────
 if [[ "$IS_CONTAINER" == "1" ]]; then
@@ -115,6 +124,8 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
 echo "data_parallel_workers: $DATA_PARALLEL_WORKERS"
 echo "rollout_worker_gpus: ${ROLLOUT_WORKER_GPUS:-<auto>}"
 echo "vLLM tensor_parallel_size: $TENSOR_PARALLEL_SIZE"
+echo "vLLM max_num_seqs: $VLLM_MAX_NUM_SEQS (0 means each worker batch)"
+echo "vLLM enforce_eager: $VLLM_ENFORCE_EAGER (0 enables CUDA Graphs)"
 
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
@@ -139,10 +150,18 @@ BATCH_ROLLOUT_SIZE="${BATCH_ROLLOUT_SIZE:-72}"
 # Save lightweight experiment checkpoints every N rollout groups.  This does not
 # force a cloud update; CoSkill still follows the paper trigger/watermark logic.
 CHECKPOINT_EVERY_GROUPS="${CHECKPOINT_EVERY_GROUPS:-2}"
+# Set RESUME=1 to continue from the latest formal checkpoint in OUTPUT_DIR.
+# The default preserves the original fresh-run behavior.
+RESUME="${RESUME:-0}"
 # Long runs otherwise dump every step's full prompt into trajectories/, which is
 # useful for debugging but creates huge IO. Metrics/raw traces/cloud_io are still
 # written, so this does not affect rollout decisions or CoSkill updates.
 LOG_TRAJECTORIES="${LOG_TRAJECTORIES:-0}"
+# W&B only reports aggregate group-level status (success/token/timing/checkpoint),
+# never raw trajectories.  It remains harmless when WANDB_API_KEY is absent.
+WANDB_ENABLED="${WANDB_ENABLED:-1}"
+WANDB_PROJECT="${WANDB_PROJECT:-coskill-alfworld}"
+WANDB_NAME="${WANDB_NAME:-alfworld_playbook_evolve_norl}"
 
 # CI/container smoke check: validate the resolved launch contract without
 # importing vLLM, allocating CUDA memory, modifying an output, or contacting
@@ -172,6 +191,10 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --data_parallel_workers "$DATA_PARALLEL_WORKERS" \
     --rollout_worker_gpus "$ROLLOUT_WORKER_GPUS" \
     --checkpoint_every_groups "$CHECKPOINT_EVERY_GROUPS" \
+    --resume "$RESUME" \
+    --wandb "$WANDB_ENABLED" \
+    --wandb_project "$WANDB_PROJECT" \
+    --wandb_name "$WANDB_NAME" \
     `# NO_HIS 模板本身没有记忆，靠 history_length 条最近 obs+action 弥补；调大到 8` \
     --history_length 8 \
     `# vLLM：max_prompt6144+max_response4096=10240; 冻结推理 gpu_mem_util 可给高` \
@@ -180,6 +203,8 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --think_budget 3500 \
     --temperature 1.0 \
     --gpu_mem_util 0.8 \
+    --vllm_max_num_seqs "$VLLM_MAX_NUM_SEQS" \
+    --vllm_enforce_eager "$VLLM_ENFORCE_EAGER" \
     --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
     `# 记忆 / 技能：与训练脚本 skills_only_memory.* 对齐` \
     --skills_json memory_data/alfworld/claude_style_skills.json \

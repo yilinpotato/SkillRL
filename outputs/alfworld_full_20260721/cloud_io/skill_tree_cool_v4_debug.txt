@@ -1,0 +1,107 @@
+=== Skill Tree Debug — scope=cool  v4 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent used the skill tree but failed to follow the systematic search instructions, often skipping cabinet openings or using wasteful actions. The skill tree's wording was clear but not sufficiently imperative; the refined version mandates the opening step and forbids wasteful actions.
+changelog: Refined Sub-goal 1: replaced 'Systematic search of all receptacles' and 'Prioritize pickup' with a more explicit 'Systematic Inspection Protocol' that mandates opening every closed receptacle and prohibits wasteful actions, based on failure diagnosis indicating incomplete exploration.
+consensus prefix (folded, not re-taught this round): go to fridge 1 → open fridge 1 → go to countertop 1
+n_success this round: 6  n_failure this round: 6
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent did not open cabinet 4 and missed other potential locations for the bowl, ending the search prematurely. | evidence: Last action 'go to cabinet 4' but never opened it; no bowl observed anywhere. | fix: Open every cabinet you visit and check all countertops and sinks for the target object. | skill_tree_gap: Incomplete search routine: visiting a cabinet does not guarantee inspection. | patch_location: Under '## cool', add a new subsection '### Systematic Cabinet Inspection'.
+- [inefficient_exploration] The agent wasted steps on 'look' and 'examine' actions instead of systematically visiting all countertops and cabinets to find the tomato. | evidence: Actions 'look' and 'examine cabinet 2' produced no useful information and delayed search; tomato was never found. | fix: Avoid look/examine; focus on navigation and open actions to cover all receptacles quickly. | skill_tree_gap: Lack of efficient search protocol; unnecessary actions waste steps. | patch_location: Under '## cool', add a new subsection '### Efficient Search Protocol' (avoid non-navigation actions).
+- [inefficient_exploration] The agent only opened three cabinets and did not search the fridge or other countertops thoroughly for the bowl. | evidence: After opening cabinet 3 (empty), agent went to fridge (no bowl) then stopped; bowl was not found. | fix: Extend search to all cabinets, drawers, and the fridge before concluding the object is absent. | skill_tree_gap: Search coverage insufficient for large environments. | patch_location: Under '## cool', add a new subsection '### Broaden Search Coverage'.
+- [inefficient_exploration] The agent failed to locate a mug; it only checked a few cabinets and countertops, missing other potential locations. | evidence: Visited countertop 2, sinkbasin, cabinet 1 (found cup, not mug), then stopped; no mug anywhere. | fix: Search every countertop and open every cabinet in the room for the mug. | skill_tree_gap: Incomplete search of all receptacle types. | patch_location: Under '## cool', add a new subsection '### All Receptacle Search'.
+- [inefficient_exploration] The agent did not search all cabinets; it only opened cabinet 1 (empty) and then went to cabinet 2 without opening it, missing the mug. | evidence: Last action 'go to cabinet 2' without opening; no mug seen in any visited location. | fix: Open all cabinets you encounter and systematically check their contents. | skill_tree_gap: Failure to inspect cabinets after navigating to them. | patch_location: Under '## cool', add a new subsection '### Mandatory Cabinet Opening'.
+- [inefficient_exploration] The agent did not open cabinets 1 and 2 (only viewed their tops) and missed the pan which was likely inside a closed cabinet. | evidence: Agent went to cabinet 1 and cabinet 2 but only saw items on top, never opened them; pan not found. | fix: Always open closed cabinets to see their interior contents. | skill_tree_gap: Misunderstanding that cabinets have interiors that must be opened. | patch_location: Under '## cool', add a new subsection '### Open Cabinet Interiors'.
+
+--- Node tree (per-node lifecycle, this version=v4) ---
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location level=1 stable_versions=3 calls=31 success=19 rate=61.3%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/completion-check level=2 stable_versions=3 calls=31 success=19 rate=61.3%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool level=2 stable_versions=0 calls=31 success=19 rate=61.3%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/immediately-check-the-fridge-for-cooling-tasks level=3 stable_versions=1 calls=12 success=6 rate=50.0%
+[MODIFIED            ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/prioritize-pickup-of-visible-target level=3 stable_versions=0 calls=25 success=15 rate=60.0%
+[NEW                 ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-1-find-the-object-to-cool/systematic-inspection-protocol-mandatory-steps level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-2-take-the-object level=2 stable_versions=3 calls=31 success=19 rate=61.3%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-3-cool-the-object-using-the-fridge level=2 stable_versions=3 calls=31 success=19 rate=61.3%
+[STABLE              ] goal-cool-an-object-and-move-it-to-a-specified-target-location/sub-goal-4-move-the-cooled-object-to-the-target-location level=2 stable_versions=3 calls=31 success=19 rate=61.3%
+
+--- Line diff vs previous version (v3 -> v4) ---
+--- v3
++++ v4
+@@ -2,25 +2,23 @@
+ 
+ ## Sub-goal 1: Find the object to cool.
+ - The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.
+-- Do NOT focus only on cabinets; also check countertops, fridge, sinkbasin, drawers, and any other openable containers or surfaces.
+-- Start by observing the room description for all receptacle names, then systematically visit each one.
+-- For each receptacle, first go to it, then if it is closed, open it. Look at its contents.
+-- If the receptacle is open or does not open, simply look at what is on/in it.
+-- Continue until you find the target object.
+ 
+ ### Immediately check the fridge for cooling tasks
+ - Because the goal involves cooling, the target object is often stored in the fridge. Before searching many cabinets, go to the fridge and check its contents (open it if closed).
+ - If the target is not in the fridge, then proceed to systematically check all other receptacles.
+ 
+-### Systematic search of all receptacles
+-- List every receptacle from the initial room description. Visit each one without skipping any.
+-- Include fridge, drawers, cabinets, countertops, diningtable, sidetable, microwave, garbagecan, sinkbasin – all that are present.
+-- Do not stop after checking only a few; the target might be anywhere.
++### Systematic Inspection Protocol (mandatory steps)
++- List every receptacle from the initial room description. Visit each one without skipping any. Include fridge, drawers, cabinets, countertops, diningtable, sidetable, microwave, garbagecan, sinkbasin – all that are present.
++- For each receptacle:
++  1. Go to it.
++  2. If it is closed (e.g., cabinet, drawer, fridge, microwave), immediately open it using `open <receptacle>`.
++  3. After opening (or if already open), look at its contents. The observation will list items on/in it.
++  4. If the target object is present, take it right away using `take <object> from <location>`. Do not move to the next receptacle until you have taken it.
++  5. If the target is not present, move on to the next receptacle without lingering. Do not use extra actions like 'look' or 'examine' – they waste steps.
++- Do not assume the target is missing after checking only a few locations. Continue until you have visited every receptacle.
+ 
+ ### Prioritize pickup of visible target
+-- When you arrive at a location, immediately check the observation text for the target object's name.
+-- If the target object is present in that location (e.g., "a pan 1" on countertop), take it right away before moving elsewhere.
+-- Do not proceed to another receptacle if the target is in front of you.
++- When you arrive at any location (countertop, sinkbasin, etc.), immediately check the observation text for the target object's name. If it is present, take it right away before moving elsewhere.
+ 
+ ## Sub-goal 2: Take the object.
+ - Once you see the object, use `take <object> from <location>` (e.g., `take bread 2 from countertop 2`).
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Cool an object and move it to a specified target location.
+
+## Sub-goal 1: Find the object to cool.
+- The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.
+
+### Immediately check the fridge for cooling tasks
+- Because the goal involves cooling, the target object is often stored in the fridge. Before searching many cabinets, go to the fridge and check its contents (open it if closed).
+- If the target is not in the fridge, then proceed to systematically check all other receptacles.
+
+### Systematic Inspection Protocol (mandatory steps)
+- List every receptacle from the initial room description. Visit each one without skipping any. Include fridge, drawers, cabinets, countertops, diningtable, sidetable, microwave, garbagecan, sinkbasin – all that are present.
+- For each receptacle:
+  1. Go to it.
+  2. If it is closed (e.g., cabinet, drawer, fridge, microwave), immediately open it using `open <receptacle>`.
+  3. After opening (or if already open), look at its contents. The observation will list items on/in it.
+  4. If the target object is present, take it right away using `take <object> from <location>`. Do not move to the next receptacle until you have taken it.
+  5. If the target is not present, move on to the next receptacle without lingering. Do not use extra actions like 'look' or 'examine' – they waste steps.
+- Do not assume the target is missing after checking only a few locations. Continue until you have visited every receptacle.
+
+### Prioritize pickup of visible target
+- When you arrive at any location (countertop, sinkbasin, etc.), immediately check the observation text for the target object's name. If it is present, take it right away before moving elsewhere.
+
+## Sub-goal 2: Take the object.
+- Once you see the object, use `take <object> from <location>` (e.g., `take bread 2 from countertop 2`).
+- Confirm you are holding it (the action response will say "You pick up the ...").
+
+## Sub-goal 3: Cool the object using the fridge.
+- Go to the fridge (if not already there).
+- If the fridge is closed, open it.
+- Then use `cool <object> with fridge` (e.g., `cool bread 2 with fridge 1`).
+- The response will confirm the object has been cooled.
+
+## Sub-goal 4: Move the cooled object to the target location.
+- Go to the target location named in the task (e.g., diningtable, cabinet, microwave, countertop).
+- Use `move <object> to <target>` (e.g., `move bread 2 to diningtable 1`).
+- The response will confirm the object is placed.
+
+## Completion check:
+- The task is complete when the object has been cooled and placed at the target location.
+- If you have done all steps, the environment may not give explicit success feedback; trust the sequence.

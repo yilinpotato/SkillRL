@@ -1,0 +1,62 @@
+=== Skill Tree Debug — scope=clean  v1 (level=3, tree_depth=3, 8 nodes) ===
+action: rewrite
+critique: 
+changelog: Initial skill tree written from scratch, covering goal identification, systematic search, cleaning step, and placement.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 9  n_failure this round: 4
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent never found a mug; it only searched cabinets and a countertop with a cup, not other locations like sinkbasin or fridge. | evidence: No mug appeared in any observation; inventory empty after multiple steps. | fix: Search all receptacles (including sinkbasin, fridge, drawers) for the target object before concluding it is absent. | skill_tree_gap: Inadequate exploration strategy; agent stops after checking a few places. | patch_location: Under 'clean', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never located a kettle; it only examined cabinets and two countertops, missing other possible locations. | evidence: After opening cabinet 5, no kettle seen; no further search attempted. | fix: Extend search to fridge, sinkbasin, and all countertops before giving up. | skill_tree_gap: No systematic search routine for clean tasks. | patch_location: Under 'clean', add a new subsection '### systematic search of all receptacles'.
+- [inefficient_exploration] Agent never found an apple; it searched fridge, countertops, and cabinets but missed other containers. | evidence: Apple never appeared in any observation; agent stopped after cabinet 5. | fix: Continue searching all available receptacles including drawers and sinkbasin. | skill_tree_gap: Lack of comprehensive scan of environment. | patch_location: Under 'clean', add a new subsection '### systematic search of all receptacles'.
+- [wrong_order] Agent took the towel but never cleaned it; it went to sinkbasin then moved away without using 'clean' action. | evidence: After arriving at sinkbasin, next action is 'go to drawer 1' instead of 'clean towel 1 with sinkbasin 1'. | fix: When at sinkbasin holding a cleanable object, always use the 'clean' action before leaving. | skill_tree_gap: Missing transition from sinkbasin arrival to cleaning action. | patch_location: Under 'clean', add a new subsection '### ensure cleaning step after reaching sinkbasin'.
+
+--- Node tree (per-node lifecycle, this version=v1) ---
+[NEW                 ] clean-task-skill-tree                    level=1 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/completion         level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/goal-identification level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/phase-2-clean-the-object/ensure-cleaning-at-sinkbasin level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=0 calls=0 success=0 rate=n/a
+
+--- Line diff vs previous version (v0 -> v1) ---
+(none — this is the first version, nothing to diff against)
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]".
+- Remember that [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as the nearest sinkbasin or bathtubbasin (usually sinkbasin).
+
+## Phase 1: Locate and Take the Target Object
+- You need to find and pick up [object] before you can clean it.
+- Do not assume [object] is in any specific receptacle; search systematically.
+
+### Systematic Search
+- Start with receptacles you can see (immediately from your position).
+- Go to each receptacle type in the room: cabinets, drawers, fridge, countertops, sinkbasin, shelf, dresser, etc.
+- For closed receptacles (cabinets, drawers, fridge), use "open [receptacle]" first, then check contents.
+- If you see [object], use "take [object] from [receptacle]".
+- Continue searching until you find [object] or you have visited all receptacles. Do not stop after a few checks.
+- Once you are carrying [object], proceed to Phase 2.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (e.g., sinkbasin 1).
+- Upon arriving at [cleaning_source], immediately use "clean [object] with [cleaning_source]".
+- Confirm the observation says you cleaned it; otherwise retry or check if you are at the correct source.
+
+### Ensure Cleaning at Sinkbasin
+- Do NOT leave the sinkbasin without cleaning. If you are at sinkbasin and carrying the object, you must clean before moving.
+- If you accidentally move away, return and clean.
+
+## Phase 3: Place the Clean Object at Destination
+- After cleaning, go to [destination] (e.g., diningtable, shelf, stoveburner, etc.).
+- Use "move [object] to [destination]" to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

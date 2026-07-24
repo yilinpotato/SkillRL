@@ -1,0 +1,138 @@
+=== Skill Tree Debug — scope=clean  v17 (level=3, tree_depth=3, 10 nodes) ===
+action: refine
+critique: The agent partially followed the skill tree by searching cabinets but ignored the instruction to check drawers and open surfaces, leading to failure. The skill tree's original order (cabinets first) was not incorrect, but the agent did not adhere to the full sequence; reordering to prioritize open surfaces makes the search more efficient and reduces the chance of getting stuck on cabinets.
+changelog: Modified Phase 1 to prioritize open surfaces over closed containers, added a new subsection 'Search Open Surfaces First', and reordered the search hierarchy to address the pattern of inefficient cabinet-only exploration seen in failures.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 11  n_failure this round: 7
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent only searched cabinets and used 'examine' instead of 'open', never exploring countertops or other surfaces where the plate likely resides. | evidence: After 'examine cabinet 1', observation: 'On the cabinet 1, you see nothing.' Then only opens cabinets; no plate found anywhere. | fix: When searching for an object to clean, first inspect all open surfaces (countertops, sink, tables) before opening cabinets. | skill_tree_gap: Lack of a search strategy that prioritizes open surfaces over closed containers. | patch_location: ## clean -> ### exploration priority (new subsection)
+- [inefficient_exploration] The agent only searched cabinets and never examined countertops or other surfaces for the ladle. | evidence: After opening multiple cabinets, only irrelevant items found; no ladle seen. Task requires cleaning a ladle, which is typically on a countertop. | fix: When tasked with cleaning an object, begin by checking all open surfaces (countertops, sink) before opening containers. | skill_tree_gap: Missing heuristic to search open surfaces first in 'clean' tasks. | patch_location: ## clean -> ### search open surfaces first (new subsection)
+- [inefficient_exploration] The agent only searched cabinets and never went to countertops where the spatula was likely located. | evidence: After opening many cabinets, no spatula found; countertops were never visited. | fix: In 'clean' tasks, always inspect all countertops first as they commonly hold the target object. | skill_tree_gap: Deficient exploration of open surfaces in the skill tree. | patch_location: ## clean -> ### search open surfaces first (new subsection)
+- [inefficient_exploration] The agent only searched cabinets and never visited the diningtable or countertops to find the ladle. | evidence: After opening cabinets, no ladle found; the agent never went to other locations like countertops or diningtable. | fix: When the target destination is a specific surface (e.g., diningtable), also search that surface and nearby countertops for the object. | skill_tree_gap: Lack of awareness that objects may be on the same surface as the target destination. | patch_location: ## clean -> ### search open surfaces first (new subsection)
+- [inefficient_exploration] The agent only searched cabinets and a drawer, never checking countertops or sink for the plate. | evidence: After opening cabinets and one drawer, no plate found; countertops never examined. | fix: For 'clean plate', inspect countertops, sink, and tables before searching closed containers. | skill_tree_gap: No systematic coverage of all common object locations in 'clean' tasks. | patch_location: ## clean -> ### search open surfaces first (new subsection)
+- [inefficient_exploration] The agent explored shelves and bathroom fixtures but never checked countertops or drawers where the soapbar is typically found. | evidence: After visiting many locations, inventory is empty and no soapbar was seen. Successful trajectories find soapbar on countertop. | fix: When looking for a soapbar, prioritize countertop and drawer locations over shelves and bathroom fixtures. | skill_tree_gap: Lack of object-specific location priors (soapbar on countertop). | patch_location: ## clean -> ### object-specific search patterns (new subsection)
+
+--- Node tree (per-node lifecycle, this version=v17) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=16 calls=235 success=154 rate=65.5%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=16 calls=235 success=154 rate=65.5%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=10 calls=235 success=154 rate=65.5%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object level=2 stable_versions=3 calls=235 success=154 rate=65.5%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/navigation-and-opening-rules level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/object-name-verification level=3 stable_versions=0 calls=201 success=127 rate=63.2%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/search-closed-containers-if-not-found-on-open-surfaces level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/search-open-surfaces-first level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=0 calls=235 success=154 rate=65.5%
+[MODIFIED            ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=0 calls=235 success=154 rate=65.5%
+
+--- Line diff vs previous version (v16 -> v17) ---
+--- v16
++++ v17
+@@ -6,42 +6,36 @@
+ - Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+ 
+ ## Phase 1: Locate and Take the Target Object
+-### Systematic Search Order – Follow Exactly
+-- Read the initial room description. Identify every receptacle type present: cabinets, drawers, fridge, countertops, diningtables, sidetables, shelves, sinkbasins, etc.
+-- **Search in this exact order and do NOT skip any step:**
+-  1. **All cabinets** in increasing number order (cabinet 1, cabinet 2, ...). For each, first go to it, then `open cabinet X` to inspect contents. Do not use 'look' or 'examine' – only `open` reveals contents of closed containers.
+-  2. **All drawers** in increasing number order (drawer 1, drawer 2, ...). For each, go, `open drawer X`, inspect.
+-  3. **The fridge** (if present). Go, `open fridge 1`, inspect.
+-  4. **All open surfaces** (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) in any order. You can see objects on open surfaces without opening – just go to them and read the observation. **After checking cabinets and drawers (and fridge if present), you MUST check every open surface. Do not stop after step 3.**
+-- **Important**: Always open closed containers (cabinets, drawers, fridge) after arriving. Do not use `look` or `examine` – they do not reveal contents of closed containers. Use `open` instead.
+-- If you have searched all of the above and still not found the target object, re-read the initial description to ensure you did not miss a receptacle type (e.g., a shelf or bathtub).
+ 
+-### Navigation First: Move Before Interacting
+-- **Before attempting to open any container or take any object, you must be at that exact location.**
+-- The sequence is always: `go to <receptacle>` then `open <receptacle>` or `take <object>`. If you try to open or take from a distance, the action will only move you there and not actually perform the operation.
+-- Pay attention to observations: if you see "You arrive at ..." instead of "You open ...", you were not at the right place. Correct by issuing the `open` again after moving.
++### Search Open Surfaces First
++- Open surfaces (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) are visible without opening. Check these first—they often hold the target object.
++- List every open-surface receptacle from the initial description. For each, go to it and read the observation (no need to open). If the target object is present, take it and go to Phase 2.
++- If the destination in the task is an open surface (e.g., diningtable, countertop), check that surface early—the object may already be there.
+ 
+-### Always Open Containers Upon Arrival
+-- When you arrive at a closed container (cabinet, drawer, fridge), immediately open it to see its contents. Do not assume it is open or that you can see inside without opening.
+-- This applies even to the first cabinet (cabinet 1) – after going to it, always open it.
++### Search Closed Containers (if not found on open surfaces)
++- Only after checking all open surfaces, begin opening closed containers.
++- Systematically search **all** instances of these types in this order:
++  1. **Cabinets** – go to each, open, inspect contents.
++  2. **Drawers** – go to each, open, inspect.
++  3. **Fridge** – if present, go to it, open, inspect.
++- Continue until the target object is found. Do not stop after the first container type; finish every type.
+ 
+-### Persistence – Do Not Stop Early
+-- **The search is not complete until you have visited every single instance of every receptacle type present.** Stopping before finishing all types is the most common cause of failure.
+-- After completing the systematic order above, if you still have not found the object, re-read the initial description – you may have missed a receptacle type.
+-- Avoid redundant 'look' or 'examine' actions that waste steps and do not help find objects. Only 'open' works for closed containers.
++### Navigation and Opening Rules
++- Always move to a receptacle before interacting. Sequence: `go to <receptacle>`, then `open <receptacle>` (or `take <object>` if already seen).
++- For closed containers (cabinets, drawers, fridge), you **must** open them to see contents—`look` or `examine` will not reveal inside.
++- If you open a container and see nothing, move to the next container. Persist through all instances.
+ 
+ ### Object Name Verification
+-- Before taking an object, verify that its name matches the task target **exactly** (e.g., "cup" ≠ "mug"; "pan" ≠ "pot"). If it matches, take it and proceed to Phase 2. If not, continue searching.
++- Before taking an object, verify its name matches the task target exactly (e.g., "cup" ≠ "mug"; "pan" ≠ "pot"). If it matches, take it and proceed.
+ 
+ ## Phase 2: Clean the Object
+-- While holding [object], go to [cleaning_source] (typically sinkbasin 1).
+-- Immediately use "clean [object] with [cleaning_source]".
+-- Confirm the observation says you cleaned it; if not retry or check you are at the correct source.
+-- Do not use "look" or "examine" at the sink – only the clean action works.
++- While holding [object], go to [cleaning_source] (usually sinkbasin 1).
++- Use `clean [object] with [cleaning_source]`.
++- Confirm the observation says you cleaned it; if not, retry or verify you are at the correct source.
+ 
+ ## Phase 3: Place the Clean Object at Destination
+-- After cleaning, go to the [destination] specified in the task (e.g., cabinet, diningtable, microwave, stoveburner).
+-- Use "move [object] to [destination]" to place it.
++- Go to the [destination] specified in the task.
++- Use `move [object] to [destination]` to place it.
+ - Confirm the observation shows the object is now at the destination.
+ 
+ ## Completion
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Locate and Take the Target Object
+
+### Search Open Surfaces First
+- Open surfaces (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) are visible without opening. Check these first—they often hold the target object.
+- List every open-surface receptacle from the initial description. For each, go to it and read the observation (no need to open). If the target object is present, take it and go to Phase 2.
+- If the destination in the task is an open surface (e.g., diningtable, countertop), check that surface early—the object may already be there.
+
+### Search Closed Containers (if not found on open surfaces)
+- Only after checking all open surfaces, begin opening closed containers.
+- Systematically search **all** instances of these types in this order:
+  1. **Cabinets** – go to each, open, inspect contents.
+  2. **Drawers** – go to each, open, inspect.
+  3. **Fridge** – if present, go to it, open, inspect.
+- Continue until the target object is found. Do not stop after the first container type; finish every type.
+
+### Navigation and Opening Rules
+- Always move to a receptacle before interacting. Sequence: `go to <receptacle>`, then `open <receptacle>` (or `take <object>` if already seen).
+- For closed containers (cabinets, drawers, fridge), you **must** open them to see contents—`look` or `examine` will not reveal inside.
+- If you open a container and see nothing, move to the next container. Persist through all instances.
+
+### Object Name Verification
+- Before taking an object, verify its name matches the task target exactly (e.g., "cup" ≠ "mug"; "pan" ≠ "pot"). If it matches, take it and proceed.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (usually sinkbasin 1).
+- Use `clean [object] with [cleaning_source]`.
+- Confirm the observation says you cleaned it; if not, retry or verify you are at the correct source.
+
+## Phase 3: Place the Clean Object at Destination
+- Go to the [destination] specified in the task.
+- Use `move [object] to [destination]` to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

@@ -1,0 +1,216 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "cool" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# Goal: Cool an object and move it to a specified target location.
+
+## Sub-goal 1: Find the object to cool.
+- The target object is not yet in your inventory. You must locate it by searching all receptacles in the room.
+
+### Initial assessment
+- Start by reading the room description from the `look` command. It lists all receptacles with their numbers.
+- Do not assume any receptacle contents are known until you have explicitly looked inside.
+
+### Systematic search of open flat surfaces (mandatory order)
+- The target is often on a flat surface (countertop, diningtable, sidetable, shelf, sinkbasin, stoveburner). Do not open closed receptacles until every flat surface has been checked.
+
+#### Exhaustive enumeration of all flat surfaces
+- List all flat surface types from the room description: countertops, diningtables, sidetables, shelves, sinkbasin, stoveburners.
+- Visit each numbered instance in order: all countertops first, then diningtables, then sidetables, then shelves, then sinkbasin, then stoveburners.
+- For each:
+  1. Go to it.
+  2. Read the observation. If the target is present, take it immediately using `take <object> from <location>`.
+  3. If not, move to the next without extra actions.
+- **Do not skip any flat surface.**
+
+### If target still not found: search closed receptacles, starting with the fridge
+- After every open flat surface has been checked, search closed receptacles. The fridge is both a likely hiding place for the object (if it needs cooling) and the appliance you will use to cool it. **Always check the fridge first among closed containers.**
+  1. Go to the fridge.
+  2. If it is closed, open it.
+  3. Look at its contents. If the target is present, take it. (You are already at the fridge; you can go straight to cooling.)
+  4. If not, move on to other closed receptacles systematically: cabinets, drawers, microwave (any numbered instance of each type, in order).
+- For each closed receptacle:
+  1. Go to it.
+  2. If closed, open it.
+  3. Look at its contents. If target present, take it.
+  4. Move to next.
+- Do not skip any numbered instance.
+
+## Sub-goal 2: Take the object.
+- Once you see the object, take it immediately with `take <object> from <location>`.
+
+### Immediately cool after picking (mandatory)
+- As soon as you have taken the object, cool it using the fridge before doing anything else. Do not move to the target location or do other actions.
+
+## Sub-goal 3: Cool the object using the fridge.
+- Ensure you are at the fridge (go there if not already).
+- If the fridge is closed, open it.
+- Use `cool <object> with fridge`.
+
+## Sub-goal 4: Move the cooled object to the target location.
+- Go to the target location (named in the task).
+- Use `move <object> to <target>`.
+
+## Completion check:
+- The task is complete when the object has been cooled and placed at the target location. Trust the sequence.
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): go to countertop 1
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: cool some pot and put it in shelf.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a saltshaker 2, and a tomato 1.
+  action: take pot 1 from countertop 2  | obs: You arrive at countertop 2. On the countertop 2, you see a book 1, a bowl 1, a bread 1, a egg 1, a pot 1, a sink 1, a statue 2, and a statue 1.
+  action: go to fridge 1  | obs: You pick up the pot 1 from the countertop 2.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: cool pot 1 with fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see nothing.
+  action: go to shelf 1  | obs: You cool the pot 1 using the fridge 1.
+  action: move pot 1 to shelf 1  | obs: You arrive at shelf 1. On the shelf 1, you see nothing.
+
+Trajectory 2 [success] task: put a cool mug in coffeemachine.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a apple 2, a apple 1, a dishsponge 1, a egg 3, a egg 2, a houseplant 2, a houseplant 1, a ladle 3, a ladle 2, a plate 2, a potato 1, a saltshaker 1, and a spatula 3.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a bowl 3, a bread 3, a fork 1, a lettuce 2, a lettuce 1, a papertowelroll 1, a peppershaker 2, a soapbottle 1, and a tomato 2.
+  action: take mug 1 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a bread 2, a bread 1, a butterknife 1, a dishsponge 3, a dishsponge 2, a egg 1, a knife 1, a ladle 1, a mug 1, a spatula 2, a spatula 1, a spoon 3, and a tomato 1.
+  action: go to fridge 1  | obs: You pick up the mug 1 from the diningtable 1.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: cool mug 1 with fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a bowl 1, a glassbottle 1, and a potato 2.
+  action: go to coffeemachine 1  | obs: You cool the mug 1 using the fridge 1.
+  action: move mug 1 to coffeemachine 1  | obs: You arrive at coffeemachine 1. On the coffeemachine 1, you see nothing.
+
+Trajectory 3 [success] task: cool some egg and put it in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a bowl 1, a bread 2, a bread 1, a butterknife 2, a butterknife 1, a knife 2, a knife 1, a ladle 1, a lettuce 2, a saltshaker 1, a soapbottle 1, a spatula 1, and a spoon 2.
+  action: go to sinkbasin 1  | obs: You arrive at countertop 2. On the countertop 2, you see a fork 1, a lettuce 1, a mug 1, a peppershaker 1, and a spoon 1.
+  action: take egg 3 from sinkbasin 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a butterknife 3, a egg 3, and a potato 1.
+  action: go to fridge 1  | obs: You pick up the egg 3 from the sinkbasin 1.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: cool egg 3 with fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 2, a apple 1, a mug 3, a mug 2, and a tomato 1.
+  action: go to countertop 1  | obs: You cool the egg 3 using the fridge 1.
+  action: move egg 3 to countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a bowl 1, a bread 2, a bread 1, a butterknife 2, a butterknife 1, a knife 2, a knife 1, a ladle 1, a lettuce 2, a saltshaker 1, a soapbottle 1, a spatula 1, and a spoon 2.
+
+Trajectory 4 [success] task: cool some pan and put it in countertop.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a spoon 1, and a winebottle 2.
+  action: take pan 2 from countertop 2  | obs: You arrive at countertop 2. On the countertop 2, you see a dishsponge 1, a knife 3, a lettuce 1, a pan 2, a plate 2, a sink 1, a spatula 1, a spoon 2, a vase 2, and a vase 1.
+  action: go to fridge 1  | obs: You pick up the pan 2 from the countertop 2.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: cool pan 2 with fridge 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a bowl 1, a bread 2, a cup 1, a egg 2, a egg 1, and a plate 3.
+  action: go to countertop 1  | obs: You cool the pan 2 using the fridge 1.
+  action: move pan 2 to countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a spoon 1, and a winebottle 2.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+
+Trajectory 1 [failure] task: cool some bowl and put it in cabinet.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a knife 1, a soapbottle 1, a spoon 3, a spoon 1, and a tomato 1.
+  action: go to countertop 3  | obs: You arrive at countertop 2. On the countertop 2, you see a butterknife 1, a fork 1, and a knife 2.
+  action: go to diningtable 1  | obs: You arrive at countertop 3. On the countertop 3, you see a butterknife 2, a cup 1, and a pan 1.
+  action: go to sinkbasin 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a cup 2, a dishsponge 2, a dishsponge 1, a fork 3, a fork 2, a knife 3, a papertowelroll 1, a peppershaker 1, a soapbottle 2, a spatula 1, and a tomato 3.
+  action: go to stoveburner 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a egg 1, and a mug 1.
+  action: go to stoveburner 2  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see a pot 1.
+  action: go to stoveburner 3  | obs: You arrive at stoveburner 2. On the stoveburner 2, you see a pot 2.
+  action: go to stoveburner 4  | obs: You arrive at stoveburner 3. On the stoveburner 3, you see nothing.
+  action: go to fridge 1  | obs: You arrive at stoveburner 4. On the stoveburner 4, you see nothing.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: go to cabinet 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 2, a apple 1, a bread 1, a lettuce 2, a lettuce 1, and a potato 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+
+Trajectory 2 [failure] task: cool some plate and put it in cabinet.
+  [consensus prefix ✓: go to countertop 1]  (folded, already mastered)
+  action: go to countertop 2  | obs: You arrive at countertop 1. On the countertop 1, you see a egg 1, and a saltshaker 2.
+  action: go to diningtable 1  | obs: You arrive at countertop 2. On the countertop 2, you see a apple 2, a knife 2, a ladle 2, a ladle 1, a lettuce 1, a saltshaker 3, a soapbottle 2, a spoon 1, and a tomato 3.
+  action: go to sinkbasin 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a bread 1, a dishsponge 1, a fork 2, a knife 3, a lettuce 3, a lettuce 2, a peppershaker 1, a soapbottle 3, a spatula 3, and a winebottle 2.
+  action: go to stoveburner 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see a butterknife 1, a cup 1, a fork 1, a spatula 2, and a spatula 1.
+  action: go to stoveburner 2  | obs: You arrive at stoveburner 1. On the stoveburner 1, you see a pot 1.
+  action: go to stoveburner 3  | obs: You arrive at stoveburner 2. On the stoveburner 2, you see nothing.
+  action: go to stoveburner 4  | obs: You arrive at stoveburner 3. On the stoveburner 3, you see nothing.
+  action: go to fridge 1  | obs: You arrive at stoveburner 4. On the stoveburner 4, you see nothing.
+  action: open fridge 1  | obs: You arrive at fridge 1. The fridge 1 is closed.
+  action: go to cabinet 1  | obs: You open the fridge 1. The fridge 1 is open. In it, you see a apple 1, a bowl 2, a egg 2, a mug 2, a mug 1, a potato 2, a potato 1, a tomato 2, and a tomato 1.
+  action: go to cabinet 2  | obs: You arrive at cabinet 1. On the cabinet 1, you see a soapbottle 1.
+  action: go to countertop 1  | obs: You arrive at cabinet 2. On the cabinet 2, you see nothing.
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+- [inefficient_exploration] Agent failed to find a bowl because it looked only at surfaces and did not open cabinets or drawers that might contain a bowl. | evidence: After opening fridge and seeing no bowl, they went to cabinet 1 but did not open it; cabinet 1 remained closed. | fix: Open all cabinets and drawers when searching for an object, not just look at surfaces. | skill_tree_gap: Lacks systematic container search for objects. | patch_location: ## cool → new subsection ### Open containers when searching
+- [inefficient_exploration] Agent did not find a plate because it only observed surfaces of cabinets 1 and 2 without opening them. | evidence: After going to cabinet 1 and cabinet 2, they only saw soapbottle on surface and nothing on cabinet 2, but never opened them. | fix: Open containers to see inside; do not rely only on surface observations. | skill_tree_gap: Lacks systematic container search for objects. | patch_location: ## cool → new subsection ### Open containers when searching
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

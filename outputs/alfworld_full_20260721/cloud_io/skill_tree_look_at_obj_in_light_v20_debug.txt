@@ -1,0 +1,81 @@
+=== Skill Tree Debug — scope=look_at_obj_in_light  v20 (level=3, tree_depth=3, 6 nodes) ===
+action: refine
+critique: The agent followed the skill tree's phases correctly and achieved success in all trajectories. However, the original wording in Phase 2 'Systematic Search' implied that all receptacles must be visited even after finding the target, which could lead to wasteful actions; the refined version clarifies that you stop as soon as the target is found, and recommends checking the current receptacle first.
+changelog: Refined Phase 2 to explicitly state that search stops upon finding the target object, added a priority check for the current receptacle after turning on the lamp, and merged the action precondition check within the search steps for clarity.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 7  n_failure this round: 0
+
+--- Failure diagnoses feeding this round ---
+(none)
+
+--- Node tree (per-node lifecycle, this version=v20) ---
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp level=1 stable_versions=10 calls=164 success=149 rate=90.9%
+[MODIFIED            ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp level=2 stable_versions=0 calls=164 success=149 rate=90.9%
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object-after-lamp-is-on level=2 stable_versions=1 calls=96 success=89 rate=92.7%
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object-after-lamp-is-on/action-precondition-check level=3 stable_versions=1 calls=9 success=9 rate=100.0%
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-and-take-the-target-object-after-lamp-is-on/efficient-search-stop-when-found level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-3-task-completion level=2 stable_versions=1 calls=164 success=149 rate=90.9%
+
+--- Line diff vs previous version (v19 -> v20) ---
+--- v19
++++ v20
+@@ -1,22 +1,21 @@
+ # Goal: Examine or look at a target object using a light source (e.g., desklamp)
+ 
+ ## Phase 1: Find and turn on the desklamp
+-- Search surfaces at your current location for a desklamp. If seen, move to that receptacle if needed.
+-- If not visible, move to another surface receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) and check contents. Continue until you find a desklamp.
+-- Once at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.
++- Start by moving to a receptacle (e.g., desk, dresser, sidetable) to see its contents. Search surfaces at your current receptacle for a desklamp. If seen, that receptacle now holds the lamp.
++- If not visible, move to another surface receptacle (from the initial room description) and check its contents. Continue until you find a desklamp.
++- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.
+ - If you encounter the target object before the lamp, remember its location and continue searching for the lamp. Do **not** take the object until the lamp is on.
+ 
+ ## Phase 2: Locate and take the target object (after lamp is on)
+ 
+-### Systematic Search
+-1. **Recall the initial room description** — it lists every furniture/receptacle with numbers (e.g., drawer 1, drawer 2, …). Write down each one individually (including numbers). This is your **complete list** of places to search.
+-2. **For each receptacle on that list (in any order, but do not skip any):**
++### Efficient Search (stop when found)
++1. **Check the current receptacle first** – if the target object is on the same receptacle where you turned on the lamp, take it immediately (action: take <object> from <receptacle>).
++2. **If not present, systematically visit other receptacles** – use the initial room description as a list of all furniture/receptacles (with numbers). For each receptacle (in any order, but do not skip any):
+    - Go to it.
+-   - Read the arrival observation. If the target object's exact name appears among the items on the surface, take it (action: take <object> from <receptacle>).
+-   - If the target is not on the surface, check if this receptacle has any containers (e.g., a drawer built into a dresser, a cabinet). Open each container (action: open <container>) and inspect its contents.
+-3. **Continue until every receptacle from your list has been visited and all containers opened.**
+-4. **Exhaustive fallback:** If after visiting all receptacles and opening all containers the target is still missing, re-read the initial description to verify you did not overlook any receptacle or container. Go back and open any containers you missed. Persist.
+-5. **Do not waste actions on 'look' or 'inventory'** — arrival observations give sufficient information. Move efficiently.
++   - Read the arrival observation. If the target object's exact name appears among the items on the surface, take it (action: take <object> from <receptacle>) and stop searching — the task is done after taking.
++   - If the target is not on the surface, check if this receptacle has any containers (e.g., a drawer built into a dresser, a cabinet). Open each container (action: open <container>) and inspect its contents. If found, take it and stop.
++3. **Exhaustive fallback:** If after visiting all receptacles and opening all containers the target is still missing, re-read the initial description to verify you did not overlook any receptacle or container. Go back and open any containers you missed. Persist.
++4. **No unnecessary actions** – do not use 'look' or 'inventory' except as needed to open containers; arrival observations give sufficient information.
+ 
+ ### Action Precondition Check
+ - **Only take an object that is explicitly listed in the current observation.** Never guess or assume an object's location. If the observation does not show the target, do not attempt to take it from that receptacle — continue searching.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Examine or look at a target object using a light source (e.g., desklamp)
+
+## Phase 1: Find and turn on the desklamp
+- Start by moving to a receptacle (e.g., desk, dresser, sidetable) to see its contents. Search surfaces at your current receptacle for a desklamp. If seen, that receptacle now holds the lamp.
+- If not visible, move to another surface receptacle (from the initial room description) and check its contents. Continue until you find a desklamp.
+- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.
+- If you encounter the target object before the lamp, remember its location and continue searching for the lamp. Do **not** take the object until the lamp is on.
+
+## Phase 2: Locate and take the target object (after lamp is on)
+
+### Efficient Search (stop when found)
+1. **Check the current receptacle first** – if the target object is on the same receptacle where you turned on the lamp, take it immediately (action: take <object> from <receptacle>).
+2. **If not present, systematically visit other receptacles** – use the initial room description as a list of all furniture/receptacles (with numbers). For each receptacle (in any order, but do not skip any):
+   - Go to it.
+   - Read the arrival observation. If the target object's exact name appears among the items on the surface, take it (action: take <object> from <receptacle>) and stop searching — the task is done after taking.
+   - If the target is not on the surface, check if this receptacle has any containers (e.g., a drawer built into a dresser, a cabinet). Open each container (action: open <container>) and inspect its contents. If found, take it and stop.
+3. **Exhaustive fallback:** If after visiting all receptacles and opening all containers the target is still missing, re-read the initial description to verify you did not overlook any receptacle or container. Go back and open any containers you missed. Persist.
+4. **No unnecessary actions** – do not use 'look' or 'inventory' except as needed to open containers; arrival observations give sufficient information.
+
+### Action Precondition Check
+- **Only take an object that is explicitly listed in the current observation.** Never guess or assume an object's location. If the observation does not show the target, do not attempt to take it from that receptacle — continue searching.
+- If you try to take an object not present, you will waste an action and potentially break the task. Always verify before acting.
+
+## Phase 3: Task completion
+- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required. (Optionally use examine, but not necessary.)

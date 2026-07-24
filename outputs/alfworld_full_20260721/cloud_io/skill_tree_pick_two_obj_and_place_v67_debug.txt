@@ -1,0 +1,141 @@
+=== Skill Tree Debug — scope=pick_two_obj_and_place  v67 (level=3, tree_depth=3, 12 nodes) ===
+action: refine
+critique: The agent partially followed the skill tree (e.g., used `look` initially, placed first object) but repeatedly violated Phase 2 by failing to proceed to the next search step after `look`, often looping on `look` actions. The original loop detection instruction (executing another `look` as the forced change) actually reinforced the loop instead of breaking it; the refined tree now forces a move to the next location.
+changelog: Refined Loop Detection & Recovery to break loops by forcing a move to the next list item, added explicit step after `look` to immediately go to the first item, and strengthened Phase 2 decision to prevent premature stopping.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 10
+
+--- Failure diagnoses feeding this round ---
+- [premature_stop] Agent placed one cellphone and then stopped searching for the second, entering a loop. | evidence: After moving cellphone 4 to dresser, it performed only look actions and did not seek a second cellphone. | fix: After placing the first object, continue searching for a second instance of the same object type. | skill_tree_gap: Missing a loop that ensures the required count is reached before termination. | patch_location: Under '# pick_two_obj_and_place', add '## Count-check after placement' as a refinement.
+- [premature_stop] Agent only collected one saltshaker and then got stuck in a loop without finding a second. | evidence: After taking saltshaker 1, the trajectory shows looping actions (dropped). | fix: After collecting and placing one saltshaker, actively search for another saltshaker. | skill_tree_gap: No mechanism to continue searching after first object collection. | patch_location: Under '# pick_two_obj_and_place', add '## Continue search for duplicates' subsection.
+- [wrong_target] Agent mistakenly took a candle instead of a tissuebox, deviating from the goal. | evidence: Action 'take candle 2 from drawer 6' instead of searching for tissuebox. | fix: Only take objects that exactly match the target object type; ignore non-target objects. | skill_tree_gap: Lacks a constraint to prevent taking objects that are not the target. | patch_location: Under '# pick_two_obj_and_place', add '## Target object filtering' subsection.
+- [inefficient_exploration] Agent did not search all cabinets and containers for toiletpaper; only checked a few and then looped. | evidence: After checking cabinet 3 and toiletpaperhanger, it went to countertop and looped, never opening other cabinets. | fix: Systematically open all cabinets and drawers until toiletpaper found. | skill_tree_gap: Incomplete container search; needs to iterate over all available containers. | patch_location: Under '# pick_two_obj_and_place', add '## Comprehensive container search' subsection.
+- [premature_stop] Agent placed only one creditcard and then stopped searching for the second. | evidence: After moving creditcard3 to diningtable, it returned to armchair and saw only pillow, then looped. | fix: After placing first creditcard, search for another creditcard until two are placed. | skill_tree_gap: No check for required count of placed objects. | patch_location: Under '# pick_two_obj_and_place', add '## Verify required count' subsection.
+- [premature_stop] Agent placed only one remotecontrol and then entered a loop without searching for a second. | evidence: After moving remotecontrol1 to armchair, it performed only look actions (dropped). | fix: After placing one remotecontrol, actively search for another remotecontrol. | skill_tree_gap: Missing continuation logic after first placement. | patch_location: Under '# pick_two_obj_and_place', add '## Search for second object' subsection.
+
+--- Node tree (per-node lifecycle, this version=v67) ---
+[STABLE              ] pick-two-obj-and-place                   level=1 stable_versions=66 calls=1403 success=964 rate=68.7%
+[MODIFIED            ] pick-two-obj-and-place/avoid-taking-non-target-objects level=2 stable_versions=0 calls=29 success=15 rate=51.7%
+[MODIFIED            ] pick-two-obj-and-place/core-search-plan  level=2 stable_versions=0 calls=29 success=15 rate=51.7%
+[STABLE              ] pick-two-obj-and-place/counter           level=2 stable_versions=1 calls=29 success=15 rate=51.7%
+[MODIFIED            ] pick-two-obj-and-place/critical-action-rules level=2 stable_versions=0 calls=29 success=15 rate=51.7%
+[STABLE              ] pick-two-obj-and-place/exhaustive-container-surface-search level=2 stable_versions=1 calls=29 success=15 rate=51.7%
+[STABLE              ] pick-two-obj-and-place/goal              level=2 stable_versions=1 calls=1403 success=964 rate=68.7%
+[MODIFIED            ] pick-two-obj-and-place/loop-detection-recovery level=2 stable_versions=0 calls=29 success=15 rate=51.7%
+[STABLE              ] pick-two-obj-and-place/phase-1-first-object-counter-0 level=2 stable_versions=2 calls=29 success=15 rate=51.7%
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1 level=2 stable_versions=1 calls=29 success=15 rate=51.7%
+[NEW                 ] pick-two-obj-and-place/phase-2-second-object-counter-1/full-restart-no-shortcut level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] pick-two-obj-and-place/phase-2-second-object-counter-1/shortcut-available level=3 stable_versions=1 calls=16 success=6 rate=37.5%
+
+--- Line diff vs previous version (v66 -> v67) ---
+--- v66
++++ v67
+@@ -10,13 +10,14 @@
+ - If counter < 2, you **must** search for the next object.
+ 
+ ## Core Search Plan
+-1. **Always start with `look`** to get the full list of all furniture items in the room. Write down this order – it is your **search list**.
+-2. Visit each item **in that exact order**. Do not skip any – cabinets, drawers, counters, shelves, tables, beds, etc.
+-3. At each item:
++1. **Always start with `look`** to get the full list of all furniture items in the room. This is your **search list** – remember its order.
++2. **Immediately after `look`**, go to the first item on the list. This is your next action; do not `look` again.
++3. Visit each item **in that exact order**. Do not skip any – cabinets, drawers, counters, shelves, tables, beds, etc.
++4. At each item:
+    - If closed, **open** it.
+    - Examine contents. If you see the **exact target object name**, **take it immediately**. Do NOT pick up any other object.
+    - If you accidentally take a wrong object, `drop` it and continue.
+-4. If you complete the entire list without taking anything, **repeat the list once more**. After two complete passes with no target found, the object is absent – task impossible, stop.
++5. If you complete the entire list without taking anything, **repeat the list once more**. After two complete passes with no target found, the object is absent – task impossible, stop.
+ 
+ ## Phase 1 – First Object (counter = 0)
+ - Execute `look` to form the search list.
+@@ -29,19 +30,20 @@
+ ### Shortcut Available?
+ - **If you saw multiple copies of the target at the location where you took the first object**, go back to that same location, take the next copy, go place it. Counter becomes 2. Stop.
+ 
+-### Otherwise – Full Restart
++### Full Restart (no shortcut)
+ - Execute `look` to get a fresh search list.
++- **After that `look`, immediately go to the first item on the new list.** Do not perform any other action in between.
+ - Follow the core search plan exactly.
+ - When you find a second target, take it, go place it. Counter becomes 2. Stop.
+ - If you complete two full passes of the fresh search list without finding a second target, task impossible – stop.
+ 
+ ## Avoid Taking Non-Target Objects
+-- **Only touch objects whose name exactly matches the target type.** Do not pick up cloth, soapbar, or anything else – they waste actions and disorient you.
++- **Only touch objects whose name exactly matches the target type.** Do not pick up cloth, soapbar, book, candle, or anything else – they waste actions and disorient you.
+ - If you already hold an irrelevant object, `drop` it immediately and resume the search plan.
+ 
+ ## Loop Detection & Recovery
+ - **If you ever perform three consecutive actions of the same type** (e.g., `look`, `look`, `look` or `open`, `open`, `open` without moving), you are in a loop.
+-- **Force a change**: execute `look` to refresh your search list, then go to the first item on that list. Never repeat the same action more than twice in a row.
++- **Force a change**: immediately go to the next item on your current search list (or if you have no list, do a fresh `look` then go to the first item). Never repeat the same action more than twice in a row.
+ - If you have no search list, do a fresh `look` and start from the first item.
+ 
+ ## Exhaustive Container & Surface Search
+@@ -53,4 +55,4 @@
+ ## Critical Action Rules
+ - After taking an object, **next action must be `go to target receptacle`** – no exceptions.
+ - After placing the first object, **immediately decide** whether to use the shortcut or perform a Full Restart. Do not delay.
+-- If you ever find yourself stuck or unsure, execute `look` and restart the search list from the beginning.
++- If you ever find yourself stuck or unsure, execute `look` and then **immediately go to the first item on that list** – do not `look` again until you have visited that item.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# pick_two_obj_and_place
+
+## Goal
+Place exactly two instances of a specified object type into a target receptacle. Stop only when counter == 2.
+
+## Counter
+- Start at 0.
+- Increment after each successful placement.
+- If counter == 2, task complete – stop. Never stop earlier.
+- If counter < 2, you **must** search for the next object.
+
+## Core Search Plan
+1. **Always start with `look`** to get the full list of all furniture items in the room. This is your **search list** – remember its order.
+2. **Immediately after `look`**, go to the first item on the list. This is your next action; do not `look` again.
+3. Visit each item **in that exact order**. Do not skip any – cabinets, drawers, counters, shelves, tables, beds, etc.
+4. At each item:
+   - If closed, **open** it.
+   - Examine contents. If you see the **exact target object name**, **take it immediately**. Do NOT pick up any other object.
+   - If you accidentally take a wrong object, `drop` it and continue.
+5. If you complete the entire list without taking anything, **repeat the list once more**. After two complete passes with no target found, the object is absent – task impossible, stop.
+
+## Phase 1 – First Object (counter = 0)
+- Execute `look` to form the search list.
+- Follow the core search plan until you find and take the first target object.
+- Then **immediately** `go to target receptacle`, open if closed, `place` the object. Increment counter to 1.
+
+## Phase 2 – Second Object (counter = 1)
+After placing the first object, counter becomes 1. **You must now search for the second object.** Do not stop until counter == 2.
+
+### Shortcut Available?
+- **If you saw multiple copies of the target at the location where you took the first object**, go back to that same location, take the next copy, go place it. Counter becomes 2. Stop.
+
+### Full Restart (no shortcut)
+- Execute `look` to get a fresh search list.
+- **After that `look`, immediately go to the first item on the new list.** Do not perform any other action in between.
+- Follow the core search plan exactly.
+- When you find a second target, take it, go place it. Counter becomes 2. Stop.
+- If you complete two full passes of the fresh search list without finding a second target, task impossible – stop.
+
+## Avoid Taking Non-Target Objects
+- **Only touch objects whose name exactly matches the target type.** Do not pick up cloth, soapbar, book, candle, or anything else – they waste actions and disorient you.
+- If you already hold an irrelevant object, `drop` it immediately and resume the search plan.
+
+## Loop Detection & Recovery
+- **If you ever perform three consecutive actions of the same type** (e.g., `look`, `look`, `look` or `open`, `open`, `open` without moving), you are in a loop.
+- **Force a change**: immediately go to the next item on your current search list (or if you have no list, do a fresh `look` then go to the first item). Never repeat the same action more than twice in a row.
+- If you have no search list, do a fresh `look` and start from the first item.
+
+## Exhaustive Container & Surface Search
+- Your search list includes **all** furniture types – containers (cabinets, drawers, shelves) **and** surfaces (countertops, tables, desks, beds, etc.).
+- After opening several containers of one type and finding nothing, do **not** keep opening more of that type; move to the next furniture type on the list.
+- **Always check surfaces** – objects are often placed on countertops, desks, or beds, not just inside closed containers.
+- If the target is an object typically found in a specific fixture (e.g., toiletpaper on toiletpaperhanger, soap in sinkbasin), search that fixture too – it is part of the furniture list.
+
+## Critical Action Rules
+- After taking an object, **next action must be `go to target receptacle`** – no exceptions.
+- After placing the first object, **immediately decide** whether to use the shortcut or perform a Full Restart. Do not delay.
+- If you ever find yourself stuck or unsure, execute `look` and then **immediately go to the first item on that list** – do not `look` again until you have visited that item.

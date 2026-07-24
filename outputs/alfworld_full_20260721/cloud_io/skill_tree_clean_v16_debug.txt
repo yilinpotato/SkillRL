@@ -1,0 +1,112 @@
+=== Skill Tree Debug — scope=clean  v16 (level=3, tree_depth=3, 11 nodes) ===
+action: refine
+critique: The agent used the skill tree but missed critical preconditions: it often moved to a new location and then attempted an open without being there (invalid action), and it sometimes skipped opening containers upon arrival (especially cabinet 1). The skill tree's wording was not sufficiently explicit about these preconditions and did not enforce unconditional checking of all surfaces after cabinets/drawers, leading to early stopping. The tree itself was not misleading but lacked emphasis on the 'move before interact' rule and on checking all surfaces regardless of fridge presence.
+changelog: Added subheadings under Phase 1 for 'Navigation First: Move Before Interacting' and 'Always Open Containers Upon Arrival', clarified the surface-checking step to be unconditional after cabinets/drawers, and reinforced persistence rules to address exploration and action failures.
+consensus prefix (folded, not re-taught this round): go to cabinet 1 → open cabinet 1
+n_success this round: 3  n_failure this round: 6
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] The agent stopped searching after only partially exploring cabinets and drawers, never finding the pot. | evidence: After opening cabinet 5 (empty) and drawer 1 (empty), the agent returns to cabinet 1 and then goes to cabinet 6 without opening it, then goes back to cabinet 2 and stops. | fix: Continue searching all cabinets, drawers, and other receptacles until the target object is found. | skill_tree_gap: Missing a systematic exploration strategy that covers all possible locations for the target object. | patch_location: Under '## clean', add a new subsection '### search_for_object' that enforces exhaustive search.
+- [inefficient_exploration] The agent only searched cabinets and ignored other surfaces like countertops or dining table where the apple might be. | evidence: After opening many cabinets and finding no apple, the agent returns to cabinet 1 and performs 'look' without ever visiting countertops or other furniture. | fix: When the target object is not found in cabinets, expand the search to countertops, dining table, fridge, and other exposed surfaces. | skill_tree_gap: No branch for checking alternative, non-cabinet receptacles for food items. | patch_location: Under '## clean' -> '### search_for_object', add a refinement '#### check_surfaces' to include countertops and tables.
+- [invalid_action] The agent attempted to open drawer 1 while still at cabinet 6, resulting in a navigation-only move that left the drawer closed, and then stopped without finding the pan. | evidence: Action 'open drawer 1' produced observation 'You arrive at drawer 1. The drawer 1 is closed.' indicating the open did not occur because the agent was not at the drawer. | fix: Always move to the receptacle first using 'go to' before attempting to open or interact with it. | skill_tree_gap: Missing a precondition check that ensures the agent is at the correct location before performing manipulation actions. | patch_location: Under '## clean', add a new subsection '### navigation_first' that enforces moving before opening.
+- [inefficient_exploration] The agent did not open cabinet 1 (the starting cabinet) and only searched a subset of cabinets, missing the kettle. | evidence: After the consensus prefix 'go to cabinet 1', the agent never executed 'open cabinet 1', and later it returned to cabinet 1 without any further search. | fix: Open every cabinet you arrive at, and systematically check all cabinets and surfaces including those initially visited. | skill_tree_gap: No enforcement to open containers upon arrival; the agent may skip the open action. | patch_location: Under '## clean' -> '### search_for_object', add a rule '#### always_open_containers' to ensure opened status.
+- [invalid_action] The agent attempted to open drawer 2 while still at drawer 1, causing the open to fail, and never found the ladle. | evidence: Action 'open drawer 2' gave observation 'You arrive at drawer 2. The drawer 2 is closed.' showing the move happened but the open did not. | fix: Always go to the target receptacle before opening it. | skill_tree_gap: Lack of a navigation-before-manipulation guard. | patch_location: Under '## clean', add a general subsection '### navigation_first' (same as clean#2).
+- [invalid_action] The agent tried to open cabinet 7 without being at it, resulting in a failed open, and never found a mug. | evidence: Action 'open cabinet 7' produced 'You arrive at cabinet 7. The cabinet 7 is closed.' instead of opening it. | fix: Ensure the agent's location matches the target container before attempting to open it. | skill_tree_gap: Same as above; missing location precondition. | patch_location: Under '## clean', add '### navigation_first' (consolidated fix).
+
+--- Node tree (per-node lifecycle, this version=v16) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=15 calls=217 success=143 rate=65.9%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=15 calls=217 success=143 rate=65.9%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=9 calls=217 success=143 rate=65.9%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object level=2 stable_versions=2 calls=217 success=143 rate=65.9%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/always-open-containers-upon-arrival level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/navigation-first-move-before-interacting level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/object-name-verification level=3 stable_versions=2 calls=183 success=116 rate=63.4%
+[MODIFIED            ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/persistence-do-not-stop-early level=3 stable_versions=0 calls=126 success=78 rate=61.9%
+[MODIFIED            ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search-order-follow-exactly level=3 stable_versions=0 calls=22 success=11 rate=50.0%
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=9 calls=217 success=143 rate=65.9%
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=2 calls=217 success=143 rate=65.9%
+
+--- Line diff vs previous version (v15 -> v16) ---
+--- v15
++++ v16
+@@ -12,17 +12,26 @@
+   1. **All cabinets** in increasing number order (cabinet 1, cabinet 2, ...). For each, first go to it, then `open cabinet X` to inspect contents. Do not use 'look' or 'examine' – only `open` reveals contents of closed containers.
+   2. **All drawers** in increasing number order (drawer 1, drawer 2, ...). For each, go, `open drawer X`, inspect.
+   3. **The fridge** (if present). Go, `open fridge 1`, inspect.
+-  4. **All open surfaces** (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) in any order. You can see objects on open surfaces without opening – just go to them and read the observation. **After checking the fridge, you MUST also check every open surface. Do not stop after step 3.**
++  4. **All open surfaces** (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) in any order. You can see objects on open surfaces without opening – just go to them and read the observation. **After checking cabinets and drawers (and fridge if present), you MUST check every open surface. Do not stop after step 3.**
+ - **Important**: Always open closed containers (cabinets, drawers, fridge) after arriving. Do not use `look` or `examine` – they do not reveal contents of closed containers. Use `open` instead.
+ - If you have searched all of the above and still not found the target object, re-read the initial description to ensure you did not miss a receptacle type (e.g., a shelf or bathtub).
+ 
+-### Object Name Verification
+-- Before taking an object, verify that its name matches the task target **exactly** (e.g., "cup" ≠ "mug"; "pan" ≠ "pot"). If it matches, take it and proceed to Phase 2. If not, continue searching.
++### Navigation First: Move Before Interacting
++- **Before attempting to open any container or take any object, you must be at that exact location.**
++- The sequence is always: `go to <receptacle>` then `open <receptacle>` or `take <object>`. If you try to open or take from a distance, the action will only move you there and not actually perform the operation.
++- Pay attention to observations: if you see "You arrive at ..." instead of "You open ...", you were not at the right place. Correct by issuing the `open` again after moving.
++
++### Always Open Containers Upon Arrival
++- When you arrive at a closed container (cabinet, drawer, fridge), immediately open it to see its contents. Do not assume it is open or that you can see inside without opening.
++- This applies even to the first cabinet (cabinet 1) – after going to it, always open it.
+ 
+ ### Persistence – Do Not Stop Early
+ - **The search is not complete until you have visited every single instance of every receptacle type present.** Stopping before finishing all types is the most common cause of failure.
+-- If you have searched everything and still not found the object, re-read the initial description – you may have missed a receptacle type.
++- After completing the systematic order above, if you still have not found the object, re-read the initial description – you may have missed a receptacle type.
+ - Avoid redundant 'look' or 'examine' actions that waste steps and do not help find objects. Only 'open' works for closed containers.
++
++### Object Name Verification
++- Before taking an object, verify that its name matches the task target **exactly** (e.g., "cup" ≠ "mug"; "pan" ≠ "pot"). If it matches, take it and proceed to Phase 2. If not, continue searching.
+ 
+ ## Phase 2: Clean the Object
+ - While holding [object], go to [cleaning_source] (typically sinkbasin 1).
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).
+
+## Phase 1: Locate and Take the Target Object
+### Systematic Search Order – Follow Exactly
+- Read the initial room description. Identify every receptacle type present: cabinets, drawers, fridge, countertops, diningtables, sidetables, shelves, sinkbasins, etc.
+- **Search in this exact order and do NOT skip any step:**
+  1. **All cabinets** in increasing number order (cabinet 1, cabinet 2, ...). For each, first go to it, then `open cabinet X` to inspect contents. Do not use 'look' or 'examine' – only `open` reveals contents of closed containers.
+  2. **All drawers** in increasing number order (drawer 1, drawer 2, ...). For each, go, `open drawer X`, inspect.
+  3. **The fridge** (if present). Go, `open fridge 1`, inspect.
+  4. **All open surfaces** (countertops, diningtables, sidetables, shelves, sinkbasins, etc.) in any order. You can see objects on open surfaces without opening – just go to them and read the observation. **After checking cabinets and drawers (and fridge if present), you MUST check every open surface. Do not stop after step 3.**
+- **Important**: Always open closed containers (cabinets, drawers, fridge) after arriving. Do not use `look` or `examine` – they do not reveal contents of closed containers. Use `open` instead.
+- If you have searched all of the above and still not found the target object, re-read the initial description to ensure you did not miss a receptacle type (e.g., a shelf or bathtub).
+
+### Navigation First: Move Before Interacting
+- **Before attempting to open any container or take any object, you must be at that exact location.**
+- The sequence is always: `go to <receptacle>` then `open <receptacle>` or `take <object>`. If you try to open or take from a distance, the action will only move you there and not actually perform the operation.
+- Pay attention to observations: if you see "You arrive at ..." instead of "You open ...", you were not at the right place. Correct by issuing the `open` again after moving.
+
+### Always Open Containers Upon Arrival
+- When you arrive at a closed container (cabinet, drawer, fridge), immediately open it to see its contents. Do not assume it is open or that you can see inside without opening.
+- This applies even to the first cabinet (cabinet 1) – after going to it, always open it.
+
+### Persistence – Do Not Stop Early
+- **The search is not complete until you have visited every single instance of every receptacle type present.** Stopping before finishing all types is the most common cause of failure.
+- After completing the systematic order above, if you still have not found the object, re-read the initial description – you may have missed a receptacle type.
+- Avoid redundant 'look' or 'examine' actions that waste steps and do not help find objects. Only 'open' works for closed containers.
+
+### Object Name Verification
+- Before taking an object, verify that its name matches the task target **exactly** (e.g., "cup" ≠ "mug"; "pan" ≠ "pot"). If it matches, take it and proceed to Phase 2. If not, continue searching.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (typically sinkbasin 1).
+- Immediately use "clean [object] with [cleaning_source]".
+- Confirm the observation says you cleaned it; if not retry or check you are at the correct source.
+- Do not use "look" or "examine" at the sink – only the clean action works.
+
+## Phase 3: Place the Clean Object at Destination
+- After cleaning, go to the [destination] specified in the task (e.g., cabinet, diningtable, microwave, stoveburner).
+- Use "move [object] to [destination]" to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

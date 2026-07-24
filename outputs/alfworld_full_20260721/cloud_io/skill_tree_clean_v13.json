@@ -1,0 +1,175 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- Identify [cleaning_source] as a sinkbasin or bathtubbasin (typically sinkbasin 1).\n\n## Phase 1: Locate and Take the Target Object\n- You must find and pick up [object] before you can clean it.\n\n### Systematic Search of All Receptacles (Mandatory)\n- **Read the initial room description carefully.** List every receptacle type present (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, diningtable, sidetable, garbagecan, bathtubbasin, towelholder, etc.).\n- **Search all closed containers first:** cabinets, drawers, fridge. Open every instance and inspect inside. Do not skip any numbers.\n- **Then search all open surfaces:** countertops, diningtables, sidetables, sinkbasins, shelves, etc. These often hold objects directly visible.\n- **Continue until every receptacle type in the room has been visited and inspected.** Do not stop after checking only cabinets and a few drawers – you must also check countertops, tables, and any other type mentioned.\n- **Commonly missed locations:** countertops, dining tables, side tables, shelves. Always include these.\n\n### Container Interaction\n- Always open a closed container (cabinet, drawer, fridge) after arriving to inspect its contents. Do not rely on surface observations – a closed container may have items inside.\n- For open surfaces (countertops, sinkbasins, tables), you can see what is on them directly without opening.\n\n### Object Name Verification\n- Before taking an object, verify that its name matches the task target **exactly** (e.g., \"cup\" ≠ \"mug\"; \"apple\" ≠ \"tomato\"). If it matches, take it and proceed to Phase 2. If not, continue searching.\n\n### Persistence – Do Not Stop Early\n- **The search is not complete until you have visited every single instance of every receptacle type present.** Stopping before finishing all types is the most common cause of failure.\n- If you have searched all closed containers and all open surfaces and still not found the object, re-read the initial description to ensure you did not miss a receptacle type.\n\n## Phase 2: Clean the Object\n- While holding [object], go to [cleaning_source] (typically sinkbasin 1).\n- Immediately use \"clean [object] with [cleaning_source]\".\n- Confirm the observation says you cleaned it; if not retry or check you are at the correct source.\n- Do not use \"look\" or \"examine\" at the sink – only the clean action works.\n\n## Phase 3: Place the Clean Object at Destination\n- After cleaning, go to the [destination] specified in the task (e.g., cabinet, diningtable, microwave, toilet).\n- Use \"move [object] to [destination]\" to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.",
+  "level": 3,
+  "version": 13,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent repeatedly ignored the exhaustive search instructions, stopping after only checking a few cabinets and one drawer, and never visiting countertops, tables, or other open surfaces. The skill tree's wording was clear but too lengthy; the agent likely skimmed over the persistence and the full receptacle list.",
+  "changelog": "Refined the Exploration section to merge closed containers and open surfaces into a single systematic search procedure, added explicit mention of commonly missed surfaces (countertops, tables), and strengthened persistence guidance to prevent early stopping.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched only cabinets 1-4 and drawer 1, then stopped at the fridge without checking countertop, diningtable, or sidetable for the knife.",
+      "skill_tree_gap": "The search strategy lacks systematic enumeration of all possible object locations (e.g., countertop, diningtable, sidetable).",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only checked cabinets 1-6 and drawer 1 for the butterknife, ignoring the many other drawers and the countertop where it might be.",
+      "skill_tree_gap": "The agent's exploration routine does not extend beyond a limited set of cabinets and one drawer.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched cabinets and drawer 1 but never visited the countertop or diningtable where the bowl could be located.",
+      "skill_tree_gap": "Missing coverage of countertop and diningtable in the search plan.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only examined a few cabinets and drawers, failing to search the countertop or other cabinets for the kettle.",
+      "skill_tree_gap": "The agent's search is limited to a small subset of cabinets and does not include countertops.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent searched cabinets and drawer 1 but never opened the fridge or checked countertops, where lettuce might be stored.",
+      "skill_tree_gap": "The search plan omits the fridge and countertops for items that often reside there.",
+      "task_type": "clean"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent only opened cabinets 1-6 and never looked in any drawer despite the fork often being stored there.",
+      "skill_tree_gap": "The agent's search strategy ignores drawers as a possible location for cutlery.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_1152",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 12,
+      "call_count": 189,
+      "success_when_used": 128,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "f2f6d8489c8b",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 6,
+      "call_count": 189,
+      "success_when_used": 128,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object": {
+      "title": "Phase 1: Locate and Take the Target Object",
+      "level": 2,
+      "body_hash": "3fadeebae55f",
+      "created_version": 1,
+      "last_changed_version": 10,
+      "stable_versions": 3,
+      "call_count": 189,
+      "success_when_used": 128,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search-of-all-receptacles-mandatory": {
+      "title": "Systematic Search of All Receptacles (Mandatory)",
+      "level": 3,
+      "body_hash": "8fff72c24a53",
+      "created_version": 13,
+      "last_changed_version": 13,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/container-interaction": {
+      "title": "Container Interaction",
+      "level": 3,
+      "body_hash": "e9b5c6b57883",
+      "created_version": 9,
+      "last_changed_version": 13,
+      "stable_versions": 0,
+      "call_count": 68,
+      "success_when_used": 44,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/object-name-verification": {
+      "title": "Object Name Verification",
+      "level": 3,
+      "body_hash": "208b821543b1",
+      "created_version": 4,
+      "last_changed_version": 10,
+      "stable_versions": 3,
+      "call_count": 155,
+      "success_when_used": 101,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/persistence-do-not-stop-early": {
+      "title": "Persistence – Do Not Stop Early",
+      "level": 3,
+      "body_hash": "1d73d2fa7220",
+      "created_version": 7,
+      "last_changed_version": 13,
+      "stable_versions": 0,
+      "call_count": 98,
+      "success_when_used": 63,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "318172e431f4",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 6,
+      "call_count": 189,
+      "success_when_used": 128,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "961a504fc359",
+      "created_version": 1,
+      "last_changed_version": 7,
+      "stable_versions": 6,
+      "call_count": 189,
+      "success_when_used": 128,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "8ba0a9c393e7",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 12,
+      "call_count": 189,
+      "success_when_used": 128,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

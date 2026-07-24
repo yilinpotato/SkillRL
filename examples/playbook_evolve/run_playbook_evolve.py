@@ -35,6 +35,105 @@ from mini_test_pen_shelf.run_generic import extract_task, parse_model_output
 
 SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
 
+
+class _WandbStatusReporter:
+    """Best-effort W&B status reporting which must never interrupt a rollout."""
+
+    def __init__(self, args):
+        self.run = None
+        self._closed = False
+        if not args.wandb:
+            print("[wandb] disabled (--wandb 0)")
+            return
+        if not os.environ.get("WANDB_API_KEY"):
+            print("[wandb] WANDB_API_KEY is not configured; status reporting is disabled. "
+                  "Add it to .env and restart from a checkpoint to enable online reporting.")
+            return
+        try:
+            import wandb
+
+            run_id_path = os.path.join(args.outdir, "wandb_run_id.txt")
+            run_id = None
+            if os.path.isfile(run_id_path):
+                with open(run_id_path) as f:
+                    run_id = f.read().strip() or None
+            if not run_id:
+                run_id = wandb.util.generate_id()
+                tmp_path = f"{run_id_path}.tmp"
+                with open(tmp_path, "w") as f:
+                    f.write(f"{run_id}\n")
+                os.replace(tmp_path, run_id_path)
+
+            self.run = wandb.init(
+                project=args.wandb_project,
+                entity=args.wandb_entity or None,
+                name=args.wandb_name or None,
+                id=run_id,
+                resume="allow",
+                dir=args.outdir,
+                config={
+                    "benchmark": "alfworld",
+                    "method": "coskill_playbook_evolve_norl",
+                    "batch_rollout_size": args.batch_rollout_size,
+                    "group_size": args.group_size,
+                    "data_parallel_workers": args.data_parallel_workers,
+                    "tensor_parallel_size": args.tensor_parallel_size,
+                    "max_episodes": args.max_episodes,
+                    "seed": args.seed,
+                },
+            )
+            print(f"[wandb] online status reporting enabled: {self.run.get_url()}")
+            atexit.register(self.finish)
+        except Exception as exc:
+            # Monitoring is optional; a network/auth service failure cannot
+            # invalidate a multi-day benchmark run.
+            print(f"[wandb] initialization failed; continuing without W&B: {exc}")
+            self.run = None
+
+    def log_group(self, metrics, group_id, global_episode_end):
+        if self.run is None:
+            return
+        try:
+            payload = {
+                key: value for key, value in metrics.items()
+                if isinstance(value, (bool, int, float))
+            }
+            payload.update({
+                "status/running": 1,
+                "status/group": int(group_id),
+                "status/global_episode_end": int(global_episode_end),
+            })
+            self.run.log(payload, step=int(group_id))
+            self.run.summary.update({
+                "status": "running",
+                "completed_groups": int(group_id),
+                "global_episode_end": int(global_episode_end),
+            })
+        except Exception as exc:
+            print(f"[wandb] group status upload failed (continuing): {exc}")
+
+    def log_checkpoint(self, completed_groups, global_episode_end):
+        if self.run is None:
+            return
+        try:
+            self.run.log({
+                "status/checkpoint_saved": 1,
+                "status/completed_groups": int(completed_groups),
+                "status/global_episode_end": int(global_episode_end),
+            }, step=int(completed_groups))
+        except Exception as exc:
+            print(f"[wandb] checkpoint status upload failed (continuing): {exc}")
+
+    def finish(self):
+        if self.run is None or self._closed:
+            return
+        self._closed = True
+        try:
+            self.run.summary["status"] = "finished"
+            self.run.finish(exit_code=0)
+        except Exception:
+            pass
+
 # Canonical no-RL task_type vocabulary for the per-subtask token breakdown.
 # Sourced from ALFWorld's own ground-truth traj_data.json field (the same
 # vocabulary find_games_by_type/_TASK_TYPE_TO_ID key on) rather than
@@ -45,6 +144,20 @@ SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
 # instead of forcing the RL side's heuristic taxonomy onto it. "unknown" is
 # included since retrieval falls back to it when unset.
 NORL_TASK_TYPES = tuple(_TASK_TYPE_TO_ID.keys()) + ("unknown",)
+
+# The rollout prompt builder exposes concise task labels, whereas the ALFWorld
+# dataset manifest uses descriptive names.  Keep the concise labels for skill
+# retrieval, but normalize them when publishing comparable per-task metrics.
+_METRICS_TASK_TYPE_ALIASES = {
+    "pick_and_place": "pick_and_place_simple",
+    "clean": "pick_clean_then_place_in_recep",
+    "heat": "pick_heat_then_place_in_recep",
+    "cool": "pick_cool_then_place_in_recep",
+}
+
+
+def _metric_task_type(task_type):
+    return _METRICS_TASK_TYPE_ALIASES.get(task_type, task_type)
 
 
 def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
@@ -618,6 +731,11 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
         os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
         args = argparse.Namespace(**args_dict)
         args.tensor_parallel_size = 1
+        worker_max_num_seqs = int(args.vllm_max_num_seqs or fixed_batch_size)
+        if worker_max_num_seqs < fixed_batch_size:
+            raise ValueError(
+                f"vllm_max_num_seqs={worker_max_num_seqs} is smaller than "
+                f"worker {worker_id}'s rollout batch={fixed_batch_size}")
 
         config = load_tw_config_types(task_type_ids, num_games=len(game_files))
         env = make_batch_env(game_files, config, batch_size=fixed_batch_size,
@@ -641,10 +759,14 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             seed=int(args.seed) + worker_id,
             no_wait=args.nowait,
             think_budget=args.think_budget,
+            max_num_seqs=worker_max_num_seqs,
+            enforce_eager=bool(args.vllm_enforce_eager),
         )
         print(f"[dp-worker{worker_id}] ready gpu={gpu_id} "
               f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} "
               f"batch={fixed_batch_size} "
+              f"max_num_seqs={worker_max_num_seqs} "
+              f"enforce_eager={bool(args.vllm_enforce_eager)} "
               f"games={len(game_files)}")
 
         while True:
@@ -740,12 +862,23 @@ def main():
     ap.add_argument("--checkpoint_every_groups", type=int, default=0,
                     help="每 N 个 rollout group 保存一次轻量实验 checkpoint。只落盘 summary/skill_lib "
                          "快照，不强制云端更新；<=0 表示只在最终结束时保存。")
+    ap.add_argument("--wandb", type=int, choices=[0, 1],
+                    default=int(os.environ.get("WANDB_ENABLED", "0")),
+                    help="1 时每个 rollout group 将状态、成功率、token 与耗时上报 W&B；"
+                         "缺少 WANDB_API_KEY 时自动禁用，不影响实验。")
+    ap.add_argument("--wandb_project", default=os.environ.get("WANDB_PROJECT", "coskill-alfworld"))
+    ap.add_argument("--wandb_entity", default=os.environ.get("WANDB_ENTITY", ""))
+    ap.add_argument("--wandb_name", default=os.environ.get("WANDB_NAME", ""))
     ap.add_argument("--history_length", type=int, default=8,
                     help="WITH_MEMORY 模板携带的最近历史步数（obs+action）。训练脚本/mini_test 默认 2；"
                          "这里默认调大到 8，让 NO_HIS 记忆缺口更小，减少小模型因看不到早前状态而绕圈子。")
     # --- 模型 / vLLM（对齐训练脚本的 max_prompt/response）---
     ap.add_argument("--model_path", default=None)
     ap.add_argument("--gpu_mem_util", type=float, default=0.8)
+    ap.add_argument("--vllm_max_num_seqs", type=int, default=0,
+                    help="每个 vLLM worker 的调度并发上限；0 使用该 worker 的实际 rollout batch。")
+    ap.add_argument("--vllm_enforce_eager", type=int, choices=[0, 1], default=1,
+                    help="0 启用 vLLM CUDA Graph，1 为 eager-only。仅影响执行路径，不改变 prompt/采样参数。")
     ap.add_argument("--tensor_parallel_size", type=int, default=1,
                     help="vLLM tensor parallel GPU 数。双 A800 单机可设 2；"
                          "需不超过 CUDA_VISIBLE_DEVICES 中可见 GPU 数。")
@@ -814,6 +947,7 @@ def main():
 
     os.makedirs(args.outdir, exist_ok=True)
     resume_state = _load_resume_state(args)
+    wandb_reporter = _WandbStatusReporter(args)
     enable_coskill = bool(args.enable_coskill)
     enable_skill_tree = bool(args.enable_skill_tree)
     enable_skill_tree_evolve = enable_skill_tree and bool(args.enable_playbook_evolve)
@@ -1050,6 +1184,8 @@ def main():
             seed=args.seed,
             no_wait=args.nowait,
             think_budget=args.think_budget,
+            max_num_seqs=int(args.vllm_max_num_seqs or batch_rollout_size),
+            enforce_eager=bool(args.vllm_enforce_eager),
         )
 
         # 6) 与主管线逐字节对齐的 prompt 构造器，注入共享 skill_lib。
@@ -1082,6 +1218,21 @@ def main():
             tt, {"prompt": 0, "response": 0, "total": 0}))
         for tt in NORL_TASK_TYPES
     }
+    # Historical per-episode records are authoritative.  Rebuild this
+    # breakdown on resume because older checkpoints used concise rollout task
+    # labels (clean/cool/...) in an internal bucket and silently omitted them
+    # from the manifest-labelled summary fields.
+    if resume_state["resume"] and per_game:
+        rebuilt_by_tt = {tt: {"prompt": 0, "response": 0, "total": 0}
+                         for tt in NORL_TASK_TYPES}
+        for record in per_game:
+            tt = _metric_task_type(record.get("detected_type", "unknown"))
+            bucket = rebuilt_by_tt.setdefault(tt, {"prompt": 0, "response": 0, "total": 0})
+            bucket["prompt"] += int(record.get("tokens_prompt", 0) or 0)
+            bucket["response"] += int(record.get("tokens_response", 0) or 0)
+            bucket["total"] += int(record.get("tokens_total", 0) or 0)
+        small_model_token_totals_by_tt = rebuilt_by_tt
+        print("[driver] rebuilt cumulative small-model tokens by task type from per-episode records")
     large_model_token_offset_by_tt = {
         tt: dict(resume_state.get("large_model_tokens_by_tt", {}).get(
             tt, {"prompt": 0, "completion": 0, "total": 0}))
@@ -1210,8 +1361,16 @@ def main():
             }
         prompt = int(getattr(analyzer, "total_prompt_tokens", 0) or 0)
         completion = int(getattr(analyzer, "total_completion_tokens", 0) or 0)
-        by_tt_prompt = getattr(analyzer, "total_prompt_tokens_by_task_type", {}) or {}
-        by_tt_completion = getattr(analyzer, "total_completion_tokens_by_task_type", {}) or {}
+        by_tt_prompt_raw = getattr(analyzer, "total_prompt_tokens_by_task_type", {}) or {}
+        by_tt_completion_raw = getattr(analyzer, "total_completion_tokens_by_task_type", {}) or {}
+        by_tt_prompt = {}
+        by_tt_completion = {}
+        for task_type, value in by_tt_prompt_raw.items():
+            task_type = _metric_task_type(task_type)
+            by_tt_prompt[task_type] = by_tt_prompt.get(task_type, 0) + int(value or 0)
+        for task_type, value in by_tt_completion_raw.items():
+            task_type = _metric_task_type(task_type)
+            by_tt_completion[task_type] = by_tt_completion.get(task_type, 0) + int(value or 0)
         by_task_type = {}
         for tt in NORL_TASK_TYPES:
             p = int(large_model_token_offset_by_tt.get(tt, {}).get("prompt", 0) or 0) \
@@ -1254,7 +1413,7 @@ def main():
 
         small_by_tt = {tt: {"prompt": 0, "response": 0, "total": 0} for tt in NORL_TASK_TYPES}
         for record in records:
-            tt = record["detected_type"]
+            tt = _metric_task_type(record["detected_type"])
             bucket = small_by_tt.setdefault(tt, {"prompt": 0, "response": 0, "total": 0})
             bucket["prompt"] += int(record.get("tokens_prompt", 0) or 0)
             bucket["response"] += int(record.get("tokens_response", 0) or 0)
@@ -1385,6 +1544,7 @@ def main():
             "metrics": metrics,
         }
         _append_jsonl(group_metrics_path, canonical_record)
+        wandb_reporter.log_group(metrics, group_id, global_step)
         print(f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
               f"success={100.0 * group_wins / max(n, 1):.1f}% "
               f"valid_action={100.0 * valid_actions / max(action_count, 1):.1f}% "
@@ -1486,6 +1646,7 @@ def main():
         _atomic_json_dump(summary, os.path.join(args.outdir, "summary_partial.json"))
         ckpt_path = os.path.join(args.outdir, "checkpoints", f"step{global_step:06d}.json")
         _atomic_json_dump(summary, ckpt_path)
+        wandb_reporter.log_checkpoint(completed_groups, global_step)
         print(f"[driver] checkpoint saved at step={global_step} groups={completed_groups} "
               f"reason={reason} summary={ckpt_path} skill_lib={skill_snapshot or '<none>'}")
 
@@ -1730,6 +1891,7 @@ def main():
     print(f"\n[driver] done. episodes={n} success_rate={summary['success_rate']*100:.1f}% "
           f"skill_tree_versions={summary['skill_tree_versions']}")
     print(f"[driver] outputs under {args.outdir}/ (traces_pool, cloud_io, skill_lib, trajectories)")
+    wandb_reporter.finish()
 
 
 def _append_jsonl(path, obj):

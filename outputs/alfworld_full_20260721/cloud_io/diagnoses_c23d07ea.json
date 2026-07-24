@@ -1,0 +1,171 @@
+{
+  "batch_id": "c23d07ea-3681-433a-a19d-6bc9d93acdb4",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent failed to locate the kettle because it only searched cabinet 1 and did not explore other cabinets or containers.",
+        "evidence": "After opening cabinet 1 (empty), it went to sinkbasin and stoveburners but never found a kettle.",
+        "corrective_rule": "Systematically search all cabinets and containers for the required object before moving to other areas.",
+        "skill_tree_gap": "Lack of systematic search algorithm for target objects.",
+        "patch_location": "Under 'Object Search' as a new subsection '### Systematic cabinet exploration'",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a bowl because it only opened the fridge and then went to cabinet 1 without opening it, missing the bowl likely in another cabinet.",
+        "evidence": "After opening fridge (no bowl), it went to cabinet 1 but did not open it.",
+        "corrective_rule": "Open all cabinets and drawers that have not been checked.",
+        "skill_tree_gap": "No exhaustive container search procedure.",
+        "patch_location": "Under 'Object Search' as a new subsection '### Exhaustive container search'",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "wrong_target",
+        "root_cause": "Agent picked up a mug instead of a cup, failing to heat the correct object.",
+        "evidence": "take mug 1 from countertop 2",
+        "corrective_rule": "Only take the object exactly matching the task description (cup).",
+        "skill_tree_gap": "Object identification failure; agent misreads object type.",
+        "patch_location": "Under 'Heat' as a new subsection '### Object verification before pickup'",
+        "confidence": 0.95
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never located the box because it only visited sidetables and one drawer without searching other receptacles.",
+        "evidence": "After turning on desklamp, it went to multiple sidetables but did not find a box.",
+        "corrective_rule": "Search all containers including drawers, cabinets, and shelves for the target object.",
+        "skill_tree_gap": "Incomplete search strategy for target object.",
+        "patch_location": "Under 'Look at Object in Light' as a new subsection '### Target object search'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "look_at_obj_in_light#1",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "wrong_target",
+        "root_cause": "Agent picked up a statue instead of a box, misidentifying the target object.",
+        "evidence": "take statue 2 from shelf 3",
+        "corrective_rule": "Only take the object specified in the task (box).",
+        "skill_tree_gap": "Object recognition error.",
+        "patch_location": "Under 'Look at Object in Light' as a new subsection '### Object verification'",
+        "confidence": 0.95
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent searched only cabinets for soapbottle but missed the soapbottle likely on countertop or elsewhere.",
+        "evidence": "It opened multiple cabinets finding only soapbars, never checking countertop 1.",
+        "corrective_rule": "Check all surfaces (countertops, diningtables) as well as containers.",
+        "skill_tree_gap": "Failure to explore all location types.",
+        "patch_location": "Under 'Pick and Place' as a new subsection '### Broad search for target'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent only opened one drawer and checked shelves for a box, but did not search other drawers or cabinets.",
+        "evidence": "It opened drawer 1 and visited shelves, but no box found.",
+        "corrective_rule": "Open all drawers and cabinets in the room.",
+        "skill_tree_gap": "Incomplete container search.",
+        "patch_location": "Under 'Pick and Place' as a new subsection '### Exhaustive container search'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent searched many drawers but no keychain found; it did not search other furniture like dresser or shelf.",
+        "evidence": "After opening multiple drawers, no keychain.",
+        "corrective_rule": "Extend search to all furniture types (dresser, shelf, sidetable).",
+        "skill_tree_gap": "Limited search range.",
+        "patch_location": "Under 'Pick and Place' as a new subsection '### Expand search to all furniture'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent placed one cellphone and then stopped searching for the second cellphone, looping on looks.",
+        "evidence": "After moving first cellphone, it only looked repeatedly.",
+        "corrective_rule": "After placing the first object, immediately search for the second object.",
+        "skill_tree_gap": "Missing logic to continue search after placing one object.",
+        "patch_location": "Under 'Pick Two Objects and Place' as a new subsection '### Ensure two objects collected'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent only searched cabinets for peppershakers but did not check countertops or diningtable where they might be.",
+        "evidence": "Opened many cabinets, found nothing.",
+        "corrective_rule": "Search all surfaces and containers, including countertops and tables.",
+        "skill_tree_gap": "Incomplete search pattern.",
+        "patch_location": "Under 'Pick Two Objects and Place' as a new subsection '### Comprehensive search for both objects'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent searched only cabinets for bread, missing likely locations like countertop or diningtable.",
+        "evidence": "Opened cabinets, found no bread.",
+        "corrective_rule": "Check countertops and diningtables for bread.",
+        "skill_tree_gap": "Need to include visible surfaces.",
+        "patch_location": "Under 'Pick Two Objects and Place' as a new subsection '### Search visible surfaces'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent found pens instead of pencils and did not search other areas like dresser or shelf for pencils.",
+        "evidence": "Desk 1 had pens, not pencils; agent did not look elsewhere.",
+        "corrective_rule": "Search all furniture for the exact object type.",
+        "skill_tree_gap": "Object type mismatch recovery not handled.",
+        "patch_location": "Under 'Pick Two Objects and Place' as a new subsection '### Identify correct object type and search accordingly'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent searched only cabinets for toiletpaper, ignoring countertop and other containers.",
+        "evidence": "Opened cabinets, found no toiletpaper.",
+        "corrective_rule": "Search all cabinets and also check countertop and other surfaces.",
+        "skill_tree_gap": "Limited search.",
+        "patch_location": "Under 'Pick Two Objects and Place' as a new subsection '### Systematic search of all container types'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent placed one remotecontrol and then failed to find the second, looping on the same location.",
+        "evidence": "After placing first, it went back to armchair but remotecontrol was gone; it did not search elsewhere.",
+        "corrective_rule": "After placing first object, search other locations for the second object.",
+        "skill_tree_gap": "Missing step to find second object after first placement.",
+        "patch_location": "Under 'Pick Two Objects and Place' as a new subsection '### Continue searching for second object'",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

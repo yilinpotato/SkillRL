@@ -1,0 +1,182 @@
+{
+  "batch_id": "a452e82d-c3fc-4e46-85f7-6dac2560b755",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a cup because it only visited countertops and shelves but did not open cabinets or drawers where cups might be.",
+        "evidence": "After multiple moves, the agent returns to countertop 2 without ever taking a cup or cleaning it.",
+        "corrective_rule": "If the target object is not in plain sight, systematically open all cabinets, drawers, and other closed receptacles.",
+        "skill_tree_gap": "Lacks a systematic search subroutine for finding objects in closed containers.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.95
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a pot because it only visited countertops, shelves, and sinkbasin but did not open cabinets or drawers.",
+        "evidence": "After reaching fridge and looking, it loops back to countertop 2 and 3 without ever taking any object.",
+        "corrective_rule": "If the target object is not in sight, search all closed receptacles (cabinets, drawers, fridge) before giving up.",
+        "skill_tree_gap": "Missing a systematic search strategy for objects not initially visible.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a bowl because it only visited countertops, diningtable, and shelves but did not check cabinets or fridge.",
+        "evidence": "After many moves, it ends at countertop 2 without having taken any object.",
+        "corrective_rule": "Check all containers (cabinets, fridge, drawers) whenever the target object is missing from visible surfaces.",
+        "skill_tree_gap": "No subroutine for checking closed containers during object search.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "cool#2",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a potato because it only visited countertops, diningtables, sinkbasin, and stoveburners but did not search cabinets or drawers.",
+        "evidence": "After opening the fridge and seeing no potato, it returns to countertops and diningtable without finding a potato.",
+        "corrective_rule": "If the target object is not in the fridge, continue searching other closed containers like cabinets and drawers.",
+        "skill_tree_gap": "Incomplete search pattern that does not cover all possible object locations.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "cool#3",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located an apple because it visited countertops and shelves but did not open the fridge or cabinets.",
+        "evidence": "After arriving at fridge 1, it did not open it and instead returned to countertops without any apple.",
+        "corrective_rule": "Always open the fridge when the target object is not found on surfaces; check all cabinets as well.",
+        "skill_tree_gap": "Missing the habit of opening containers (especially fridge) during object search.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.95
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located an egg because it only checked the fridge (which had no egg) and then searched cabinets and countertops but missed other possible locations like drawers or sinkbasin.",
+        "evidence": "After opening fridge and seeing apple3, apple2, lettuce1, it proceeds to countertop, diningtable, and cabinets but never finds an egg.",
+        "corrective_rule": "After checking primary fridge, search all remaining receptacles (cabinets, drawers, sinkbasin, stove) before concluding.",
+        "skill_tree_gap": "Incomplete search that does not cover all home locations for a given object.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located an egg because it only checked the fridge (no egg) and then searched countertops and cabinets but missed drawers and other surfaces.",
+        "evidence": "After opening fridge and seeing mug1, potato2, tomato1, it goes through countertops and cabinets without finding an egg.",
+        "corrective_rule": "Perform a thorough search of all object containers and surfaces, not just the ones visited.",
+        "skill_tree_gap": "Lacks a comprehensive search strategy that includes all receptacle types.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a laptop because it only visited sidetable, shelf, diningtable, armchair, and some sidetables but did not check drawers or other furniture where laptops might be.",
+        "evidence": "After turning on desklamp, it wanders to various locations without ever seeing a laptop.",
+        "corrective_rule": "Search all plausible locations (desk, dresser, drawers, shelves) for the target object before concluding.",
+        "skill_tree_gap": "No systematic search for objects in this room type (likely a bedroom/living room) that includes furniture like desk or dresser.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a candle because it only visited shelves and garbage can but did not check the cart (the target receptacle) or other surfaces.",
+        "evidence": "It explores shelves and handtowelholders, never goes to the cart where the candle might be placed.",
+        "corrective_rule": "Always inspect the target receptacle first, as the object may already be there.",
+        "skill_tree_gap": "Missing the initial step of checking the target location for the object.",
+        "patch_location": "### Target Check First",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one candle and then stopped searching for a second candle, looping without continuing the task.",
+        "evidence": "After moving candle 2 to drawer 1, it performs look actions repeatedly without attempting to find another candle.",
+        "corrective_rule": "After placing the first object, immediately resume searching for the second object until both are placed.",
+        "skill_tree_gap": "No mechanism to track that multiple objects are required and to continue search after the first placement.",
+        "patch_location": "### Multi-Object Task Execution",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located any laptop because it only visited armchair, coffeetable, diningtable, and a few drawers but did not check all furniture (e.g., sidetable, sofa, ottoman) or open all drawers.",
+        "evidence": "It opens drawers 7,6,5,4 (all empty) and then stops, never visiting other potential locations.",
+        "corrective_rule": "Perform a complete search of all furniture and containers in the room before concluding the object is not present.",
+        "skill_tree_gap": "Incomplete exploration that does not cover all possible spawn points for objects.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one newspaper and then stopped searching for a second newspaper, looping without further exploration.",
+        "evidence": "After moving newspaper 1 to sofa 1, it returns to armchair 2 and armchair 1 and then loops with look actions.",
+        "corrective_rule": "After placing the first object, continue to search for the second object until the task is complete.",
+        "skill_tree_gap": "No logic to repeat the search and place cycle for multiple objects.",
+        "patch_location": "### Multi-Object Task Execution",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located any toiletpaper because it did not open all cabinets (cabinet 1 was not opened) and did not check other locations like garbagecan or toilet.",
+        "evidence": "It opens cabinet 4,3,2 but then goes to cabinet 1 without opening it, then moves to countertop and toiletpaperhanger which are empty.",
+        "corrective_rule": "Open every closed container and check all possible locations (including garbagecan and toilet) for the target object.",
+        "skill_tree_gap": "Incomplete opening of all containers; missing check of certain common locations.",
+        "patch_location": "### Systematic Search",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one creditcard and then stopped searching for a second creditcard, looping instead of exploring further.",
+        "evidence": "After moving creditcard 1 to dresser 1, it returns to armchair 2 and armchair 1, then loops with look actions.",
+        "corrective_rule": "After placing the first object, immediately search for the second object in all remaining locations.",
+        "skill_tree_gap": "No mechanism to handle multi-object tasks and continue after the first placement.",
+        "patch_location": "### Multi-Object Task Execution",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one candle and then stopped searching for a second candle, looping without continuing.",
+        "evidence": "After moving candle 4 to cabinet 1, it performs loop actions without attempting to find another candle.",
+        "corrective_rule": "After placing the first object, resume searching for the second object until both are placed.",
+        "skill_tree_gap": "Missing repetition logic for multi-object tasks.",
+        "patch_location": "### Multi-Object Task Execution",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

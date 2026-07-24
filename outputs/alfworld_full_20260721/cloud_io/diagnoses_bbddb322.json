@@ -1,0 +1,147 @@
+{
+  "batch_id": "bbddb322-bfd9-4414-9351-96792000d03c",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent stopped searching after checking only a few cabinets and the fridge, failing to locate an egg anywhere.",
+        "evidence": "After opening cabinet 2 and seeing no egg, the trajectory ends with no further actions.",
+        "corrective_rule": "If the target object is not found in initial locations, continue searching all receptacles (e.g., sinkbasin, countertops, diningtable) before giving up.",
+        "skill_tree_gap": "Missing a systematic search routine that covers all possible object locations for the 'clean' task type.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic_search'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent explored countertops and three cabinets but never checked the sinkbasin or other common spoon locations, then stopped.",
+        "evidence": "After returning to countertop 1 and using 'look', the trajectory ends without finding a spoon.",
+        "corrective_rule": "Include sinkbasin, diningtable, and drawers in the search for spoons before concluding absence.",
+        "skill_tree_gap": "No comprehensive search plan for utensils like spoons across all relevant containers.",
+        "patch_location": "Under '## clean', add a new subsection '### search_for_utensils'.",
+        "confidence": 0.93
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched fridge, countertops, and a few cabinets but never located a mug; it stopped after opening cabinet 3.",
+        "evidence": "After opening cabinet 3 and seeing peppershaker, the trajectory ends with no mug found.",
+        "corrective_rule": "Search all possible mug locations including sinkbasin, microwave, and coffeemachine, not just cabinets and fridge.",
+        "skill_tree_gap": "Lack of a prioritized search list for objects commonly stored in varied receptacles.",
+        "patch_location": "Under '## heat', add a new subsection '### object_search_strategy'.",
+        "confidence": 0.94
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched desk, dresser, shelves, and one drawer but never found a watch, then returned to desk and stopped.",
+        "evidence": "After returning to desk 1, the trajectory ends without having taken or examined a watch.",
+        "corrective_rule": "If the target object is missing from initial locations, check sidetable, bed, and all drawers before concluding.",
+        "skill_tree_gap": "No systematic scanning of all furniture types where a small object like a watch could be placed.",
+        "patch_location": "Under '## look_at_obj_in_light', add a new subsection '### exhaustive_search'.",
+        "confidence": 0.96
+      },
+      {
+        "traj_ref": "look_at_obj_in_light#1",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "gave_up",
+        "root_cause": "The agent looked at desk, shelves, drawer, and bed but never found a pencil; it returned to desk and stopped.",
+        "evidence": "After using desklamp again on desk 1, the trajectory ends without having taken a pencil.",
+        "corrective_rule": "Expand search to include sidetable, dresser, and all cabinets when the target object is not in the initially visited rooms.",
+        "skill_tree_gap": "Incomplete coverage of possible object locations in the environment.",
+        "patch_location": "Under '## look_at_obj_in_light', add a new subsection '### search_all_receptacles'.",
+        "confidence": 0.94
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "gave_up",
+        "root_cause": "The agent visited sidetable and shelves 1-9 but never found a cellphone; it returned to sidetable and stopped.",
+        "evidence": "After returning to sidetable 1, the trajectory ends with no cellphone taken.",
+        "corrective_rule": "When the target is not on shelves or sidetable, check bed, desk, and drawers for common items like cellphone.",
+        "skill_tree_gap": "No fallback search plan after exhausting the first set of locations.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### multi_location_search'.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent repeatedly opened cabinets 16-20 all empty and then entered a loop of 'look' actions, never searching other receptacle types for spatulas.",
+        "evidence": "After opening cabinet 16 (empty), the agent repeats 'look' four times without progress.",
+        "corrective_rule": "After finding several empty cabinets, switch to searching countertops, drawers, and sinkbasin for the target object.",
+        "skill_tree_gap": "No adaptive search strategy that broadens search when a container type yields no results.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### adaptive_search'.",
+        "confidence": 0.97
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent only searched cabinets (25,26,2,1,24) all empty, then fell into a loop of 'look' actions.",
+        "evidence": "After reaching cabinet 24 and using 'look', the agent repeats 'look' multiple times.",
+        "corrective_rule": "When cabinets are empty, immediately search countertops, diningtable, and fridge for spatulas.",
+        "skill_tree_gap": "Lack of branching to alternative location types after a dead end.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### branching_exploration'.",
+        "confidence": 0.96
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent searched a few cabinets (10,9,8,7) but found only non-target items and then entered a loop of 'look' and 'examine' on cabinet 7.",
+        "evidence": "After examining cabinet 7 and seeing nothing, the agent repeats 'look' actions.",
+        "corrective_rule": "If target object (saltshaker) is not in the cabinets inspected, move to countertops, diningtable, and fridge.",
+        "skill_tree_gap": "No heuristic to stop examining the same furniture and expand the search area.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### state_transition_on_failure'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent checked bed, desk, and two drawers but never searched sidetable or shelves for alarmclocks; then entered a loop of 'look' actions.",
+        "evidence": "After looking at garbagecan 1, the agent repeats 'look' four times.",
+        "corrective_rule": "If alarmclocks are not found in bed/desk/drawers, search sidetable, shelves, and dresser before looping.",
+        "skill_tree_gap": "No systematic ordering of furniture types to visit for small electronics.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### prioritized_location_list'.",
+        "confidence": 0.94
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent found and placed one dishsponge from the garbagecan but did not search for a second one; it then entered a loop of 'look' actions.",
+        "evidence": "After moving dishsponge 4 to cart 1, the agent repeats 'look' instead of searching for another dishsponge.",
+        "corrective_rule": "After placing one instance of the target object, check the goal count; if not satisfied, continue searching for the remaining quantity.",
+        "skill_tree_gap": "Missing goal progress tracking that triggers re-searching when count is incomplete.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### goal_quantity_tracking'.",
+        "confidence": 0.98
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent opened cabinet 10 (empty) and cabinet 9 (empty) then moved to cabinet 8, 7 and entered a loop of 'look' actions without finding any cup.",
+        "evidence": "After looking at cabinet 7, the agent repeats 'look' multiple times.",
+        "corrective_rule": "After two empty cabinets, switch to searching countertops, diningtable, and fridge for cups.",
+        "skill_tree_gap": "No early termination heuristic for unproductive cabinet searches.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### early_switching_strategy'.",
+        "confidence": 0.96
+      }
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+```json
+[
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate the bowl because it searched cabinets and other locations instead of systematically checking countertops where bowls are commonly found.",
+    "evidence": "After opening fridge and seeing no bowl, it goes to cabinet 1, cabinet 2, etc., never encountering a bowl.",
+    "corrective_rule": "When searching for an object, first check countertops and other common surfaces before opening storage.",
+    "skill_tree_gap": "Missing a strategy for locating objects based on typical placement (e.g., objects on countertops, not in cabinets).",
+    "patch_location": "Under 'cool' section, add new subsection '### Object Search Strategy'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate the potato because it did not systematically explore all possible receptacles (e.g., countertops, cabinets, drawers) and stopped after a few cabinets.",
+    "evidence": "After opening fridge and not seeing potato, it searched only countertop 1, 2, diningtable, and a few cabinets, then returned to fridge without heating anything.",
+    "corrective_rule": "When the target object is not found in expected locations, continue searching all receptacles (countertops, cabinets, drawers, etc.) until found or until all have been checked.",
+    "skill_tree_gap": "Incomplete search strategy for missing objects in 'heat' tasks.",
+    "patch_location": "Under 'heat' section, add new subsection '### Exhaustive Search for Object'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#0",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate the laptop because it only checked a few locations (desk, dresser, shelves) and did not explore all visible receptacles such as drawers and sidetables.",
+    "evidence": "After using desklamp, it goes to shelf 1, shelf 3, shelf 2, etc., all without seeing a laptop.",
+    "corrective_rule": "When examining an object, first find the object by checking all receptacles in the room, especially those where objects are likely placed (desk, sidetables, shelves, drawers).",
+    "skill_tree_gap": "Missing a comprehensive object search routine for 'look_at_obj_in_light' tasks.",
+    "patch_location": "Under 'look_at_obj_in_light' section, add new subsection '### Object Locating Procedure'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#1",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to locate the cellphone because it did not systematically search all furniture (desk, shelves, etc.) and missed potential locations like sidetables or drawers.",
+    "evidence": "After using desklamp, it goes to shelf 3, shelf 2, desk 1, shelf 4, but never finds a cellphone.",
+    "corrective_rule": "When the target object is not immediately visible, explore all accessible receptacles in a systematic order (desk, shelves, sidetables, drawers).",
+    "skill_tree_gap": "Lack of systematic search order for missing objects in 'look_at_obj_in_light' tasks.",
+    "patch_location": "Under 'look_at_obj_in_light' section, add new subsection '### Systematic Search Order'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent stopped searching for creditcard after only checking a few drawers without opening all drawers or exploring other surfaces like sidetables.",
+    "evidence": "After opening drawer 2 and seeing remotecontrol, it goes to drawer 1 but does not open it, then returns to armchair.",
+    "corrective_rule": "When searching for an object in drawers, open all drawers and check their contents before moving to other locations.",
+    "skill_tree_gap": "Incomplete drawer exploration routine in 'pick_and_place' tasks.",
+    "patch_location": "Under 'pick_and_place' section, add new subsection '### Drawer Search Protocol'",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked a winebottle instead of a glassbottle because it did not correctly identify the required object type.",
+    "evidence": "Action: 'take winebottle 3 from cabinet 5' while task is to put 'some glassbottle' on diningtable.",
+    "corrective_rule": "Only pick up objects that exactly match the task's target type (e.g., glassbottle, not winebottle).",
+    "skill_tree_gap": "Lack of precise object identification or filtering when picking.",
+    "patch_location": "Under 'pick_and_place' section, add new subsection '### Object Type Verification'",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a second newspaper because it only searched a limited set of locations (armchairs and shelves) and did not explore other furniture like sidetables or sofa.",
+    "evidence": "After placing first newspaper, it checks shelves but misses other receptacles; no second newspaper found.",
+    "corrective_rule": "When needing multiple objects, continue searching all receptacles until the required number is collected.",
+    "skill_tree_gap": "Incomplete multi-object search strategy in 'pick_two_obj_and_place' tasks.",
+    "patch_location": "Under 'pick_two_obj_and_place' section, add new subsection '### Multiple Object Search'",
+    "confidence": 0.9
+  }
+]
+```

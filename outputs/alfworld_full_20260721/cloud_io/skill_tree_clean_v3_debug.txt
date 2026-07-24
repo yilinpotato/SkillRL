@@ -1,0 +1,100 @@
+=== Skill Tree Debug — scope=clean  v3 (level=3, tree_depth=3, 9 nodes) ===
+action: refine
+critique: The agent largely ignored the skill tree's instructions: in the cleaning phase it examined instead of cleaning, and in the search phase it only checked a few cabinets. The tree's wording was not misleading, but the critical steps were buried; the refine adds explicit warnings and a more prominent search continuation rule.
+changelog: Added '### Perform the cleaning action (do not examine)' under Phase 2 to prevent examine loops, and added '### Continue search across all receptacle types' under Phase 1 to prevent premature abandonment of search.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 8  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [misread_state] After acquiring towel2, the agent repeatedly examined the sink and towel instead of performing the 'clean' action. | evidence: action: clean plate 1 with sinkbasin 1 missing; instead repeated examine and look at sinkbasin and towel. | fix: When holding a washable object at a sink, execute 'clean <object> with sinkbasin'. | skill_tree_gap: Missing skill for using sinkbasin to clean objects in the cleaning subroutine. | patch_location: Under '## clean', add a new subsection '### perform cleaning at sink'.
+- [inefficient_exploration] The agent only searched cabinets and stopped after opening cabinet6, never checking countertops, drawers, or fridge for the pot. | evidence: After opening cabinet6 and seeing nothing, trajectory ends without finding a pot. | fix: After searching several cabinets without success, expand exploration to all receptacles (countertops, drawers, fridge). | skill_tree_gap: Exploration strategy is too narrow, focusing only on cabinets for the target object. | patch_location: Under '## clean', add a new subsection '### systematic exploration of all receptacles'.
+
+--- Node tree (per-node lifecycle, this version=v3) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=2 calls=25 success=22 rate=88.0%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=2 calls=25 success=22 rate=88.0%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=2 calls=25 success=22 rate=88.0%
+[STABLE              ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object level=2 stable_versions=2 calls=25 success=22 rate=88.0%
+[NEW                 ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/continue-search-across-all-receptacle-types level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[MODIFIED            ] clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search level=3 stable_versions=0 calls=25 success=22 rate=88.0%
+[STABLE              ] clean-task-skill-tree/phase-2-clean-the-object level=2 stable_versions=2 calls=25 success=22 rate=88.0%
+[NEW                 ] clean-task-skill-tree/phase-2-clean-the-object/perform-the-cleaning-action-do-not-examine level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] clean-task-skill-tree/phase-3-place-the-clean-object-at-destination level=2 stable_versions=2 calls=25 success=22 rate=88.0%
+
+--- Line diff vs previous version (v2 -> v3) ---
+--- v2
++++ v3
+@@ -14,18 +14,11 @@
+ - For each receptacle type, visit every instance of that type in the room.
+ - For closed receptacles (cabinets, drawers, fridge), use "open [receptacle]" first, then check contents.
+ - If you see [object], use "take [object] from [receptacle]" and proceed to Phase 2.
+-- Continue until you have checked every instance of every receptacle type listed.
+-- Do not stop after checking only a few cabinets or countertops; the object may be in a drawer, fridge, sinkbasin, or other container.
++- If you do not find [object] after checking all instances of one type, **move on to the next receptacle type**. Do not stop early.
+ 
+-#### Exhaustive Container Checklist
+-1. Check all cabinets (open each and look inside/on top).
+-2. Check all drawers (open each and look inside).
+-3. Check the fridge (open and look inside).
+-4. Check all countertops (look on each).
+-5. Check sinkbasin and bathtubbasin (look on/in each).
+-6. Check all shelves, dressers, and other furniture listed.
+-- Only after completing this full checklist can you conclude the object is absent. Then re-scan the room for any missed receptacle.
+-
++### Continue search across all receptacle types
++- After checking all cabinets, proceed to check all drawers (open each), then the fridge, then all countertops, then sinkbasin/bathtubbasin, then shelves, dressers, etc.
++- Only after you have checked every receptacle type listed can you conclude the object is absent. Then re-scan the room for any missed receptacle.
+ - Once you are carrying [object], proceed to Phase 2.
+ 
+ ## Phase 2: Clean the Object
+@@ -33,8 +26,8 @@
+ - Upon arriving at [cleaning_source], immediately use "clean [object] with [cleaning_source]".
+ - Confirm the observation says you cleaned it; otherwise retry or check if you are at the correct source.
+ 
+-### Ensure Cleaning at Sinkbasin
+-- Do NOT leave the sinkbasin without cleaning. If you are at sinkbasin and carrying the object, you must clean before moving.
++### Perform the cleaning action (do not examine)
++- **Do not** use "look", "examine", or any other action at the sink. The only action that cleans the object is "clean <object> with <source>".
+ - If you accidentally move away, return and clean.
+ 
+ ## Phase 3: Place the Clean Object at Destination
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]".
+- Remember that [object] must be cleaned before placing at [destination].
+- Identify [cleaning_source] as the nearest sinkbasin or bathtubbasin (usually sinkbasin).
+
+## Phase 1: Locate and Take the Target Object
+- You need to find and pick up [object] before you can clean it.
+- Do not assume [object] is in any specific receptacle; search systematically.
+
+### Systematic Search
+- Begin by listing all visible receptacle types from the initial observation (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, etc.).
+- For each receptacle type, visit every instance of that type in the room.
+- For closed receptacles (cabinets, drawers, fridge), use "open [receptacle]" first, then check contents.
+- If you see [object], use "take [object] from [receptacle]" and proceed to Phase 2.
+- If you do not find [object] after checking all instances of one type, **move on to the next receptacle type**. Do not stop early.
+
+### Continue search across all receptacle types
+- After checking all cabinets, proceed to check all drawers (open each), then the fridge, then all countertops, then sinkbasin/bathtubbasin, then shelves, dressers, etc.
+- Only after you have checked every receptacle type listed can you conclude the object is absent. Then re-scan the room for any missed receptacle.
+- Once you are carrying [object], proceed to Phase 2.
+
+## Phase 2: Clean the Object
+- While holding [object], go to [cleaning_source] (e.g., sinkbasin 1).
+- Upon arriving at [cleaning_source], immediately use "clean [object] with [cleaning_source]".
+- Confirm the observation says you cleaned it; otherwise retry or check if you are at the correct source.
+
+### Perform the cleaning action (do not examine)
+- **Do not** use "look", "examine", or any other action at the sink. The only action that cleans the object is "clean <object> with <source>".
+- If you accidentally move away, return and clean.
+
+## Phase 3: Place the Clean Object at Destination
+- After cleaning, go to [destination] (e.g., diningtable, shelf, stoveburner, etc.).
+- Use "move [object] to [destination]" to place it.
+- Confirm the observation shows the object is now at the destination.
+
+## Completion
+- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.

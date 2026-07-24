@@ -1,0 +1,92 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "wrong_target",
+    "root_cause": "The agent picked a soapbottle instead of a soapbar, misidentifying the target object type.",
+    "evidence": "take soapbottle 1 from sidetable 1 after seeing only soapbottles on sidetable.",
+    "corrective_rule": "Always verify that the object taken exactly matches the type required by the task (e.g., 'soapbar' not 'soapbottle').",
+    "skill_tree_gap": "The agent lacks a check to enforce object type matching before picking.",
+    "patch_location": "New top-level section '## Object Interaction' with new subsection '### Object Type Verification' underneath.",
+    "confidence": 1.0
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to open cabinet 2 where the kettle was likely located, despite visiting it twice.",
+    "evidence": "go to cabinet 2 … The cabinet 2 is closed. (repeated without opening)",
+    "corrective_rule": "When encountering a closed container that may contain the target object, always try to open it.",
+    "skill_tree_gap": "No systematic rule to open closed containers during search.",
+    "patch_location": "New top-level section '## Exploration Strategy' with new subsection '### Open Containers When Searching' underneath.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "clean#2",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent observed a pan on stoveburner 3 but did not take it, instead continuing to explore other locations.",
+    "evidence": "go to stoveburner 3 | obs: … you see a pan 1. then next action: go to stoveburner 4",
+    "corrective_rule": "When you encounter an object that exactly matches the target type, pick it up immediately.",
+    "skill_tree_gap": "Lacks a 'take on sight' heuristic for target objects.",
+    "patch_location": "New top-level section '## Object Interaction' with new subsection '### Immediate Pickup of Target Objects' underneath.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent failed to find a bowl; it explored many locations (stoveburners, fridge, cabinets) but missed potential locations like diningtable or unopened cabinets.",
+    "evidence": "After opening fridge and cabinet1, it went to cabinet2 but did not open it; no bowl seen anywhere.",
+    "corrective_rule": "Ensure systematic exploration of all container and surface types (diningtables, cabinets, drawers) before concluding search.",
+    "skill_tree_gap": "Incomplete search coverage; no strategy to check all receptacle types.",
+    "patch_location": "New top-level section '## Exploration Strategy' with new subsection '### Comprehensive Search of All Receptacles' underneath.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent only searched shelves and coffeetable, ignoring other furniture (sofa, tvstand) that could hold the remotecontrol.",
+    "evidence": "Visited shelves 1-6 and coffeetable, never went to sofa or tvstand.",
+    "corrective_rule": "When searching, visit all visible receptacles from the initial observation, including sofa, tvstand, etc.",
+    "skill_tree_gap": "Incomplete exploration; agent does not prioritize all furniture types.",
+    "patch_location": "New top-level section '## Exploration Strategy' with new subsection '### Visit All Visible Receptacles' underneath.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "The agent placed only one cellphone and stopped, failing to search for and place the second cellphone required.",
+    "evidence": "After moving cellphone 1 to desk, next action was go to shelf1 and then no further actions; second cellphone never placed.",
+    "corrective_rule": "For tasks requiring multiple objects, continue searching until the required number is placed.",
+    "skill_tree_gap": "No counting or completion condition for multi-object tasks.",
+    "patch_location": "New top-level section '## Multi-Object Tasks' with new subsection '### Counting and Completion Check' underneath.",
+    "confidence": 1.0
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent did not find any cellphone; it only searched shelves and some drawers, missing the dresser and other potential locations.",
+    "evidence": "After opening drawer3 (empty), trajectory ends; no cellphone ever seen.",
+    "corrective_rule": "Ensure to check all container types listed in the initial observation, including dressers, before concluding.",
+    "skill_tree_gap": "Incomplete exploration; missing visits to all furniture types.",
+    "patch_location": "New top-level section '## Exploration Strategy' with new subsection '### Visit All Furniture Types' underneath.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "The agent searched many cabinets but did not check drawers or other receptacles, missing the kettles.",
+    "evidence": "After opening cabinet6 (soapbottle) and going to sinkbasin, it stopped; no kettle found.",
+    "corrective_rule": "Expand search to include drawers and other container types not yet visited.",
+    "skill_tree_gap": "Incomplete search coverage; should systematically check all receptacle types in the room.",
+    "patch_location": "New top-level section '## Exploration Strategy' with new subsection '### Systematic Container Search' underneath.",
+    "confidence": 0.95
+  }
+]
+```

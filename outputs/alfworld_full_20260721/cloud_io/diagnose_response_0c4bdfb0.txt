@@ -1,0 +1,114 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "wrong_target",
+    "root_cause": "Agent picked up a pot instead of the required kettle, failing to verify the object name before picking.",
+    "evidence": "action: take pot 2 from cabinet 1",
+    "corrective_rule": "Before picking an object, confirm that its name exactly matches the object required by the task (kettle, not pot).",
+    "skill_tree_gap": "Object name verification and task goal matching are missing from the cleaning skill.",
+    "patch_location": "Under 'clean' as a new deeper subsection '### object verification before picking'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to locate an apple because it did not systematically search all receptacles after failing to find it on initial countertops.",
+    "evidence": "After opening fridge and seeing no apple, agent revisited countertop 1 and 2 without checking diningtable or other possible locations.",
+    "corrective_rule": "When the required object is not in the current location, systematically explore all receptacles (diningtable, counters, cabinets, fridge, etc.) before giving up.",
+    "skill_tree_gap": "There is no structured exploration strategy that covers all common object locations.",
+    "patch_location": "Under 'cool' as a new deeper subsection '### systematic object search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#1",
+    "task_type": "cool",
+    "failure_type": "wrong_target",
+    "root_cause": "Agent picked up a kettle instead of an apple, failing to verify that the object matches the task requirement.",
+    "evidence": "action: take kettle 1 from cabinet 1",
+    "corrective_rule": "Before picking an object, check that its type matches the target (apple), not just any available object.",
+    "skill_tree_gap": "Object verification against the task goal is missing.",
+    "patch_location": "Under 'cool' as a new deeper subsection '### object verification before picking'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "gave_up",
+    "root_cause": "Agent stopped searching for a mug after checking only a few cabinets and drawers, never locating the required object.",
+    "evidence": "After opening cabinet 3 and seeing nothing, agent performed two 'look' actions and then ended the trajectory.",
+    "corrective_rule": "Continue searching all receptacles (cabinets, drawers, countertops, shelves, etc.) until the required object is found; do not stop prematurely.",
+    "skill_tree_gap": "Persistence and a comprehensive search plan are lacking in the heating skill.",
+    "patch_location": "Under 'heat' as a new deeper subsection '### exhaustive object search'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#0",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "wrong_target",
+    "root_cause": "Agent picked up a tissuebox instead of the required box, failing to verify the object name before taking it.",
+    "evidence": "action: take tissuebox 1 from shelf 1",
+    "corrective_rule": "Before picking an object to examine, confirm its name matches the one in the task (box, not tissuebox).",
+    "skill_tree_gap": "Object name verification is missing from the examination skill.",
+    "patch_location": "Under 'look_at_obj_in_light' as a new deeper subsection '### object name verification before picking'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#1",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "gave_up",
+    "root_cause": "Agent failed to locate a book and stopped searching after opening a single drawer, never checking all possible receptacles.",
+    "evidence": "After opening drawer 2 and seeing a newspaper, no further search actions were taken.",
+    "corrective_rule": "Systematically search all drawers, shelves, desks, and sidetables until the target object (book) is found.",
+    "skill_tree_gap": "There is no exhaustive search procedure for examination tasks.",
+    "patch_location": "Under 'look_at_obj_in_light' as a new deeper subsection '### exhaustive object search for examination tasks'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "look_at_obj_in_light#2",
+    "task_type": "look_at_obj_in_light",
+    "failure_type": "gave_up",
+    "root_cause": "Agent never found a laptop and abandoned the search after opening two drawers and checking a few surfaces.",
+    "evidence": "After opening drawer 2 and seeing a newspaper, it returned to sidetable 1 and ended the trajectory.",
+    "corrective_rule": "Continue searching all furniture (drawers, shelves, armchair, diningtable, etc.) until the laptop is located.",
+    "skill_tree_gap": "Persistence and full coverage of the environment are missing.",
+    "patch_location": "Under 'look_at_obj_in_light' as a new deeper subsection '### exhaustive object search for examination tasks'.",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed only one soapbottle and stopped searching for the second, failing to complete the two-object requirement.",
+    "evidence": "After moving soapbottle 1 to cabinet 1, agent explored other cabinets but never found a second soapbottle and ended the trajectory.",
+    "corrective_rule": "After placing the first object, continue searching for the second object until both are placed; do not stop after one.",
+    "skill_tree_gap": "Multi-object tracking and completion monitoring are absent.",
+    "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### multi-object tracking and completion'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed only one ladle and then stopped searching for the second ladle, even though the task required two.",
+    "evidence": "After placing ladle 2 in drawer 1, agent went to countertop 2 and then back to drawer 1 without locating a second ladle.",
+    "corrective_rule": "Search all countertops and receptacles for the second ladle before concluding the task.",
+    "skill_tree_gap": "Multi-object search and completion logic is missing.",
+    "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### multi-object search and completion'.",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent placed only one pencil and then failed to find a second pencil, stopping after revisiting the same locations.",
+    "evidence": "After moving pencil 1 to shelf 1, agent repeatedly went between bed and desk without discovering another pencil.",
+    "corrective_rule": "Systematically search all drawers, shelves, and other furniture for a second pencil before stopping.",
+    "skill_tree_gap": "Multi-object search strategy and completion check are missing.",
+    "patch_location": "Under 'pick_two_obj_and_place' as a new deeper subsection '### multi-object search and completion'.",
+    "confidence": 0.95
+  }
+]
+```

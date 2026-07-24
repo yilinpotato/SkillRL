@@ -1,0 +1,72 @@
+=== Skill Tree Debug — scope=look_at_obj_in_light  v29 (level=3, tree_depth=3, 6 nodes) ===
+action: refine
+critique: The agent followed the lamp-finding step but then diverged by using 'examine' instead of relying on arrival observations, and it did not open containers systematically. The skill tree's wording did not explicitly prohibit 'examine' or emphasize opening all receptacles, and it lacked a clear object-verification rule, which contributed to the failures.
+changelog: Added a '### Target object search' subsection under Phase 2 to instruct using only admissible actions, systematically opening all containers, and avoiding redundant 'examine' actions; added a '### Object verification' subsection to require exact name matching before taking any object.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 2
+
+--- Failure diagnoses feeding this round ---
+- [inefficient_exploration] Agent never located the box because it only visited sidetables and one drawer without searching other receptacles. | evidence: After turning on desklamp, it went to multiple sidetables but did not find a box. | fix: Search all containers including drawers, cabinets, and shelves for the target object. | skill_tree_gap: Incomplete search strategy for target object. | patch_location: Under 'Look at Object in Light' as a new subsection '### Target object search'
+- [wrong_target] Agent picked up a statue instead of a box, misidentifying the target object. | evidence: take statue 2 from shelf 3 | fix: Only take the object specified in the task (box). | skill_tree_gap: Object recognition error. | patch_location: Under 'Look at Object in Light' as a new subsection '### Object verification'
+
+--- Node tree (per-node lifecycle, this version=v29) ---
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp level=1 stable_versions=19 calls=341 success=311 rate=91.2%
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-1-find-and-turn-on-the-desklamp level=2 stable_versions=1 calls=341 success=311 rate=91.2%
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-the-target-object-systematic-search-after-lamp-is-on level=2 stable_versions=1 calls=15 success=12 rate=80.0%
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-the-target-object-systematic-search-after-lamp-is-on/object-verification level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[NEW                 ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-2-locate-the-target-object-systematic-search-after-lamp-is-on/target-object-search-detailed-steps level=3 stable_versions=0 calls=0 success=0 rate=n/a
+[STABLE              ] goal-examine-or-look-at-a-target-object-using-a-light-source-e-g-desklamp/phase-3-task-completion level=2 stable_versions=1 calls=341 success=311 rate=91.2%
+
+--- Line diff vs previous version (v28 -> v29) ---
+--- v28
++++ v29
+@@ -16,6 +16,16 @@
+ - **Do not move away from a receptacle that contains the target object** without taking it. If you see it, take it at that moment.
+ - If you have checked all receptacles and still not found the target, re-read the initial description to confirm you didn't miss any. Persist until you have visited every receptacle.
+ 
++### Target object search (detailed steps)
++- Use only the actions: `go`, `look`, `open`, `close`, `take`, `inventory`, and `use`. **Do not use** `examine` — the arrival observation already shows what is on the receptacle. Repeating `look` also gives the same information if you need to refresh.
++- After turning on the lamp, systematically go to each receptacle from your initial list. If a receptacle is a closed container, open it before checking its contents. Do not skip any receptacle type (e.g., drawers, cabinets, shelves, coffeetables, etc.).
++- If the container is open, simply read the observation. Do not waste actions examining or looking repeatedly at the same receptacle.
++
++### Object verification
++- Before taking any object, verify that its **exact name** matches the target object named in the task. For example, if the task says "look at box", only take an object whose name is "box" — do not take "statue" or "newspaper".
++- If you see multiple objects, focus only on the target name. Ignore and do not pick up other objects, even if they appear interesting.
++- After taking the correct object, the task is complete. Do not perform any further actions.
++
+ ## Phase 3: Task completion
+ - With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.
+ - **Key rule:** Once you take the target object, stop immediately. Do not perform any additional actions.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Goal: Examine or look at a target object using a light source (e.g., desklamp)
+
+## Phase 1: Find and turn on the desklamp
+- As soon as you see the initial room description, **mentally list every furniture item** (each numbered entity). You will need this list later to search every location.
+- Start by moving to a surface receptacle (e.g., desk, dresser, sidetable) to see its contents. Check for a desklamp.
+- If you do not see a desklamp, move to another surface receptacle from your list and check its contents. Continue until you find a desklamp.
+- Once you are at the same receptacle as the desklamp, use it (action: `use desklamp <number>`). The observation will confirm the lamp is on.
+- **If you encounter the target object before finding the lamp**, note its location but do not take it yet. Continue searching for the lamp first.
+
+## Phase 2: Locate the target object (systematic search after lamp is on)
+- **You must visit every single receptacle from your initial list.** Do not stop after checking only a few. Use `look` to refresh the list if unsure.
+- For each receptacle in your list:
+  1. Go to that receptacle (`go to <receptacle>`).
+  2. Read the arrival observation. If the target object's exact name appears on the surface (or inside if open), **take it immediately** (`take <object> from <receptacle>`) and **stop** – the task is done.
+  3. If the receptacle is a container (e.g., drawer, cabinet) and it is closed, open it (`open <receptacle>`). Then check its contents. If the target object is inside, take it and stop.
+- **Do not move away from a receptacle that contains the target object** without taking it. If you see it, take it at that moment.
+- If you have checked all receptacles and still not found the target, re-read the initial description to confirm you didn't miss any. Persist until you have visited every receptacle.
+
+### Target object search (detailed steps)
+- Use only the actions: `go`, `look`, `open`, `close`, `take`, `inventory`, and `use`. **Do not use** `examine` — the arrival observation already shows what is on the receptacle. Repeating `look` also gives the same information if you need to refresh.
+- After turning on the lamp, systematically go to each receptacle from your initial list. If a receptacle is a closed container, open it before checking its contents. Do not skip any receptacle type (e.g., drawers, cabinets, shelves, coffeetables, etc.).
+- If the container is open, simply read the observation. Do not waste actions examining or looking repeatedly at the same receptacle.
+
+### Object verification
+- Before taking any object, verify that its **exact name** matches the target object named in the task. For example, if the task says "look at box", only take an object whose name is "box" — do not take "statue" or "newspaper".
+- If you see multiple objects, focus only on the target name. Ignore and do not pick up other objects, even if they appear interesting.
+- After taking the correct object, the task is complete. Do not perform any further actions.
+
+## Phase 3: Task completion
+- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.
+- **Key rule:** Once you take the target object, stop immediately. Do not perform any additional actions.

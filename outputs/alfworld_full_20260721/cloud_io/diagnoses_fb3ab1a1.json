@@ -1,0 +1,213 @@
+{
+  "batch_id": "fb3ab1a1-3631-458d-8398-010e8076b3f2",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched a sequence of cabinets and drawers but never found the knife, then stopped without continuing to other likely locations like countertops or sinkbasins.",
+        "evidence": "After opening cabinet 4 and drawer 1, the agent goes to countertop 1 and ceases actions, having never taken a knife.",
+        "corrective_rule": "If the target object is not found after checking a few receptacles, continue exploring all accessible locations (countertops, sinkbasins, etc.) before giving up.",
+        "skill_tree_gap": "The agent lacks a deterministic search strategy that covers all possible object locations.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic search for object'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent opened several cabinets (1-6) and saw no butterknife, then moved to cabinet 7 without opening it and stopped, never checking drawers or other surfaces.",
+        "evidence": "The last action 'go to cabinet 7' results in opening cabinet 6 (empty) and then the trajectory ends, no butterknife acquired.",
+        "corrective_rule": "After opening a cabinet, if the target is not inside, systematically check all other receptacles including drawers and countertops.",
+        "skill_tree_gap": "The agent's exploration is limited to cabinets and does not cover drawers or open surfaces.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#2",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched cabinets and drawers but found no kettle, then went to countertop 1 and stopped without examining other locations like sinkbasin or stove.",
+        "evidence": "After opening drawer 3 (spatula) and fridge 1 (food), the agent goes to countertop 1 and ends the episode, never having taken a kettle.",
+        "corrective_rule": "If the target object is not found, continue searching all possible areas, including sinkbasin, microwave, and other countertops.",
+        "skill_tree_gap": "No fallback search beyond a fixed set of receptacles.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#3",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched cabinets and some drawers but did not find an egg, then stopped after attempting to open drawer 2 which was closed, without checking the fridge or other containers.",
+        "evidence": "The last action 'open drawer 2' shows the drawer is closed and the trajectory ends, no egg ever seen or taken.",
+        "corrective_rule": "If the target is not in cabinets or drawers, explore the fridge and other food storage areas.",
+        "skill_tree_gap": "The agent does not prioritize checking the fridge for food items.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#4",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent opened six cabinets, all empty, then moved to cabinet 7 (also empty) and stopped, never searching drawers or countertops where a spatula might be.",
+        "evidence": "After opening cabinet 6 (empty) and seeing nothing in cabinet 7, the trajectory ends without acquiring a spatula.",
+        "corrective_rule": "When cabinets are empty, proceed to search drawers and countertops systematically.",
+        "skill_tree_gap": "The agent has no contingency to switch to other receptacle types when cabinets yield nothing.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#5",
+        "task_type": "clean",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched cabinets but found only a mug, not a potato, then went to countertop 1 and stopped without checking the fridge or other likely locations.",
+        "evidence": "After opening cabinet 6 (mug 2), the agent goes to countertop 1 and ends, never having taken a potato.",
+        "corrective_rule": "For food items like potato, always check the fridge and sinkbasin after cabinets.",
+        "skill_tree_gap": "The agent does not leverage domain knowledge that potatoes are often found in fridges or countertops.",
+        "patch_location": "Under '## clean', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched several cabinets and countertops but never found a pan, then stopped at countertop 1 without exploring the sinkbasin or stoveburner where a pan might be.",
+        "evidence": "After visiting cabinet 3 (kettle 2) and sinkbasin (potato 1), the agent returns to countertop 1 and ends, no pan acquired.",
+        "corrective_rule": "If the target (pan) is not found in cabinets, check sinkbasin and stoveburners before giving up.",
+        "skill_tree_gap": "The agent does not consider all possible locations for a pan.",
+        "patch_location": "Under '## cool', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent picked up the mug from diningtable but then went to fridge 1 without using the fridge to cool the mug, failing to complete the cooling step before moving to place.",
+        "evidence": "After 'take mug 1 from diningtable 1', the next action is 'go to fridge 1' with no 'cool' action, and the trajectory ends.",
+        "corrective_rule": "After picking up an object that needs cooling, immediately perform the 'cool' action using the fridge before any movement away.",
+        "skill_tree_gap": "The skill tree for cooling tasks omits the mandatory cool action between picking and placing.",
+        "patch_location": "Under '## cool', add a new subsection '### sequence: pick → cool → place'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "cool#2",
+        "task_type": "cool",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched multiple countertops and cabinets but never found an egg, then stopped after revisiting countertops without checking the fridge thoroughly.",
+        "evidence": "After opening cabinet 3 (bowl 1) and seeing no egg in fridge, the agent returns to countertops and ends, no egg taken.",
+        "corrective_rule": "If the egg is not found on countertops, search the fridge more carefully and also check drawers.",
+        "skill_tree_gap": "The agent's search does not include all possible egg locations (e.g., fridge interior).",
+        "patch_location": "Under '## cool', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent placed the mug in the microwave and closed it, but never performed the 'heat' action before opening and taking it out.",
+        "evidence": "After 'close microwave 1', the next action is 'open microwave 1' without any 'heat' command, then the mug is taken out.",
+        "corrective_rule": "After closing the microwave with the object inside, always execute the 'heat' action on the microwave before opening it.",
+        "skill_tree_gap": "The heat task sequence is incomplete; the heating step is missing from the agent's plan.",
+        "patch_location": "New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent moved the apple into the microwave, closed, then opened and took it out without ever heating it.",
+        "evidence": "Similar pattern: after 'close microwave 1', the next action is 'open microwave 1' with no heat command.",
+        "corrective_rule": "After closing the microwave, always use the 'heat' action before opening.",
+        "skill_tree_gap": "The heating step is not included in the agent's behavioural sequence for heat tasks.",
+        "patch_location": "New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "heat#2",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent placed the potato in the microwave, closed, then opened and took it out without heating.",
+        "evidence": "After 'close microwave 1', the next action is 'open microwave 1' with no heat command.",
+        "corrective_rule": "After closing the microwave, always use the 'heat' action before opening.",
+        "skill_tree_gap": "The heating step is missing from the agent's plan.",
+        "patch_location": "New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "heat#3",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent moved the apple into the microwave, closed, then opened and took it out without heating, later placing it in the fridge unheated.",
+        "evidence": "After 'close microwave 1', the next action is 'open microwave 1' with no heat command, and then the apple is moved to fridge.",
+        "corrective_rule": "After closing the microwave, always use the 'heat' action before opening.",
+        "skill_tree_gap": "The heating step is not enforced in the heat task sequence.",
+        "patch_location": "New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "heat#4",
+        "task_type": "heat",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent took the plate from the microwave without heating it and then stopped, never proceeding to place it in the fridge.",
+        "evidence": "The last action is 'take plate 4 from microwave 1' with no subsequent move to the fridge.",
+        "corrective_rule": "After removing the object from the microwave, always move it to the target receptacle to complete the task.",
+        "skill_tree_gap": "The agent's plan ends prematurely after removing the object; it lacks the final placement step.",
+        "patch_location": "New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#5",
+        "task_type": "heat",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent placed the apple in the microwave, closed, then opened and took it out without heating, then moved it to the fridge unheated.",
+        "evidence": "After 'close microwave 1', the next action is 'open microwave 1' with no heat command, then the apple is moved to fridge.",
+        "corrective_rule": "After closing the microwave, always use the 'heat' action before opening.",
+        "skill_tree_gap": "The heating step is missing from the agent's plan.",
+        "patch_location": "New top-level section '## heat' with subsection '### heat sequence: place in microwave → close → heat → open → take → place'.",
+        "confidence": 0.95
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched shelves, drawers, and the dresser but did not find a CD, then stopped without examining the desk or other surfaces where a CD might be.",
+        "evidence": "After opening drawer 1 (pencils), the agent goes to dresser 1 and ends, never having taken a CD.",
+        "corrective_rule": "If the target object is not found in shelves and drawers, check the desk and other visible surfaces.",
+        "skill_tree_gap": "The agent's search does not cover all typical locations for a CD (e.g., desk or shelf).",
+        "patch_location": "Under '## look_at_obj_in_light', add a new subsection '### systematic search for target object'.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched several drawers but never found a keychain, then stopped after opening drawer 5 without checking the desk or dresser tops.",
+        "evidence": "After opening drawer 5 (nothing shown), the trajectory ends, no keychain acquired.",
+        "corrective_rule": "If the keychain is not in drawers, search desk tops, dresser, and other open surfaces.",
+        "skill_tree_gap": "The agent's exploration focuses only on drawers, missing other likely locations.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### systematic search for object'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "gave_up",
+        "root_cause": "The agent searched cabinets and countertops but did not find a glassbottle (though a winebottle was seen), then stopped without taking any object.",
+        "evidence": "After visiting cabinet 7 and seeing nothing, the trajectory ends, no glassbottle taken.",
+        "corrective_rule": "If the exact object type is not found, consider that similar objects (e.g., winebottle) might be the target, but if not, continue searching all containers.",
+        "skill_tree_gap": "The agent lacks object identification or a broader search strategy when the exact object is not present.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### systematic search for object'.",
+        "confidence": 0.85
+      }
+    ]
+  }
+}

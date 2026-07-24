@@ -1,0 +1,77 @@
+{
+  "batch_id": "f81aa484-e92f-4b51-8b30-b60e0e3d1aa8",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located the ladle because it only explored stovetops and cabinets, ignoring other common receptacles like fridge, drawers, or countertops where the ladle might be.",
+        "evidence": "After opening multiple cabinets and stovetops, the agent returns to countertop 1 and sees no ladle; the last action is 'go to cabinet 3' with observation showing countertop 1 contents (no ladle).",
+        "corrective_rule": "When the target object is not in initial view, systematically search all common receptacles (countertops, cabinets, drawers, fridge, sinkbasin, etc.) before repeating locations.",
+        "skill_tree_gap": "Missing a systematic object search strategy for locating the target object before cleaning.",
+        "patch_location": "Under '## clean', add a new subsection '### Systematic Object Search'.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to find the newspaper because it only searched drawers and sidetables, ignoring common locations like the sofa, coffee table, or dresser where the newspaper might be.",
+        "evidence": "After opening many empty drawers, the agent goes to sidetable 2 and the trajectory ends without ever picking up a newspaper.",
+        "corrective_rule": "When the target object is not found in drawers, expand search to all visible receptacles including sofas, tables, dressers, and shelves.",
+        "skill_tree_gap": "Missing a comprehensive search strategy for pick_and_place tasks that covers all object spawn locations.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### Systematic Object Search'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located the spraybottle because it only searched cabinets and one drawer, missing other likely locations like the sinkbasin, handtowelholder, or bathtubbasin.",
+        "evidence": "After opening several cabinets and going to countertop 1 (which shows nothing), the agent goes to drawer 1 and sees a soapbar, but never a spraybottle.",
+        "corrective_rule": "When the target object is not in cabinets, search all receptacles in the room, including sinkbasins, towel holders, and bathtubbasin.",
+        "skill_tree_gap": "Missing a systematic search strategy that includes all receptacle types for pick_and_place tasks.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### Systematic Object Search'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never found the pan because it only searched cabinets and two countertops, missing other common locations like the fridge, drawers, or stovetops where a pan might be.",
+        "evidence": "After opening cabinet 14 (still closed), the agent had seen a pot on countertop 2 but no pan, and never looked elsewhere.",
+        "corrective_rule": "If the target object is not in cabinets or countertops, search other common locations like fridge, drawer, and stovetops.",
+        "skill_tree_gap": "Missing a systematic search strategy that covers all possible object locations for pick_and_place tasks.",
+        "patch_location": "Under '## pick_and_place', add a new subsection '### Systematic Object Search'.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing the first pencil, the agent failed to find a second pencil because it only searched shelves and drawers near the first location, missing other receptacles like the desk, bed, or dresser.",
+        "evidence": "After moving pencil 1 to shelf 1, the agent examines shelves and drawers but finds no pencil; it never returns to the desk or checks other areas.",
+        "corrective_rule": "When tasked with placing multiple objects, after placing one, systematically search all receptacles in the room for the remaining objects, not just nearby ones.",
+        "skill_tree_gap": "Missing a procedure for locating multiple objects in multi-object tasks, leading to incomplete execution.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Multi-Object Search Strategy'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "After placing the first pen, the agent failed to find a second pen because it only searched drawers and nearby shelves, ignoring other locations like the bed, diningtable, or further shelves.",
+        "evidence": "After moving pen 1 to sidetable 1, the agent opens drawers and goes to shelves 1 and 2, but finds no pen; it never revisits the diningtable or checks the beds.",
+        "corrective_rule": "When tasked with placing multiple objects, after placing one, systematically search all receptacles in the room for the remaining objects, not just those near the target.",
+        "skill_tree_gap": "Missing a procedure for locating multiple objects in multi-object tasks, leading to incomplete execution.",
+        "patch_location": "Under '## pick_two_obj_and_place', add a new subsection '### Multi-Object Search Strategy'.",
+        "confidence": 0.95
+      }
+    ]
+  }
+}

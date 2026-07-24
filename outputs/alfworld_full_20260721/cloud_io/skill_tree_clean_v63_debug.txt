@@ -1,0 +1,119 @@
+=== Skill Tree Debug — scope=clean  v63 (level=3, tree_depth=4, 19 nodes) ===
+action: refine
+critique: The agent followed the search and pickup steps but then violated the Cleaning Phase by performing look/examine actions instead of cleaning immediately. The skill tree's Critical Rule 2 did not explicitly forbid examining the held object, which may have been misinterpreted; the refinement clarifies that no action except moving/cleaning/placing is allowed while holding the target.
+changelog: Modified Critical Rule 2 to explicitly forbid look, examine, inventory while holding the target, and added a note in the Cleaning Phase to reinforce immediate cleaning without intermediate actions.
+consensus prefix (folded, not re-taught this round): (none)
+n_success this round: 6  n_failure this round: 1
+
+--- Failure diagnoses feeding this round ---
+- [wrong_order] Agent picked up the towel but never executed the cleaning action, instead performed repeated look/examine actions. | evidence: After 'take towel 1 from towelholder 1' and 'go to sinkbasin 1', agent did 'look' and 'examine towel 1' instead of 'clean towel 1 with sinkbasin 1'. | fix: Immediately after acquiring a dirty object, use the appropriate sink to clean it before any other action. | skill_tree_gap: Missing explicit temporal constraint that cleaning must follow acquisition for dirty objects. | patch_location: ## clean > ### Execute cleaning immediately after taking object
+
+--- Node tree (per-node lifecycle, this version=v63) ---
+[STABLE              ] clean-task-skill-tree                    level=1 stable_versions=62 calls=1244 success=1050 rate=84.4%
+[STABLE              ] clean-task-skill-tree/cleaning-phase     level=2 stable_versions=4 calls=47 success=39 rate=83.0%
+[STABLE              ] clean-task-skill-tree/cleaning-phase/clean-immediately level=3 stable_versions=4 calls=47 success=39 rate=83.0%
+[MODIFIED            ] clean-task-skill-tree/cleaning-phase/go-to-cleaning-source level=3 stable_versions=0 calls=47 success=39 rate=83.0%
+[STABLE              ] clean-task-skill-tree/cleaning-phase/prerequisite-you-must-be-holding-the-target-object level=3 stable_versions=4 calls=47 success=39 rate=83.0%
+[STABLE              ] clean-task-skill-tree/completion         level=2 stable_versions=23 calls=1244 success=1050 rate=84.4%
+[MODIFIED            ] clean-task-skill-tree/critical-rules-must-be-followed-without-exception level=2 stable_versions=0 calls=448 success=402 rate=89.7%
+[STABLE              ] clean-task-skill-tree/goal-identification level=2 stable_versions=4 calls=1244 success=1050 rate=84.4%
+[STABLE              ] clean-task-skill-tree/navigation         level=2 stable_versions=1 calls=7 success=6 rate=85.7%
+[STABLE              ] clean-task-skill-tree/navigation/using-the-observation-for-navigation level=3 stable_versions=1 calls=7 success=6 rate=85.7%
+[STABLE              ] clean-task-skill-tree/navigation/verify-target-location-reachability level=3 stable_versions=1 calls=7 success=6 rate=85.7%
+[STABLE              ] clean-task-skill-tree/placement-phase    level=2 stable_versions=1 calls=47 success=39 rate=83.0%
+[STABLE              ] clean-task-skill-tree/search-phase       level=2 stable_versions=4 calls=47 success=39 rate=83.0%
+[STABLE              ] clean-task-skill-tree/search-phase/object-name-verification-before-picking level=3 stable_versions=2 calls=15 success=12 rate=80.0%
+[STABLE              ] clean-task-skill-tree/search-phase/systematic-search-for-target-object level=3 stable_versions=2 calls=15 success=12 rate=80.0%
+[STABLE              ] clean-task-skill-tree/search-phase/systematic-search-for-target-object/closed-container-search level=4 stable_versions=2 calls=15 success=12 rate=80.0%
+[STABLE              ] clean-task-skill-tree/search-phase/systematic-search-for-target-object/exhaustive-search-rule level=4 stable_versions=2 calls=15 success=12 rate=80.0%
+[STABLE              ] clean-task-skill-tree/search-phase/systematic-search-for-target-object/initial-look level=4 stable_versions=2 calls=15 success=12 rate=80.0%
+[STABLE              ] clean-task-skill-tree/search-phase/systematic-search-for-target-object/open-surface-search level=4 stable_versions=2 calls=15 success=12 rate=80.0%
+
+--- Line diff vs previous version (v62 -> v63) ---
+--- v62
++++ v63
+@@ -7,7 +7,7 @@
+ 
+ ## Critical Rules (must be followed without exception)
+ 1. **Never stay at or interact with the cleaning source unless you are holding the target object or you are searching for it there.** If you arrive at the cleaning source during search, immediately check whether the target is present. If yes, pick it up and proceed to the Cleaning Phase (you are already at the source). If not, leave immediately and resume the search. Do not clean, place, or examine unrelated items while there.
+-2. **Once you are holding the target object, do not put it down or interact with any other object until after you have cleaned it and placed it at the destination.**
++2. **Once you are holding the target object, do not put it down, look, examine, inventory, or interact with any other object until after you have cleaned it and placed it at the destination. The only allowed actions while holding the target are: moving to the cleaning source, cleaning it, moving to the destination, and placing it.**
+ 3. **Do not go to the destination receptacle until after cleaning.**
+ 4. **Before picking any object, verify its name matches the target exactly.** If the name differs (e.g., "handtowel" vs "cloth"), do not pick it up.
+ 
+@@ -51,6 +51,7 @@
+ 
+ ### Go to Cleaning Source
+ - Once holding the target, immediately go to the cleaning source (sinkbasin or bathtubbasin). Use the Navigation rules to ensure you reach it correctly. If you are already there (from search), proceed directly to cleaning.
++- **Do not perform any other action (look, examine, inventory, or move elsewhere) while en route or after arriving. Only clean.**
+ 
+ ### Clean Immediately
+ - **Upon arrival at the cleaning source, the only valid next action is `clean [object] with [cleaning_source]`.** Do NOT look, examine, inventory, or move anywhere else. If you ever arrive at the cleaning source and are not immediately cleaning, you have made a mistake. Correct it by performing the clean action now.
+
+--- Rendered content actually shown to the agent (post-prune) ---
+# Clean Task Skill Tree
+
+## Goal Identification
+- Parse the task: "clean some [object] and put it in/on [destination]" or "put a clean [object] in/on [destination]".
+- The [object] must be cleaned before placing at [destination].
+- The cleaning source is a sinkbasin or bathtubbasin.
+
+## Critical Rules (must be followed without exception)
+1. **Never stay at or interact with the cleaning source unless you are holding the target object or you are searching for it there.** If you arrive at the cleaning source during search, immediately check whether the target is present. If yes, pick it up and proceed to the Cleaning Phase (you are already at the source). If not, leave immediately and resume the search. Do not clean, place, or examine unrelated items while there.
+2. **Once you are holding the target object, do not put it down, look, examine, inventory, or interact with any other object until after you have cleaned it and placed it at the destination. The only allowed actions while holding the target are: moving to the cleaning source, cleaning it, moving to the destination, and placing it.**
+3. **Do not go to the destination receptacle until after cleaning.**
+4. **Before picking any object, verify its name matches the target exactly.** If the name differs (e.g., "handtowel" vs "cloth"), do not pick it up.
+
+## Navigation
+### Verify Target Location Reachability
+- Before issuing `go to [location]`, check the current observation (or use `look` if uncertain) to see if that location is listed as reachable. If not, do not attempt the move; instead, find an intermediate location that is reachable and proceed step by step. The environment may prevent direct jumps between non-adjacent receptacles.
+- After a move, **confirm you arrived at the intended location** by checking that the observation text contains "You arrive at [location]" or explicitly names the location you intended. If the observation shows a different location, the move did not work — reassess your current location and try an alternative route or use `look` to rediscover the graph.
+
+### Using the Observation for Navigation
+- The `look` command gives a list of all receptacles in the current room (the full set you can move to). Always use it as a fresh map when you lose orientation.
+- If a `go to` action produces an unexpected arrival location, treat it as a navigation error: stop the search sequence, use `look` to see your actual location, and plan a valid path to the intended target before continuing.
+
+## Search Phase
+### Systematic search for target object
+- The goal is to locate the exact target object. You must visit **every** receptacle listed in the initial `look` output. Do not skip any.
+
+#### Initial Look
+- Use `look` immediately to get the full room description. Mentally list every receptacle name you see (e.g., countertops, cabinets, drawers, sinkbasin, bathtubbasin, diningtable, stoveburners, shelves, garbagecan, handtowelholder, towelholder, fridge, microwave, oven, toilet, etc.). This list is your search checklist.
+
+#### Open Surface Search
+- Open surfaces include: countertops, diningtable, stoveburners, shelves, garbagecan, handtowelholder, towelholder, sinkbasin, bathtubbasin, carts, and any other receptacle that is not a closed container (cabinet, drawer, fridge, microwave, oven, etc.).
+- Visit **every** open surface from your checklist exactly once in any order. At each, examine its contents. If the target is present (verify name), pick it up and exit search (go to Cleaning Phase). If the target is not there, move immediately to the next open surface. Do not look, examine, or perform any other action between open surfaces.
+- **Cleaning sources (sinkbasin, bathtubbasin) are open surfaces and must be visited during this phase** – but follow Critical Rule 1 when at them.
+
+#### Closed Container Search
+- After exhausting all open surfaces without finding the target, proceed to closed containers: cabinets, drawers, fridge, microwave, oven, etc. (any receptacle that requires opening).
+- **Order:** For non-food targets: all cabinets (numerical order if numbered), then drawers (numerical), then fridge, then microwave, oven, etc. For food targets (lettuce, potato, tomato, apple, bread, egg, etc.), go to fridge first, then cabinets, then drawers, etc.
+- At each closed container: Immediately `open [container]`. Look inside. If the target is inside, take it and exit search (go to Cleaning Phase). If not, close it and immediately go to the next container in the prescribed order. Do not perform any other action between containers.
+- **You must open and look inside every single closed container listed in your initial checklist.** Do not skip any. If you lose track, use `look` again to refresh your list of remaining containers.
+
+#### Exhaustive Search Rule
+- If you have checked all open surfaces and all closed containers and still have not found the target, **repeat the entire search cycle** (open surfaces again, then closed containers). This is rare but possible.
+- **Never stop searching until the target is found.** If you find yourself in a loop or unsure, use `look` to refresh your checklist and continue.
+
+### Object Name Verification Before Picking
+- This is a separate check: before executing `take [object]`, mentally confirm that the name of the object in the observation exactly matches the target name from the task. If it does not match, do not pick it up – continue searching.
+
+## Cleaning Phase
+### Prerequisite: You must be holding the target object
+- If empty-handed, return to Search Phase. If holding a different object, put it down first then return to Search Phase.
+
+### Go to Cleaning Source
+- Once holding the target, immediately go to the cleaning source (sinkbasin or bathtubbasin). Use the Navigation rules to ensure you reach it correctly. If you are already there (from search), proceed directly to cleaning.
+- **Do not perform any other action (look, examine, inventory, or move elsewhere) while en route or after arriving. Only clean.**
+
+### Clean Immediately
+- **Upon arrival at the cleaning source, the only valid next action is `clean [object] with [cleaning_source]`.** Do NOT look, examine, inventory, or move anywhere else. If you ever arrive at the cleaning source and are not immediately cleaning, you have made a mistake. Correct it by performing the clean action now.
+- Confirm the observation says "You clean the [object] using the [cleaning_source]." Only then proceed to Placement Phase.
+
+## Placement Phase
+- Go to the destination receptacle (use Navigation rules). If it is a closed container, open it first.
+- Use `move [object] to [destination]`.
+- Confirm the object is now at the destination (observation will indicate placement).
+
+## Completion
+- Stop as soon as you have placed the clean object. Do not continue.

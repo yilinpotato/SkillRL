@@ -1,0 +1,125 @@
+{
+  "batch_id": "e54e2280-be4c-4d24-a4d8-6ee26a58a6ad",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent picked up a towel instead of a cloth, then never retrieved the correct object.",
+        "evidence": "action: take towel 1 from towelholder 1",
+        "corrective_rule": "Before picking an object, verify it matches the task's target type (e.g., cloth, not towel).",
+        "skill_tree_gap": "Missing a validation step to compare candidate object type with the required object.",
+        "patch_location": "## Object Manipulation / Pick Object: add a new subsection '### Object Type Check'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets and countertops but never looked in the fridge or other common locations for the egg.",
+        "evidence": "After opening cabinet 5, no egg is seen; the agent never checked fridge or diningtable.",
+        "corrective_rule": "When searching for an object, systematically visit all common receptacles (fridge, cabinets, countertops, diningtable, sinkbasin).",
+        "skill_tree_gap": "Lack of a systematic search routine that covers all possible locations for a given object type.",
+        "patch_location": "## Exploration / Search Strategy: add a new subsection '### Comprehensive Search'.",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent opened the fridge, did not find an egg, and then stopped searching other potential locations (e.g., cabinets, diningtable).",
+        "evidence": "action: open fridge 1 - sees apple, cup, lettuce, potato, but no egg; then goes to countertop and cabinet without further exploration for egg.",
+        "corrective_rule": "After failing to find the target in one location, continue searching all other plausible containers before giving up.",
+        "skill_tree_gap": "No backtracking or fallback search plan when the expected object is not in the first explored receptacle.",
+        "patch_location": "## Exploration / Search Strategy: add a new subsection '### Backtracking'.",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located or picked up a box before using the desklamp, and then wandered without finding it.",
+        "evidence": "action: use desklamp 1 (turns on light) but no 'take box' action occurs; subsequent searches do not find a box.",
+        "corrective_rule": "First find and take the target object, then use the light source to examine it.",
+        "skill_tree_gap": "The skill for 'look at object under light' does not enforce that the object must be acquired first.",
+        "patch_location": "## Task Execution / Look Under Light: add a new subsection '### Acquire Object First'.",
+        "confidence": 0.85
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only searched drawers and the initial countertop, missing the spraybottle which may be in cabinets or other surfaces.",
+        "evidence": "After opening all drawers, no spraybottle is seen; agent never opens cabinets or checks sinkbasin.",
+        "corrective_rule": "Search all typical storage types (cabinets, drawers, countertops, shelves) when looking for an object.",
+        "skill_tree_gap": "Lack of a prioritized list of containers to search for common household objects.",
+        "patch_location": "## Exploration / Object Search: add a new subsection '### Container Prioritization'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched cabinets and countertop but never looked in drawers, shelves, or other likely spots for a candle.",
+        "evidence": "At countertop 1 sees mirror, spraybottle, toiletpaper, but no candle; agent never checks drawers or shelves.",
+        "corrective_rule": "Extend search to all receptacles including drawers, shelves, and side tables.",
+        "skill_tree_gap": "Incomplete search coverage; the exploration strategy omits certain container types.",
+        "patch_location": "## Exploration / Object Search: add a new subsection '### Container Type Coverage'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only cabinets and countertops but missed the winebottle which could be on the diningtable or sinkbasin.",
+        "evidence": "After exploring cabinets and countertops, no winebottle is found; agent never re-examines diningtable or sinkbasin.",
+        "corrective_rule": "After checking cabinets, re-examine tables and sinks where the object might be located.",
+        "skill_tree_gap": "No iterative re-checking of previously visited but not thoroughly searched locations.",
+        "patch_location": "## Exploration / Object Search: add a new subsection '### Iterative Re-examination'.",
+        "confidence": 0.85
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed only one remotecontrol and then stopped searching for the second one.",
+        "evidence": "After moving remotecontrol 1 to coffeetable 1, the agent explores shelves and cabinet but never takes a second remotecontrol.",
+        "corrective_rule": "After placing one object, continue searching for the second until the required count is met.",
+        "skill_tree_gap": "The multi-object task skill lacks a loop or counter to ensure both objects are collected and placed.",
+        "patch_location": "## Task Execution / Multi-Object Tasks: add a new subsection '### Count and Repeat'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched beds, diningtable, drawers, and shelves but never found any keychain, likely missing the dresser or other locations.",
+        "evidence": "After shelf 5, no keychain seen; agent never visits dresser or sidetable.",
+        "corrective_rule": "Ensure all receptacle types (including dresser, sidetable, etc.) are searched for the target object.",
+        "skill_tree_gap": "The search routine does not cover all possible furniture types present in the room.",
+        "patch_location": "## Exploration / Object Search: add a new subsection '### Full Room Coverage'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only drawers and countertop but never looked at the toiletpaperhanger (which might hold toiletpaper) or cabinets.",
+        "evidence": "At toiletpaperhanger 1 sees nothing, but agent never rechecks after exploring; also no cabinet search.",
+        "corrective_rule": "Before assuming an object is absent, check all dedicated containers (e.g., toiletpaperhanger for toiletpaper) and cabinets.",
+        "skill_tree_gap": "Lack of context-aware search that considers the likely location of specific objects (e.g., toiletpaper on hanger).",
+        "patch_location": "## Exploration / Contextual Search: add a new subsection '### Object-Specific Hints'.",
+        "confidence": 0.85
+      }
+    ]
+  }
+}

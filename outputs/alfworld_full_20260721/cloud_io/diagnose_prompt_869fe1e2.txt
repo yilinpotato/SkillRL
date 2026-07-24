@@ -1,0 +1,185 @@
+Role: You are an expert failure-analysis agent for sequential decision-making agent
+tasks. The current environment is ALFWorld. Reason from the trajectories and the
+environment contract below; do not import assumptions from a different benchmark.
+
+ENVIRONMENT CONTRACT:
+Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+Goal: For each FAILED trajectory, diagnose WHY it failed. Use successful rollouts of the same
+task_type as observed references of successful behaviour, and the environment's success criterion
+as the correctness anchor. They are not oracle demonstrations or ground-truth action plans. Each
+step shows the action taken and the OBSERVATION DELTA
+(+added / -removed lines).
+
+=== task_type: pick_two_obj_and_place ===
+SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):
+
+Trajectory 1 [success] task: find two creditcard and put them in coffeetable.
+  action: go to armchair 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 2, a armchair 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeetable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 1, and a sofa 1.
+
+Your task is to: find two creditcard and put them in coffeetable.
+  action: go to cabinet 4  | obs: You arrive at armchair 1. On the armchair 1, you see nothing.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to drawer 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to coffeetable 1  | obs: You open the drawer 1. The drawer 1 is open. In it, you see a watch 1.
+
+Trajectory 2 [success] task: put two book in desk.
+  action: go to bed 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a safe 1, a shelf 5, a shelf 4, a shelf 3, a shelf 2, a shelf 1, a sidetable 2, and a sidetable 1.
+
+Your task is to: put two book in desk.
+  action: take book 1 from bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a book 1, a laptop 1, a pillow 1, and a teddybear 1.
+  action: go to desk 1  | obs: You pick up the book 1 from the bed 1.
+  action: move book 1 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a bowl 3, a bowl 2, a cellphone 3, a cellphone 2, a pen 2, a pen 1, and a pencil 2.
+  action: go to bed 1  | obs: You move the book 1 to the desk 1.
+  action: take book 2 from bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 2, a laptop 1, a pillow 1, and a teddybear 1.
+  action: go to desk 1  | obs: You pick up the book 2 from the bed 1.
+  action: move book 2 to desk 1  | obs: You arrive at desk 1. On the desk 1, you see a book 1, a bowl 3, a bowl 2, a cellphone 3, a cellphone 2, a pen 2, a pen 1, and a pencil 2.
+
+Trajectory 3 [success] task: find two tissuebox and put them in garbagecan.
+  action: go to armchair 2  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a armchair 2, a armchair 1, a coffeetable 2, a coffeetable 1, a diningtable 1, a garbagecan 1, a sidetable 2, a sidetable 1, and a sofa 1.
+
+Your task is to: find two tissuebox and put them in garbagecan.
+  action: go to armchair 1  | obs: You arrive at armchair 2. On the armchair 2, you see a keychain 1, and a remotecontrol 1.
+  action: go to coffeetable 2  | obs: You arrive at armchair 1. On the armchair 1, you see a creditcard 1.
+  action: take tissuebox 2 from coffeetable 2  | obs: You arrive at coffeetable 2. On the coffeetable 2, you see a television 1, a tissuebox 2, and a watch 1.
+  action: go to garbagecan 1  | obs: You pick up the tissuebox 2 from the coffeetable 2.
+  action: move tissuebox 2 to garbagecan 1  | obs: You arrive at garbagecan 1. On the garbagecan 1, you see nothing.
+  action: go to armchair 2  | obs: You move the tissuebox 2 to the garbagecan 1.
+  action: go to armchair 1  | obs: You arrive at armchair 2. On the armchair 2, you see a keychain 1, and a remotecontrol 1.
+  action: go to armchair 2  | obs: You arrive at armchair 1. On the armchair 1, you see a creditcard 1.
+  action: go to armchair 1  | obs: You arrive at armchair 2. On the armchair 2, you see a keychain 1, and a remotecontrol 1.
+  action: go to coffeetable 1  | obs: You arrive at armchair 1. On the armchair 1, you see a creditcard 1.
+  action: go to coffeetable 2  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a houseplant 2, a laptop 1, a plate 1, a statue 2, and a statue 1.
+
+FAILED trajectories to diagnose (each tagged [ref=...]):
+
+[ref=pick_two_obj_and_place#0] task: find two toiletpaper and put them in cabinet.
+  action: go to towelholder 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 2, a handtowelholder 1, a shelf 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, a towelholder 2, and a towelholder 1.
+
+Your task is to: find two toiletpap
+  action: go to toiletpaperhanger 1  | obs: You arrive at towelholder 1. On the towelholder 1, you see a towel 1.
+  action: go to bathtubbasin 1  | obs: You arrive at toiletpaperhanger 1. On the toiletpaperhanger 1, you see nothing.
+  action: go to cabinet 4  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see nothing.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to toiletpaperhanger 1  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see a candle 1, and a soapbar 2.
+
+[ref=pick_two_obj_and_place#1] task: put two toiletpaper in sidetable.
+  action: look  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a drawer 1, a garbagecan 1, a handtowelholder 1, a sidetable 1, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, a towelholder 2, and a towelholder 1.
+
+Your task is to: put two toiletpaper in sidetable.
+  action: go to toiletpaperhanger 1  | obs: You are in the middle of a room. Looking quickly around you, you see nothing.
+  action: take toiletpaper 2 from toiletpaperhanger 1  | obs: You arrive at toiletpaperhanger 1. On the toiletpaperhanger 1, you see a toiletpaper 2.
+  action: go to sidetable 1  | obs: You pick up the toiletpaper 2 from the toiletpaperhanger 1.
+  action: move toiletpaper 2 to sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a candle 3, a candle 2, and a houseplant 1.
+  action: go to bathtubbasin 1  | obs: You move the toiletpaper 2 to the sidetable 1.
+  action: go to drawer 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 3, a cloth 2, a cloth 1, a soapbar 3, and a soapbar 2.
+  action: go to bathtubbasin 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to drawer 1  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 3, a cloth 2, a cloth 1, a soapbar 3, and a soapbar 2.
+  action: open drawer 1  | obs: You arrive at drawer 1. The drawer 1 is closed.
+  action: go to sinkbasin 1  | obs: You open the drawer 1. The drawer 1 is open. In it, you see nothing.
+  action: go to toiletpaperhanger 1  | obs: You arrive at sinkbasin 1. On the sinkbasin 1, you see nothing.
+
+[ref=pick_two_obj_and_place#2] task: put two spraybottle in dresser.
+  action: go to bathtubbasin 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a handtowelholder 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, and a towelholder 1.
+
+Your task is to: put tw
+  action: go to cabinet 4  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see a cloth 1, and a soapbar 3.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see a soapbottle 1.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see a soapbar 2, and a toiletpaper 1.
+  action: open cabinet 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 1. The cabinet 1 is open. In it, you see nothing.
+  action: go to countertop 1  | obs: You arrive at cabinet 3. The cabinet 3 is open. In it, you see a soapbottle 1.
+  action: take spraybottle 1 from countertop 1  | obs: You arrive at countertop 1. On the countertop 1, you see a spraybottle 1.
+
+[ref=pick_two_obj_and_place#3] task: find two candle and put them in cabinet.
+  action: go to bathtubbasin 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a bathtubbasin 1, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a countertop 1, a garbagecan 1, a handtowelholder 1, a shelf 1, a sinkbasin 2, a sinkbasin 1, a toilet 1, a toiletpaperhanger 1, a towelholder 2, and a towelholder 1.
+
+Your task is to: find two candle and put them in cabinet
+  action: go to cabinet 4  | obs: You arrive at bathtubbasin 1. On the bathtubbasin 1, you see nothing.
+  action: open cabinet 4  | obs: You arrive at cabinet 4. The cabinet 4 is closed.
+  action: go to cabinet 3  | obs: You open the cabinet 4. The cabinet 4 is open. In it, you see nothing.
+  action: open cabinet 3  | obs: You arrive at cabinet 3. The cabinet 3 is closed.
+  action: go to cabinet 2  | obs: You open the cabinet 3. The cabinet 3 is open. In it, you see nothing.
+  action: open cabinet 2  | obs: You arrive at cabinet 2. The cabinet 2 is closed.
+  action: go to cabinet 1  | obs: You open the cabinet 2. The cabinet 2 is open. In it, you see nothing.
+  action: go to countertop 1  | obs: You arrive at cabinet 1. The cabinet 1 is closed.
+  action: go to shelf 1  | obs: You arrive at countertop 1. On the countertop 1, you see a dishsponge 1, a mirror 1, a showerglass 1, a spraybottle 1, and a toiletpaper 1.
+  action: take candle 1 from shelf 1  | obs: You arrive at shelf 1. On the shelf 1, you see a candle 1, and a showerglass 1.
+  action: go to cabinet 1  | obs: You pick up the candle 1 from the shelf 1.
+
+[ref=pick_two_obj_and_place#4] task: put two plate in coffeetable.
+  action: go to coffeetable 1  | obs: -= Welcome to TextWorld, ALFRED! =-
+
+You are in the middle of a room. Looking quickly around you, you see a coffeetable 1, a diningtable 1, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a dresser 1, a garbagecan 1, a sidetable 2, a sidetable 1, and a sofa 1.
+
+Your task is to: put two plate in coffeetable.
+  action: go to diningtable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a statue 3, and a statue 2.
+  action: take plate 2 from diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a cellphone 2, a cellphone 1, a keychain 2, a laptop 1, and a plate 2.
+  action: go to coffeetable 1  | obs: You pick up the plate 2 from the diningtable 1.
+  action: move plate 2 to coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a statue 3, and a statue 2.
+  action: go to diningtable 1  | obs: You move the plate 2 to the coffeetable 1.
+  action: go to coffeetable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a cellphone 2, a cellphone 1, a keychain 2, and a laptop 1.
+  action: examine coffeetable 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a plate 2, a statue 3, and a statue 2.
+  action: go to diningtable 1  | obs: On the coffeetable 1, you see a plate 2, a statue 3, and a statue 2.
+  action: examine diningtable 1  | obs: You arrive at diningtable 1. On the diningtable 1, you see a box 1, a cellphone 2, a cellphone 1, a keychain 2, and a laptop 1.
+  action: go to coffeetable 1  | obs: On the diningtable 1, you see a box 1, a cellphone 2, a cellphone 1, a keychain 2, and a laptop 1.
+  action: go to drawer 1  | obs: You arrive at coffeetable 1. On the coffeetable 1, you see a plate 2, a statue 3, and a statue 2.
+
+DECISION FORKS (where successful and failed runs diverged after a shared prefix):
+After [start]: 'go to countertop 2' (succ=4,fail=0); 'go to countertop 3' (succ=2,fail=0); 'go to countertop 1' (succ=15,fail=0); 'go to countertop 4' (succ=1,fail=0); 'go to fridge 1' (succ=15,fail=0)
+After [go to countertop 2]: 'take knife 2 from countertop 2' (succ=1,fail=0); 'go to countertop 1' (succ=2,fail=0); 'take knife 3 from countertop 2' (succ=1,fail=0)
+After [go to countertop 2 -> go to countertop 1]: 'go to diningtable 1' (succ=1,fail=0); 'take plate 3 from countertop 1' (succ=1,fail=0)
+After [go to countertop 3 -> go to countertop 2 -> go to countertop 1 -> go to cabinet 1 -> open cabinet 1]: 'take bowl 3 from cabinet 1' (succ=1,fail=0); 'open cabinet 2' (succ=1,fail=0)
+After [go to countertop 1]: 'take cloth 1 from countertop 1' (succ=2,fail=0); 'go to diningtable 1' (succ=3,fail=0); 'go to drawer 1' (succ=1,fail=0); 'take ladle 2 from countertop 1' (succ=1,fail=0); 'take mug 1 from countertop 1' (succ=1,fail=0)
+After [go to countertop 1 -> take cloth 1 from countertop 1]: 'go to sinkbasin 1' (succ=1,fail=0); 'go to drawer 1' (succ=1,fail=0)
+
+For EACH failed trajectory, identify the single causal failure reason, how it could be avoided, and
+WHERE a corrective patch belongs in the agent's skill tree. The skill tree is a markdown TREE whose
+heading depth is its hierarchy (a deeper heading refines its parent). So point the patch at a location
+by naming the section heading, and say whether the fix belongs directly in it or as a deeper
+refinement nested under it — not just "somewhere in the skill tree".
+Return ONLY a JSON array. One object per failed trajectory, EXACTLY these fields:
+  - "traj_ref":      the [ref=...] tag of the failed trajectory
+  - "task_type":     its task_type
+  - "failure_type":  one of "wrong_target" | "wrong_order" | "inefficient_exploration" | "loop" |
+                     "premature_stop" | "invalid_action" | "misread_state" | "gave_up" | "other"
+  - "root_cause":    ONE sentence, the causal reason it failed.
+  - "evidence":      the step / observation that proves it (quote briefly).
+  - "corrective_rule": ONE short imperative rule that would have prevented it.
+  - "skill_tree_gap": what is missing/weak in the skill tree that let this error through.
+  - "patch_location": WHERE the fix belongs — name the target markdown heading, and whether it should
+                     be a new/deeper subsection ('##'/'###') under it. Use "new top-level section" if
+                     no fitting heading exists yet.
+  - "confidence":    a number 0.0-1.0.
+Return ONLY the JSON array, no other text.

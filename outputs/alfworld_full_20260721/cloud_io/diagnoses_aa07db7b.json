@@ -1,0 +1,88 @@
+{
+  "batch_id": "aa07db7b-7642-4ff1-8431-45e324fe3273",
+  "diagnoses": {
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent did not locate a potato after opening fridge; it explored cabinets aimlessly without ever picking up a potato.",
+        "evidence": "After opening fridge, sees apple 1, bowl 2, egg 2, plate 3 (no potato); then goes to countertops and cabinets, never taking a potato.",
+        "corrective_rule": "If target not in fridge, search other furniture systematically for the target object.",
+        "skill_tree_gap": "No systematic search strategy for objects not in expected location.",
+        "patch_location": "heat, new subsection ### Locating target object when not in fridge",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent did not locate an apple after opening fridge; it wandered through countertops and cabinets without picking up an apple.",
+        "evidence": "After opening fridge, sees cup 2, egg 1, potato 2, tomato 3, tomato 1 (no apple); then visits multiple countertops and cabinets, never taking an apple.",
+        "corrective_rule": "If target not in fridge, search other furniture systematically for the target object.",
+        "skill_tree_gap": "No systematic search strategy for objects not in expected location.",
+        "patch_location": "heat, new subsection ### Locating target object when not in fridge",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "loop",
+        "root_cause": "After placing handtowel on countertop, agent did not detect task completion and continued performing inventory and look actions.",
+        "evidence": "After 'move handtowel 1 to countertop 1', the agent repeatedly executes inventory and look.",
+        "corrective_rule": "After placing an object, check if the task is complete and terminate if so.",
+        "skill_tree_gap": "Missing success condition check after placement.",
+        "patch_location": "pick_and_place, new subsection ### Confirm task completion after placement",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent searched shelves but never found a cd; it did not explore other furniture types.",
+        "evidence": "Agent goes to shelves 1 through 10 repeatedly but never picks up a cd.",
+        "corrective_rule": "If target not found on shelves, explore other furniture (desks, beds, etc.) systematically.",
+        "skill_tree_gap": "Incomplete exploration strategy for target object.",
+        "patch_location": "pick_and_place, new subsection ### Locating target object",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "After placing first peppershaker in cabinet, agent failed to search for the second peppershaker and got stuck revisiting the same locations.",
+        "evidence": "After moving peppershaker 2 to cabinet 1, agent cycles between cabinet 1 and cabinet 2 without picking up a second peppershaker.",
+        "corrective_rule": "After placing one object, systematically search all furniture for the second object.",
+        "skill_tree_gap": "No strategy for multi-object search after first placement.",
+        "patch_location": "pick_two_obj_and_place, new subsection ### Finding second object",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "After placing first cd in drawer, agent failed to search for a second cd and got stuck revisiting the same locations.",
+        "evidence": "After moving cd 2 to drawer 1, agent goes to bed 1 and desk 1 repeatedly without finding another cd.",
+        "corrective_rule": "After placing one object, systematically search all furniture for the second object.",
+        "skill_tree_gap": "No strategy for multi-object search after first placement.",
+        "patch_location": "pick_two_obj_and_place, new subsection ### Finding second object",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "After placing first soapbottle in drawer, agent failed to search for the second soapbottle and got stuck revisiting the same locations.",
+        "evidence": "After moving soapbottle 3 to drawer 8, agent cycles between bathtubbasin, countertop2, countertop1, and drawer1 without picking up a second soapbottle.",
+        "corrective_rule": "After placing one object, systematically search all furniture for the second object.",
+        "skill_tree_gap": "No strategy for multi-object search after first placement.",
+        "patch_location": "pick_two_obj_and_place, new subsection ### Finding second object",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

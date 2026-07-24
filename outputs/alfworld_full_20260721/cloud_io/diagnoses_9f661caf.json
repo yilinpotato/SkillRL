@@ -1,0 +1,246 @@
+{
+  "batch_id": "9f661caf-a174-4c28-b999-43b85f23ac18",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a mug; it only searched cabinets and a countertop with a cup, not other locations like sinkbasin or fridge.",
+        "evidence": "No mug appeared in any observation; inventory empty after multiple steps.",
+        "corrective_rule": "Search all receptacles (including sinkbasin, fridge, drawers) for the target object before concluding it is absent.",
+        "skill_tree_gap": "Inadequate exploration strategy; agent stops after checking a few places.",
+        "patch_location": "Under 'clean', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never located a kettle; it only examined cabinets and two countertops, missing other possible locations.",
+        "evidence": "After opening cabinet 5, no kettle seen; no further search attempted.",
+        "corrective_rule": "Extend search to fridge, sinkbasin, and all countertops before giving up.",
+        "skill_tree_gap": "No systematic search routine for clean tasks.",
+        "patch_location": "Under 'clean', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#2",
+        "task_type": "clean",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found an apple; it searched fridge, countertops, and cabinets but missed other containers.",
+        "evidence": "Apple never appeared in any observation; agent stopped after cabinet 5.",
+        "corrective_rule": "Continue searching all available receptacles including drawers and sinkbasin.",
+        "skill_tree_gap": "Lack of comprehensive scan of environment.",
+        "patch_location": "Under 'clean', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#3",
+        "task_type": "clean",
+        "failure_type": "wrong_order",
+        "root_cause": "Agent took the towel but never cleaned it; it went to sinkbasin then moved away without using 'clean' action.",
+        "evidence": "After arriving at sinkbasin, next action is 'go to drawer 1' instead of 'clean towel 1 with sinkbasin 1'.",
+        "corrective_rule": "When at sinkbasin holding a cleanable object, always use the 'clean' action before leaving.",
+        "skill_tree_gap": "Missing transition from sinkbasin arrival to cleaning action.",
+        "patch_location": "Under 'clean', add a new subsection '### ensure cleaning step after reaching sinkbasin'.",
+        "confidence": 0.95
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a mug; it only looked in fridge and a few cabinets, missing countertops and drawers.",
+        "evidence": "No mug observed anywhere; last observation shows cabinet 5 with bowl, no mug.",
+        "corrective_rule": "Search all receptacles thoroughly, including countertops and drawers.",
+        "skill_tree_gap": "Insufficient search coverage for cool tasks.",
+        "patch_location": "Under 'cool', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never located a pot; it only opened cabinets and saw bowls and dishsponge, but no pot.",
+        "evidence": "After opening cabinet 8, no pot seen; agent stopped.",
+        "corrective_rule": "Also check countertops, fridge, and sinkbasin for the pot.",
+        "skill_tree_gap": "No exhaustive search pattern.",
+        "patch_location": "Under 'cool', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#2",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found lettuce; it opened fridge (only bread) and cabinets, but no lettuce.",
+        "evidence": "After cabinet 5, no lettuce observed; agent did not check other places like sinkbasin or drawers.",
+        "corrective_rule": "Search all receptacles including countertops and drawers for lettuce.",
+        "skill_tree_gap": "Limited exploration strategy.",
+        "patch_location": "Under 'cool', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#3",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a pot; it only opened cabinets and saw mugs and bowls, not a pot.",
+        "evidence": "After cabinet 6, no pot; agent stopped.",
+        "corrective_rule": "Search countertops and fridge as well for the pot.",
+        "skill_tree_gap": "Insufficient search coverage.",
+        "patch_location": "Under 'cool', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#4",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a winebottle; it examined cabinets and saw only plates, no winebottle.",
+        "evidence": "After cabinet 8, no winebottle; agent stopped.",
+        "corrective_rule": "Search all receptacles including countertops and fridge.",
+        "skill_tree_gap": "Lack of thorough search.",
+        "patch_location": "Under 'cool', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#5",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found bread; it searched cabinets and countertop 1 but countertop 1 had winebottle, not bread.",
+        "evidence": "Countertop 1 observation shows winebottle, no bread; agent did not check fridge or other countertops.",
+        "corrective_rule": "Check fridge and other countertops for bread.",
+        "skill_tree_gap": "Incomplete search scope.",
+        "patch_location": "Under 'cool', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      }
+    ],
+    "heat": [
+      {
+        "traj_ref": "heat#0",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a cup; it opened many cabinets but all were empty, never looked at countertops or fridge.",
+        "evidence": "After opening cabinet 6, nothing seen; no cup observed.",
+        "corrective_rule": "Search countertops, fridge, and drawers in addition to cabinets.",
+        "skill_tree_gap": "No search strategy for heat tasks.",
+        "patch_location": "Under 'heat', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "heat#1",
+        "task_type": "heat",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a potato; it saw a cup and lettuce in fridge but not potato, then searched cabinets and countertop which had other items.",
+        "evidence": "Fridge contents: bowl, cup, lettuce, tomato; no potato; countertop 1 had egg, fork, etc., no potato.",
+        "corrective_rule": "Search all possible potato locations including other countertops and drawers.",
+        "skill_tree_gap": "Insufficient search breadth.",
+        "patch_location": "Under 'heat', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "Agent took a towel instead of the required cloth, then later found cloth but did not pick it up.",
+        "evidence": "Action: 'take towel 1 from towelholder 1' while task is 'put a cloth in toilet'.",
+        "corrective_rule": "Verify that the object being picked matches the target object name exactly.",
+        "skill_tree_gap": "No object-check before pickup.",
+        "patch_location": "Under 'pick_and_place', add a new subsection '### verify object identity before picking'.",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found a laptop; it only checked drawers and coffee tables, missing other furniture like ottoman or sidetable.",
+        "evidence": "No laptop appeared in any observation; agent stopped after drawer 5.",
+        "corrective_rule": "Search all receptacles including ottoman, sidetable, and shelves.",
+        "skill_tree_gap": "Incomplete search for pick_and_place tasks.",
+        "patch_location": "Under 'pick_and_place', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent picked up a tissuebox and went to armchair but did not use the 'move' action to place it.",
+        "evidence": "Last action: 'go to armchair 1' with no subsequent 'move tissuebox to armchair'.",
+        "corrective_rule": "After arriving at the target receptacle with the object, always execute the 'move' action.",
+        "skill_tree_gap": "Missing post-arrival move step.",
+        "patch_location": "Under 'pick_and_place', add a new subsection '### ensure move action after reaching target'.",
+        "confidence": 0.95
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found any laptop; it only searched drawers and a coffee table, missing other locations.",
+        "evidence": "No laptop seen; agent stopped after drawer 6.",
+        "corrective_rule": "Search all receptacles including ottoman, sidetable, and shelves thoroughly.",
+        "skill_tree_gap": "No systematic search for multiple objects.",
+        "patch_location": "Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent placed only one candle and then stopped without searching for a second candle.",
+        "evidence": "After moving candle 2 to cabinet 1, the next actions explore cabinets but no second candle found or placed.",
+        "corrective_rule": "Continue searching and placing objects until the required count (2) is reached.",
+        "skill_tree_gap": "Missing loop or check for completion of multiple objects.",
+        "patch_location": "Under 'pick_two_obj_and_place', add a new subsection '### loop for required number of objects'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "Agent took one toiletpaper and went to drawer but did not place it, and did not search for a second.",
+        "evidence": "Last action: 'go to drawer 1' with no move; only one toiletpaper taken.",
+        "corrective_rule": "After taking an object, immediately move it to the target; then search for the next object.",
+        "skill_tree_gap": "Incomplete placement and missing iteration.",
+        "patch_location": "Under 'pick_two_obj_and_place', add a new subsection '### ensure placement and iterate until count reached'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found any bread; it only searched cabinets and saw dishsponge, no bread.",
+        "evidence": "After cabinet 6, no bread observed; agent stopped.",
+        "corrective_rule": "Search all receptacles including fridge, countertops, and drawers for bread.",
+        "skill_tree_gap": "Inadequate search for multiple items.",
+        "patch_location": "Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found any cup; it searched cabinets and drawers but saw only peppershakers and soapbottles.",
+        "evidence": "No cup observed in any location; agent stopped after drawer 5.",
+        "corrective_rule": "Search all receptacles including countertops and sinkbasin for cups.",
+        "skill_tree_gap": "No comprehensive search strategy.",
+        "patch_location": "Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "Agent never found any book; it examined shelves and drawer, but saw only mugs and other items, no book.",
+        "evidence": "No book in any observation; agent stopped after returning to shelf 2.",
+        "corrective_rule": "Search all receptacles including dresser, desk, and other shelves for books.",
+        "skill_tree_gap": "Insufficient exploration for books.",
+        "patch_location": "Under 'pick_two_obj_and_place', add a new subsection '### systematic search of all receptacles'.",
+        "confidence": 0.9
+      }
+    ]
+  }
+}

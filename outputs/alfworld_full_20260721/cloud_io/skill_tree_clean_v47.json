@@ -1,0 +1,169 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\" or \"put a clean [object] in/on [destination]\".\n- The [object] must be cleaned before placing at [destination].\n- [cleaning_source] is a sinkbasin or bathtubbasin.\n\n## Critical Rules (must be followed without exception)\n- **You may go to sinkbasin or bathtubbasin to search for the target object.** If the target object is there, pick it up. Once you are holding it, you can clean it immediately using the same sinkbasin/bathtubbasin. Do not go to the sinkbasin solely to clean until you are holding the object.\n- **Do not go to the destination receptacle until after cleaning.**\n- **Search open surfaces first, then closed containers. Do not skip any open surface** – including stoveburners, countertops, diningtable, shelves, towelholders, carts, garbagecans, sinkbasins, bathtubbasins, and any other receptacle that is not a closed container (cabinet, drawer, fridge, microwave, oven, etc.).\n- **If you are already holding something that is not the target, put it down immediately.**\n- **After arriving at the cleaning source, perform the clean action immediately** – do not examine, look, or inventory before cleaning.\n- **Before picking any object, confirm its name matches the target exactly.** Do not pick similar-named objects (e.g., soapbottle vs soapbar).\n- **Do not stop searching until you have checked every single receptacle listed in the initial `look` description.** Stopping early causes failure.\n\n## Phase 1: Search and Acquire the Target Object\n**Prerequisite: None – begin with a fresh `look` to get the room description.**\n\n### Object Identity Verification\n- When you see an object that might be the target, stop and compare the exact name from the task.\n- Do not pick up any object whose name is different (e.g., soapbar ≠ soapbottle, fork ≠ spoon).\n- If unsure, do not pick; continue searching.\n\n### Search for target object (systematic procedure)\n1. **After your first `look` (or first move that shows the room), write down a mental list of every receptacle** you see – both open surfaces and closed containers. Keep this list in mind throughout the search.\n2. **Visit each open surface exactly once** in the order they appear in the initial description. At each, examine contents. If the target is present, pick it up (after verifying name) and go to Phase 2.\n   - Do not revisit an open surface you have already checked. If you find yourself going back, you have made a mistake; use `look` to reorient and proceed to the next unchecked receptacle on your list.\n3. **After you have visited every open surface on your list (including sinkbasins, bathtubbasins, garbagecans, stoveburners, etc.) and the target is not found, only then begin visiting closed containers.**\n4. **Order for closed containers:**\n   - If the target is a food item (e.g., lettuce, potato, tomato, apple, bread, egg, etc.), go directly to the fridge first. Open it, look inside, and take the target if present. If not found there, then proceed to cabinets, drawers, and other containers in that order.\n   - For non‑food targets: check all cabinets (numerical order), then all drawers (numerical order), then the fridge, then microwave, oven, etc.\n5. **Do not skip any container.** Open each one, look inside. If the target is not inside, immediately close it (if necessary) and move to the next container in numerical order. Do not delay or stop.\n6. **If still not found after all closed containers, repeat the cycle** (open surfaces then containers) – this is rare, but do it.\n\n### Transition from Open Surfaces to Closed Containers (critical)\n- **Immediately after checking the last open surface on your list, if the target is still not found, you MUST begin opening closed containers.** Do not revisit any open surface or wander aimlessly.\n- **Start with the first closed container in numerical order** (e.g., drawer 1, cabinet 1). Open it, look inside, take target if present, else close it and move to the next (drawer 2, etc.).\n- **Do not stop to look around or repeat open surfaces** – the target is likely inside a closed container if not visible on surfaces.\n\n### Self-Check During Search (critical)\n- **Before opening any closed container, stop and recall the list of open surfaces from the initial description. If you have not visited every one of them (including sinkbasins, bathtubbasins, carts, garbagecans, stoveburners, countertops, etc.), do not open a container – go to the next open surface first.**\n- If you find yourself moving between locations without a clear plan, **stop**. Write down the list of receptacles from the description and check off which you have visited. Do not proceed until you have a plan.\n- **Do not give up** until every receptacle on your list has been checked. If you cannot remember the full list, use `look` again to refresh.\n\n### Critical Rule: Do Not Stop Early\n- **If you open a receptacle and the target is not there, you are NOT done. Continue to the next receptacle in your list immediately.**\n- **Stopping after checking only a few cabinets or drawers is a guaranteed failure. You must check every single open surface and closed container listed in the initial `look`.**\n- If you ever feel tempted to stop, remind yourself: \"I have not checked everything yet. I must continue.\"\n\n## Phase 2: Clean the Object\n- **Prerequisite: You must be holding the target object.** If empty-handed, return to Phase 1. If holding a different object, put it down first.\n- Immediately go to [cleaning_source] (sinkbasin or bathtubbasin).\n- **Upon arrival, immediately execute `clean [object] with [cleaning_source]`. Do not examine, look, inventory, or move elsewhere until you have performed the clean action and confirmed the observation says cleaned.**\n- Confirm observation says cleaned.\n\n## Phase 3: Place the Clean Object at Destination\n- Go to [destination]. If it is a closed container, open it first.\n- Use `move [object] to [destination]`.\n- Confirm the object is now at destination.\n\n## Completion\n- Stop as soon as you have placed the clean object. Do not continue.",
+  "level": 3,
+  "version": 47,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent largely ignored the systematic search order, especially the transition from open surfaces to closed containers. The existing skill tree contained correct instructions, but the wording was not forceful enough to prevent the agent from looping on open surfaces and failing to open drawers/cabinets.",
+  "changelog": "Added explicit subsection 'Transition from Open Surfaces to Closed Containers' under Phase 1, emphasizing immediate progression to closed containers after open surfaces are exhausted, with a concrete directive to open the first closed container without delay.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never located a soapbar because it only examined surfaces and never opened drawers or cabinets where the soapbar might be stored.",
+      "skill_tree_gap": "Missing a subskill for exhaustive container and surface exploration when the target is not immediately visible.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_5472",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 46,
+      "call_count": 992,
+      "success_when_used": 827,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "cd684c45dd60",
+      "created_version": 1,
+      "last_changed_version": 40,
+      "stable_versions": 7,
+      "call_count": 992,
+      "success_when_used": 827,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/critical-rules-must-be-followed-without-exception": {
+      "title": "Critical Rules (must be followed without exception)",
+      "level": 2,
+      "body_hash": "7d28926a9368",
+      "created_version": 38,
+      "last_changed_version": 47,
+      "stable_versions": 0,
+      "call_count": 196,
+      "success_when_used": 179,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object": {
+      "title": "Phase 1: Search and Acquire the Target Object",
+      "level": 2,
+      "body_hash": "95a71dc20e7d",
+      "created_version": 28,
+      "last_changed_version": 43,
+      "stable_versions": 4,
+      "call_count": 385,
+      "success_when_used": 344,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/object-identity-verification": {
+      "title": "Object Identity Verification",
+      "level": 3,
+      "body_hash": "cc5fd7becf57",
+      "created_version": 43,
+      "last_changed_version": 43,
+      "stable_versions": 4,
+      "call_count": 62,
+      "success_when_used": 55,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/search-for-target-object-systematic-procedure": {
+      "title": "Search for target object (systematic procedure)",
+      "level": 3,
+      "body_hash": "3139c23ee5b1",
+      "created_version": 46,
+      "last_changed_version": 46,
+      "stable_versions": 1,
+      "call_count": 25,
+      "success_when_used": 24,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/transition-from-open-surfaces-to-closed-containers-critical": {
+      "title": "Transition from Open Surfaces to Closed Containers (critical)",
+      "level": 3,
+      "body_hash": "7d389fead2c8",
+      "created_version": 47,
+      "last_changed_version": 47,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/self-check-during-search-critical": {
+      "title": "Self-Check During Search (critical)",
+      "level": 3,
+      "body_hash": "2babb302a08f",
+      "created_version": 46,
+      "last_changed_version": 46,
+      "stable_versions": 1,
+      "call_count": 25,
+      "success_when_used": 24,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-search-and-acquire-the-target-object/critical-rule-do-not-stop-early": {
+      "title": "Critical Rule: Do Not Stop Early",
+      "level": 3,
+      "body_hash": "ca28316bee49",
+      "created_version": 46,
+      "last_changed_version": 46,
+      "stable_versions": 1,
+      "call_count": 25,
+      "success_when_used": 24,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "4d21e21f6d88",
+      "created_version": 1,
+      "last_changed_version": 43,
+      "stable_versions": 4,
+      "call_count": 992,
+      "success_when_used": 827,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "f0c1bd6feeeb",
+      "created_version": 1,
+      "last_changed_version": 40,
+      "stable_versions": 7,
+      "call_count": 992,
+      "success_when_used": 827,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "80d2b9b4d634",
+      "created_version": 1,
+      "last_changed_version": 40,
+      "stable_versions": 7,
+      "call_count": 992,
+      "success_when_used": 827,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

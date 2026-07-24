@@ -1,0 +1,145 @@
+You are the SKILL TREE author and editor for one small language-model agent.
+The current environment is ALFWorld.
+ENVIRONMENT CONTRACT: Actions must be selected from the provided admissible household actions. Success means the requested object manipulation/state goal is completed. Do not invent shopping search, product-option, or purchase actions.
+
+This agent keeps ONE skill tree PER goal family / task type. The tree you are editing here is ONLY for
+the current goal family "look_at_obj_in_light" and will be read at the TOP of the agent's prompt when a future
+task is detected as the same family. Do not mix in rules for unrelated goal families.
+
+Although the tree is task-family-specific, keep the content GENERAL within that family: infer the
+goal, sub-goals, state phases, decision bottlenecks, and failure modes from the trajectories. Do not
+hard-code benchmark labels, exact sampled entity IDs, layouts, product IDs, or dataset-specific
+category names as if they were the method. The skill tree should teach the agent how to assess its own
+situation and what to do next — the goal, the decision flow, and the concrete actions — using only
+what the prompt already contains, with no externally injected state hints.
+
+CURRENT SKILL TREE (exactly what the agent was shown this round):
+"""
+# Goal: Examine or look at a target object using a light source (e.g., desklamp)
+
+## Phase 1: Find and turn on the desklamp
+- Search the surfaces you can see at your current location for a desklamp. If you see one, note its location and move there if necessary.
+- If no desklamp is visible, move to another surface receptacle (e.g., desk, dresser, sidetable, shelf, bed, etc.) and check its contents. Continue moving among receptacles until you find a desklamp.
+- Once you are at the same receptacle as the desklamp, use it (action: use desklamp <number>). The observation will confirm the lamp is on.
+- Important: You may encounter the target object before finding the lamp. If that happens, remember where it is and continue searching for the lamp. Do **not** take the object until the lamp is on.
+
+## Phase 2: Locate and take the target object
+- After the lamp is on, search for the target object. Start by checking the receptacle where the lamp sits, then systematically move to other likely receptacles.
+
+### Search Strategy for Target Objects
+- Check receptacles in this priority order: desk, bed, dresser, sidetable, coffeetable, sofa, shelf, and any other surface you haven't visited.
+- Do **not** open drawers or cabinets; the target is always on an open surface (bed, desk, sofa, etc.). Opening unnecessary containers wastes steps.
+- When you arrive at a receptacle, read its contents (the observation lists items on it). If you see the target object, take it (action: take <object> from <receptacle>).
+- If you do not see the target, move to the next receptacle on the list. Continue until the target is found.
+- If you already knew the target's location from earlier, go directly there and take it.
+- The object is now in your inventory.
+
+## Phase 3: Task completion
+- With the desklamp still on and the target object in your inventory, the task is complete. No further action is required.
+  (If you wish, you may use the examine action on the object, but it is not necessary for success.)
+"""
+
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): go to desk 1
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+
+NEW SUCCESSFUL TRAJECTORIES (what worked):
+
+Trajectory 1 [success] task: look at book under the desklamp.
+  [consensus prefix ✓: go to desk 1]  (folded, already mastered)
+  action: use desklamp 1  | obs: You arrive at desk 1. On the desk 1, you see a book 4, a cd 3, a cd 2, a cellphone 2, and a desklamp 1.
+  action: take book 4 from desk 1  | obs: You turn on the desklamp 1.
+
+Trajectory 2 [success] task: look at alarmclock under the desklamp.
+  [consensus prefix ✓: go to desk 1]  (folded, already mastered)
+  action: go to shelf 1  | obs: You arrive at desk 1. On the desk 1, you see a bowl 1, a creditcard 1, a keychain 2, a keychain 1, a mug 1, and a pencil 1.
+  action: use desklamp 1  | obs: You arrive at shelf 1. On the shelf 1, you see a alarmclock 1, a bowl 2, a cellphone 2, a creditcard 3, a desklamp 1, and a statue 1.
+  action: take alarmclock 1 from shelf 1  | obs: You turn on the desklamp 1.
+
+Trajectory 3 [success] task: look at laptop under the desklamp.
+  [consensus prefix ✓: go to desk 1]  (folded, already mastered)
+  action: go to bed 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 2, a alarmclock 1, a bowl 1, a cd 2, a mug 1, a pencil 1, a watch 3, and a watch 1.
+  action: go to dresser 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, and a pillow 1.
+  action: use desklamp 1  | obs: You arrive at dresser 1. On the dresser 1, you see a cellphone 2, a desklamp 1, a pencil 3, and a pencil 2.
+  action: go to bed 1  | obs: You turn on the desklamp 1.
+  action: take laptop 1 from bed 1  | obs: You arrive at bed 1. On the bed 1, you see a book 1, a laptop 1, and a pillow 1.
+  action: examine laptop 1  | obs: You pick up the laptop 1 from the bed 1.
+  action: go to dresser 1  | obs: There's nothing special about laptop 1.
+
+Trajectory 4 [success] task: examine the tissuebox with the desklamp.
+  [consensus prefix ✓: go to desk 1]  (folded, already mastered)
+  action: use desklamp 1  | obs: You arrive at desk 1. On the desk 1, you see a alarmclock 1, a book 1, a cellphone 1, a desklamp 1, a laptop 1, and a pencil 1.
+  action: go to bed 1  | obs: You turn on the desklamp 1.
+  action: go to sidetable 1  | obs: You arrive at bed 1. On the bed 1, you see a cellphone 2, a laptop 2, a pillow 1, and a teddybear 1.
+  action: take tissuebox 1 from sidetable 1  | obs: You arrive at sidetable 1. On the sidetable 1, you see a cd 1, a mug 2, and a tissuebox 1.
+  action: inventory  | obs: You pick up the tissuebox 1 from the sidetable 1.
+  action: go to desk 1  | obs: You are carrying: a tissuebox 1.
+
+NEW FAILED TRAJECTORIES (what went wrong):
+(none)
+
+FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
+(none)
+
+
+
+
+Do these steps IN ORDER:
+
+1. INDUCE THE REGULARITY (reason, don't just patch). Look ACROSS the trajectories and diagnoses and
+   ask: what general regularity explains success vs failure? Combine two sources of evidence:
+   (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
+   at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
+   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
+   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
+   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   State every regularity as a GENERAL principle grounded in a stated reason — never an
+   instance-specific fix tied to one concrete entity or location.
+
+2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
+   skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
+   skill tree ITSELF caused the failure: is any wording ambiguous, over-specific, contradictory, or
+   misleading enough to push the agent into the wrong action? If a failure traces back to your own
+   text, FIX THE TEXT (that is a higher-priority edit than adding new rules).
+
+3. DECIDE THE ACTION:
+   - No current skill tree -> action="rewrite": author the FIRST version from the induced regularities.
+     Start SHALLOW (see step 4) — do NOT pre-emptively add depth the evidence has not shown to need.
+   - Current skill tree works and shows NO avoidable failures -> action="keep".
+   - Otherwise -> action="refine": change ONLY the section(s) the diagnoses point at (use each
+     diagnosis's patch_location), including fixing your own misleading wording.
+
+4. HIERARCHICAL MARKDOWN — this is the core format. Write the skill tree as a TREE, using markdown
+   heading depth for the branches: a heading nested one level deeper than its parent (a '##' under a
+   '#', a '###' under a '##', and so on) is a REFINEMENT of that parent — it elaborates, clarifies, or
+   details what the parent says. YOU decide what every node contains and HOW MANY levels there are;
+   there is no fixed meaning for any level and no fixed number of levels. Let the content decide the
+   shape — go exactly as deep as the material needs and no deeper.
+   Organize this task-family tree with clear categories or bullet-like branches when helpful (for
+   example by goal phase, state-assessment phase, decision bottleneck, or recurring mistake), then
+   break each branch down step by step only as far as evidence justifies.
+   DEEPEN BY JUDGEMENT, NOT BY RULE. Keep every branch as SHALLOW as it can be while still working.
+   Add a child heading under a section ONLY when the evidence — a recurring failure, a diagnosis's
+   patch_location, or a misread — shows the agent did NOT grasp that parent at its current depth.
+   Well-understood sections stay shallow; different branches may sit at different depths at once.
+   Depth follows demonstrated need, branch by branch — never deepen the whole document uniformly.
+   When a diagnosis names a patch_location, put the fix under exactly that heading (or create the new
+   heading it asks for).
+
+5. LAYOUT & CONSTRAINTS: lead with the goal, then order sections in the natural flow the agent acts
+   (assess state -> choose the right sub-goal -> act -> recognize completion and stop). One idea per
+   line; most decision-critical rule first within each section; no duplication or contradiction across
+   sections. Keep it SHORT — a small model pays a thinking tax per line; spend depth only where it
+   earns its keep.
+
+Return ONLY one JSON object, EXACTLY these fields:
+  - "action":    "keep" | "refine" | "rewrite"
+  - "level":     the deepest heading depth present, as a number (1 = only '#', 2 = a '##' exists,
+                 3 = a '###' exists, ...)
+  - "skill_tree": the FULL new skill tree MARKDOWN (empty string if action="keep")
+  - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
+                 wording misled it (or "" if there was no current skill tree)
+  - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+Return ONLY the JSON object, no other text.

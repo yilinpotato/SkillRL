@@ -1,0 +1,133 @@
+{
+  "content": "# Clean Task Skill Tree\n\n## Goal Identification\n- Parse the task: \"clean some [object] and put it in/on [destination]\".\n- Remember that [object] must be cleaned before placing at [destination].\n- Identify [cleaning_source] as the nearest sinkbasin or bathtubbasin (usually sinkbasin).\n\n## Phase 1: Locate and Take the Target Object\n- You need to find and pick up [object] before you can clean it.\n- Do not assume [object] is in any specific receptacle; search systematically.\n\n### Systematic Search\n- Begin by listing all visible receptacle types from the initial observation (e.g., cabinet, drawer, fridge, countertop, sinkbasin, shelf, dresser, etc.).\n- For each receptacle type, visit every instance of that type in the room.\n- For closed receptacles (cabinets, drawers, fridge), use \"open [receptacle]\" first, then check contents.\n- If you see [object], use \"take [object] from [receptacle]\" and proceed to Phase 2.\n- Continue until you have checked every instance of every receptacle type listed.\n- Do not stop after checking only a few cabinets or countertops; the object may be in a drawer, fridge, sinkbasin, or other container.\n\n#### Exhaustive Container Checklist\n1. Check all cabinets (open each and look inside/on top).\n2. Check all drawers (open each and look inside).\n3. Check the fridge (open and look inside).\n4. Check all countertops (look on each).\n5. Check sinkbasin and bathtubbasin (look on/in each).\n6. Check all shelves, dressers, and other furniture listed.\n- Only after completing this full checklist can you conclude the object is absent. Then re-scan the room for any missed receptacle.\n\n- Once you are carrying [object], proceed to Phase 2.\n\n## Phase 2: Clean the Object\n- While holding [object], go to [cleaning_source] (e.g., sinkbasin 1).\n- Upon arriving at [cleaning_source], immediately use \"clean [object] with [cleaning_source]\".\n- Confirm the observation says you cleaned it; otherwise retry or check if you are at the correct source.\n\n### Ensure Cleaning at Sinkbasin\n- Do NOT leave the sinkbasin without cleaning. If you are at sinkbasin and carrying the object, you must clean before moving.\n- If you accidentally move away, return and clean.\n\n## Phase 3: Place the Clean Object at Destination\n- After cleaning, go to [destination] (e.g., diningtable, shelf, stoveburner, etc.).\n- Use \"move [object] to [destination]\" to place it.\n- Confirm the observation shows the object is now at the destination.\n\n## Completion\n- The task ends when you have successfully placed the clean object. Do not continue searching or moving other objects.",
+  "level": 4,
+  "version": 2,
+  "kind": "task_skill_tree",
+  "task_type": "clean",
+  "history": [],
+  "critique": "The agent attempted to follow the skill tree's systematic search but stopped after checking only cabinets and one countertop, failing to check drawers, fridge, or sinkbasin. The existing tree's search section lacked an explicit per-type checklist, which may have allowed premature termination. Refining the section with a concrete exhaustive checklist aims to prevent this.",
+  "changelog": "Deepened the '### Systematic Search' subsection under Phase 1 by adding a '#### Exhaustive Container Checklist' with step-by-step instructions for visiting every receptacle type, ensuring no container is missed.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "The agent never found a kettle because it only searched cabinets and one countertop, missing other possible locations like the sink or drawers.",
+      "skill_tree_gap": "Lacks a systematic exploration routine that covers all container types within the room.",
+      "task_type": "clean"
+    }
+  ],
+  "task_scope": "clean",
+  "updated_at": "step_144",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "clean-task-skill-tree": {
+      "title": "Clean Task Skill Tree",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/goal-identification": {
+      "title": "Goal Identification",
+      "level": 2,
+      "body_hash": "7137709f7419",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object": {
+      "title": "Phase 1: Locate and Take the Target Object",
+      "level": 2,
+      "body_hash": "1c1a7994d093",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search": {
+      "title": "Systematic Search",
+      "level": 3,
+      "body_hash": "4ff927dfef73",
+      "created_version": 1,
+      "last_changed_version": 2,
+      "stable_versions": 0,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-1-locate-and-take-the-target-object/systematic-search/exhaustive-container-checklist": {
+      "title": "Exhaustive Container Checklist",
+      "level": 4,
+      "body_hash": "abcf64ffbc1f",
+      "created_version": 2,
+      "last_changed_version": 2,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object": {
+      "title": "Phase 2: Clean the Object",
+      "level": 2,
+      "body_hash": "cb70335193bb",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-2-clean-the-object/ensure-cleaning-at-sinkbasin": {
+      "title": "Ensure Cleaning at Sinkbasin",
+      "level": 3,
+      "body_hash": "1cf3fabf17cd",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/phase-3-place-the-clean-object-at-destination": {
+      "title": "Phase 3: Place the Clean Object at Destination",
+      "level": 2,
+      "body_hash": "e9b7b47a0e8d",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "clean-task-skill-tree/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "8ba0a9c393e7",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 1,
+      "call_count": 15,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

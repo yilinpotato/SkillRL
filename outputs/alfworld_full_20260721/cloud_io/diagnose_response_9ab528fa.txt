@@ -1,0 +1,125 @@
+```json
+[
+  {
+    "traj_ref": "clean#0",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not check stoveburner2 where the pot was located.",
+    "evidence": "went to stoveburner 1 and stoveburner 3 but skipped stoveburner 2",
+    "corrective_rule": "Check all stoveburners systematically.",
+    "skill_tree_gap": "Missing a systematic search pattern for object locations.",
+    "patch_location": "## clean / ### Systematic Location Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "clean#1",
+    "task_type": "clean",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not search all countertops and other possible locations for dishsponge.",
+    "evidence": "after countertop1, went directly to drawers without visiting other countertops.",
+    "corrective_rule": "Search all countertops before checking drawers.",
+    "skill_tree_gap": "Lack of comprehensive initial search of receptacles.",
+    "patch_location": "## clean / ### Object Search Strategy",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "cool#0",
+    "task_type": "cool",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent failed to search diningtable where potato might have been.",
+    "evidence": "visited all countertops but not diningtable.",
+    "corrective_rule": "Search all receptacles including diningtable, sidetable, etc.",
+    "skill_tree_gap": "Incomplete exploration of all possible object locations.",
+    "patch_location": "## cool / ### Full Exploration Plan",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#0",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent assumed egg would be in fridge based on consensus but it wasn't, and then did not search other key locations like diningtable.",
+    "evidence": "after fridge, only visited countertops and cabinets, missing diningtable.",
+    "corrective_rule": "After opening fridge, if target not found, search all typical locations including diningtable and stove.",
+    "skill_tree_gap": "Lack of fallback search after consensus fails.",
+    "patch_location": "## heat / ### Adaptive Search After Consensus",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "heat#1",
+    "task_type": "heat",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not find mug because it only searched countertops and cabinets, missing other locations like diningtable or sidetable.",
+    "evidence": "after fridge, visited countertop1-3 and cabinets only.",
+    "corrective_rule": "Search all surface receptacles (diningtable, sidetable, etc.) when target not in fridge.",
+    "skill_tree_gap": "Limited search scope after initial location.",
+    "patch_location": "## heat / ### Expanded Search Scope",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#0",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent searched shelves and dresser but missed coffeetable where book likely was.",
+    "evidence": "went to shelves and dresser, never to coffeetable.",
+    "corrective_rule": "Search common surfaces like coffeetable, sidetable, sofa.",
+    "skill_tree_gap": "Search not covering all typical furniture items.",
+    "patch_location": "## pick_and_place / ### Full Surface Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_and_place#1",
+    "task_type": "pick_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent only searched shelves and bed, missing desk or sidetable where book might be.",
+    "evidence": "after bed, only went to shelves, not desk.",
+    "corrective_rule": "Search all surfaces including desk and sidetable.",
+    "skill_tree_gap": "Incomplete search pattern.",
+    "patch_location": "## pick_and_place / ### Comprehensive Object Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#0",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "premature_stop",
+    "root_cause": "Agent found only one toiletpaper and stopped without searching for the second or placing the first.",
+    "evidence": "took toiletpaper2 from countertop1 and then trajectory ended.",
+    "corrective_rule": "After finding one object, continue searching for the second and then place both.",
+    "skill_tree_gap": "No subskill for multi-object collection completion.",
+    "patch_location": "## pick_two_obj_and_place / ### Multi-Object Collection Protocol",
+    "confidence": 0.95
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#1",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent did not search all countertops for spoons, only visited drawer1 and fridge.",
+    "evidence": "never visited countertop2,3,4.",
+    "corrective_rule": "Search all countertops and dining tables for spoons.",
+    "skill_tree_gap": "Insufficient initial exploration.",
+    "patch_location": "## pick_two_obj_and_place / ### Systematic Search for Objects",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#2",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent only searched cabinets and one countertop, missed countertop2 where soapbottle might be.",
+    "evidence": "visited only countertop1 and cabinets, not countertop2.",
+    "corrective_rule": "Search all countertops thoroughly.",
+    "skill_tree_gap": "Incomplete countertop search.",
+    "patch_location": "## pick_two_obj_and_place / ### Thorough Countertop Search",
+    "confidence": 0.9
+  },
+  {
+    "traj_ref": "pick_two_obj_and_place#3",
+    "task_type": "pick_two_obj_and_place",
+    "failure_type": "inefficient_exploration",
+    "root_cause": "Agent only searched coffeetable and drawers, missed sidetables and sofa where keychains might be.",
+    "evidence": "after armchair, went to coffeetable and drawers only.",
+    "corrective_rule": "Search all furniture (sidetable, sofa, tvstand) for objects.",
+    "skill_tree_gap": "Limited search area.",
+    "patch_location": "## pick_two_obj_and_place / ### Full Furniture Search",
+    "confidence": 0.9
+  }
+]
+```

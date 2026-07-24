@@ -1,0 +1,191 @@
+{
+  "batch_id": "6a205765-1491-4150-a13f-5b65f8ba9d66",
+  "diagnoses": {
+    "clean": [
+      {
+        "traj_ref": "clean#0",
+        "task_type": "clean",
+        "failure_type": "misread_state",
+        "root_cause": "The agent attempted to navigate to countertop 2 but remained at countertop 1, indicating a mismatched internal map of location connectivity.",
+        "evidence": "action: go to countertop 2 → obs: 'You arrive at countertop 1.'",
+        "corrective_rule": "Before moving, verify that the target location is adjacent to the current location using the environment graph.",
+        "skill_tree_gap": "Lacks a reliable navigation module that checks adjacency before executing a move.",
+        "patch_location": "New top-level section: 'Navigation'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "clean#1",
+        "task_type": "clean",
+        "failure_type": "misread_state",
+        "root_cause": "The agent attempted to go to diningtable 1 but ended up at countertop 1, showing a fundamental navigation error.",
+        "evidence": "action: go to diningtable 1 → obs: 'You arrive at countertop 1.'",
+        "corrective_rule": "Always verify that the intended location is reachable; if not, find an alternate path.",
+        "skill_tree_gap": "Missing a pathfinding step that uses the actual location graph.",
+        "patch_location": "New top-level section: 'Navigation'",
+        "confidence": 0.9
+      }
+    ],
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "misread_state",
+        "root_cause": "The agent attempted to go to countertop 2 but arrived at countertop 1, indicating a navigation failure.",
+        "evidence": "action: go to countertop 2 → obs: 'You arrive at countertop 1.'",
+        "corrective_rule": "Before moving, check adjacency and correct target location.",
+        "skill_tree_gap": "No adjacency verification in the navigation skill.",
+        "patch_location": "New top-level section: 'Navigation'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "misread_state",
+        "root_cause": "The agent attempted to go to sinkbasin 1 but stayed at countertop 1, reflecting a navigation error.",
+        "evidence": "action: go to sinkbasin 1 → obs: 'You arrive at countertop 1.'",
+        "corrective_rule": "Validate that the destination is adjacent before executing a move.",
+        "skill_tree_gap": "Navigation module does not confirm reachability.",
+        "patch_location": "New top-level section: 'Navigation'",
+        "confidence": 0.9
+      }
+    ],
+    "look_at_obj_in_light": [
+      {
+        "traj_ref": "look_at_obj_in_light#0",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located the book; it turned on the desklamp prematurely and then wandered without a systematic search.",
+        "evidence": "The agent used desklamp before finding the book and then opened drawers with no book.",
+        "corrective_rule": "First systematically search all locations for the target object before using the lamp.",
+        "skill_tree_gap": "Lacks a methodical object-searching routine for this task type.",
+        "patch_location": "Under 'look_at_obj_in_light' as a new subsection '### Object Search'",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "look_at_obj_in_light#1",
+        "task_type": "look_at_obj_in_light",
+        "failure_type": "wrong_order",
+        "root_cause": "The agent found the pillow on the bed but did not pick it up before moving back to the lamp location.",
+        "evidence": "After seeing pillow on bed, the agent returned to shelf2 without taking the pillow.",
+        "corrective_rule": "Once the target object is located, pick it up before moving to the lamp.",
+        "skill_tree_gap": "Missing a step that enforces the sequence: find → pick up → go to lamp → examine.",
+        "patch_location": "Under 'look_at_obj_in_light' as a new subsection '### Task Order'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_and_place": [
+      {
+        "traj_ref": "pick_and_place#0",
+        "task_type": "pick_and_place",
+        "failure_type": "wrong_target",
+        "root_cause": "The agent took a soapbar instead of the required soapbottle.",
+        "evidence": "action: take soapbar 1 from drawer 1 → then move soapbar 1 to toilet 1.",
+        "corrective_rule": "Before taking an object, verify that its name exactly matches the target object name.",
+        "skill_tree_gap": "No object-name verification before pickup.",
+        "patch_location": "Under 'pick_and_place' as a new subsection '### Object Verification'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_and_place#1",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent searched only a few drawers and a shelf, missing the cellphone that could be in other locations.",
+        "evidence": "After opening several drawers without finding a cellphone, the agent went to shelf 1 and stopped.",
+        "corrective_rule": "Exhaustively search all accessible surfaces, containers, and locations before concluding the object is absent.",
+        "skill_tree_gap": "Lacks a comprehensive breadth-first search strategy for objects.",
+        "patch_location": "Under 'pick_and_place' as a new subsection '### Search Strategy'",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_and_place#2",
+        "task_type": "pick_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only visited the toiletpaperhanger and towelholder, then looped, never searching other areas for toiletpaper.",
+        "evidence": "After going to towelholder 1, the agent repeatedly used 'look' without exploring elsewhere.",
+        "corrective_rule": "If the target is not found at the first few locations, systematically check all other receptacles and surfaces.",
+        "skill_tree_gap": "Missing a systematic exploration policy that covers all candidate locations.",
+        "patch_location": "Under 'pick_and_place' as a new subsection '### Search Strategy'",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_and_place#3",
+        "task_type": "pick_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent reached the fridge but did not open it, leaving a possible container unchecked.",
+        "evidence": "Last action: go to fridge 1 (no observation of opening), then trajectory ends.",
+        "corrective_rule": "After moving to a container, always open it to check its contents before moving on.",
+        "skill_tree_gap": "Missing the habit of opening containers after arriving at them.",
+        "patch_location": "Under 'pick_and_place' as a new subsection '### Container Opening'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one alarmclock and then did not continue searching for the second one, getting stuck in a loop.",
+        "evidence": "After moving the first alarmclock to shelf, the agent went back to desk but found no second alarmclock and started looping.",
+        "corrective_rule": "After placing the first instance, continue searching all possible locations for the second instance.",
+        "skill_tree_gap": "Lacks iterative search logic for multiple-object tasks.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new subsection '### Multi-Object Search'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one mug and then stopped searching for the second mug.",
+        "evidence": "After moving mug 1 to cabinet, the agent looked around and then looped without seeking another mug.",
+        "corrective_rule": "Continue searching for the second object after the first is placed.",
+        "skill_tree_gap": "Missing multi-object handling: must resume search after each placement.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new subsection '### Multi-Object Search'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only checked bathtubbasin, countertop, and one drawer, missing the toiletpaper on other surfaces.",
+        "evidence": "After opening drawer 4 (empty), the agent returned to bathtubbasin and looped without searching elsewhere.",
+        "corrective_rule": "Systematically explore all reachable locations and containers in the environment.",
+        "skill_tree_gap": "No comprehensive exploration routine for finding objects.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new subsection '### Search Strategy'",
+        "confidence": 0.85
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#3",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent placed one cd and then did not find the second cd, getting stuck in a loop.",
+        "evidence": "After moving cd 3 to dresser, the agent looked around and looped without seeking another cd.",
+        "corrective_rule": "After placing the first cd, actively search all possible locations for the second cd.",
+        "skill_tree_gap": "Lacks multi-object search continuation.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new subsection '### Multi-Object Search'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#4",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent opened several cabinets but when reaching drawer 1, it only looked at the closed drawer without opening it.",
+        "evidence": "action: go to drawer 1 → obs: 'You arrive at drawer 1. The drawer 1 is closed.' then 'look' instead of 'open drawer 1'.",
+        "corrective_rule": "Always open a closed container to inspect its contents.",
+        "skill_tree_gap": "Missing the action to open a container after moving to it.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new subsection '### Container Opening'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#5",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent only visited the bed and desk, ignoring many other possible locations where alarmclocks could be.",
+        "evidence": "After looking at desk (no alarmclock), the agent went to drawer 1 and then looped without searching sidetable, shelves, etc.",
+        "corrective_rule": "Perform a broad search across all rooms and containers, not just a few spots.",
+        "skill_tree_gap": "Lacks a systematic exploration strategy covering all locations.",
+        "patch_location": "Under 'pick_two_obj_and_place' as a new subsection '### Search Strategy'",
+        "confidence": 0.85
+      }
+    ]
+  }
+}

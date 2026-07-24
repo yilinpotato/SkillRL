@@ -1,0 +1,175 @@
+{
+  "content": "# pick_two_obj_and_place\n\n## Goal\nPlace exactly two instances of a specific object type into a specified target receptacle.\n\n## First Object Search\n### Exhaustive Search Procedure\n- From the **initial room description**, compile a mental list of **every visible furniture item** (cabinets, drawers, countertops, tables, shelves, dressers, fridge, microwave, sinkbasin, etc.).\n- Visit each furniture item in the list **one by one**.\n- If the item is closed (e.g., drawer or cabinet), open it immediately.\n- Examine **both the contents inside** (if a container) and **on top** (if a surface).\n- If you find an object whose exact name matches the required type, **take it** (do not take non-exact matches).\n- Continue until you have visited every item on the list, even if you already found one object.\n\n## Exact Type Matching\n- Before taking any object, compare its exact name to the required type. Do not take if they differ (e.g., soapbottle vs soapbar). Only take exact matches.\n\n## Placement (First Object)\n- With a matching object in hand, go directly to the target receptacle and use `move <object> to <target>` immediately. No other actions in between.\n\n## Critical: After Placing the First Object, Start the Second Search Immediately\n### Second Search Procedure\n- **DO NOT STOP.** You must place a second matching object.\n- If you already know where the second object is (e.g., you saw it earlier), go directly to that location, take it, and place it.\n- Otherwise, **repeat the exhaustive search** exactly as in the first search: compile the same list of furniture items from the initial observation, visit each one, open if closed, examine contents, and take any matching object.\n- Do not skip any furniture or assume it is empty. Open every closed container again.\n- Continue until you have placed the second object. If you find none after a full systematic search, the task may be impossible.\n\n## Completion\n- Keep a counter. After placing the first, set counter=1. After placing the second, set counter=2 and stop.\n\n## Common Failure Pattern (Avoid This)\n- **Premature stop**: Placing one object and not continuing. Always perform the second systematic search as soon as the first is placed.\n- **Incomplete search**: Not listing all furniture from the initial observation leads to missing objects. Always enumerate every item you see at the start.",
+  "level": 4,
+  "version": 22,
+  "kind": "task_skill_tree",
+  "task_type": "pick_two_obj_and_place",
+  "history": [],
+  "critique": "The agent followed the general flow of the skill tree (search, place first, then search again) but failed to systematically enumerate all furniture items from the initial observation, leading to incomplete searches. The skill tree's wording was ambiguous about what 'full search of all furniture' entails, so the agent skipped many locations. The refined version now specifies creating a list and visiting each item in order, reducing gaps.",
+  "changelog": "Deepened First Object Search with explicit exhaustive enumeration steps; added detailed Second Search Procedure under Critical section to ensure full coverage of all furniture; clarified that both open surfaces and containers must be checked; added a note about collecting both before placing if known.",
+  "round_failures": [
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent never found any cd because it only searched shelves 1-8 and one drawer, missing other containers like dresser or shelf9.",
+      "skill_tree_gap": "Lack of thorough enumeration of all possible object locations.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent only found one candle (candle2) and did not search elsewhere for a second candle, assuming both were on the same countertop.",
+      "skill_tree_gap": "No iterative search for multiple identical objects; agent prematurely stops searching.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent placed one egg (egg3) but never found a second egg; it only searched the fridge and a few cabinets, missing other surfaces.",
+      "skill_tree_gap": "Lack of a 'collect all required items first' discipline.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent placed one kettle (kettle1) and then only searched cabinets for a second, never checking other countertops or tables.",
+      "skill_tree_gap": "Same as above, incomplete second-object search.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent never found any candle; it only searched countertop1 (which had no candle) and several drawers, missing other possible locations.",
+      "skill_tree_gap": "Incomplete initial search routine.",
+      "task_type": "pick_two_obj_and_place"
+    },
+    {
+      "failure_type": "inefficient_exploration",
+      "root_cause": "Agent never found a glassbottle; it only searched cabinets, missing countertops and diningtable where glassbottles might be.",
+      "skill_tree_gap": "Narrow search assumption.",
+      "task_type": "pick_two_obj_and_place"
+    }
+  ],
+  "task_scope": "pick_two_obj_and_place",
+  "updated_at": "step_2520",
+  "target_depth": null,
+  "actual_depth": null,
+  "depth_repair_attempts": 0,
+  "nodes": {
+    "pick-two-obj-and-place": {
+      "title": "pick_two_obj_and_place",
+      "level": 1,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 1,
+      "last_changed_version": 1,
+      "stable_versions": 21,
+      "call_count": 562,
+      "success_when_used": 448,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/goal": {
+      "title": "Goal",
+      "level": 2,
+      "body_hash": "cecaaea52d6c",
+      "created_version": 1,
+      "last_changed_version": 21,
+      "stable_versions": 1,
+      "call_count": 562,
+      "success_when_used": 448,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/first-object-search": {
+      "title": "First Object Search",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 21,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/first-object-search/exhaustive-search-procedure": {
+      "title": "Exhaustive Search Procedure",
+      "level": 3,
+      "body_hash": "23084ea44416",
+      "created_version": 22,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/exact-type-matching": {
+      "title": "Exact Type Matching",
+      "level": 2,
+      "body_hash": "2b694058ae5a",
+      "created_version": 21,
+      "last_changed_version": 21,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/placement-first-object": {
+      "title": "Placement (First Object)",
+      "level": 2,
+      "body_hash": "26cc4d9c6633",
+      "created_version": 22,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-after-placing-the-first-object-start-the-second-search-immediately": {
+      "title": "Critical: After Placing the First Object, Start the Second Search Immediately",
+      "level": 2,
+      "body_hash": "d41d8cd98f00",
+      "created_version": 21,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/critical-after-placing-the-first-object-start-the-second-search-immediately/second-search-procedure": {
+      "title": "Second Search Procedure",
+      "level": 3,
+      "body_hash": "f726768de428",
+      "created_version": 22,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 0,
+      "success_when_used": 0,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/completion": {
+      "title": "Completion",
+      "level": 2,
+      "body_hash": "c948b1d90410",
+      "created_version": 21,
+      "last_changed_version": 21,
+      "stable_versions": 1,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    },
+    "pick-two-obj-and-place/common-failure-pattern-avoid-this": {
+      "title": "Common Failure Pattern (Avoid This)",
+      "level": 2,
+      "body_hash": "6b17b4664e99",
+      "created_version": 21,
+      "last_changed_version": 22,
+      "stable_versions": 0,
+      "call_count": 20,
+      "success_when_used": 14,
+      "deprecated": false,
+      "internalized": false
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "batch_id": "3859cbb1-a94d-4971-87e0-f6ee9677f9f7",
+  "diagnoses": {
+    "cool": [
+      {
+        "traj_ref": "cool#0",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent never located a plate because it failed to search cabinets and drawers thoroughly, only checking one cabinet and missing the plate's location.",
+        "evidence": "After exploring multiple locations (countertops, diningtables, sinkbasin, stoveburners, fridge), the agent never picked up a plate; the trajectory ends at cabinet 2 without any object manipulation.",
+        "corrective_rule": "When searching for a target object, systematically explore all receptacles including cabinets and drawers before moving to distant locations.",
+        "skill_tree_gap": "Missing a sub-skill for exhaustive object search that covers all common receptacles.",
+        "patch_location": "new top-level section 'Object Search and Retrieval' with a deeper subsection '### Exhaustive Search'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "cool#1",
+        "task_type": "cool",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent failed to find an apple because it did not check the fridge or drawers, instead wasting time visiting stoveburners and re-visiting countertops.",
+        "evidence": "The agent visited countertop 1,2,3, diningtable, sinkbasin, stoveburners, and cabinet 1, but never saw an apple; it never attempted to open fridge or drawers.",
+        "corrective_rule": "If the target object is not on visible surfaces, check the fridge and drawers before exploring other rooms.",
+        "skill_tree_gap": "Lack of a prioritized list of likely object locations (fridge for perishables, drawers for utensils, etc.).",
+        "patch_location": "Under 'Object Search and Retrieval', add a subsection '### Prioritize Common Locations'",
+        "confidence": 0.9
+      }
+    ],
+    "pick_two_obj_and_place": [
+      {
+        "traj_ref": "pick_two_obj_and_place#0",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "loop",
+        "root_cause": "The agent got stuck in a loop trying to open drawer 1 after picking up only one ladle, without searching for the second ladle.",
+        "evidence": "After taking ladle 1, the agent went to drawer 1, opened it (closed), then 'dropped 2 looping actions' indicating repetitive behavior.",
+        "corrective_rule": "After collecting one object, if a second is needed, continue searching for it before attempting to place the first in the target receptacle.",
+        "skill_tree_gap": "Missing a sub-skill for handling multi-object tasks that separates collection from placement.",
+        "patch_location": "Under 'Multi-Object Tasks', add a subsection '### Collect all objects before placing'",
+        "confidence": 0.95
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#1",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "premature_stop",
+        "root_cause": "The agent saw a saltshaker on sidetable 1 but did not take it, then terminated the trajectory without collecting any object.",
+        "evidence": "At sidetable 1, the agent observed 'a saltshaker 1' but the next action is missing; no pick up was performed.",
+        "corrective_rule": "Upon detecting the target object in the observation, immediately take it.",
+        "skill_tree_gap": "Lack of a reactive rule to perform a 'take' action when target object is visible and within reach.",
+        "patch_location": "Under 'Object Interaction', add a subsection '### Take on sight'",
+        "confidence": 0.9
+      },
+      {
+        "traj_ref": "pick_two_obj_and_place#2",
+        "task_type": "pick_two_obj_and_place",
+        "failure_type": "inefficient_exploration",
+        "root_cause": "The agent confined its search to cabinets only, ignoring countertops, drawers, and other surfaces where kettles might be located.",
+        "evidence": "The agent visited cabinets 1 through 8 without finding a kettle, and never went to countertops or other common areas.",
+        "corrective_rule": "If the target is not found after checking a few cabinets, expand search to other receptacle types (countertops, stoves, tables).",
+        "skill_tree_gap": "Missing a heuristic to vary search across different receptacle categories.",
+        "patch_location": "Under 'Object Search and Retrieval', add a subsection '### Diversify search across receptacles'",
+        "confidence": 0.95
+      }
+    ]
+  }
+}
