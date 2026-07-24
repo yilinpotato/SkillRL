@@ -880,6 +880,10 @@ def main():
                     help="Require a cloud-authored tree with exactly this many heading levels; 0 disables.")
     ap.add_argument("--tree_depth_repair_attempts", type=int, default=0,
                     help="Same-evidence cloud repair attempts after a fixed-depth tree fails validation.")
+    ap.add_argument("--tree_max_nodes", type=int, default=0,
+                    help="Hard maximum semantic heading nodes for cloud-authored trees; 0 disables.")
+    ap.add_argument("--tree_max_chars", type=int, default=0,
+                    help="Hard maximum rendered characters for cloud-authored trees; 0 disables.")
     # --- 轨迹池水位线（对齐训练脚本）---
     ap.add_argument("--capacity_watermark", type=int, default=50000)
     ap.add_argument("--perf_watermark", type=float, default=0.6)
@@ -947,6 +951,8 @@ def main():
         environment_name="ALFWorld",
         required_tree_depth=(args.required_tree_depth or None),
         tree_depth_repair_attempts=args.tree_depth_repair_attempts,
+        tree_max_nodes=(args.tree_max_nodes or None),
+        tree_max_chars=(args.tree_max_chars or None),
     )
 
     # 4) 建所有 task_type 的环境（在加载 vLLM/CUDA 之前！）。

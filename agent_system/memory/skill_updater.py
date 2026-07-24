@@ -57,7 +57,10 @@ class SkillUpdater:
         # ablations).  Existing training callers do not consume these fields.
         self.last_prompt = None
         self.last_response = None
-        self.last_usage = {"prompt": 0, "completion": 0, "total": 0}
+        self.last_usage = {
+            "prompt": 0, "completion": 0, "total": 0,
+            "usage_reported": False,
+        }
 
     def analyze_failures(
         self,
@@ -81,7 +84,10 @@ class SkillUpdater:
         """
         self.last_prompt = None
         self.last_response = None
-        self.last_usage = {"prompt": 0, "completion": 0, "total": 0}
+        self.last_usage = {
+            "prompt": 0, "completion": 0, "total": 0,
+            "usage_reported": False,
+        }
         if not failed_trajectories:
             return []
 
@@ -105,13 +111,15 @@ class SkillUpdater:
 
             # Track token usage
             if hasattr(response, 'usage') and response.usage:
-                self.total_prompt_tokens += response.usage.prompt_tokens
-                self.total_completion_tokens += response.usage.completion_tokens
+                prompt_tokens = int(getattr(response.usage, "prompt_tokens", 0) or 0)
+                completion_tokens = int(getattr(response.usage, "completion_tokens", 0) or 0)
+                self.total_prompt_tokens += prompt_tokens
+                self.total_completion_tokens += completion_tokens
                 self.last_usage = {
-                    "prompt": int(response.usage.prompt_tokens or 0),
-                    "completion": int(response.usage.completion_tokens or 0),
-                    "total": int((response.usage.prompt_tokens or 0)
-                                 + (response.usage.completion_tokens or 0)),
+                    "prompt": prompt_tokens,
+                    "completion": completion_tokens,
+                    "total": prompt_tokens + completion_tokens,
+                    "usage_reported": True,
                 }
 
             # Reassign dyn_ IDs on our side to guarantee no collisions,

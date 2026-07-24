@@ -867,7 +867,7 @@ class SkillsOnlyMemory(BaseMemory):
             )
             # Still detect task type for bookkeeping / formatting labels
             task_type = self._detect_task_type(task_description)
-            return {
+            result = {
                 'general_skills': general_skills,
                 'task_specific_skills': task_skills,
                 'mistakes_to_avoid': common_mistakes,
@@ -876,6 +876,17 @@ class SkillsOnlyMemory(BaseMemory):
                 'task_specific_examples': [],
                 'retrieval_mode': 'embedding',
             }
+            # The frozen rollout driver records this field in every raw trace
+            # and per-episode metric.  It must be present even when the
+            # hierarchy wrapper is disabled (the L0 SkillRL-flat condition),
+            # otherwise the skills are injected into the prompt but reported
+            # as unused.
+            result['injected_skill_ids'] = [
+                skill.get('skill_id')
+                for skill in general_skills + task_skills
+                if skill.get('skill_id')
+            ]
+            return result
 
         # ----------------------------------------------------------------
         # Template mode: keyword detection + return (sub)set of category skills
@@ -899,7 +910,7 @@ class SkillsOnlyMemory(BaseMemory):
         else:
             task_skills = all_task_skills  # original behaviour: return all
 
-        return {
+        result = {
             'general_skills': general_skills,
             'task_specific_skills': task_skills,
             'mistakes_to_avoid': common_mistakes,
@@ -908,6 +919,15 @@ class SkillsOnlyMemory(BaseMemory):
             'task_specific_examples': [],
             'retrieval_mode': 'template',
         }
+        # See the embedding branch above.  HierarchicalSkillLib adds the same
+        # field after lifecycle filtering; defining it here is required for
+        # the unlayered L0 baseline and is harmless for the wrapper.
+        result['injected_skill_ids'] = [
+            skill.get('skill_id')
+            for skill in general_skills + task_skills
+            if skill.get('skill_id')
+        ]
+        return result
 
     @staticmethod
     def _format_skill_lines(skill: Dict[str, Any], include_when: bool = False) -> List[str]:

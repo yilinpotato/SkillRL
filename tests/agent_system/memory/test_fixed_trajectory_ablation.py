@@ -11,6 +11,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
 from agent_system.memory.coskill_loop import CoSkillCloudLoop
 from agent_system.memory.hierarchical_skill_lib import HierarchicalSkillLib
+from agent_system.memory.skills_only_memory import SkillsOnlyMemory
 from agent_system.memory.skill_updater import SkillUpdater
 from agent_system.memory.traces_pool import TracesPool
 from examples.playbook_evolve.fixed_trajectory_ablation import (
@@ -280,6 +281,17 @@ def test_tree_prompt_respects_explicit_larger_evidence_budget():
     assert "Trajectory 8 [failure]" in prompt
 
 
+def test_tree_prompt_requires_observation_conditioned_rules_for_conflicting_evidence():
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.environment_name = "ALFWorld"
+    prompt = analyzer._build_evolve_prompt(
+        "heat", None, [], [], [], target_depth=3, max_tree_nodes=12, max_tree_chars=1800)
+    assert "EVIDENCE SAFETY" in prompt
+    assert "observation-conditioned decision rule" in prompt
+    assert "at most 12 semantic headings" in prompt
+    assert "at most 1800 characters" in prompt
+
+
 def test_derived_tree_artifact_has_no_duplicate_cloud_calls(tmp_path):
     raw = tmp_path / "raw.jsonl"
     raw.write_text(json.dumps(_trace("success")) + "\n")
@@ -317,6 +329,32 @@ def test_skillrl_json_parser_requires_claude_fields():
     assert parsed[0]["when_to_apply"] == "Before a state-changing action."
 
 
+def test_skill_updater_marks_partial_provider_usage_as_reported():
+    class FakeCompletions:
+        def create(self, **_kwargs):
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="[]"))],
+                usage=SimpleNamespace(prompt_tokens=7),
+            )
+
+    updater = SkillUpdater.__new__(SkillUpdater)
+    updater.client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    updater.model = "fake"
+    updater.max_completion_tokens = 1
+    updater.max_new_skills_per_update = 3
+    updater.update_history = []
+    updater.total_prompt_tokens = 0
+    updater.total_completion_tokens = 0
+    updater.last_prompt = updater.last_response = None
+    updater.last_usage = {"prompt": 0, "completion": 0, "total": 0, "usage_reported": False}
+    failed = {
+        "task": "heat an object", "task_type": "heat",
+        "trajectory": [{"action": "look", "observation": "room"}],
+    }
+    assert updater.analyze_failures([failed], _empty_skill_bank()) == []
+    assert updater.last_usage == {"prompt": 7, "completion": 0, "total": 7, "usage_reported": True}
+
+
 def test_tree_depth_helper_counts_markdown_heading_levels_only():
     assert CloudAnalyzer._tree_depth("intro\n# A\n## B\n### C") == 3
     assert CloudAnalyzer._tree_depth("no headings") == 0
@@ -327,6 +365,16 @@ def test_fixed_depth_validation_requires_every_intermediate_level():
     skipped = CloudAnalyzer._validate_tree_depth("# A\n### C", 3)
     assert skipped["depth_valid"] is False
     assert skipped["missing_heading_levels"] == [2]
+
+
+def test_fixed_depth_validation_rejects_branch_heading_jumps_and_budget_overrun():
+    invalid = CloudAnalyzer._validate_tree_depth(
+        "# Root\n## Child\n# New root\n### Skipped parent", 3, max_nodes=3, max_chars=20)
+    assert invalid["depth_valid"] is False
+    assert "heading_level_jumps:1->3" in invalid["depth_validation_errors"]
+    assert "node_budget_exceeded:4>3" in invalid["depth_validation_errors"]
+    assert any(error.startswith("character_budget_exceeded:")
+               for error in invalid["depth_validation_errors"])
 
 
 def test_artifacts_use_runtime_retrieval_categories_not_manifest_categories():
@@ -508,6 +556,23 @@ def test_derived_ablation_report_rebuilds_small_tokens_from_per_game():
     assert rebuilt["heat"] == {"prompt": 13, "response": 3, "total": 16}
 
 
+def test_flat_template_retrieval_reports_every_injected_skill_id(tmp_path):
+    """L0 has no hierarchy wrapper, so base-memory attribution is required."""
+    skills = {
+        "general_skills": [{"skill_id": "general_1", "content": "inspect first"}],
+        "task_specific_skills": {
+            "heat": [{"skill_id": "flat_heat_1", "content": "follow observed appliance feedback"}],
+        },
+        "common_mistakes": [],
+    }
+    path = tmp_path / "skills.json"
+    path.write_text(json.dumps(skills))
+    memory = SkillsOnlyMemory(str(path), retrieval_mode="template", enable_playbook=False)
+    retrieved = memory.retrieve("heat some potato and put it in garbagecan")
+    assert retrieved["task_type"] == "heat"
+    assert retrieved["injected_skill_ids"] == ["general_1", "flat_heat_1"]
+
+
 def test_resume_rebuilds_pre_fix_task_token_ledger_from_per_game(tmp_path):
     outdir = tmp_path / "resume"
     outdir.mkdir()
@@ -582,6 +647,45 @@ def test_skill_level_summary_writes_root_metrics_and_na_task_matrix(tmp_path):
                row["small_model_total_tokens"] == 12 for row in task_rows)
     assert sum(row["arm"] == ready_arm for row in task_rows) == 6
     assert sum(row["arm"] == na_arm and row["status"] == "N.A." for row in task_rows) == 6
+
+
+def test_derived_tree_rows_expose_shared_canonical_provider_usage(tmp_path):
+    """Derived L1--L5 trees must show canonical cost without double counting it."""
+    canonical_dir = tmp_path / "artifacts" / "canonical_tree_l5"
+    canonical_dir.mkdir(parents=True)
+    (canonical_dir / "artifact_manifest.json").write_text(json.dumps({
+        "status": "ready",
+        "cloud_calls": [{
+            "task_type": "heat", "prompt_tokens": 101,
+            "completion_tokens": 23, "total_tokens": 124,
+            "usage_reported": True,
+        }],
+    }))
+    arm = "skill_level_l1"
+    artifact_dir = tmp_path / "artifacts" / arm
+    summary_dir = tmp_path / "arms" / arm
+    artifact_dir.mkdir(parents=True)
+    summary_dir.mkdir(parents=True)
+    (artifact_dir / "artifact_manifest.json").write_text(json.dumps({
+        "status": "ready", "evaluation_eligible": True, "target_depth": 1,
+        "generation_cost_scope": "shared_canonical_tree_l5",
+        "flat_skills": {"skills": []}, "skill_trees": {}, "cloud_calls": [],
+    }))
+    (summary_dir / "summary.json").write_text(json.dumps({
+        "total_episodes": 1, "wins": 1, "success_rate": 1.0,
+        "per_game": [{"step": 1, "detected_type": "heat", "won": True,
+                      "used_steps": 1, "valid_actions": 1, "strict_valid_actions": 1}],
+        "token_usage": {"small_model": {"prompt": 1, "response": 1, "total": 2,
+                                           "by_task_type": {"heat": {"prompt": 1, "response": 1, "total": 2}}},
+                        "large_model": {}},
+    }))
+
+    write_summary(tmp_path, {})
+    rows = [json.loads(line) for line in (tmp_path / "metrics_by_task.jsonl").read_text().splitlines()]
+    heat = next(row for row in rows if row["arm"] == arm and row["task_type"] == "heat")
+    assert heat["artifact_task_scoped_large_model_calls"] == 0
+    assert heat["shared_canonical_large_model_calls"] == 1
+    assert heat["shared_canonical_large_model_total_tokens"] == 124
 
 
 def test_fixed_depth_cloud_prompt_is_explicit_without_dummy_local_rewrite():

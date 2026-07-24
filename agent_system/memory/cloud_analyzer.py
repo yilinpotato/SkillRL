@@ -380,6 +380,8 @@ Return ONLY the JSON array, no other text."""
         repair_feedback: Optional[Dict[str, Any]] = None,
         max_success_examples: int = 4,
         max_failure_examples: int = 5,
+        max_tree_nodes: Optional[int] = None,
+        max_tree_chars: Optional[int] = None,
     ) -> Optional[Dict]:
         """生成 / 细化该 agent 唯一的 skill tree（大模型从零撰写，层次化推进）。
 
@@ -403,6 +405,7 @@ Return ONLY the JSON array, no other text."""
             repair_candidate=repair_candidate, repair_feedback=repair_feedback,
             max_success_examples=max_success_examples,
             max_failure_examples=max_failure_examples,
+            max_tree_nodes=max_tree_nodes, max_tree_chars=max_tree_chars,
         )
         # 落盘发给云端大模型的原始 prompt（call 计数器区分同一 task_type 的多轮进化）。
         if self.playbook_io_dir is not None:
@@ -455,7 +458,9 @@ Return ONLY the JSON array, no other text."""
             if target_depth is not None:
                 result.update({
                     "target_depth": int(target_depth),
-                    **self._validate_tree_depth(tree_text, int(target_depth)),
+                    **self._validate_tree_depth(
+                        tree_text, int(target_depth), max_nodes=max_tree_nodes,
+                        max_chars=max_tree_chars),
                 })
             self.playbook_history.append({
                 "task_type": task_type,
@@ -481,6 +486,8 @@ Return ONLY the JSON array, no other text."""
         repair_feedback: Optional[Dict[str, Any]] = None,
         max_success_examples: int = 4,
         max_failure_examples: int = 5,
+        max_tree_nodes: Optional[int] = None,
+        max_tree_chars: Optional[int] = None,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
         cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
@@ -496,6 +503,13 @@ Return ONLY the JSON array, no other text."""
         depth_constraint = ""
         depth_execution_override = ""
         if target_depth is not None:
+            budget_terms = []
+            if max_tree_nodes is not None:
+                budget_terms.append(f"at most {int(max_tree_nodes)} semantic headings")
+            if max_tree_chars is not None:
+                budget_terms.append(f"at most {int(max_tree_chars)} characters")
+            budget_constraint = (" Also keep the complete tree to " + " and ".join(budget_terms) + "."
+                                 if budget_terms else "")
             depth_constraint = f"""
 
 EXPERIMENTAL DEPTH CONSTRAINT (mandatory): Return a non-empty skill_tree with
@@ -503,7 +517,7 @@ EXACTLY {int(target_depth)} semantic Markdown heading levels. Do NOT use a Markd
 document title: every Markdown heading is a semantic tree node, and the first semantic heading is
 depth 1. Every heading level from 1 through {int(target_depth)} must occur, and no heading may be
 deeper. Do not use empty, dummy, or purely structural headings just to meet the depth. The depth is
-an experimental condition, so action=\"keep\" is not allowed.
+an experimental condition, so action=\"keep\" is not allowed.{budget_constraint}
 """
             depth_execution_override = f"""
 EXPERIMENTAL OVERRIDE: The general \"start shallow\" guidance below does not
@@ -597,6 +611,12 @@ Do these steps IN ORDER:
    Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
    State every regularity as a GENERAL principle grounded in a stated reason — never an
    instance-specific fix tied to one concrete entity or location.
+
+   EVIDENCE SAFETY: keep a transition CONDITIONAL when the evidence shows that its validity depends
+   on the current observation or carried-object state. Do not promote an action order seen in one
+   trajectory into a universal prerequisite. When successful traces disagree about an order, write an
+   observation-conditioned decision rule instead; when the evidence does not establish a transition,
+   tell the agent to inspect its current feedback/admissible action rather than inventing a mechanic.
 
 2. USAGE CRITIQUE (skip if there is no current skill tree). Judge how the agent USED the current
    skill tree: did it follow it, misread it, or ignore a section? IMPORTANT — also check whether the
@@ -901,7 +921,13 @@ Return ONLY the JSON array, no other text."""
         return max(depths, default=0)
 
     @staticmethod
-    def _validate_tree_depth(markdown: str, target_depth: int) -> Dict[str, Any]:
+    def _validate_tree_depth(
+        markdown: str,
+        target_depth: int,
+        *,
+        max_nodes: Optional[int] = None,
+        max_chars: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """Validate a fixed-depth tree without locally editing cloud output.
 
         A maximum heading depth alone is not enough: a lone ``###`` heading
@@ -910,12 +936,16 @@ Return ONLY the JSON array, no other text."""
         document title as plain text.
         """
         target = int(target_depth)
-        heading_levels, empty_levels = [], []
+        heading_levels, empty_levels, jumps = [], [], []
+        previous_level = None
         for line in (markdown or "").splitlines():
             if not (line.startswith("#") and line.lstrip("#").startswith(" ")):
                 continue
             level = len(line) - len(line.lstrip("#"))
             heading_levels.append(level)
+            if previous_level is not None and level > previous_level + 1:
+                jumps.append((previous_level, level))
+            previous_level = level
             if not line[level:].strip():
                 empty_levels.append(level)
         present = sorted(set(heading_levels))
@@ -931,8 +961,18 @@ Return ONLY the JSON array, no other text."""
             errors.append("heading_deeper_than_target:" + ",".join(map(str, too_deep)))
         if empty_levels:
             errors.append("empty_heading_labels:" + ",".join(map(str, empty_levels)))
+        if jumps:
+            errors.append("heading_level_jumps:" + ",".join(
+                f"{parent}->{child}" for parent, child in jumps))
+        if max_nodes is not None and len(heading_levels) > int(max_nodes):
+            errors.append(f"node_budget_exceeded:{len(heading_levels)}>{int(max_nodes)}")
+        rendered_chars = len(markdown or "")
+        if max_chars is not None and rendered_chars > int(max_chars):
+            errors.append(f"character_budget_exceeded:{rendered_chars}>{int(max_chars)}")
         return {
             "actual_depth": max(heading_levels, default=0),
+            "node_count": len(heading_levels),
+            "rendered_chars": rendered_chars,
             "heading_levels_present": present,
             "missing_heading_levels": missing,
             "depth_validation_errors": errors,

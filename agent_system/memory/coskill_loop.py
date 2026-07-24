@@ -48,6 +48,8 @@ class CoSkillCloudLoop:
         environment_name: str = "generic",
         required_tree_depth: Optional[int] = None,
         tree_depth_repair_attempts: int = 0,
+        tree_max_nodes: Optional[int] = None,
+        tree_max_chars: Optional[int] = None,
     ):
         self.output_dir = output_dir
         self.enable_coskill = enable_coskill
@@ -60,6 +62,8 @@ class CoSkillCloudLoop:
         self.required_tree_depth = (int(required_tree_depth)
                                     if required_tree_depth is not None else None)
         self.tree_depth_repair_attempts = max(0, int(tree_depth_repair_attempts))
+        self.tree_max_nodes = (int(tree_max_nodes) if tree_max_nodes else None)
+        self.tree_max_chars = (int(tree_max_chars) if tree_max_chars else None)
 
         self.cloud_analyzer = None
         self._analyzer_init_failed = False
@@ -243,6 +247,8 @@ class CoSkillCloudLoop:
                 diagnoses=task_diags,
                 history=[],
                 target_depth=self.required_tree_depth,
+                max_tree_nodes=self.tree_max_nodes,
+                max_tree_chars=self.tree_max_chars,
             )
             # Fixed-depth ablations must be cloud-authored end-to-end.  A
             # failed depth check gets one (or configured) same-evidence repair;
@@ -265,6 +271,8 @@ class CoSkillCloudLoop:
                         "actual_depth": result.get("actual_depth"),
                         "depth_validation_errors": result.get("depth_validation_errors", []),
                     },
+                    max_tree_nodes=self.tree_max_nodes,
+                    max_tree_chars=self.tree_max_chars,
                 )
                 repairs += 1
             if not result:

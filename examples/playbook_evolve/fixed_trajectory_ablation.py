@@ -767,7 +767,9 @@ def build_l0_artifact(raw_path: Path, directory: Path) -> Path:
 
 
 def build_tree_artifact(raw_path: Path, directory: Path, depth: int,
-                        max_attempts: int = MAX_TREE_GENERATION_ATTEMPTS) -> Path:
+                        max_attempts: int = MAX_TREE_GENERATION_ATTEMPTS,
+                        max_tree_nodes: int | None = None,
+                        max_tree_chars: int | None = None) -> Path:
     raw = _read_jsonl(raw_path)
     batch = _compress_raw(raw, directory / "traces_pool", enable_loop_filter=True,
                           enable_obs_delta=True, enable_prefix_tree=True, enable_consensus_prefix=True)
@@ -790,7 +792,8 @@ def build_tree_artifact(raw_path: Path, directory: Path, depth: int,
                 repair_feedback=({
                     "actual_depth": result.get("actual_depth"),
                     "depth_validation_errors": result.get("depth_validation_errors", []),
-                } if result else None),
+                } if result else None), max_tree_nodes=max_tree_nodes,
+                max_tree_chars=max_tree_chars,
             )
             attempts += 1
             if result and result.get("depth_valid", False):
@@ -818,6 +821,8 @@ def build_tree_artifact(raw_path: Path, directory: Path, depth: int,
                                     "skill_level": f"L{depth}",
                                     "target_depth": depth, "tree_generation_status": status,
                                     "tree_generation_max_attempts": max_attempts,
+                                    "tree_max_nodes": max_tree_nodes,
+                                    "tree_max_chars": max_tree_chars,
                                     "status": "N.A." if failed else "ready",
                                     "evaluation_eligible": not bool(failed),
                                     "unavailable_reason": ("depth_validation_failed" if failed else None),
@@ -1034,6 +1039,33 @@ def _cloud_usage_status_counts(calls: List[Dict[str, Any]]) -> Dict[str, int]:
     }
 
 
+def _canonical_shared_usage_by_task(root: Path) -> Dict[str, Dict[str, int]]:
+    """Return actual canonical-tree provider usage for each runtime task.
+
+    L1--L5 are deterministic materializations of one canonical L5 artifact.
+    Their own manifests intentionally have no cloud calls, but reporting those
+    rows as literal zero obscures the shared build cost.  Keep the direct-arm
+    cost at zero and expose the shared provider usage in separate fields.
+    """
+    usage = {
+        tt: {"calls": 0, "prompt": 0, "completion": 0, "total": 0}
+        for tt in RUNTIME_TASK_TYPES
+    }
+    path = root / "artifacts" / "canonical_tree_l5" / "artifact_manifest.json"
+    if not path.exists():
+        return usage
+    for call in _read_json(path).get("cloud_calls", []) or []:
+        tt = call.get("task_type")
+        if tt not in usage:
+            continue
+        bucket = usage[tt]
+        bucket["calls"] += 1
+        bucket["prompt"] += int(call.get("prompt_tokens", 0) or 0)
+        bucket["completion"] += int(call.get("completion_tokens", 0) or 0)
+        bucket["total"] += int(call.get("total_tokens", 0) or 0)
+    return usage
+
+
 def _runtime_task_type(task_type: str) -> str:
     """Use the skill-retrieval vocabulary for every derived report."""
     return TASK_TYPE_TO_RUNTIME.get(task_type, task_type if task_type in RUNTIME_TASK_TYPES else "unknown")
@@ -1056,6 +1088,7 @@ def _small_tokens_from_episodes(episodes: List[Dict[str, Any]]) -> Dict[str, Dic
 def write_summary(root: Path, manifests: Dict[str, str]) -> None:
     rows, detailed = [], {}
     per_task_rows = []
+    canonical_shared_usage = _canonical_shared_usage_by_task(root)
     for arm in SKILL_LEVEL_ARMS:
         summary_path = root / "arms" / arm / "summary.json"
         artifact_path = root / "artifacts" / arm / "artifact_manifest.json"
@@ -1147,6 +1180,8 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                 if call.get("task_type") == tt
             ]
             artifact_usage_status = _cloud_usage_status_counts(artifact_calls)
+            shared_usage = (canonical_shared_usage.get(tt, {}) if artifact.get(
+                "generation_cost_scope") == "shared_canonical_tree_l5" else {})
             per_task_rows.append({
                 "arm": arm,
                 "status": "ready",
@@ -1174,6 +1209,13 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                     int(call.get("total_tokens", call.get("total", 0)) or 0)
                     for call in artifact_calls
                 ),
+                # These fields are deliberately separate from direct artifact
+                # calls.  The same canonical calls must not be counted once
+                # per L1--L5 arm, but analysts still need to see their cost.
+                "shared_canonical_large_model_calls": shared_usage.get("calls", 0),
+                "shared_canonical_large_model_prompt_tokens": shared_usage.get("prompt", 0),
+                "shared_canonical_large_model_completion_tokens": shared_usage.get("completion", 0),
+                "shared_canonical_large_model_total_tokens": shared_usage.get("total", 0),
             })
         artifact_calls_all = artifact.get("cloud_calls", []) or []
         artifact_usage_status_all = _cloud_usage_status_counts(artifact_calls_all)
@@ -1249,7 +1291,11 @@ def write_summary(root: Path, manifests: Dict[str, str]) -> None:
                   "artifact_task_scoped_large_model_usage_unverifiable_calls",
                   "artifact_task_scoped_large_model_prompt_tokens",
                   "artifact_task_scoped_large_model_completion_tokens",
-                  "artifact_task_scoped_large_model_total_tokens", "reason")
+                  "artifact_task_scoped_large_model_total_tokens",
+                  "shared_canonical_large_model_calls",
+                  "shared_canonical_large_model_prompt_tokens",
+                  "shared_canonical_large_model_completion_tokens",
+                  "shared_canonical_large_model_total_tokens", "reason")
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader(); writer.writerows(per_task_rows)
 

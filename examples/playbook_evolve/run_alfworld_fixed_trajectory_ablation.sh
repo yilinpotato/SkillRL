@@ -7,6 +7,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 cd "$PROJECT_ROOT"
+# A login shell may already expose a sibling repository (such as SkillRL) on
+# PYTHONPATH.  This launcher must resolve CoSkill's own agent_system first.
+export PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 set +u
 if command -v conda >/dev/null 2>&1; then
