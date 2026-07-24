@@ -196,13 +196,10 @@ if [[ "$DATA_PARALLEL_WORKERS" != "2" || "$ROLLOUT_WORKER_GPUS" != "$CUDA_VISIBL
     exit 2
 fi
 
-# The user-selected repair protocol uses FlashInfer's top-k/top-p sampler.
-# Validate it before allocating CUDA/vLLM resources.  It can be temporarily
-# disabled only with an explicit COSKILL_ENABLE_FLASHINFER_SAMPLER=0 override
-# for a runtime diagnosis.
-COSKILL_ENABLE_FLASHINFER_SAMPLER="${COSKILL_ENABLE_FLASHINFER_SAMPLER:-1}"
-# shellcheck disable=SC1091
-source "$PROJECT_ROOT/scripts/configure_vllm_acceleration.sh"
+# Keep the published repair protocol on vLLM's native top-k/top-p sampler.
+# CUDA Graph remains enabled through VLLM_ENFORCE_EAGER=0, independently of
+# the sampler implementation.
+export VLLM_USE_FLASHINFER_SAMPLER=0
 
 if [[ -d /GLOBALFS/hit_wxia_1 ]]; then
     DEFAULT_CACHE_ROOT="/GLOBALFS/hit_wxia_1/.cache"
