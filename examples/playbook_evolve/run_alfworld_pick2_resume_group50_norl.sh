@@ -196,6 +196,14 @@ if [[ "$DATA_PARALLEL_WORKERS" != "2" || "$ROLLOUT_WORKER_GPUS" != "$CUDA_VISIBL
     exit 2
 fi
 
+# The user-selected repair protocol uses FlashInfer's top-k/top-p sampler.
+# Validate it before allocating CUDA/vLLM resources.  It can be temporarily
+# disabled only with an explicit COSKILL_ENABLE_FLASHINFER_SAMPLER=0 override
+# for a runtime diagnosis.
+COSKILL_ENABLE_FLASHINFER_SAMPLER="${COSKILL_ENABLE_FLASHINFER_SAMPLER:-1}"
+# shellcheck disable=SC1091
+source "$PROJECT_ROOT/scripts/configure_vllm_acceleration.sh"
+
 if [[ -d /GLOBALFS/hit_wxia_1 ]]; then
     DEFAULT_CACHE_ROOT="/GLOBALFS/hit_wxia_1/.cache"
 else
@@ -307,7 +315,7 @@ WANDB_NAME="${WANDB_NAME:-alfworld_pick2_resume_group50_norl}"
 
 echo "[pick2-resume] source: group=$RESUME_GROUP / step=$SOURCE_STEP; target: $TARGET_GROUPS virtual groups / $TARGET_EPISODES pick2 episodes"
 echo "[pick2-resume] this replaces only the 12 pick2 trajectories in each original six-task group 51--100."
-echo "[pick2-resume] GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS worker_batch=6+6 eager=$VLLM_ENFORCE_EAGER output=$OUTPUT_DIR"
+echo "[pick2-resume] GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS worker_batch=6+6 eager=$VLLM_ENFORCE_EAGER flashinfer=$VLLM_USE_FLASHINFER_SAMPLER output=$OUTPUT_DIR"
 
 python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --outdir "$OUTPUT_DIR" \
