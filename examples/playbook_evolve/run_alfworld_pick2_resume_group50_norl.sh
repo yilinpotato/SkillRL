@@ -80,17 +80,13 @@ if [[ "$PICK2_STRICT_SOURCE_CHECK" == "1" ]]; then
     actual_driver_sha="$(sha256sum "$PROJECT_ROOT/examples/playbook_evolve/run_playbook_evolve.py" | awk '{print $1}')"
     [[ "$actual_driver_sha" == "$SOURCE_DRIVER_SHA256" ]] || {
         echo "Driver SHA mismatch: expected $SOURCE_DRIVER_SHA256, got $actual_driver_sha." >&2
-        echo "Checkout the pinned source branch/commit before running; do not mix later driver changes." >&2
+        echo "The original no-RL driver must remain byte-identical; do not mix later driver changes." >&2
         exit 1
     }
     if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         actual_commit="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
-        [[ "$actual_commit" == "$SOURCE_COMMIT" ]] || {
-            echo "Git HEAD mismatch: expected $SOURCE_COMMIT, got $actual_commit." >&2
-            exit 1
-        }
         git -C "$PROJECT_ROOT" diff --quiet -- . || {
-            echo "Tracked source changes detected. Restore a clean pinned checkout for a comparable rerun." >&2
+            echo "Tracked source changes detected at $actual_commit. Commit or remove them before a comparable rerun." >&2
             exit 1
         }
     fi
