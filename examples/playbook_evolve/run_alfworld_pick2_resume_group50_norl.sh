@@ -172,6 +172,9 @@ PY
 # The source used two data-parallel workers. The targeted 12-episode pick2
 # slice necessarily uses 6+6 requests per worker rather than the source's
 # mixed-task 36+36 requests; all model and generation settings remain pinned.
+# CUDA Graph only changes vLLM execution scheduling; it does not change the
+# prompts, seeds, sampling parameters, environment sequence, or update
+# boundaries.  Use eager mode only as an explicit debugging fallback.
 if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
     echo "CUDA_VISIBLE_DEVICES must explicitly name exactly two allocated GPUs (for example 2,3)." >&2
     exit 2
@@ -183,12 +186,13 @@ if [[ "${#gpu_ids[@]}" -ne 2 ]] || [[ -z "${gpu_ids[0]}" || -z "${gpu_ids[1]}" ]
 fi
 DATA_PARALLEL_WORKERS="${DATA_PARALLEL_WORKERS:-2}"
 ROLLOUT_WORKER_GPUS="${ROLLOUT_WORKER_GPUS:-$CUDA_VISIBLE_DEVICES}"
-VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-1}"
+VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-0}"
 VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-0}"
 TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-1}"
 if [[ "$DATA_PARALLEL_WORKERS" != "2" || "$ROLLOUT_WORKER_GPUS" != "$CUDA_VISIBLE_DEVICES" || \
-      "$VLLM_ENFORCE_EAGER" != "1" || "$VLLM_MAX_NUM_SEQS" != "0" || "$TENSOR_PARALLEL_SIZE" != "1" ]]; then
-    echo "Topology/runtime mismatch. Required: DP=2, worker GPUs=$CUDA_VISIBLE_DEVICES, TP=1, enforce_eager=1, max_num_seqs=0." >&2
+      ( "$VLLM_ENFORCE_EAGER" != "0" && "$VLLM_ENFORCE_EAGER" != "1" ) || \
+      "$VLLM_MAX_NUM_SEQS" != "0" || "$TENSOR_PARALLEL_SIZE" != "1" ]]; then
+    echo "Topology/runtime mismatch. Required: DP=2, worker GPUs=$CUDA_VISIBLE_DEVICES, TP=1, VLLM_ENFORCE_EAGER=0 or 1, max_num_seqs=0." >&2
     exit 2
 fi
 
@@ -303,7 +307,7 @@ WANDB_NAME="${WANDB_NAME:-alfworld_pick2_resume_group50_norl}"
 
 echo "[pick2-resume] source: group=$RESUME_GROUP / step=$SOURCE_STEP; target: $TARGET_GROUPS virtual groups / $TARGET_EPISODES pick2 episodes"
 echo "[pick2-resume] this replaces only the 12 pick2 trajectories in each original six-task group 51--100."
-echo "[pick2-resume] GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS worker_batch=6+6 output=$OUTPUT_DIR"
+echo "[pick2-resume] GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS worker_batch=6+6 eager=$VLLM_ENFORCE_EAGER output=$OUTPUT_DIR"
 
 python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --outdir "$OUTPUT_DIR" \
@@ -331,7 +335,7 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --temperature 1.0 \
     --gpu_mem_util 0.8 \
     --vllm_max_num_seqs 0 \
-    --vllm_enforce_eager 1 \
+    --vllm_enforce_eager "$VLLM_ENFORCE_EAGER" \
     --tensor_parallel_size 1 \
     --skills_json "$SOURCE_SKILLS" \
     --retrieval_mode template \
