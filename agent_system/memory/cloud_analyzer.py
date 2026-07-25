@@ -72,6 +72,12 @@ class CloudAnalyzer:
         self.update_history: List[Dict] = []
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
+        # DeepSeek exposes the input split used for billing.  Keep it separate
+        # from ``total_prompt_tokens``: prompt tokens are a usage measure,
+        # whereas cache hit/miss tokens are the only safe inputs for a cache
+        # aware cost estimate.
+        self.total_prompt_cache_hit_tokens = 0
+        self.total_prompt_cache_miss_tokens = 0
         # Per-task_type cloud token breakdown. Only evolve_playbook is cleanly
         # attributable to a single task_type (it's already called once per
         # task_type); contrastive_distill/diagnose_failures each mix every
@@ -88,6 +94,8 @@ class CloudAnalyzer:
         self.usage_missing_calls = 0
         self.usage_missing_calls_by_task_type: Dict[str, int] = {}
         self.usage_missing_calls_mixed = 0
+        self.cache_usage_reported_calls = 0
+        self.cache_usage_missing_calls = 0
         # Skill-tree 进化 / 失败诊断的可观测计数（并入 get_update_summary）。
         self.playbook_history: List[Dict] = []
         self.n_diagnose_calls = 0
@@ -714,16 +722,42 @@ Return ONLY the JSON object, no other text."""
         except Exception as e:
             print(f"[CloudAnalyzer] json dump failed ({fname}): {e}")
 
+    @staticmethod
+    def _usage_field(usage: Any, name: str) -> Any:
+        """Read an SDK or mapping usage field without assuming one provider."""
+        if isinstance(usage, dict):
+            return usage.get(name)
+        return getattr(usage, name, None)
+
     def _record_call(self, purpose: str, prompt: str, response: str, usage: Any,
                       task_type: Optional[str] = None) -> None:
         """Record hashes/token usage without putting API text in normal metrics."""
         import hashlib
         usage_reported = usage is not None and (
-            getattr(usage, "prompt_tokens", None) is not None or
-            getattr(usage, "completion_tokens", None) is not None
+            self._usage_field(usage, "prompt_tokens") is not None or
+            self._usage_field(usage, "completion_tokens") is not None
         )
-        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0) if usage_reported else None
-        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0) if usage_reported else None
+        prompt_tokens = (int(self._usage_field(usage, "prompt_tokens") or 0)
+                         if usage_reported else None)
+        completion_tokens = (int(self._usage_field(usage, "completion_tokens") or 0)
+                             if usage_reported else None)
+        raw_cache_hit = self._usage_field(usage, "prompt_cache_hit_tokens")
+        raw_cache_miss = self._usage_field(usage, "prompt_cache_miss_tokens")
+        cache_usage_reported = raw_cache_hit is not None and raw_cache_miss is not None
+        cache_hit_tokens = int(raw_cache_hit or 0) if cache_usage_reported else None
+        cache_miss_tokens = int(raw_cache_miss or 0) if cache_usage_reported else None
+        if cache_usage_reported:
+            self.cache_usage_reported_calls = int(
+                getattr(self, "cache_usage_reported_calls", 0) or 0) + 1
+            self.total_prompt_cache_hit_tokens = int(
+                getattr(self, "total_prompt_cache_hit_tokens", 0) or 0) + cache_hit_tokens
+            self.total_prompt_cache_miss_tokens = int(
+                getattr(self, "total_prompt_cache_miss_tokens", 0) or 0) + cache_miss_tokens
+        else:
+            # Do not infer a cache split from total prompt tokens.  Treating a
+            # missing provider field as all-cache-miss would fabricate a bill.
+            self.cache_usage_missing_calls = int(
+                getattr(self, "cache_usage_missing_calls", 0) or 0) + 1
         if usage_reported:
             self.usage_reported_calls += 1
         else:
@@ -742,6 +776,16 @@ Return ONLY the JSON object, no other text."""
             "total_tokens": (prompt_tokens + completion_tokens) if usage_reported else None,
             "usage_reported": usage_reported,
             "usage_status": "reported" if usage_reported else "missing",
+            "prompt_cache_hit_tokens": cache_hit_tokens,
+            "prompt_cache_miss_tokens": cache_miss_tokens,
+            "cache_usage_reported": cache_usage_reported,
+            "cache_usage_status": "reported" if cache_usage_reported else "missing",
+            # Keep payload-size accounting alongside provider token usage.  The
+            # latter is authoritative when available; chars/4 is only a
+            # deterministic inspection aid for prompt construction.
+            "prompt_chars": len(prompt),
+            "prompt_bytes_utf8": len(prompt.encode("utf-8")),
+            "prompt_tokens_chars_div_4": max(1, len(prompt) // 4) if prompt else 0,
             "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "response_sha256": hashlib.sha256((response or "").encode("utf-8")).hexdigest(),
         })
@@ -1147,6 +1191,14 @@ Return ONLY the JSON array, no other text."""
             "large_model_prompt_tokens": self.total_prompt_tokens,
             "large_model_completion_tokens": self.total_completion_tokens,
             "large_model_total_tokens": self.total_prompt_tokens + self.total_completion_tokens,
+            "large_model_prompt_cache_hit_tokens": int(
+                getattr(self, "total_prompt_cache_hit_tokens", 0) or 0),
+            "large_model_prompt_cache_miss_tokens": int(
+                getattr(self, "total_prompt_cache_miss_tokens", 0) or 0),
+            "large_model_cache_usage_reported_calls": int(
+                getattr(self, "cache_usage_reported_calls", 0) or 0),
+            "large_model_cache_usage_missing_calls": int(
+                getattr(self, "cache_usage_missing_calls", 0) or 0),
             # Per-task_type breakdown (evolve_playbook only - cleanly
             # attributable) plus an honest "mixed" bucket for calls that
             # cannot be split by task_type (contrastive_distill,
