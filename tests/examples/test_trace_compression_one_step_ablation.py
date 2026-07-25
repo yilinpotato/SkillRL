@@ -5,6 +5,7 @@ from examples.playbook_evolve.trace_compression_one_step_ablation import (
     ROLL_OUTS_PER_TYPE,
     RUNTIME_TASK_TYPES,
     _validate_shared_raw,
+    annotate_call_costs,
     build_token_waterfall,
     summarize_cloud_cost,
 )
@@ -115,3 +116,28 @@ def test_full_trajectory_capture_rejects_old_one_action_corpus():
     ]
     stats = _validate_shared_raw(full)
     assert stats["observed_steps_per_trace"]["total"] == len(full) * 2
+
+
+def test_per_call_costs_preserve_missing_cache_split_as_not_available():
+    rows = annotate_call_costs([
+        {
+            "purpose": "contrastive_distill",
+            "prompt_tokens": 1000,
+            "completion_tokens": 100,
+            "prompt_cache_hit_tokens": 400,
+            "prompt_cache_miss_tokens": 600,
+        },
+        {
+            "purpose": "diagnose_failures",
+            "prompt_tokens": 800,
+            "completion_tokens": 50,
+            "prompt_cache_hit_tokens": None,
+            "prompt_cache_miss_tokens": None,
+        },
+    ])
+    assert rows[0]["call_index"] == 1
+    assert rows[0]["cost_status"] == "cache_split_reported"
+    assert rows[0]["observed_cache_billed_cost_usd"] is not None
+    assert rows[1]["cost_status"] == "provider_usage_without_cache_split"
+    assert rows[1]["observed_cache_billed_cost_usd"] is None
+    assert rows[1]["all_input_cache_miss_cost_usd"] is not None

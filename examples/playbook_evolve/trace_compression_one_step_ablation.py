@@ -200,6 +200,50 @@ def build_token_waterfall(batch: dict[str, Any], calls: Iterable[dict[str, Any]]
     }
 
 
+def annotate_call_costs(
+    calls: Iterable[dict[str, Any]],
+    pricing: dict[str, Any] = DEEPSEEK_V4_FLASH_PRICING_USD_PER_MILLION,
+) -> list[dict[str, Any]]:
+    """Add per-request provider usage and reproducible price simulations.
+
+    ``observed_cache_billed_cost_usd`` is emitted only when the response
+    contains DeepSeek's hit/miss split.  It is a reconstruction from returned
+    usage and the recorded public tariff, not an account-balance query.
+    ``all_input_cache_miss_cost_usd`` remains available when ordinary input and
+    output usage is reported but the cache split is absent.
+    """
+    annotated = []
+    million = 1_000_000.0
+    for index, raw in enumerate(calls, start=1):
+        row = dict(raw)
+        prompt = row.get("prompt_tokens")
+        completion = row.get("completion_tokens")
+        hit = row.get("prompt_cache_hit_tokens")
+        miss = row.get("prompt_cache_miss_tokens")
+        usage_complete = prompt is not None and completion is not None
+        cache_complete = usage_complete and hit is not None and miss is not None
+        row["call_index"] = index
+        row["pricing_model"] = pricing["model"]
+        row["observed_cache_billed_cost_usd"] = (
+            (int(hit) * float(pricing["prompt_cache_hit"])
+             + int(miss) * float(pricing["prompt_cache_miss"])
+             + int(completion) * float(pricing["completion"])) / million
+            if cache_complete else None
+        )
+        row["all_input_cache_miss_cost_usd"] = (
+            (int(prompt) * float(pricing["prompt_cache_miss"])
+             + int(completion) * float(pricing["completion"])) / million
+            if usage_complete else None
+        )
+        row["cost_status"] = (
+            "cache_split_reported" if cache_complete
+            else "provider_usage_without_cache_split" if usage_complete
+            else "provider_usage_missing"
+        )
+        annotated.append(row)
+    return annotated
+
+
 def summarize_cloud_cost(calls: Iterable[dict[str, Any]], pricing: dict[str, Any] = DEEPSEEK_V4_FLASH_PRICING_USD_PER_MILLION) -> dict[str, Any]:
     """Produce observed and cache-neutral cost estimates from provider usage.
 
@@ -415,8 +459,20 @@ def build_arm(root: Path, arm: str, raw_path: Path, initial_skills: Path, retrie
     if not skills_path.exists():
         raise RuntimeError(f"{arm} cloud update did not persist its skill library")
     analyzer = loop.cloud_analyzer
-    calls = list(getattr(analyzer, "call_audit", []) or [])
+    calls = annotate_call_costs(getattr(analyzer, "call_audit", []) or [])
     _write_json(arm_dir / "cloud_io" / "call_audit.json", calls)
+    call_cost_path = arm_dir / "cloud_io" / "call_costs.csv"
+    if calls:
+        with call_cost_path.open("w", newline="") as handle:
+            fields = [
+                "call_index", "purpose", "task_type", "model", "pricing_model",
+                "prompt_tokens", "completion_tokens", "prompt_cache_hit_tokens",
+                "prompt_cache_miss_tokens", "observed_cache_billed_cost_usd",
+                "all_input_cache_miss_cost_usd", "cost_status",
+            ]
+            writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(calls)
     waterfall = build_token_waterfall(batch, calls)
     _write_json(arm_dir / "token_waterfall.json", waterfall)
     result = {
@@ -430,6 +486,7 @@ def build_arm(root: Path, arm: str, raw_path: Path, initial_skills: Path, retrie
         "token_waterfall_path": str(arm_dir / "token_waterfall.json"),
         "cloud_cost": summarize_cloud_cost(calls),
         "cloud_call_audit_path": str(arm_dir / "cloud_io" / "call_audit.json"),
+        "cloud_call_costs_path": str(call_cost_path),
         "skills_path": str(skills_path),
         "skill_sha256": _sha256_path(skills_path),
         "cloud_update_fired": True,
