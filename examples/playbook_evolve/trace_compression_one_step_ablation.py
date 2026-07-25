@@ -1,14 +1,14 @@
-"""ALFWorld one-environment-step CoSkill trace-compression cost ablation.
+"""ALFWorld one-training-step CoSkill trace-compression cost ablation.
 
-This is deliberately not a task-success benchmark.  It captures one action
-from each of 72 fixed rollouts exactly once, then fans that immutable raw trace
-corpus out to two otherwise identical CoSkill cloud updates:
+It captures one complete 72-rollout training group (up to 40 environment
+actions per rollout) exactly once, then fans that immutable raw trace corpus
+out to two otherwise identical CoSkill cloud updates:
 
 * ``compression_on``: normal loop/delta/prefix/consensus processing;
 * ``compression_off``: every trace-payload transformation disabled.
 
 The result isolates cloud upload size and cache-aware API cost from rollout
-sampling.  It never lets an arm's updated skill library feed another action.
+sampling.  It never lets an arm's updated skill library feed another rollout.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from examples.playbook_evolve import fixed_trajectory_ablation as fixed
 RUNTIME_TASK_TYPES = fixed.RUNTIME_TASK_TYPES
 ROLL_OUTS_PER_TYPE = 12
 TOTAL_ROLLOUTS = len(RUNTIME_TASK_TYPES) * ROLL_OUTS_PER_TYPE
+MAX_ENVIRONMENT_STEPS = 40
 ARMS = {
     "compression_on": {
         "enable_loop_filter": True,
@@ -253,18 +254,40 @@ def _validate_shared_raw(raw: list[dict[str, Any]]) -> dict[str, Any]:
         raise RuntimeError(f"expected exactly {TOTAL_ROLLOUTS} captured traces, found {len(raw)}")
     counts = {task_type: 0 for task_type in RUNTIME_TASK_TYPES}
     invalid_steps = []
+    observed_step_counts = []
     for index, trace in enumerate(raw, start=1):
         task_type = str(trace.get("task_type", ""))
         if task_type not in counts:
             raise RuntimeError(f"capture trace {index} has unknown task_type={task_type!r}")
         counts[task_type] += 1
-        if len(trace.get("steps") or []) != 1:
+        step_count = len(trace.get("steps") or [])
+        observed_step_counts.append(step_count)
+        if step_count < 1 or step_count > MAX_ENVIRONMENT_STEPS:
             invalid_steps.append(index)
     if invalid_steps:
-        raise RuntimeError("one-step protocol violated; traces with step count != 1: " + ", ".join(map(str, invalid_steps[:10])))
+        raise RuntimeError(
+            "full-trajectory protocol violated; trace step counts must be in "
+            f"[1, {MAX_ENVIRONMENT_STEPS}]: " + ", ".join(map(str, invalid_steps[:10])))
+    # A pre-existing one-environment-action capture is not valid evidence for
+    # trajectory compression: it contains no temporal redundancy for loop or
+    # observation-delta compression.  Reject it rather than silently reusing
+    # the old one-step corpus under the corrected protocol.
+    if max(observed_step_counts, default=0) <= 1:
+        raise RuntimeError(
+            "full-trajectory protocol requires at least one trace with more "
+            "than one environment step; do not reuse a one-action capture")
     if any(value != ROLL_OUTS_PER_TYPE for value in counts.values()):
         raise RuntimeError(f"expected {ROLL_OUTS_PER_TYPE} captures per task, got {counts}")
-    return {"rollouts": len(raw), "per_task_type": counts, "steps_per_trace": 1}
+    return {
+        "rollouts": len(raw),
+        "per_task_type": counts,
+        "max_environment_steps": MAX_ENVIRONMENT_STEPS,
+        "observed_steps_per_trace": {
+            "min": min(observed_step_counts),
+            "max": max(observed_step_counts),
+            "total": sum(observed_step_counts),
+        },
+    }
 
 
 def _driver_cmd(args: argparse.Namespace, capture_dir: Path, manifest: Path, initial_skills: Path) -> list[str]:
@@ -286,7 +309,7 @@ def _driver_cmd(args: argparse.Namespace, capture_dir: Path, manifest: Path, ini
         "--batch_rollout_size",
         str(TOTAL_ROLLOUTS),
         "--max_steps",
-        "1",
+        str(MAX_ENVIRONMENT_STEPS),
         "--seed",
         str(args.seed),
         "--retrieval_mode",
@@ -342,7 +365,7 @@ def capture_once(args: argparse.Namespace, root: Path, manifest: Path, initial_s
         return raw_path
     capture_dir = root / "capture"
     command = _driver_cmd(args, capture_dir, manifest, initial_skills)
-    print("[one-step-trace-ablation] capture:", " ".join(command))
+    print("[train-step-trace-ablation] capture:", " ".join(command))
     subprocess.run(command, cwd=args.project_root, check=True)
     source = capture_dir / "traces_pool" / "raw_traces.jsonl"
     if not source.exists():
@@ -354,7 +377,7 @@ def capture_once(args: argparse.Namespace, root: Path, manifest: Path, initial_s
     _write_json(
         root / "capture" / "capture_integrity.json",
         {
-            "protocol": "shared_72_rollouts_x_one_environment_action",
+            "protocol": "shared_72_rollouts_x_one_training_group_full_trajectories",
             "raw_traces": str(raw_path),
             "raw_traces_sha256": _sha256_path(raw_path),
             **integrity,
@@ -371,7 +394,7 @@ def build_arm(root: Path, arm: str, raw_path: Path, initial_skills: Path, retrie
     flags = ARMS[arm]
     raw = _read_jsonl(raw_path)
     reporting_pool = _pool(raw, arm_dir / "trace_payload", flags)
-    batch = reporting_pool.export_batch(trigger_reason="one_step_shared_capture")
+    batch = reporting_pool.export_batch(trigger_reason="one_training_group_shared_capture")
     _write_json(arm_dir / "compressed_batch.json", batch)
 
     # A distinct pool is necessary because export_batch intentionally drains
@@ -385,7 +408,7 @@ def build_arm(root: Path, arm: str, raw_path: Path, initial_skills: Path, retrie
         enable_failure_analysis=True,
         environment_name="ALFWorld",
     )
-    fired = loop.maybe_update(cloud_pool, library, TOTAL_ROLLOUTS, force_reason="one_step_shared_capture")
+    fired = loop.maybe_update(cloud_pool, library, TOTAL_ROLLOUTS, force_reason="one_training_group_shared_capture")
     if not fired:
         raise RuntimeError(f"{arm} did not execute its required one cloud update")
     skills_path = arm_dir / "skill_lib" / f"skills_step{TOTAL_ROLLOUTS}.json"
@@ -398,7 +421,7 @@ def build_arm(root: Path, arm: str, raw_path: Path, initial_skills: Path, retrie
     _write_json(arm_dir / "token_waterfall.json", waterfall)
     result = {
         "arm": arm,
-        "protocol": "same_shared_raw_72_one_step_traces_then_one_coskill_cloud_update",
+        "protocol": "same_shared_raw_72_full_trajectories_then_one_coskill_cloud_update",
         "raw_traces_sha256": _sha256_path(raw_path),
         "compression_flags": flags,
         "capture_upload_payload": _capture_payload_stats(raw),
@@ -496,11 +519,11 @@ def write_reports(root: Path) -> dict[str, Any]:
             {
                 "step": TOTAL_ROLLOUTS,
                 "metrics": {
-                    "experiment/name": "alfworld_one_step_trace_compression_ablation",
+                    "experiment/name": "alfworld_train_step_trace_compression_ablation",
                     "experiment/arm": result["arm"],
                     "experiment/rollouts": TOTAL_ROLLOUTS,
-                    "experiment/max_environment_steps": 1,
-                    "experiment/task_success_metric": "not_applicable_one_step_capture",
+                    "experiment/max_environment_steps": MAX_ENVIRONMENT_STEPS,
+                    "experiment/task_success_metric": "capture_group_diagnostic_only",
                     "trace_upload/evidence_chars": payload["trace_evidence"]["chars"],
                     "trace_upload/evidence_tokens_chars_div_4": payload["trace_evidence"]["tokens_chars_div_4"],
                     "trace_upload/batch_chars": payload["compressed_batch"]["chars"],
@@ -589,11 +612,11 @@ def main() -> None:
     initial_skills = _ensure_initial_skills(root, source_skills)
     capture_manifest, _unused_eval_manifest = fixed.create_manifests(root, data_root, args.split, args.sample_seed, eval_games_per_type=1)
     config = {
-        "experiment_kind": "alfworld_one_step_trace_compression_ablation",
-        "protocol": "shared_72_rollouts_x_one_environment_action_then_two_independent_cloud_updates",
+        "experiment_kind": "alfworld_train_step_trace_compression_ablation",
+        "protocol": "shared_72_rollouts_x_one_training_group_full_trajectories_then_two_independent_cloud_updates",
         "rollouts": TOTAL_ROLLOUTS,
         "rollouts_per_task_type": ROLL_OUTS_PER_TYPE,
-        "max_environment_steps": 1,
+        "max_environment_steps": MAX_ENVIRONMENT_STEPS,
         "arms": ARMS,
         "seed": args.seed,
         "sample_seed": args.sample_seed,
@@ -606,7 +629,7 @@ def main() -> None:
     }
     config_path = root / "run_config.json"
     if config_path.exists() and _read_json(config_path) != config:
-        raise RuntimeError("existing root has a different one-step trace-ablation configuration; use a new --root")
+        raise RuntimeError("existing root has a different train-step trace-ablation configuration; use a new --root")
     _write_json(config_path, config)
     raw_path = root / "shared" / "raw_traces.jsonl"
     if args.phase in ("capture", "all"):

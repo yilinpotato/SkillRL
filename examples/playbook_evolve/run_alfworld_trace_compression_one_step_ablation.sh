@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ALFWorld-only, shared 72 x one-environment-step trace compression ablation.
+# ALFWorld-only, shared 72-rollout full-trajectory training-step compression ablation.
 # It captures raw trajectories once and reuses their exact SHA-256 across the
 # normal CoSkill compression arm and the all-transforms-off arm.
 set -euo pipefail
@@ -55,9 +55,9 @@ if [[ "${CLOUD_BOOTSTRAP_PROBE:-1}" == "1" ]]; then
 fi
 python3 "$PROJECT_ROOT/scripts/check_cloud_bootstrap.py" "${probe_args[@]}"
 
-AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_one_step_trace_compression_ablation/$(date +%Y%m%d_%H%M%S)}"
-echo "[one-step-trace-ablation] GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS root=$AB_ROOT"
-echo "[one-step-trace-ablation] shared capture: 6 task types x 12 rollouts x max_steps=1; cloud arms: on/off"
+AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_train_step_trace_compression_ablation/$(date +%Y%m%d_%H%M%S)}"
+echo "[train-step-trace-ablation] GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS root=$AB_ROOT"
+echo "[train-step-trace-ablation] shared capture: 6 task types x 12 rollouts x max_steps=40; cloud arms: on/off"
 
 exec python -u -m examples.playbook_evolve.trace_compression_one_step_ablation \
     --root "$AB_ROOT" --alfworld_data "$ALFWORLD_DATA" --model_path "$MODEL_PATH" \

@@ -2,6 +2,9 @@ from types import SimpleNamespace
 
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
 from examples.playbook_evolve.trace_compression_one_step_ablation import (
+    ROLL_OUTS_PER_TYPE,
+    RUNTIME_TASK_TYPES,
+    _validate_shared_raw,
     build_token_waterfall,
     summarize_cloud_cost,
 )
@@ -90,3 +93,25 @@ def test_token_waterfall_keeps_trace_estimates_and_provider_usage_distinct():
     assert by_stage["obs_delta"]["tokens_chars_div_4"] == 50
     assert by_stage["actual_cloud_prompt"]["provider_prompt_tokens"] == 121
     assert by_stage["actual_cloud_prompt"]["tokens_chars_div_4"] == 125
+
+
+def test_full_trajectory_capture_rejects_old_one_action_corpus():
+    one_action = [
+        {"task_type": task_type, "steps": [{"step": 1}]}
+        for task_type in RUNTIME_TASK_TYPES
+        for _ in range(ROLL_OUTS_PER_TYPE)
+    ]
+    try:
+        _validate_shared_raw(one_action)
+    except RuntimeError as exc:
+        assert "more than one environment step" in str(exc)
+    else:
+        raise AssertionError("one-action corpus must not satisfy full-trajectory protocol")
+
+    full = [
+        {"task_type": task_type, "steps": [{"step": 1}, {"step": 2}]}
+        for task_type in RUNTIME_TASK_TYPES
+        for _ in range(ROLL_OUTS_PER_TYPE)
+    ]
+    stats = _validate_shared_raw(full)
+    assert stats["observed_steps_per_trace"]["total"] == len(full) * 2
