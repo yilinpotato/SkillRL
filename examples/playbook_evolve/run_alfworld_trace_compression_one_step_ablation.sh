@@ -43,6 +43,9 @@ export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
 export SKILL_UPDATER_BACKEND="${SKILL_UPDATER_BACKEND:-deepseek}"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-flash}"
+# Both arms use this same expanded rendering budget.  It exposes the token
+# effect of full trajectory compression without changing normal CoSkill runs.
+export COSKILL_CLOUD_EVIDENCE_MULTIPLIER="${COSKILL_CLOUD_EVIDENCE_MULTIPLIER:-10}"
 export HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1
 export VLLM_WORKER_MULTIPROC_METHOD=spawn CUDA_DEVICE_ORDER=PCI_BUS_ID PYTHONUNBUFFERED=1
 export VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-0}"
@@ -58,6 +61,7 @@ python3 "$PROJECT_ROOT/scripts/check_cloud_bootstrap.py" "${probe_args[@]}"
 AB_ROOT="${AB_ROOT:-$OUTPUT_ROOT/alfworld_train_step_trace_compression_ablation/$(date +%Y%m%d_%H%M%S)}"
 echo "[train-step-trace-ablation] GPUs=$CUDA_VISIBLE_DEVICES DP=$DATA_PARALLEL_WORKERS root=$AB_ROOT"
 echo "[train-step-trace-ablation] shared capture: 6 task types x 12 rollouts x max_steps=40; cloud arms: on/off"
+echo "[train-step-trace-ablation] cloud evidence multiplier=$COSKILL_CLOUD_EVIDENCE_MULTIPLIER (both arms)"
 
 exec python -u -m examples.playbook_evolve.trace_compression_one_step_ablation \
     --root "$AB_ROOT" --alfworld_data "$ALFWORLD_DATA" --model_path "$MODEL_PATH" \

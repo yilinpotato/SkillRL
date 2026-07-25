@@ -69,6 +69,28 @@ class CloudAnalyzer:
         self.max_completion_tokens = max_completion_tokens
         self.max_new_skills_per_update = max_new_skills_per_update
         self.environment_name = str(environment_name or "generic")
+        # Normal production runs retain the legacy small prompt budget unless
+        # an experiment explicitly opts in.  The trajectory-compression
+        # ablation uses 10x so the cloud model sees near-complete evidence.
+        try:
+            self.evidence_budget_multiplier = max(
+                1, int(os.environ.get("COSKILL_CLOUD_EVIDENCE_MULTIPLIER", "1")))
+        except ValueError as exc:
+            raise ValueError(
+                "COSKILL_CLOUD_EVIDENCE_MULTIPLIER must be a positive integer") from exc
+        self.evidence_render_limits = {
+            "multiplier": self.evidence_budget_multiplier,
+            "contrastive_success_examples": 5 * self.evidence_budget_multiplier,
+            "contrastive_failure_examples": 6 * self.evidence_budget_multiplier,
+            "diagnose_success_examples": 3 * self.evidence_budget_multiplier,
+            "diagnose_failure_examples": 6 * self.evidence_budget_multiplier,
+            "tree_success_examples": 4 * self.evidence_budget_multiplier,
+            "tree_failure_examples": 5 * self.evidence_budget_multiplier,
+            "steps_per_trace": 12 * self.evidence_budget_multiplier,
+            "observation_chars_per_step": 400 * self.evidence_budget_multiplier,
+            "decision_forks": 6 * self.evidence_budget_multiplier,
+            "branches_per_fork": 5 * self.evidence_budget_multiplier,
+        }
         self.update_history: List[Dict] = []
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
@@ -195,8 +217,8 @@ class CloudAnalyzer:
         compressed_batch: Dict[str, Any],
         *,
         task_type: Optional[str] = None,
-        max_success_examples: int = 3,
-        max_failure_examples: int = 6,
+        max_success_examples: Optional[int] = None,
+        max_failure_examples: Optional[int] = None,
     ) -> Dict[str, List[Dict]]:
         """一次 LLM 调用，诊断本批**所有失败轨迹**的错误原因。
 
@@ -208,6 +230,10 @@ class CloudAnalyzer:
         Returns:
             ``{task_type: [diagnosis, ...]}``；无失败样本时返回 ``{}``。
         """
+        max_success_examples = (self.evidence_render_limits["diagnose_success_examples"]
+                                if max_success_examples is None else max_success_examples)
+        max_failure_examples = (self.evidence_render_limits["diagnose_failure_examples"]
+                                if max_failure_examples is None else max_failure_examples)
         failures = compressed_batch.get("failure_samples", []) or []
         if not failures:
             return {}
@@ -280,10 +306,14 @@ class CloudAnalyzer:
         succ_by_type: Dict[str, List[Dict]],
         prefix_tree: Dict,
         *,
-        max_success_examples: int = 3,
-        max_failure_examples: int = 6,
+        max_success_examples: Optional[int] = None,
+        max_failure_examples: Optional[int] = None,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
+        max_success_examples = (self.evidence_render_limits["diagnose_success_examples"]
+                                if max_success_examples is None else max_success_examples)
+        max_failure_examples = (self.evidence_render_limits["diagnose_failure_examples"]
+                                if max_failure_examples is None else max_failure_examples)
         sections = []
         for tt, fails in fail_by_type.items():
             # 给每条失败轨迹一个稳定 ref: "<task_type>#<i>"
@@ -361,11 +391,13 @@ Return ONLY the JSON array, no other text."""
             lines = [f"\n[ref={tr.get('_ref', '?')}]{score_text} task: {tr.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded)")
-            for s in steps[fold:fold + 12]:
+            for s in steps[fold:fold + self.evidence_render_limits["steps_per_trace"]]:
                 is_raw = 'observation' in s and 'obs_delta' not in s
                 label = "obs" if is_raw or s.get('obs_is_full') else "delta"
                 obs_text = s.get('observation', '') if is_raw else s.get('obs_delta', '')
-                lines.append(f"  action: {s.get('action', '')}  | {label}: {obs_text[:400]}")
+                lines.append(
+                    f"  action: {s.get('action', '')}  | {label}: "
+                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
             if tr.get("dropped_loops"):
                 lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
             out.append("\n".join(lines))
@@ -386,8 +418,8 @@ Return ONLY the JSON array, no other text."""
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
         repair_feedback: Optional[Dict[str, Any]] = None,
-        max_success_examples: int = 4,
-        max_failure_examples: int = 5,
+        max_success_examples: Optional[int] = None,
+        max_failure_examples: Optional[int] = None,
         max_tree_nodes: Optional[int] = None,
         max_tree_chars: Optional[int] = None,
     ) -> Optional[Dict]:
@@ -404,6 +436,10 @@ Return ONLY the JSON array, no other text."""
             ``{action, level, skill_tree, critique, changelog}``；``action="keep"``
             表示无需改动。LLM 出错或无内容时返回 ``None``（调用方保留旧版本）。
         """
+        max_success_examples = (self.evidence_render_limits["tree_success_examples"]
+                                if max_success_examples is None else max_success_examples)
+        max_failure_examples = (self.evidence_render_limits["tree_failure_examples"]
+                                if max_failure_examples is None else max_failure_examples)
         if not success_traces and not failure_traces:
             return None
 
@@ -492,12 +528,16 @@ Return ONLY the JSON array, no other text."""
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
         repair_feedback: Optional[Dict[str, Any]] = None,
-        max_success_examples: int = 4,
-        max_failure_examples: int = 5,
+        max_success_examples: Optional[int] = None,
+        max_failure_examples: Optional[int] = None,
         max_tree_nodes: Optional[int] = None,
         max_tree_chars: Optional[int] = None,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
+        max_success_examples = (self.evidence_render_limits["tree_success_examples"]
+                                if max_success_examples is None else max_success_examples)
+        max_failure_examples = (self.evidence_render_limits["tree_failure_examples"]
+                                if max_failure_examples is None else max_failure_examples)
         cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
         consensus = longest_common_action_prefix(success_traces)
         succ_txt = self._format_difftraces(
@@ -786,6 +826,8 @@ Return ONLY the JSON object, no other text."""
             "prompt_chars": len(prompt),
             "prompt_bytes_utf8": len(prompt.encode("utf-8")),
             "prompt_tokens_chars_div_4": max(1, len(prompt) // 4) if prompt else 0,
+            "evidence_render_limits": dict(getattr(
+                self, "evidence_render_limits", {"multiplier": 1})),
             "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "response_sha256": hashlib.sha256((response or "").encode("utf-8")).hexdigest(),
         })
@@ -816,8 +858,12 @@ Return ONLY the JSON object, no other text."""
     ) -> str:
         task_type = batch.get("task_type", "unknown")
         consensus = batch.get("consensus_prefix") or []
-        succ_txt = self._format_difftraces(batch.get("success_samples", []), limit=5, consensus=consensus)
-        fail_txt = self._format_difftraces(batch.get("failure_samples", []), limit=6, consensus=consensus)
+        succ_txt = self._format_difftraces(
+            batch.get("success_samples", []),
+            limit=self.evidence_render_limits["contrastive_success_examples"], consensus=consensus)
+        fail_txt = self._format_difftraces(
+            batch.get("failure_samples", []),
+            limit=self.evidence_render_limits["contrastive_failure_examples"], consensus=consensus)
         fork_txt = self._format_forks(batch.get("prefix_tree", {}))
 
         existing_titles = [s.get("title", "") for s in current_skills.get("general_skills", [])]
@@ -937,7 +983,7 @@ Return ONLY the JSON array, no other text."""
             lines = [f"\nTrajectory {i + 1} [{tr.get('outcome', '?')}]{score_text} task: {tr.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded, already mastered)")
-            for s in steps[fold:fold + 12]:
+            for s in steps[fold:fold + self.evidence_render_limits["steps_per_trace"]]:
                 # ``observation`` is deliberately used by the all-compression-
                 # off ablation; production traces retain ``obs_delta``.
                 is_raw = 'observation' in s and 'obs_delta' not in s
@@ -946,7 +992,9 @@ Return ONLY the JSON array, no other text."""
                 # the normal adaptive delta path.  The all-off path is also a
                 # full observation, but has no delta field at all.
                 label = "obs" if is_raw or s.get('obs_is_full') else "delta"
-                lines.append(f"  action: {s.get('action', '')}  | {label}: {obs_text[:400]}")
+                lines.append(
+                    f"  action: {s.get('action', '')}  | {label}: "
+                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
             if tr.get("dropped_loops"):
                 lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
             out.append("\n".join(lines))
@@ -1023,7 +1071,7 @@ Return ONLY the JSON array, no other text."""
             "depth_valid": not errors,
         }
 
-    def _format_forks(self, prefix_tree: Dict, max_forks: int = 6) -> str:
+    def _format_forks(self, prefix_tree: Dict, max_forks: Optional[int] = None) -> str:
         """从前缀树中找出分叉节点（children>1），展示各分支的成功/失败计数。
 
         分支标签 ``a`` 是归一化后的 action（实例编号已折成 "#"，见
@@ -1032,6 +1080,9 @@ Return ONLY the JSON array, no other text."""
         下的不同具体实例。``n_variants``>1 时附上几个具体实例样例，只作为
         grounding 提示，不应被当成分支本身。
         """
+        max_forks = (self.evidence_render_limits["decision_forks"]
+                     if max_forks is None else max_forks)
+        max_branches = self.evidence_render_limits["branches_per_fork"]
         forks: List[str] = []
 
         def branch_label(a: str, c: Dict) -> str:
@@ -1045,7 +1096,8 @@ Return ONLY the JSON array, no other text."""
                 return
             children = node.get("children", {})
             if len(children) > 1:
-                branch_desc = "; ".join(branch_label(a, c) for a, c in list(children.items())[:5])
+                branch_desc = "; ".join(
+                    branch_label(a, c) for a, c in list(children.items())[:max_branches])
                 forks.append(f"After [{' -> '.join(path) if path else 'start'}]: {branch_desc}")
             for a, c in children.items():
                 walk(c, path + [a])
