@@ -247,6 +247,7 @@ class CoSkillCloudLoop:
                 diagnoses=task_diags,
                 history=[],
                 target_depth=self.required_tree_depth,
+                tree_evidence=compressed.get('tree_evidence'),
                 max_tree_nodes=self.tree_max_nodes,
                 max_tree_chars=self.tree_max_chars,
             )
@@ -266,6 +267,7 @@ class CoSkillCloudLoop:
                     diagnoses=task_diags,
                     history=[],
                     target_depth=self.required_tree_depth,
+                    tree_evidence=compressed.get('tree_evidence'),
                     repair_candidate=candidate,
                     repair_feedback={
                         "actual_depth": result.get("actual_depth"),

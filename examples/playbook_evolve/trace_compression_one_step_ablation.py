@@ -113,20 +113,24 @@ def _pool(raw: Iterable[dict[str, Any]], outdir: Path, flags: dict[str, bool]) -
 
 
 def _uploaded_trace_payload(batch: dict[str, Any]) -> dict[str, Any]:
-    """Measure exactly the trace-derived structure handed to cloud prompts.
+    """Separate cloud-facing evidence from local compatibility state.
 
-    ``batch`` also contains trigger metadata.  Reporting both the evidence
-    object and full CompressedBatch prevents a small metadata change from
-    being incorrectly attributed to trajectory compression.
+    With prefix compression enabled, the remote evidence is ``tree_evidence``:
+    one action-node table plus per-rollout node-id paths and deltas.  The flat
+    samples stay local so the loop can group task types and persist artifacts,
+    but they are deliberately not counted as cloud upload payload.
     """
-    evidence = {
+    flat_evidence = {
         "success_samples": batch.get("success_samples", []),
         "failure_samples": batch.get("failure_samples", []),
         "consensus_prefix": batch.get("consensus_prefix"),
-        "prefix_tree": batch.get("prefix_tree"),
     }
+    evidence = batch.get("tree_evidence") or flat_evidence
     return {
         "trace_evidence": _json_stats(evidence),
+        "cloud_evidence_representation": (
+            "prefix_tree_codec_v1" if batch.get("tree_evidence") else "flat_trajectories"),
+        "local_flat_samples": _json_stats(flat_evidence),
         "compressed_batch": _json_stats(batch),
         "trace_stage_totals": (batch.get("compression", {}) or {}).get("trace_stage_totals", {}),
         "prefix_tree": (batch.get("compression", {}) or {}).get("prefix_tree"),

@@ -243,7 +243,7 @@ class CloudAnalyzer:
         succ_by_type = self._group_by_task_type(successes)
 
         prompt = self._build_diagnose_prompt(
-            fail_by_type, succ_by_type, compressed_batch.get("prefix_tree", {}),
+            fail_by_type, succ_by_type, compressed_batch.get("tree_evidence"),
             max_success_examples=max_success_examples,
             max_failure_examples=max_failure_examples,
         )
@@ -304,7 +304,7 @@ class CloudAnalyzer:
         self,
         fail_by_type: Dict[str, List[Dict]],
         succ_by_type: Dict[str, List[Dict]],
-        prefix_tree: Dict,
+        tree_evidence: Optional[Dict],
         *,
         max_success_examples: Optional[int] = None,
         max_failure_examples: Optional[int] = None,
@@ -325,8 +325,10 @@ class CloudAnalyzer:
             # 共识前缀（该类型成功轨迹一致的起始段）：端侧已掌握，折叠不重发。
             consensus = longest_common_action_prefix(succ_by_type.get(tt, []))
             succ_txt = self._format_difftraces(
-                succ_by_type.get(tt, []), limit=max_success_examples, consensus=consensus)
-            fail_txt = self._format_difftraces_reflabeled(fail_labeled, consensus=consensus)
+                succ_by_type.get(tt, []), limit=max_success_examples, consensus=consensus,
+                tree_evidence=tree_evidence)
+            fail_txt = self._format_difftraces_reflabeled(
+                fail_labeled, consensus=consensus, tree_evidence=tree_evidence)
             con_line = (f"CONSENSUS PREFIX (the edge already masters these opening steps — the failure "
                         f"is NOT here, look at the DIVERGENCE after it): {' → '.join(consensus)}\n"
                         if consensus else "")
@@ -336,7 +338,7 @@ class CloudAnalyzer:
                 f"SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):\n{succ_txt}\n\n"
                 f"FAILED trajectories to diagnose (each tagged [ref=...]):\n{fail_txt}"
             )
-        forks = self._format_forks(prefix_tree)
+        forks = self._format_forks(tree_evidence=tree_evidence)
 
         domain_context = self._domain_context()
         return f"""Role: You are an expert failure-analysis agent for sequential decision-making agent
@@ -378,10 +380,14 @@ Return ONLY a JSON array. One object per failed trajectory, EXACTLY these fields
 Return ONLY the JSON array, no other text."""
 
     def _format_difftraces_reflabeled(self, traces: List[Dict],
-                                      consensus: Optional[List[str]] = None) -> str:
+                                      consensus: Optional[List[str]] = None,
+                                      tree_evidence: Optional[Dict] = None) -> str:
         """同 _format_difftraces，但用每条轨迹的 _ref 作标签（供诊断引用）；折叠共识前缀。"""
         if not traces:
             return "(none)"
+        if tree_evidence:
+            return self._format_tree_coded_traces(
+                traces, consensus=consensus, tree_evidence=tree_evidence, reflabeled=True)
         out = []
         for tr in traces:
             steps = tr.get("steps", [])
@@ -418,6 +424,7 @@ Return ONLY the JSON array, no other text."""
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
         repair_feedback: Optional[Dict[str, Any]] = None,
+        tree_evidence: Optional[Dict] = None,
         max_success_examples: Optional[int] = None,
         max_failure_examples: Optional[int] = None,
         max_tree_nodes: Optional[int] = None,
@@ -447,6 +454,7 @@ Return ONLY the JSON array, no other text."""
             task_type, current_playbook, success_traces, failure_traces,
             diagnoses or [], history or [], target_depth=target_depth,
             repair_candidate=repair_candidate, repair_feedback=repair_feedback,
+            tree_evidence=tree_evidence,
             max_success_examples=max_success_examples,
             max_failure_examples=max_failure_examples,
             max_tree_nodes=max_tree_nodes, max_tree_chars=max_tree_chars,
@@ -528,6 +536,7 @@ Return ONLY the JSON array, no other text."""
         target_depth: Optional[int] = None,
         repair_candidate: Optional[str] = None,
         repair_feedback: Optional[Dict[str, Any]] = None,
+        tree_evidence: Optional[Dict] = None,
         max_success_examples: Optional[int] = None,
         max_failure_examples: Optional[int] = None,
         max_tree_nodes: Optional[int] = None,
@@ -541,9 +550,11 @@ Return ONLY the JSON array, no other text."""
         cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
         consensus = longest_common_action_prefix(success_traces)
         succ_txt = self._format_difftraces(
-            success_traces, limit=max_success_examples, consensus=consensus)
+            success_traces, limit=max_success_examples, consensus=consensus,
+            tree_evidence=tree_evidence)
         fail_txt = self._format_difftraces(
-            failure_traces, limit=max_failure_examples, consensus=consensus)
+            failure_traces, limit=max_failure_examples, consensus=consensus,
+            tree_evidence=tree_evidence)
         diag_txt = self._format_diagnoses(diagnoses)
         con_txt = (" → ".join(consensus) if consensus else
                    "(none — no shared successful opening yet)")
@@ -858,13 +869,16 @@ Return ONLY the JSON object, no other text."""
     ) -> str:
         task_type = batch.get("task_type", "unknown")
         consensus = batch.get("consensus_prefix") or []
+        tree_evidence = batch.get("tree_evidence")
         succ_txt = self._format_difftraces(
             batch.get("success_samples", []),
-            limit=self.evidence_render_limits["contrastive_success_examples"], consensus=consensus)
+            limit=self.evidence_render_limits["contrastive_success_examples"], consensus=consensus,
+            tree_evidence=tree_evidence)
         fail_txt = self._format_difftraces(
             batch.get("failure_samples", []),
-            limit=self.evidence_render_limits["contrastive_failure_examples"], consensus=consensus)
-        fork_txt = self._format_forks(batch.get("prefix_tree", {}))
+            limit=self.evidence_render_limits["contrastive_failure_examples"], consensus=consensus,
+            tree_evidence=tree_evidence)
+        fork_txt = self._format_forks(tree_evidence=tree_evidence)
 
         existing_titles = [s.get("title", "") for s in current_skills.get("general_skills", [])]
         for tt, skills in current_skills.get("task_specific_skills", {}).items():
@@ -970,12 +984,108 @@ Return ONLY the JSON array, no other text."""
                 break
         return n
 
+    def _format_tree_coded_traces(
+        self,
+        traces: List[Dict],
+        *,
+        consensus: Optional[List[str]],
+        tree_evidence: Dict,
+        reflabeled: bool = False,
+    ) -> str:
+        """Render trace evidence through a trie node table, not flat actions.
+
+        A node action is printed once.  Each rollout then references it via a
+        compact ``N1>N7>...`` path and carries only outcome-bound observation
+        deltas.  This preserves success/failure attribution while removing
+        repeated action prefixes from every cloud prompt.
+        """
+        records = {
+            str(record.get("u", "")): record
+            for record in (tree_evidence.get("records") or [])
+        }
+        selected = []
+        for index, trace in enumerate(traces, start=1):
+            record = records.get(str(trace.get("traj_uid", "")))
+            if record is None:
+                # Compatibility with batches produced before the codec.
+                return self._format_difftraces_flat(traces, consensus, reflabeled)
+            selected.append((index, trace, record))
+
+        node_table = {
+            index: node for index, node in enumerate(tree_evidence.get("nodes") or [], start=1)
+        }
+        needed_ids = set()
+        rendered = []
+        for index, trace, record in selected:
+            fold = self._fold_count(trace.get("steps", []) or [], consensus)
+            path = list(record.get("q") or [])[fold:]
+            observations = list(record.get("x") or [])[fold:]
+            needed_ids.update(path)
+            score = trace.get("task_score")
+            score_text = f" task_score={score}" if score is not None else ""
+            label = (f"[ref={trace.get('_ref', '?')}]" if reflabeled
+                     else f"Trajectory {index} [{trace.get('outcome', '?')}]")
+            lines = [f"\n{label}{score_text} task: {trace.get('task', '')}"]
+            if fold:
+                lines.append(f"  [consensus prefix ✓: {' → '.join((consensus or [])[:fold])}] (folded)")
+            lines.append("  path: " + (" > ".join(f"N{node_id}" for node_id in path) or "(fully folded)"))
+            for node_id, payload in zip(path, observations):
+                obs_text = str(payload[0] if isinstance(payload, list) and payload else "")
+                is_full = bool(payload[1]) if isinstance(payload, list) and len(payload) > 1 else False
+                text_label = "obs" if is_full else "delta"
+                lines.append(
+                    f"  N{node_id} | {text_label}: "
+                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
+            if trace.get("dropped_loops"):
+                lines.append(f"  (dropped {trace['dropped_loops']} looping actions)")
+            rendered.append("\n".join(lines))
+
+        node_lines = ["ACTION NODE TABLE (each action is defined once; paths reference N-id):"]
+        for node_id in sorted(needed_ids):
+            node = node_table.get(node_id)
+            if not isinstance(node, list) or len(node) < 4:
+                continue
+            parent, action, success_count, failure_count = node[:4]
+            node_lines.append(
+                f"N{node_id}: parent=N{parent}; action={action}; succ={success_count}; fail={failure_count}")
+        return "\n".join(node_lines + rendered)
+
+    def _format_difftraces_flat(
+        self, traces: List[Dict], consensus: Optional[List[str]], reflabeled: bool = False,
+    ) -> str:
+        """Legacy flat renderer used only for mixed/old batches."""
+        out = []
+        for i, tr in enumerate(traces, start=1):
+            steps = tr.get("steps", [])
+            fold = self._fold_count(steps, consensus)
+            score = tr.get("task_score")
+            score_text = f" task_score={score}" if score is not None else ""
+            label = (f"[ref={tr.get('_ref', '?')}]" if reflabeled
+                     else f"Trajectory {i} [{tr.get('outcome', '?')}]")
+            lines = [f"\n{label}{score_text} task: {tr.get('task', '')}"]
+            if fold:
+                lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}] (folded)")
+            for step in steps[fold:fold + self.evidence_render_limits["steps_per_trace"]]:
+                is_raw = "observation" in step and "obs_delta" not in step
+                text_label = "obs" if is_raw or step.get("obs_is_full") else "delta"
+                obs_text = step.get("observation", "") if is_raw else step.get("obs_delta", "")
+                lines.append(
+                    f"  action: {step.get('action', '')} | {text_label}: "
+                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
+            out.append("\n".join(lines))
+        return "\n".join(out)
+
     def _format_difftraces(self, traces: List[Dict], limit: int,
-                           consensus: Optional[List[str]] = None) -> str:
+                           consensus: Optional[List[str]] = None,
+                           tree_evidence: Optional[Dict] = None) -> str:
         if not traces:
             return "(none)"
+        selected = traces[:limit]
+        if tree_evidence:
+            return self._format_tree_coded_traces(
+                selected, consensus=consensus, tree_evidence=tree_evidence)
         out = []
-        for i, tr in enumerate(traces[:limit]):
+        for i, tr in enumerate(selected):
             steps = tr.get("steps", [])
             fold = self._fold_count(steps, consensus)
             score = tr.get("task_score")
@@ -1071,7 +1181,12 @@ Return ONLY the JSON array, no other text."""
             "depth_valid": not errors,
         }
 
-    def _format_forks(self, prefix_tree: Dict, max_forks: Optional[int] = None) -> str:
+    def _format_forks(
+        self,
+        prefix_tree: Optional[Dict] = None,
+        max_forks: Optional[int] = None,
+        tree_evidence: Optional[Dict] = None,
+    ) -> str:
         """从前缀树中找出分叉节点（children>1），展示各分支的成功/失败计数。
 
         分支标签 ``a`` 是归一化后的 action（实例编号已折成 "#"，见
@@ -1084,6 +1199,25 @@ Return ONLY the JSON array, no other text."""
                      if max_forks is None else max_forks)
         max_branches = self.evidence_render_limits["branches_per_fork"]
         forks: List[str] = []
+
+        if tree_evidence:
+            nodes = tree_evidence.get("nodes") or []
+            children: Dict[int, List[Tuple[int, List]]] = {}
+            for node_id, node in enumerate(nodes, start=1):
+                if isinstance(node, list) and len(node) >= 4:
+                    children.setdefault(int(node[0]), []).append((node_id, node))
+            for parent_id, child_nodes in children.items():
+                if len(child_nodes) <= 1:
+                    continue
+                branch_desc = "; ".join(
+                    f"N{node_id}='{node[1]}' (succ={node[2]},fail={node[3]})"
+                    for node_id, node in child_nodes[:max_branches])
+                forks.append(f"After N{parent_id}: {branch_desc}")
+                if len(forks) >= max_forks:
+                    break
+            return "\n".join(forks) if forks else "(no clear divergence point)"
+
+        prefix_tree = prefix_tree or {}
 
         def branch_label(a: str, c: Dict) -> str:
             n_variants = c.get("n_variants", 1)

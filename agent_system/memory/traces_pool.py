@@ -439,6 +439,67 @@ class TracesPool:
         return root
 
     @staticmethod
+    def _tree_evidence_codec(root: dict, traces: List[dict]) -> dict:
+        """Build the compact cloud representation of a trajectory trie.
+
+        The historical nested ``prefix_tree`` was an *additional* JSON object:
+        flat trajectories remained in the batch and the tree repeated actions,
+        counts, variants, and child-map keys.  This codec is the replacement
+        sent to cloud prompt builders.  Actions live once in a numbered node
+        table; each rollout stores only a path of node ids and its observation
+        deltas.  ``count`` is derivable as ``success + failure`` and instance
+        variants are not useful to a skill author, so neither is serialized.
+        """
+        nodes: List[List[object]] = []  # [parent_id, normalized_action, succ, fail]
+        edge_ids: Dict[Tuple[int, str], int] = {}
+
+        def visit(node: dict, parent_id: int) -> None:
+            for action, child in (node.get("children") or {}).items():
+                node_id = len(nodes) + 1
+                edge_ids[(parent_id, action)] = node_id
+                nodes.append([
+                    parent_id,
+                    action,
+                    int(child.get("n_success", 0) or 0),
+                    int(child.get("n_failure", 0) or 0),
+                ])
+                visit(child, node_id)
+
+        visit(root, 0)
+        records = []
+        for trace in traces:
+            parent_id = 0
+            path: List[int] = []
+            for step in trace.get("steps", []) or []:
+                action = _normalize_action_for_merge(step.get("action", "") or "")
+                node_id = edge_ids.get((parent_id, action))
+                if node_id is None:
+                    # This cannot happen for a tree constructed from these
+                    # traces, but retaining an explicit sentinel makes a
+                    # malformed external trace auditable rather than silent.
+                    break
+                path.append(node_id)
+                parent_id = node_id
+            encoded_steps = []
+            for step in trace.get("steps", []) or []:
+                if "obs_delta" in step:
+                    encoded_steps.append([
+                        step.get("obs_delta", ""),
+                        int(bool(step.get("obs_is_full", False))),
+                    ])
+                else:
+                    encoded_steps.append([step.get("observation", ""), 1])
+            records.append({
+                "u": trace.get("traj_uid", ""),
+                "t": trace.get("task_type", "unknown"),
+                "o": "S" if trace.get("outcome") == "success" else "F",
+                "q": path,
+                "x": encoded_steps,
+                "r": trace.get("task_score"),
+            })
+        return {"version": 1, "nodes": nodes, "records": records}
+
+    @staticmethod
     def _finalize_variants(node: dict) -> None:
         """Replace the transient ``_variants`` merge-time set with a JSON-safe
         summary (count + a few concrete examples) so callers can still ground
@@ -572,7 +633,11 @@ class TracesPool:
         if self.enable_consensus_prefix:
             batch["consensus_prefix"] = consensus
         if self.enable_prefix_tree:
-            batch["prefix_tree"] = prefix_tree
+            # ``tree_evidence`` is the cloud-facing replacement encoding.  Do
+            # not attach the old nested tree as a second payload: it was the
+            # reason the previous "compression" arm could be larger than the
+            # flat arm before any API request was made.
+            batch["tree_evidence"] = self._tree_evidence_codec(prefix_tree, all_samples)
             batch["compression"]["prefix_tree"] = self._prefix_tree_stats(
                 prefix_tree, self._batch_trace_stage_totals(all_samples)["encoded"]["steps"]
             )
