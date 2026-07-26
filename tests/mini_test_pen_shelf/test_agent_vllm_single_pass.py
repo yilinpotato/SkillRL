@@ -14,11 +14,13 @@ class _FakeLLM:
         return [
             SimpleNamespace(
                 prompt_token_ids=[1, 2, 3],
-                outputs=[SimpleNamespace(
-                    text=text,
-                    token_ids=[4, 5],
-                    finish_reason=finish_reason,
-                )],
+                outputs=[
+                    SimpleNamespace(
+                        text=text,
+                        token_ids=[4, 5],
+                        finish_reason=finish_reason,
+                    )
+                ],
             )
             for text, finish_reason in zip(self.texts, self.finish_reasons)
         ]
@@ -44,8 +46,7 @@ def test_batch_with_meta_uses_one_request_and_counts_it_once():
         ["stop", "length"],
     )
 
-    results = agent.act_batch_with_meta(
-        ["first", "second"], temperature=0.4, sampling_seed=17)
+    results = agent.act_batch_with_meta(["first", "second"], temperature=0.4, sampling_seed=17)
 
     assert len(agent.llm.calls) == 1
     assert agent.llm.calls[0][0] == ["prompt:first<think>", "prompt:second<think>"]
@@ -67,12 +68,24 @@ def test_single_with_meta_does_not_fabricate_missing_protocol_tags():
     assert "<action>" not in text
 
 
+def test_context_guard_usage_defaults_and_reports_cumulative_trims():
+    agent = VLLMAgent.__new__(VLLMAgent)
+    assert agent.get_context_guard_usage() == {
+        "prompt_trims": 0,
+        "trimmed_tokens": 0,
+    }
+    agent.context_guard_prompt_trims = 3
+    agent.context_guard_trimmed_tokens = 127
+    assert agent.get_context_guard_usage() == {
+        "prompt_trims": 3,
+        "trimmed_tokens": 127,
+    }
+
+
 def test_close_shuts_down_engine_core_once():
     calls = []
     agent = VLLMAgent.__new__(VLLMAgent)
-    agent.llm = SimpleNamespace(
-        llm_engine=SimpleNamespace(
-            engine_core=SimpleNamespace(shutdown=lambda: calls.append("shutdown"))))
+    agent.llm = SimpleNamespace(llm_engine=SimpleNamespace(engine_core=SimpleNamespace(shutdown=lambda: calls.append("shutdown"))))
 
     agent.close()
     agent.close()

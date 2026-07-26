@@ -6,6 +6,7 @@ agent_vllm.py — 用 vLLM 加载 Qwen3-4B，作为 ALFWorld 决策 agent
 
 显存：Qwen3-4B bf16 约 8-9GB，配合 gpu_memory_utilization 控制，可在 3090(24G) 快速跑。
 """
+
 import os
 
 # 关键：vLLM v1 用多进程拉起 EngineCore。父进程在 fork 前已初始化 CUDA，
@@ -20,15 +21,15 @@ class VLLMAgent:
         model_path=None,
         gpu_memory_utilization=0.55,
         max_model_len=8192,
-        max_tokens=5120,   # Thinking 模型推理很长；给足预算避免在 </think> 之前被截断
+        max_tokens=5120,  # Thinking 模型推理很长；给足预算避免在 </think> 之前被截断
         temperature=0.4,
         enable_thinking=True,
         seed=0,
         tensor_parallel_size=1,
-        no_wait=False,     # NoWait: 抑制 "Wait/Hmm/Alternatively..." 回溯词。默认关闭，
-                           # 需要时显式开启；完整响应仍统一受 max_tokens 限制。
-        think_budget=3500, # 兼容旧命令行；单次生成不再切分 think/action 预算
-        action_budget=256, # 兼容旧命令行；完整响应统一受 max_tokens 限制
+        no_wait=False,  # NoWait: 抑制 "Wait/Hmm/Alternatively..." 回溯词。默认关闭，
+        # 需要时显式开启；完整响应仍统一受 max_tokens 限制。
+        think_budget=3500,  # 兼容旧命令行；单次生成不再切分 think/action 预算
+        action_budget=256,  # 兼容旧命令行；完整响应统一受 max_tokens 限制
         pipeline_parallel_size=1,
         max_num_seqs=None,
         enforce_eager=True,
@@ -41,10 +42,7 @@ class VLLMAgent:
         assert model_path, "请 export MODEL_PATH=/path/to/Qwen3-4B 或传入 model_path"
 
         print(f"[vLLM] 加载模型: {model_path}")
-        print(f"[vLLM] gpu_mem_util={gpu_memory_utilization}, max_model_len={max_model_len}, "
-              f"tensor_parallel_size={tensor_parallel_size}, "
-              f"pipeline_parallel_size={pipeline_parallel_size}, "
-              f"max_num_seqs={max_num_seqs}, enforce_eager={enforce_eager}")
+        print(f"[vLLM] gpu_mem_util={gpu_memory_utilization}, max_model_len={max_model_len}, tensor_parallel_size={tensor_parallel_size}, pipeline_parallel_size={pipeline_parallel_size}, max_num_seqs={max_num_seqs}, enforce_eager={enforce_eager}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         self.max_model_len = int(max_model_len)
@@ -132,6 +130,7 @@ class VLLMAgent:
         if temperature is None and seed is None:
             return self.sampling
         from vllm import SamplingParams
+
         value = self._temperature if temperature is None else float(temperature)
         request_seed = None if seed is None else int(seed)
         return SamplingParams(
@@ -165,6 +164,13 @@ class VLLMAgent:
         response = int(self.total_response_tokens)
         return {"prompt": prompt, "response": response, "total": prompt + response}
 
+    def get_context_guard_usage(self):
+        """Return cumulative prompt-truncation diagnostics."""
+        return {
+            "prompt_trims": int(getattr(self, "context_guard_prompt_trims", 0) or 0),
+            "trimmed_tokens": int(getattr(self, "context_guard_trimmed_tokens", 0) or 0),
+        }
+
     def close(self):
         """Shut down the vLLM EngineCore cleanly when a rollout worker exits."""
         llm = getattr(self, "llm", None)
@@ -189,12 +195,23 @@ class VLLMAgent:
     # 注意 "wait"/"hmm" 不在此列：wait 是 Kuwait/await/WaitForSeconds 的子串，放子串组
     # 会误伤，故归入下面的严格相等组 _REFLECT_EXACT。
     _REFLECT_SUBSTRINGS = (
-        "alternatively", "reconsider", "double-check", "double check", "recheck",
+        "alternatively",
+        "reconsider",
+        "double-check",
+        "double check",
+        "recheck",
     )
     # 严格组：token 去掉首尾空白/标点后【完全等于】才禁，避免 Kuwait/await/button/
     # checkout 之类误伤。涵盖论文黑名单核心词。
     _REFLECT_EXACT = (
-        "wait", "hmm", "but", "however", "check", "maybe", "verify", "actually",
+        "wait",
+        "hmm",
+        "but",
+        "however",
+        "check",
+        "maybe",
+        "verify",
+        "actually",
     )
     # 人工白名单：含上述子串但【不该】禁的 token（防误伤）。例如某些含 "but" 的
     # 完整词已被 _REFLECT_EXACT 的严格相等规则挡掉，这里留作进一步人工排除的口子。
@@ -209,6 +226,7 @@ class VLLMAgent:
         vocab = self.tokenizer.get_vocab()  # {token_str: id}
         bad = set()
         import re as _re
+
         for tid in range(len(vocab)):
             try:
                 s = self.tokenizer.decode([tid])
@@ -238,9 +256,7 @@ class VLLMAgent:
             )
         except TypeError:
             # 某些 tokenizer 不接受 enable_thinking 参数
-            prompt = self.tokenizer.apply_chat_template(
-                chat, add_generation_prompt=True, tokenize=False
-            )
+            prompt = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
         return self._fit_initial_prompt(prompt)
 
     def _token_ids(self, text):
@@ -272,10 +288,7 @@ class VLLMAgent:
             return
         self.context_guard_trimmed_tokens += int(removed)
         if not self._context_guard_reported:
-            print(
-                f"[vLLM][context-guard] {kind}: trimmed {removed} tokens "
-                f"to preserve max_model_len={self.max_model_len} and the response budget"
-            )
+            print(f"[vLLM][context-guard] {kind}: trimmed {removed} tokens to preserve max_model_len={self.max_model_len} and the response budget")
             self._context_guard_reported = True
 
     def _fit_initial_prompt(self, prompt):
@@ -320,13 +333,9 @@ class VLLMAgent:
         prompts = [self._build_prompt(t) for t in obs_texts]
         outs = self.llm.generate(prompts, self.sampling, use_tqdm=False)
         self._record_token_usage(outs)
-        return [
-            self._restore_think(p, o.outputs[0].text)
-            for p, o in zip(prompts, outs)
-        ]
+        return [self._restore_think(p, o.outputs[0].text) for p, o in zip(prompts, outs)]
 
-    def act_batch_with_meta(self, obs_texts, *, temperature=None, sampling_seed=None,
-                            sampling_seeds=None):
+    def act_batch_with_meta(self, obs_texts, *, temperature=None, sampling_seed=None, sampling_seeds=None):
         """Batch version of :meth:`act_with_meta`, using one vLLM request row
         per active environment decision.
 
@@ -340,13 +349,9 @@ class VLLMAgent:
         if sampling_seeds is not None:
             if len(sampling_seeds) != len(prompts):
                 raise ValueError("sampling_seeds must match the prompt batch length")
-            sampling = [
-                self._single_sampling(temperature=temperature, seed=seed)
-                for seed in sampling_seeds
-            ]
+            sampling = [self._single_sampling(temperature=temperature, seed=seed) for seed in sampling_seeds]
         else:
-            sampling = self._single_sampling(
-                temperature=temperature, seed=sampling_seed)
+            sampling = self._single_sampling(temperature=temperature, seed=sampling_seed)
         outs = self.llm.generate(prompts, sampling, use_tqdm=False)
         self._record_token_usage(outs)
         return [

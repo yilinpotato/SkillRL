@@ -49,16 +49,13 @@ class CloudAnalyzer:
             endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
             api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
             if not api_key or not endpoint:
-                raise EnvironmentError(
-                    "CloudAnalyzer (azure) requires AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT."
-                )
-            self.client = AzureOpenAI(api_key=api_key, azure_endpoint=endpoint,
-                                      api_version=api_version)
+                raise OSError("CloudAnalyzer (azure) requires AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT.")
+            self.client = AzureOpenAI(api_key=api_key, azure_endpoint=endpoint, api_version=api_version)
             self.model = os.environ.get("AZURE_OPENAI_MODEL", "o3")
         else:  # deepseek
             api_key = os.environ.get("DEEPSEEK_API_KEY")
             if not api_key:
-                raise EnvironmentError("CloudAnalyzer (deepseek) requires DEEPSEEK_API_KEY.")
+                raise OSError("CloudAnalyzer (deepseek) requires DEEPSEEK_API_KEY.")
             self.client = OpenAI(
                 api_key=api_key,
                 base_url=os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1"),
@@ -73,11 +70,9 @@ class CloudAnalyzer:
         # an experiment explicitly opts in.  The trajectory-compression
         # ablation uses 10x so the cloud model sees near-complete evidence.
         try:
-            self.evidence_budget_multiplier = max(
-                1, int(os.environ.get("COSKILL_CLOUD_EVIDENCE_MULTIPLIER", "1")))
+            self.evidence_budget_multiplier = max(1, int(os.environ.get("COSKILL_CLOUD_EVIDENCE_MULTIPLIER", "1")))
         except ValueError as exc:
-            raise ValueError(
-                "COSKILL_CLOUD_EVIDENCE_MULTIPLIER must be a positive integer") from exc
+            raise ValueError("COSKILL_CLOUD_EVIDENCE_MULTIPLIER must be a positive integer") from exc
         self.evidence_render_limits = {
             "multiplier": self.evidence_budget_multiplier,
             "contrastive_success_examples": 5 * self.evidence_budget_multiplier,
@@ -157,13 +152,9 @@ class CloudAnalyzer:
             return []
 
         next_dyn_idx = self._next_dyn_index(current_skills)
-        prompt = self._build_contrastive_prompt(
-            compressed_batch, current_skills, next_dyn_idx
-        )
+        prompt = self._build_contrastive_prompt(compressed_batch, current_skills, next_dyn_idx)
         if self.output_dir is not None:
-            self._dump_text(self.output_dir,
-                            f"distill_prompt_{compressed_batch.get('batch_id', 'x')[:8]}.txt",
-                            prompt)
+            self._dump_text(self.output_dir, f"distill_prompt_{compressed_batch.get('batch_id', 'x')[:8]}.txt", prompt)
 
         try:
             response = self.client.chat.completions.create(
@@ -174,8 +165,7 @@ class CloudAnalyzer:
             content = response.choices[0].message.content
             self._record_call("contrastive_distill", prompt, content, getattr(response, "usage", None))
             if self.output_dir is not None:
-                self._dump_text(self.output_dir,
-                                f"distill_response_{compressed_batch.get('batch_id', 'x')[:8]}.txt", content)
+                self._dump_text(self.output_dir, f"distill_response_{compressed_batch.get('batch_id', 'x')[:8]}.txt", content)
             raw_skills = self._parse_patches(content)
 
             if hasattr(response, "usage") and response.usage:
@@ -186,18 +176,18 @@ class CloudAnalyzer:
                 self.total_prompt_tokens_mixed += response.usage.prompt_tokens
                 self.total_completion_tokens_mixed += response.usage.completion_tokens
 
-            patches = self._normalize_patches(
-                raw_skills, next_dyn_idx, compressed_batch
-            )
+            patches = self._normalize_patches(raw_skills, next_dyn_idx, compressed_batch)
 
-            self.update_history.append({
-                "batch_id": compressed_batch.get("batch_id"),
-                "trigger_reason": compressed_batch.get("trigger_reason"),
-                "n_success": len(success),
-                "n_failure": len(failure),
-                "num_patches": len(patches),
-                "skill_ids": [p.get("skill_id") for p in patches],
-            })
+            self.update_history.append(
+                {
+                    "batch_id": compressed_batch.get("batch_id"),
+                    "trigger_reason": compressed_batch.get("trigger_reason"),
+                    "n_success": len(success),
+                    "n_failure": len(failure),
+                    "num_patches": len(patches),
+                    "skill_ids": [p.get("skill_id") for p in patches],
+                }
+            )
 
             patches = patches[: self.max_new_skills_per_update]
             if self.output_dir is not None:
@@ -230,10 +220,8 @@ class CloudAnalyzer:
         Returns:
             ``{task_type: [diagnosis, ...]}``；无失败样本时返回 ``{}``。
         """
-        max_success_examples = (self.evidence_render_limits["diagnose_success_examples"]
-                                if max_success_examples is None else max_success_examples)
-        max_failure_examples = (self.evidence_render_limits["diagnose_failure_examples"]
-                                if max_failure_examples is None else max_failure_examples)
+        max_success_examples = self.evidence_render_limits["diagnose_success_examples"] if max_success_examples is None else max_success_examples
+        max_failure_examples = self.evidence_render_limits["diagnose_failure_examples"] if max_failure_examples is None else max_failure_examples
         failures = compressed_batch.get("failure_samples", []) or []
         if not failures:
             return {}
@@ -243,16 +231,16 @@ class CloudAnalyzer:
         succ_by_type = self._group_by_task_type(successes)
 
         prompt = self._build_diagnose_prompt(
-            fail_by_type, succ_by_type, compressed_batch.get("tree_evidence"),
+            fail_by_type,
+            succ_by_type,
+            compressed_batch.get("tree_evidence"),
             max_success_examples=max_success_examples,
             max_failure_examples=max_failure_examples,
         )
         # 落盘发给云端大模型的原始 prompt（诊断产物本身已落盘，这里额外存"看到的输入"，
         # 便于核对共识折叠/分叉点是否真的按预期传给了大模型）。
         if self.playbook_io_dir is not None:
-            self._dump_text(self.playbook_io_dir,
-                            f"diagnose_prompt_{compressed_batch.get('batch_id', 'x')[:8]}.txt",
-                            prompt)
+            self._dump_text(self.playbook_io_dir, f"diagnose_prompt_{compressed_batch.get('batch_id', 'x')[:8]}.txt", prompt)
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -260,21 +248,15 @@ class CloudAnalyzer:
                 max_completion_tokens=self.max_completion_tokens,
             )
             content = response.choices[0].message.content
-            self._record_call("diagnose_failures", prompt, content, getattr(response, "usage", None),
-                              task_type=task_type)
+            self._record_call("diagnose_failures", prompt, content, getattr(response, "usage", None), task_type=task_type)
             if self.playbook_io_dir is not None:
-                self._dump_text(self.playbook_io_dir,
-                                f"diagnose_response_{compressed_batch.get('batch_id', 'x')[:8]}.txt", content)
+                self._dump_text(self.playbook_io_dir, f"diagnose_response_{compressed_batch.get('batch_id', 'x')[:8]}.txt", content)
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
                 if task_type:
-                    self.total_prompt_tokens_by_task_type[task_type] = (
-                        self.total_prompt_tokens_by_task_type.get(task_type, 0)
-                        + response.usage.prompt_tokens)
-                    self.total_completion_tokens_by_task_type[task_type] = (
-                        self.total_completion_tokens_by_task_type.get(task_type, 0)
-                        + response.usage.completion_tokens)
+                    self.total_prompt_tokens_by_task_type[task_type] = self.total_prompt_tokens_by_task_type.get(task_type, 0) + response.usage.prompt_tokens
+                    self.total_completion_tokens_by_task_type[task_type] = self.total_completion_tokens_by_task_type.get(task_type, 0) + response.usage.completion_tokens
                 else:
                     # Legacy callers can still submit a mixed batch.
                     self.total_prompt_tokens_mixed += response.usage.prompt_tokens
@@ -310,10 +292,9 @@ class CloudAnalyzer:
         max_failure_examples: Optional[int] = None,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
-        max_success_examples = (self.evidence_render_limits["diagnose_success_examples"]
-                                if max_success_examples is None else max_success_examples)
-        max_failure_examples = (self.evidence_render_limits["diagnose_failure_examples"]
-                                if max_failure_examples is None else max_failure_examples)
+
+        max_success_examples = self.evidence_render_limits["diagnose_success_examples"] if max_success_examples is None else max_success_examples
+        max_failure_examples = self.evidence_render_limits["diagnose_failure_examples"] if max_failure_examples is None else max_failure_examples
         sections = []
         for tt, fails in fail_by_type.items():
             # 给每条失败轨迹一个稳定 ref: "<task_type>#<i>"
@@ -324,20 +305,10 @@ class CloudAnalyzer:
                 fail_labeled.append(tr)
             # 共识前缀（该类型成功轨迹一致的起始段）：端侧已掌握，折叠不重发。
             consensus = longest_common_action_prefix(succ_by_type.get(tt, []))
-            succ_txt = self._format_difftraces(
-                succ_by_type.get(tt, []), limit=max_success_examples, consensus=consensus,
-                tree_evidence=tree_evidence)
-            fail_txt = self._format_difftraces_reflabeled(
-                fail_labeled, consensus=consensus, tree_evidence=tree_evidence)
-            con_line = (f"CONSENSUS PREFIX (the edge already masters these opening steps — the failure "
-                        f"is NOT here, look at the DIVERGENCE after it): {' → '.join(consensus)}\n"
-                        if consensus else "")
-            sections.append(
-                f"=== task_type: {tt} ===\n"
-                f"{con_line}"
-                f"SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):\n{succ_txt}\n\n"
-                f"FAILED trajectories to diagnose (each tagged [ref=...]):\n{fail_txt}"
-            )
+            succ_txt = self._format_difftraces(succ_by_type.get(tt, []), limit=max_success_examples, consensus=consensus, tree_evidence=tree_evidence)
+            fail_txt = self._format_difftraces_reflabeled(fail_labeled, consensus=consensus, tree_evidence=tree_evidence)
+            con_line = f"CONSENSUS PREFIX (the edge already masters these opening steps — the failure is NOT here, look at the DIVERGENCE after it): {' → '.join(consensus)}\n" if consensus else ""
+            sections.append(f"=== task_type: {tt} ===\n{con_line}SUCCESSFUL ROLLOUT REFERENCE (observed successful behaviour):\n{succ_txt}\n\nFAILED trajectories to diagnose (each tagged [ref=...]):\n{fail_txt}")
         forks = self._format_forks(tree_evidence=tree_evidence)
 
         domain_context = self._domain_context()
@@ -379,15 +350,12 @@ Return ONLY a JSON array. One object per failed trajectory, EXACTLY these fields
   - "confidence":    a number 0.0-1.0.
 Return ONLY the JSON array, no other text."""
 
-    def _format_difftraces_reflabeled(self, traces: List[Dict],
-                                      consensus: Optional[List[str]] = None,
-                                      tree_evidence: Optional[Dict] = None) -> str:
+    def _format_difftraces_reflabeled(self, traces: List[Dict], consensus: Optional[List[str]] = None, tree_evidence: Optional[Dict] = None) -> str:
         """同 _format_difftraces，但用每条轨迹的 _ref 作标签（供诊断引用）；折叠共识前缀。"""
         if not traces:
             return "(none)"
         if tree_evidence:
-            return self._format_tree_coded_traces(
-                traces, consensus=consensus, tree_evidence=tree_evidence, reflabeled=True)
+            return self._format_tree_coded_traces(traces, consensus=consensus, tree_evidence=tree_evidence, reflabeled=True)
         out = []
         for tr in traces:
             steps = tr.get("steps", [])
@@ -397,13 +365,7 @@ Return ONLY the JSON array, no other text."""
             lines = [f"\n[ref={tr.get('_ref', '?')}]{score_text} task: {tr.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded)")
-            for s in steps[fold:fold + self.evidence_render_limits["steps_per_trace"]]:
-                is_raw = 'observation' in s and 'obs_delta' not in s
-                label = "obs" if is_raw or s.get('obs_is_full') else "delta"
-                obs_text = s.get('observation', '') if is_raw else s.get('obs_delta', '')
-                lines.append(
-                    f"  action: {s.get('action', '')}  | {label}: "
-                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
+            lines.extend(self._format_causal_transitions(steps, fold=fold))
             if tr.get("dropped_loops"):
                 lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
             out.append("\n".join(lines))
@@ -429,6 +391,8 @@ Return ONLY the JSON array, no other text."""
         max_failure_examples: Optional[int] = None,
         max_tree_nodes: Optional[int] = None,
         max_tree_chars: Optional[int] = None,
+        preserve_parent_tree: bool = False,
+        render_full_trajectories: bool = False,
     ) -> Optional[Dict]:
         """生成 / 细化该 agent 唯一的 skill tree（大模型从零撰写，层次化推进）。
 
@@ -443,27 +407,32 @@ Return ONLY the JSON array, no other text."""
             ``{action, level, skill_tree, critique, changelog}``；``action="keep"``
             表示无需改动。LLM 出错或无内容时返回 ``None``（调用方保留旧版本）。
         """
-        max_success_examples = (self.evidence_render_limits["tree_success_examples"]
-                                if max_success_examples is None else max_success_examples)
-        max_failure_examples = (self.evidence_render_limits["tree_failure_examples"]
-                                if max_failure_examples is None else max_failure_examples)
+        max_success_examples = self._evidence_limit("tree_success_examples", 4) if max_success_examples is None else max_success_examples
+        max_failure_examples = self._evidence_limit("tree_failure_examples", 5) if max_failure_examples is None else max_failure_examples
         if not success_traces and not failure_traces:
             return None
 
         prompt = self._build_evolve_prompt(
-            task_type, current_playbook, success_traces, failure_traces,
-            diagnoses or [], history or [], target_depth=target_depth,
-            repair_candidate=repair_candidate, repair_feedback=repair_feedback,
+            task_type,
+            current_playbook,
+            success_traces,
+            failure_traces,
+            diagnoses or [],
+            history or [],
+            target_depth=target_depth,
+            repair_candidate=repair_candidate,
+            repair_feedback=repair_feedback,
             tree_evidence=tree_evidence,
             max_success_examples=max_success_examples,
             max_failure_examples=max_failure_examples,
-            max_tree_nodes=max_tree_nodes, max_tree_chars=max_tree_chars,
+            max_tree_nodes=max_tree_nodes,
+            max_tree_chars=max_tree_chars,
+            preserve_parent_tree=preserve_parent_tree,
+            render_full_trajectories=render_full_trajectories,
         )
         # 落盘发给云端大模型的原始 prompt（call 计数器区分同一 task_type 的多轮进化）。
         if self.playbook_io_dir is not None:
-            self._dump_text(self.playbook_io_dir,
-                            f"evolve_skill_tree_{task_type}_call{self.n_evolve_calls:03d}.txt",
-                            prompt)
+            self._dump_text(self.playbook_io_dir, f"evolve_skill_tree_{task_type}_call{self.n_evolve_calls:03d}.txt", prompt)
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -471,19 +440,15 @@ Return ONLY the JSON array, no other text."""
                 max_completion_tokens=self.max_completion_tokens,
             )
             content = response.choices[0].message.content
-            self._record_call("evolve_playbook", prompt, content, getattr(response, "usage", None),
-                               task_type=task_type)
+            self._record_call("evolve_playbook", prompt, content, getattr(response, "usage", None), task_type=task_type)
             if self.playbook_io_dir is not None:
-                self._dump_text(self.playbook_io_dir,
-                                f"evolve_skill_tree_response_{task_type}_call{self.n_evolve_calls:03d}.txt", content)
+                self._dump_text(self.playbook_io_dir, f"evolve_skill_tree_response_{task_type}_call{self.n_evolve_calls:03d}.txt", content)
             if hasattr(response, "usage") and response.usage:
                 self.total_prompt_tokens += response.usage.prompt_tokens
                 self.total_completion_tokens += response.usage.completion_tokens
                 # Cleanly attributable: this call is already scoped to task_type.
-                self.total_prompt_tokens_by_task_type[task_type] = (
-                    self.total_prompt_tokens_by_task_type.get(task_type, 0) + response.usage.prompt_tokens)
-                self.total_completion_tokens_by_task_type[task_type] = (
-                    self.total_completion_tokens_by_task_type.get(task_type, 0) + response.usage.completion_tokens)
+                self.total_prompt_tokens_by_task_type[task_type] = self.total_prompt_tokens_by_task_type.get(task_type, 0) + response.usage.prompt_tokens
+                self.total_completion_tokens_by_task_type[task_type] = self.total_completion_tokens_by_task_type.get(task_type, 0) + response.usage.completion_tokens
             self.n_evolve_calls += 1
 
             obj = self._parse_json_object(content)
@@ -495,6 +460,7 @@ Return ONLY the JSON array, no other text."""
                 # 有内容默认视为 refine/rewrite，无内容视为 keep。
                 action = "refine" if tree_text else "keep"
             from .traces_pool import longest_common_action_prefix
+
             consensus = longest_common_action_prefix(success_traces)
             result = {
                 "action": action,
@@ -502,24 +468,31 @@ Return ONLY the JSON array, no other text."""
                 "skill_tree": tree_text,
                 "critique": obj.get("critique") or "",
                 "changelog": obj.get("changelog") or "",
+                # V4 uses these auditable fields to reject unsupported
+                # deepening rather than accepting a structurally valid but
+                # evidence-free tree.
+                "new_node_grounding": obj.get("new_node_grounding") or [],
+                "unsupported_claims": obj.get("unsupported_claims") or [],
                 # 观测用：本轮用于折叠的共识前缀 + 诊断原文，供节点树 debug 落盘引用。
                 "consensus_prefix": consensus,
                 "n_success": len(success_traces),
                 "n_failure": len(failure_traces),
             }
             if target_depth is not None:
-                result.update({
-                    "target_depth": int(target_depth),
-                    **self._validate_tree_depth(
-                        tree_text, int(target_depth), max_nodes=max_tree_nodes,
-                        max_chars=max_tree_chars),
-                })
-            self.playbook_history.append({
-                "task_type": task_type,
-                "action": result["action"],
-                "level": result["level"],
-                "had_current": bool(current_playbook),
-            })
+                result.update(
+                    {
+                        "target_depth": int(target_depth),
+                        **self._validate_tree_depth(tree_text, int(target_depth), max_nodes=max_tree_nodes, max_chars=max_tree_chars),
+                    }
+                )
+            self.playbook_history.append(
+                {
+                    "task_type": task_type,
+                    "action": result["action"],
+                    "level": result["level"],
+                    "had_current": bool(current_playbook),
+                }
+            )
             return result
         except Exception as e:
             print(f"[CloudAnalyzer] evolve_playbook error ({self.model}, {task_type}): {e}")
@@ -541,23 +514,79 @@ Return ONLY the JSON array, no other text."""
         max_failure_examples: Optional[int] = None,
         max_tree_nodes: Optional[int] = None,
         max_tree_chars: Optional[int] = None,
+        preserve_parent_tree: bool = False,
+        render_full_trajectories: bool = False,
     ) -> str:
         from .traces_pool import longest_common_action_prefix
-        max_success_examples = (self.evidence_render_limits["tree_success_examples"]
-                                if max_success_examples is None else max_success_examples)
-        max_failure_examples = (self.evidence_render_limits["tree_failure_examples"]
-                                if max_failure_examples is None else max_failure_examples)
+
+        max_success_examples = self._evidence_limit("tree_success_examples", 4) if max_success_examples is None else max_success_examples
+        max_failure_examples = self._evidence_limit("tree_failure_examples", 5) if max_failure_examples is None else max_failure_examples
         cur = (current_playbook or "").strip() or "(none — no skill tree yet for this goal family; write the FIRST version from scratch)"
-        consensus = longest_common_action_prefix(success_traces)
-        succ_txt = self._format_difftraces(
-            success_traces, limit=max_success_examples, consensus=consensus,
-            tree_evidence=tree_evidence)
-        fail_txt = self._format_difftraces(
-            failure_traces, limit=max_failure_examples, consensus=consensus,
-            tree_evidence=tree_evidence)
+        # A production update may fold a consensus prefix because the online
+        # agent already mastered it.  A representation ablation must instead
+        # expose every selected transition: otherwise a terminal action can
+        # disappear while the prefix is still labelled as a success.
+        consensus = [] if render_full_trajectories else longest_common_action_prefix(success_traces)
+        succ_txt = self._format_difftraces(success_traces, limit=max_success_examples, consensus=consensus, tree_evidence=tree_evidence)
+        fail_txt = self._format_difftraces(failure_traces, limit=max_failure_examples, consensus=consensus, tree_evidence=tree_evidence)
         diag_txt = self._format_diagnoses(diagnoses)
-        con_txt = (" → ".join(consensus) if consensus else
-                   "(none — no shared successful opening yet)")
+        con_txt = " → ".join(consensus) if consensus else "(none — no shared successful opening yet)"
+        if render_full_trajectories:
+            consensus_section = """
+TRAJECTORY RENDERING: Every selected trajectory is rendered independently from its initial
+pre-action state through its recorded terminal transition. No action prefix is folded, and no
+opening action is presumed mastered merely because it appears in successful traces.
+"""
+        else:
+            consensus_section = f"""
+CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
+below): {con_txt}
+The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
+the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
+follows, where success and failure split.
+"""
+
+        full_evidence_section = ""
+        if render_full_trajectories:
+            full_evidence_section = f"""
+
+COMPLETE-EVIDENCE PROTOCOL (mandatory): The {len(success_traces)} successful and
+{len(failure_traces)} failed selected trajectories below are the complete evidence set for this
+task family. No consensus prefix is folded. Read every displayed transition through its terminal
+reward. A missing post-observation is explicitly marked as unrecorded; NEVER infer its contents.
+Absence of evidence is not evidence for a hidden environment mechanic. If the traces do not support
+a proposed rule, omit it and list it under unsupported_claims instead of filling the gap with common
+sense or a plausible-looking action sequence.
+"""
+
+        progressive_section = ""
+        if preserve_parent_tree and current_playbook:
+            progressive_section = f"""
+
+MONOTONIC PROGRESSIVE-DEPTH PROTOCOL (mandatory): The CURRENT SKILL TREE is the accepted L{max(0, int(target_depth or 1) - 1)} parent. Produce its L{int(target_depth or 1)}
+extension by INSERTING new evidence-grounded lines only.
+- Preserve every non-empty parent line VERBATIM and in the same order.
+- Never delete, rewrite, reorder, weaken, or contradict a parent rule.
+- Attach every new deepest heading beneath a heading that already exists at the parent's deepest
+  level; do not create a separate new root-to-leaf chain to satisfy the requested depth.
+- Insert only headings at the newly requested deepest level and their body lines. Do not add new
+  shallower headings or ungrounded body text elsewhere in the accepted parent.
+- New depth must add conditional assistance, recovery guidance, or a finer evidence-backed decision;
+  it must not merely rename or repeat a parent.
+- If evidence cannot justify a deeper rule, put that proposal in unsupported_claims. Do not invent it.
+"""
+        grounding_schema = ""
+        if preserve_parent_tree or render_full_trajectories:
+            grounding_schema = """
+  - "new_node_grounding": an array with one item for EVERY newly inserted heading at the requested
+                 deepest level. Each item has exactly
+                 {"heading_path": "Parent > Child", "evidence": [
+                 {"traj_ref": "the exact traj_uid shown above", "step": 1}],
+                 "supported_claim": "the precise rule supported by those transitions"}.
+                 Evidence references must name displayed trajectories and real displayed step numbers.
+  - "unsupported_claims": an array of mechanics or rules considered but not established by the
+                 displayed evidence and explicit environment contract; use [] when none.
+"""
 
         depth_constraint = ""
         depth_execution_override = ""
@@ -567,8 +596,7 @@ Return ONLY the JSON array, no other text."""
                 budget_terms.append(f"at most {int(max_tree_nodes)} semantic headings")
             if max_tree_chars is not None:
                 budget_terms.append(f"at most {int(max_tree_chars)} characters")
-            budget_constraint = (" Also keep the complete tree to " + " and ".join(budget_terms) + "."
-                                 if budget_terms else "")
+            budget_constraint = " Also keep the complete tree to " + " and ".join(budget_terms) + "." if budget_terms else ""
             depth_constraint = f"""
 
 EXPERIMENTAL DEPTH CONSTRAINT (mandatory): Return a non-empty skill_tree with
@@ -591,23 +619,14 @@ not merely rename or repeat a parent node.
             actual_depth = feedback.get("actual_depth")
             target = int(target_depth) if target_depth is not None else None
             if isinstance(actual_depth, int) and target is not None and actual_depth < target:
-                direction = (
-                    f"The candidate is TOO SHALLOW: its deepest semantic heading is level "
-                    f"{actual_depth}, but the required deepest level is {target}. DEEPEN it by "
-                    "adding evidence-grounded child decisions or preconditions."
-                )
+                direction = f"The candidate is TOO SHALLOW: its deepest semantic heading is level {actual_depth}, but the required deepest level is {target}. DEEPEN it by adding evidence-grounded child decisions or preconditions."
             elif isinstance(actual_depth, int) and target is not None and actual_depth > target:
-                direction = (
-                    f"The candidate is TOO DEEP: its deepest semantic heading is level "
-                    f"{actual_depth}, but the required deepest level is {target}. SHALLOW it by "
-                    "merging or lifting overly deep nodes without deleting their useful rules."
-                )
+                direction = f"The candidate is TOO DEEP: its deepest semantic heading is level {actual_depth}, but the required deepest level is {target}. SHALLOW it by merging or lifting overly deep nodes without deleting their useful rules."
+            elif feedback.get("protocol_validation_errors"):
+                direction = "The candidate has the requested heading depth but violates the progressive extension, evidence-grounding, or environment-semantics protocol. Repair only the listed violations while preserving all accepted parent lines."
             else:
-                direction = (
-                    "The candidate has an invalid heading structure. Rebuild it so every required "
-                    "semantic heading level is present and no heading deeper than the target occurs."
-                )
-            errors = feedback.get("depth_validation_errors") or []
+                direction = "The candidate has an invalid heading structure. Rebuild it so every required semantic heading level is present and no heading deeper than the target occurs."
+            errors = list(feedback.get("depth_validation_errors") or []) + list(feedback.get("protocol_validation_errors") or [])
             error_text = ", ".join(str(x) for x in errors) or "unspecified_depth_error"
             repair_section = f"""
 
@@ -641,11 +660,7 @@ CURRENT SKILL TREE (exactly what the agent was shown this round):
 {cur}
 \"\"\"
 
-CONSENSUS PREFIX — the opening steps the agent ALREADY performs reliably (folded out of the traces
-below): {con_txt}
-The agent has MASTERED these steps. Do NOT spend skill-tree depth re-teaching them — keep that part of
-the tree shallow (or drop redundant detail about it). Focus the skill tree on the DIVERGENCE that
-follows, where success and failure split.
+{consensus_section}
 
 NEW SUCCESSFUL TRAJECTORIES (what worked):
 {succ_txt}
@@ -658,6 +673,8 @@ FAILURE DIAGNOSES (root cause + which skill-tree part was missing/weak):
 {depth_constraint}
 {depth_execution_override}
 {repair_section}
+{full_evidence_section}
+{progressive_section}
 
 Do these steps IN ORDER:
 
@@ -665,9 +682,10 @@ Do these steps IN ORDER:
    ask: what general regularity explains success vs failure? Combine two sources of evidence:
    (a) DATA INDUCTION — what do the successful runs consistently do that the failed ones do not, and
    at which decision point do they diverge? Prefer a pattern seen MULTIPLE times over a one-off.
-   (b) COMMON SENSE / DOMAIN KNOWLEDGE — apply general reasoning about how this kind of task works:
-   typical sub-goal ordering, necessary preconditions, and what a competent agent would try first.
-   Use this to GENERALIZE beyond the few sampled trajectories so the rule transfers to unseen cases.
+   (b) VERIFIED ENVIRONMENT CONTRACT — use only the explicit environment contract above for mechanics,
+   and use general reasoning only to organize rules already supported by trajectories. Do not use
+   unstated common sense to invent a sub-goal order, object location, state transition, or precondition.
+   Use verified evidence to GENERALIZE beyond the few sampled trajectories so the rule transfers.
    State every regularity as a GENERAL principle grounded in a stated reason — never an
    instance-specific fix tied to one concrete entity or location.
 
@@ -721,6 +739,7 @@ Return ONLY one JSON object, EXACTLY these fields:
   - "critique":  1-3 sentences: how the agent used the skill tree AND whether the skill tree's own
                  wording misled it (or "" if there was no current skill tree)
   - "changelog": 1 sentence naming which section(s) you changed or deepened, and why
+{grounding_schema}
 Return ONLY the JSON object, no other text."""
 
     def _format_playbook_history(self, history: List[Dict]) -> str:
@@ -734,12 +753,7 @@ Return ONLY the JSON object, no other text."""
             fail_types = ", ".join(sorted({d.get("failure_type", "?") for d in rf})) or "(unknown)"
             content = (h.get("content") or "").strip()
             snippet = content if len(content) <= 500 else content[:500] + " …"
-            out.append(
-                f"--- version {h.get('version', '?')} (level={h.get('level', '?')}) ---\n"
-                f"  changelog: {h.get('changelog', '')}\n"
-                f"  was meant to fix these failure types: {fail_types}\n"
-                f"  its content:\n{snippet}"
-            )
+            out.append(f"--- version {h.get('version', '?')} (level={h.get('level', '?')}) ---\n  changelog: {h.get('changelog', '')}\n  was meant to fix these failure types: {fail_types}\n  its content:\n{snippet}")
         return "\n".join(out)
 
     def _format_diagnoses(self, diagnoses: List[Dict]) -> str:
@@ -747,13 +761,7 @@ Return ONLY the JSON object, no other text."""
             return "(none)"
         out = []
         for d in diagnoses[:8]:
-            out.append(
-                f"- [{d.get('failure_type', '?')}] {d.get('root_cause', '')} "
-                f"| evidence: {d.get('evidence', '')} "
-                f"| fix: {d.get('corrective_rule', '')} "
-                f"| skill_tree_gap: {d.get('skill_tree_gap', d.get('playbook_gap', ''))} "
-                f"| patch_location: {d.get('patch_location', '(unspecified)')}"
-            )
+            out.append(f"- [{d.get('failure_type', '?')}] {d.get('root_cause', '')} | evidence: {d.get('evidence', '')} | fix: {d.get('corrective_rule', '')} | skill_tree_gap: {d.get('skill_tree_gap', d.get('playbook_gap', ''))} | patch_location: {d.get('patch_location', '(unspecified)')}")
         return "\n".join(out)
 
     @staticmethod
@@ -780,68 +788,59 @@ Return ONLY the JSON object, no other text."""
             return usage.get(name)
         return getattr(usage, name, None)
 
-    def _record_call(self, purpose: str, prompt: str, response: str, usage: Any,
-                      task_type: Optional[str] = None) -> None:
+    def _record_call(self, purpose: str, prompt: str, response: str, usage: Any, task_type: Optional[str] = None) -> None:
         """Record hashes/token usage without putting API text in normal metrics."""
         import hashlib
-        usage_reported = usage is not None and (
-            self._usage_field(usage, "prompt_tokens") is not None or
-            self._usage_field(usage, "completion_tokens") is not None
-        )
-        prompt_tokens = (int(self._usage_field(usage, "prompt_tokens") or 0)
-                         if usage_reported else None)
-        completion_tokens = (int(self._usage_field(usage, "completion_tokens") or 0)
-                             if usage_reported else None)
+
+        usage_reported = usage is not None and (self._usage_field(usage, "prompt_tokens") is not None or self._usage_field(usage, "completion_tokens") is not None)
+        prompt_tokens = int(self._usage_field(usage, "prompt_tokens") or 0) if usage_reported else None
+        completion_tokens = int(self._usage_field(usage, "completion_tokens") or 0) if usage_reported else None
         raw_cache_hit = self._usage_field(usage, "prompt_cache_hit_tokens")
         raw_cache_miss = self._usage_field(usage, "prompt_cache_miss_tokens")
         cache_usage_reported = raw_cache_hit is not None and raw_cache_miss is not None
         cache_hit_tokens = int(raw_cache_hit or 0) if cache_usage_reported else None
         cache_miss_tokens = int(raw_cache_miss or 0) if cache_usage_reported else None
         if cache_usage_reported:
-            self.cache_usage_reported_calls = int(
-                getattr(self, "cache_usage_reported_calls", 0) or 0) + 1
-            self.total_prompt_cache_hit_tokens = int(
-                getattr(self, "total_prompt_cache_hit_tokens", 0) or 0) + cache_hit_tokens
-            self.total_prompt_cache_miss_tokens = int(
-                getattr(self, "total_prompt_cache_miss_tokens", 0) or 0) + cache_miss_tokens
+            self.cache_usage_reported_calls = int(getattr(self, "cache_usage_reported_calls", 0) or 0) + 1
+            self.total_prompt_cache_hit_tokens = int(getattr(self, "total_prompt_cache_hit_tokens", 0) or 0) + cache_hit_tokens
+            self.total_prompt_cache_miss_tokens = int(getattr(self, "total_prompt_cache_miss_tokens", 0) or 0) + cache_miss_tokens
         else:
             # Do not infer a cache split from total prompt tokens.  Treating a
             # missing provider field as all-cache-miss would fabricate a bill.
-            self.cache_usage_missing_calls = int(
-                getattr(self, "cache_usage_missing_calls", 0) or 0) + 1
+            self.cache_usage_missing_calls = int(getattr(self, "cache_usage_missing_calls", 0) or 0) + 1
         if usage_reported:
             self.usage_reported_calls += 1
         else:
             self.usage_missing_calls += 1
             if task_type:
-                self.usage_missing_calls_by_task_type[task_type] = (
-                    self.usage_missing_calls_by_task_type.get(task_type, 0) + 1)
+                self.usage_missing_calls_by_task_type[task_type] = self.usage_missing_calls_by_task_type.get(task_type, 0) + 1
             else:
                 self.usage_missing_calls_mixed += 1
-        self.call_audit.append({
-            "purpose": purpose,
-            "task_type": task_type,
-            "model": self.model,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": (prompt_tokens + completion_tokens) if usage_reported else None,
-            "usage_reported": usage_reported,
-            "usage_status": "reported" if usage_reported else "missing",
-            "prompt_cache_hit_tokens": cache_hit_tokens,
-            "prompt_cache_miss_tokens": cache_miss_tokens,
-            "cache_usage_reported": cache_usage_reported,
-            "cache_usage_status": "reported" if cache_usage_reported else "missing",
-            # Keep payload-size accounting alongside provider token usage.  The
-            # latter is authoritative when available; chars/4 is only a
-            # deterministic inspection aid for prompt construction.
-            "prompt_chars": len(prompt),
-            "prompt_bytes_utf8": len(prompt.encode("utf-8")),
-            "prompt_tokens_chars_div_4": max(1, len(prompt) // 4) if prompt else 0,
-            "evidence_render_limits": dict(getattr(
-                self, "evidence_render_limits", {"multiplier": 1})),
-            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-            "response_sha256": hashlib.sha256((response or "").encode("utf-8")).hexdigest(),
-        })
+        self.call_audit.append(
+            {
+                "purpose": purpose,
+                "task_type": task_type,
+                "model": self.model,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": (prompt_tokens + completion_tokens) if usage_reported else None,
+                "usage_reported": usage_reported,
+                "usage_status": "reported" if usage_reported else "missing",
+                "prompt_cache_hit_tokens": cache_hit_tokens,
+                "prompt_cache_miss_tokens": cache_miss_tokens,
+                "cache_usage_reported": cache_usage_reported,
+                "cache_usage_status": "reported" if cache_usage_reported else "missing",
+                # Keep payload-size accounting alongside provider token usage.  The
+                # latter is authoritative when available; chars/4 is only a
+                # deterministic inspection aid for prompt construction.
+                "prompt_chars": len(prompt),
+                "prompt_bytes_utf8": len(prompt.encode("utf-8")),
+                "prompt_tokens_chars_div_4": max(1, len(prompt) // 4) if prompt else 0,
+                "evidence_render_limits": dict(getattr(self, "evidence_render_limits", {"multiplier": 1})),
+                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                "response_sha256": hashlib.sha256((response or "").encode("utf-8")).hexdigest(),
+            }
+        )
 
     def _dump_text(self, dir_path: str, fname: str, text: str) -> None:
         """落盘发给云端大模型的原始 prompt 原文（人类可读，纯文本）。
@@ -870,14 +869,8 @@ Return ONLY the JSON object, no other text."""
         task_type = batch.get("task_type", "unknown")
         consensus = batch.get("consensus_prefix") or []
         tree_evidence = batch.get("tree_evidence")
-        succ_txt = self._format_difftraces(
-            batch.get("success_samples", []),
-            limit=self.evidence_render_limits["contrastive_success_examples"], consensus=consensus,
-            tree_evidence=tree_evidence)
-        fail_txt = self._format_difftraces(
-            batch.get("failure_samples", []),
-            limit=self.evidence_render_limits["contrastive_failure_examples"], consensus=consensus,
-            tree_evidence=tree_evidence)
+        succ_txt = self._format_difftraces(batch.get("success_samples", []), limit=self.evidence_render_limits["contrastive_success_examples"], consensus=consensus, tree_evidence=tree_evidence)
+        fail_txt = self._format_difftraces(batch.get("failure_samples", []), limit=self.evidence_render_limits["contrastive_failure_examples"], consensus=consensus, tree_evidence=tree_evidence)
         fork_txt = self._format_forks(tree_evidence=tree_evidence)
 
         existing_titles = [s.get("title", "") for s in current_skills.get("general_skills", [])]
@@ -885,15 +878,9 @@ Return ONLY the JSON object, no other text."""
             for s in skills:
                 existing_titles.append(f"[{tt}] {s.get('title', '')}")
 
-        example_ids = ", ".join(
-            f'"dyn_{next_dyn_idx + j:03d}"' for j in range(self.max_new_skills_per_update)
-        )
+        example_ids = ", ".join(f'"dyn_{next_dyn_idx + j:03d}"' for j in range(self.max_new_skills_per_update))
 
-        observed_types = sorted({
-            str(trace.get("task_type") or "unknown")
-            for trace in ((batch.get("success_samples", []) or [])
-                          + (batch.get("failure_samples", []) or []))
-        })
+        observed_types = sorted({str(trace.get("task_type") or "unknown") for trace in ((batch.get("success_samples", []) or []) + (batch.get("failure_samples", []) or []))})
         allowed_types = ", ".join(f'"{tt}"' for tt in observed_types)
         example_task_type = observed_types[0] if observed_types else "unknown"
         if self.environment_name.lower() == "webshop":
@@ -962,14 +949,20 @@ Return ONLY the JSON array, no other text."""
             )
         if env == "alfworld":
             return (
-                "Actions must be selected from the provided admissible household actions. Success means "
-                "the requested object manipulation/state goal is completed. Do not invent shopping search, "
-                "product-option, or purchase actions."
+                "Actions must be selected from the current state's provided admissible household actions; "
+                "an action observed in another state is not automatically legal now. Inventory capacity is "
+                "one object, so two-object tasks must take and deliver objects sequentially. State-transform "
+                "commands act on the object currently held: clean OBJECT with sinkbasin, heat OBJECT with "
+                "microwave, and cool OBJECT with fridge. Do not first relinquish the object into the appliance "
+                "and then assume the transform remains admissible. A look-at-light goal requires holding the "
+                "target and using the relevant desklamp; it does not require placing the target on the lamp. "
+                "Open a closed receptacle before taking from it, and move the transformed/held object to the "
+                "requested destination only after required transformations. These are environment action "
+                "semantics, not hints about object identities or sampled layouts. Success means the requested "
+                "object manipulation/state goal is completed. Do not invent shopping search, product-option, "
+                "purchase actions, object locations, or unobserved state transitions."
             )
-        return (
-            "Infer legal actions and the success criterion only from the supplied goals, observations, "
-            "actions, rewards, and successful reference trajectories."
-        )
+        return "Infer legal actions and the success criterion only from the supplied goals, observations, actions, rewards, and successful reference trajectories."
 
     @staticmethod
     def _fold_count(steps: List[Dict], consensus: Optional[List[str]]) -> int:
@@ -983,6 +976,55 @@ Return ONLY the JSON array, no other text."""
             else:
                 break
         return n
+
+    def _evidence_limit(self, name: str, default: int) -> int:
+        """Read a render limit safely for prompt-only unit callers."""
+        limits = getattr(self, "evidence_render_limits", {}) or {}
+        return max(1, int(limits.get(name, default) or default))
+
+    @staticmethod
+    def _step_observation(step: Dict[str, Any]) -> tuple[str, str]:
+        """Return the observation payload and an explicit state label.
+
+        RawTrace stores the observation *before* the action in the same step.
+        Compressed traces preserve that timing but may store a delta/reference.
+        Keeping timing separate from compression prevents cloud prompts from
+        interpreting a pre-action observation as the action's result.
+        """
+        if "observation" in step and "obs_delta" not in step:
+            return str(step.get("observation", "") or ""), "full_observation"
+        label = "full_observation" if step.get("obs_is_full") else "observation_delta"
+        return str(step.get("obs_delta", "") or ""), label
+
+    def _format_causal_transitions(
+        self,
+        steps: List[Dict[str, Any]],
+        *,
+        fold: int = 0,
+    ) -> List[str]:
+        """Render each action between its actual pre/post states without duplication."""
+        if fold >= len(steps):
+            return ["  (all transitions folded)"]
+        limit = self._evidence_limit("steps_per_trace", 12)
+        obs_chars = self._evidence_limit("observation_chars_per_step", 400)
+        end = min(len(steps), fold + limit)
+        first_text, first_kind = self._step_observation(steps[fold])
+        first_number = steps[fold].get("step", fold + 1)
+        lines = [f"  state_before_step_{first_number} [{first_kind}]: {first_text[:obs_chars]}"]
+        for index in range(fold, end):
+            step = steps[index]
+            number = step.get("step", index + 1)
+            lines.append(f"  step {number} action: {step.get('action', '')}")
+            lines.append(f"    reward_after_action: {step.get('reward', 0) or 0}")
+            if index + 1 < len(steps) and index + 1 < end:
+                post_text, post_kind = self._step_observation(steps[index + 1])
+                next_number = steps[index + 1].get("step", index + 2)
+                lines.append(f"    state_after_action_and_before_step_{next_number} [{post_kind}]: {post_text[:obs_chars]}")
+            elif index + 1 < len(steps):
+                lines.append("    state_after_action: (not displayed because this renderer reached its step limit; do not infer it)")
+            else:
+                lines.append("    state_after_action: (terminal post-observation was not recorded; use only reward/outcome and do not infer hidden state)")
+        return lines
 
     def _format_tree_coded_traces(
         self,
@@ -999,10 +1041,7 @@ Return ONLY the JSON array, no other text."""
         deltas.  This preserves success/failure attribution while removing
         repeated action prefixes from every cloud prompt.
         """
-        records = {
-            str(record.get("u", "")): record
-            for record in (tree_evidence.get("records") or [])
-        }
+        records = {str(record.get("u", "")): record for record in (tree_evidence.get("records") or [])}
         selected = []
         for index, trace in enumerate(traces, start=1):
             record = records.get(str(trace.get("traj_uid", "")))
@@ -1011,9 +1050,7 @@ Return ONLY the JSON array, no other text."""
                 return self._format_difftraces_flat(traces, consensus, reflabeled)
             selected.append((index, trace, record))
 
-        node_table = {
-            index: node for index, node in enumerate(tree_evidence.get("nodes") or [], start=1)
-        }
+        node_table = {index: node for index, node in enumerate(tree_evidence.get("nodes") or [], start=1)}
         needed_ids = set()
         rendered = []
         for index, trace, record in selected:
@@ -1023,19 +1060,17 @@ Return ONLY the JSON array, no other text."""
             needed_ids.update(path)
             score = trace.get("task_score")
             score_text = f" task_score={score}" if score is not None else ""
-            label = (f"[ref={trace.get('_ref', '?')}]" if reflabeled
-                     else f"Trajectory {index} [{trace.get('outcome', '?')}]")
+            label = f"[ref={trace.get('_ref', '?')}]" if reflabeled else f"Trajectory {index} [{trace.get('outcome', '?')}]"
             lines = [f"\n{label}{score_text} task: {trace.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join((consensus or [])[:fold])}] (folded)")
             lines.append("  path: " + (" > ".join(f"N{node_id}" for node_id in path) or "(fully folded)"))
+            lines.append("  transition semantics: each state attached to N is BEFORE N's action; the following node's state is the observed state AFTER the previous action")
             for node_id, payload in zip(path, observations):
                 obs_text = str(payload[0] if isinstance(payload, list) and payload else "")
                 is_full = bool(payload[1]) if isinstance(payload, list) and len(payload) > 1 else False
-                text_label = "obs" if is_full else "delta"
-                lines.append(
-                    f"  N{node_id} | {text_label}: "
-                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
+                text_label = "full_observation" if is_full else "observation_delta"
+                lines.append(f"  N{node_id} | state_before_action [{text_label}]: {obs_text[: self._evidence_limit('observation_chars_per_step', 400)]}")
             if trace.get("dropped_loops"):
                 lines.append(f"  (dropped {trace['dropped_loops']} looping actions)")
             rendered.append("\n".join(lines))
@@ -1046,12 +1081,14 @@ Return ONLY the JSON array, no other text."""
             if not isinstance(node, list) or len(node) < 4:
                 continue
             parent, action, success_count, failure_count = node[:4]
-            node_lines.append(
-                f"N{node_id}: parent=N{parent}; action={action}; succ={success_count}; fail={failure_count}")
+            node_lines.append(f"N{node_id}: parent=N{parent}; action={action}; succ={success_count}; fail={failure_count}")
         return "\n".join(node_lines + rendered)
 
     def _format_difftraces_flat(
-        self, traces: List[Dict], consensus: Optional[List[str]], reflabeled: bool = False,
+        self,
+        traces: List[Dict],
+        consensus: Optional[List[str]],
+        reflabeled: bool = False,
     ) -> str:
         """Legacy flat renderer used only for mixed/old batches."""
         out = []
@@ -1060,51 +1097,30 @@ Return ONLY the JSON array, no other text."""
             fold = self._fold_count(steps, consensus)
             score = tr.get("task_score")
             score_text = f" task_score={score}" if score is not None else ""
-            label = (f"[ref={tr.get('_ref', '?')}]" if reflabeled
-                     else f"Trajectory {i} [{tr.get('outcome', '?')}]")
+            label = f"[ref={tr.get('_ref', '?')}]" if reflabeled else f"Trajectory {i} [{tr.get('outcome', '?')}]"
             lines = [f"\n{label}{score_text} task: {tr.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}] (folded)")
-            for step in steps[fold:fold + self.evidence_render_limits["steps_per_trace"]]:
-                is_raw = "observation" in step and "obs_delta" not in step
-                text_label = "obs" if is_raw or step.get("obs_is_full") else "delta"
-                obs_text = step.get("observation", "") if is_raw else step.get("obs_delta", "")
-                lines.append(
-                    f"  action: {step.get('action', '')} | {text_label}: "
-                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
+            lines.extend(self._format_causal_transitions(steps, fold=fold))
             out.append("\n".join(lines))
         return "\n".join(out)
 
-    def _format_difftraces(self, traces: List[Dict], limit: int,
-                           consensus: Optional[List[str]] = None,
-                           tree_evidence: Optional[Dict] = None) -> str:
+    def _format_difftraces(self, traces: List[Dict], limit: int, consensus: Optional[List[str]] = None, tree_evidence: Optional[Dict] = None) -> str:
         if not traces:
             return "(none)"
         selected = traces[:limit]
         if tree_evidence:
-            return self._format_tree_coded_traces(
-                selected, consensus=consensus, tree_evidence=tree_evidence)
+            return self._format_tree_coded_traces(selected, consensus=consensus, tree_evidence=tree_evidence)
         out = []
         for i, tr in enumerate(selected):
             steps = tr.get("steps", [])
             fold = self._fold_count(steps, consensus)
             score = tr.get("task_score")
             score_text = f" task_score={score}" if score is not None else ""
-            lines = [f"\nTrajectory {i + 1} [{tr.get('outcome', '?')}]{score_text} task: {tr.get('task', '')}"]
+            lines = [f"\nTrajectory {i + 1} [{tr.get('outcome', '?')}] [ref={tr.get('traj_uid', '?')}]{score_text} task: {tr.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join(consensus[:fold])}]  (folded, already mastered)")
-            for s in steps[fold:fold + self.evidence_render_limits["steps_per_trace"]]:
-                # ``observation`` is deliberately used by the all-compression-
-                # off ablation; production traces retain ``obs_delta``.
-                is_raw = 'observation' in s and 'obs_delta' not in s
-                obs_text = s.get('observation', '') if is_raw else s.get('obs_delta', '')
-                # obs_is_full=True means a full observation was retained by
-                # the normal adaptive delta path.  The all-off path is also a
-                # full observation, but has no delta field at all.
-                label = "obs" if is_raw or s.get('obs_is_full') else "delta"
-                lines.append(
-                    f"  action: {s.get('action', '')}  | {label}: "
-                    f"{obs_text[:self.evidence_render_limits['observation_chars_per_step']]}")
+            lines.extend(self._format_causal_transitions(steps, fold=fold))
             if tr.get("dropped_loops"):
                 lines.append(f"  (dropped {tr['dropped_loops']} looping actions)")
             out.append("\n".join(lines))
@@ -1117,9 +1133,7 @@ Return ONLY the JSON array, no other text."""
         CoSkill trees use headings as their node representation.  A non-heading
         preface is ignored, and malformed heading jumps do not invent levels.
         """
-        depths = [len(line) - len(line.lstrip('#'))
-                  for line in (markdown or '').splitlines()
-                  if line.startswith('#') and line.lstrip('#').startswith(' ')]
+        depths = [len(line) - len(line.lstrip("#")) for line in (markdown or "").splitlines() if line.startswith("#") and line.lstrip("#").startswith(" ")]
         return max(depths, default=0)
 
     @staticmethod
@@ -1164,8 +1178,7 @@ Return ONLY the JSON array, no other text."""
         if empty_levels:
             errors.append("empty_heading_labels:" + ",".join(map(str, empty_levels)))
         if jumps:
-            errors.append("heading_level_jumps:" + ",".join(
-                f"{parent}->{child}" for parent, child in jumps))
+            errors.append("heading_level_jumps:" + ",".join(f"{parent}->{child}" for parent, child in jumps))
         if max_nodes is not None and len(heading_levels) > int(max_nodes):
             errors.append(f"node_budget_exceeded:{len(heading_levels)}>{int(max_nodes)}")
         rendered_chars = len(markdown or "")
@@ -1195,23 +1208,20 @@ Return ONLY the JSON array, no other text."""
         下的不同具体实例。``n_variants``>1 时附上几个具体实例样例，只作为
         grounding 提示，不应被当成分支本身。
         """
-        max_forks = (self.evidence_render_limits["decision_forks"]
-                     if max_forks is None else max_forks)
+        max_forks = self.evidence_render_limits["decision_forks"] if max_forks is None else max_forks
         max_branches = self.evidence_render_limits["branches_per_fork"]
         forks: List[str] = []
 
         if tree_evidence:
             nodes = tree_evidence.get("nodes") or []
-            children: Dict[int, List[Tuple[int, List]]] = {}
+            children: Dict[int, List[tuple[int, List]]] = {}
             for node_id, node in enumerate(nodes, start=1):
                 if isinstance(node, list) and len(node) >= 4:
                     children.setdefault(int(node[0]), []).append((node_id, node))
             for parent_id, child_nodes in children.items():
                 if len(child_nodes) <= 1:
                     continue
-                branch_desc = "; ".join(
-                    f"N{node_id}='{node[1]}' (succ={node[2]},fail={node[3]})"
-                    for node_id, node in child_nodes[:max_branches])
+                branch_desc = "; ".join(f"N{node_id}='{node[1]}' (succ={node[2]},fail={node[3]})" for node_id, node in child_nodes[:max_branches])
                 forks.append(f"After N{parent_id}: {branch_desc}")
                 if len(forks) >= max_forks:
                     break
@@ -1230,8 +1240,7 @@ Return ONLY the JSON array, no other text."""
                 return
             children = node.get("children", {})
             if len(children) > 1:
-                branch_desc = "; ".join(
-                    branch_label(a, c) for a, c in list(children.items())[:max_branches])
+                branch_desc = "; ".join(branch_label(a, c) for a, c in list(children.items())[:max_branches])
                 forks.append(f"After [{' -> '.join(path) if path else 'start'}]: {branch_desc}")
             for a, c in children.items():
                 walk(c, path + [a])
@@ -1287,17 +1296,12 @@ Return ONLY the JSON array, no other text."""
         """重分配 dyn_ ID、补全兼容字段（principle/when_to_apply）、附 evidence。"""
         n_succ = len(batch.get("success_samples", []))
         n_fail = len(batch.get("failure_samples", []))
-        observed_types = {
-            str(trace.get("task_type") or "unknown")
-            for trace in ((batch.get("success_samples", []) or [])
-                          + (batch.get("failure_samples", []) or []))
-        }
+        observed_types = {str(trace.get("task_type") or "unknown") for trace in ((batch.get("success_samples", []) or []) + (batch.get("failure_samples", []) or []))}
         out: List[Dict] = []
         for i, s in enumerate(skills):
             patch = dict(s)
             patch["skill_id"] = f"dyn_{start_idx + i:03d}"
             action_flow = patch.get("action_flow") or []
-            avoid = patch.get("avoid") or []
             trigger = patch.get("trigger", "")
 
             # 新格式直接给 principle/when_to_apply（与初始 gen_* 种子技能一致）。
@@ -1332,8 +1336,7 @@ Return ONLY the JSON array, no other text."""
             bid = batch.get("batch_id", "unknown")[:8]
             path = os.path.join(self.output_dir, f"patches_{bid}.json")
             with open(path, "w") as f:
-                json.dump({"batch_id": batch.get("batch_id"), "patches": patches},
-                          f, ensure_ascii=False, indent=2)
+                json.dump({"batch_id": batch.get("batch_id"), "patches": patches}, f, ensure_ascii=False, indent=2)
             print(f"[CloudAnalyzer] wrote {len(patches)} patches → {path}")
         except Exception as e:
             print(f"[CloudAnalyzer] patch dump failed: {e}")
@@ -1377,14 +1380,10 @@ Return ONLY the JSON array, no other text."""
             "large_model_prompt_tokens": self.total_prompt_tokens,
             "large_model_completion_tokens": self.total_completion_tokens,
             "large_model_total_tokens": self.total_prompt_tokens + self.total_completion_tokens,
-            "large_model_prompt_cache_hit_tokens": int(
-                getattr(self, "total_prompt_cache_hit_tokens", 0) or 0),
-            "large_model_prompt_cache_miss_tokens": int(
-                getattr(self, "total_prompt_cache_miss_tokens", 0) or 0),
-            "large_model_cache_usage_reported_calls": int(
-                getattr(self, "cache_usage_reported_calls", 0) or 0),
-            "large_model_cache_usage_missing_calls": int(
-                getattr(self, "cache_usage_missing_calls", 0) or 0),
+            "large_model_prompt_cache_hit_tokens": int(getattr(self, "total_prompt_cache_hit_tokens", 0) or 0),
+            "large_model_prompt_cache_miss_tokens": int(getattr(self, "total_prompt_cache_miss_tokens", 0) or 0),
+            "large_model_cache_usage_reported_calls": int(getattr(self, "cache_usage_reported_calls", 0) or 0),
+            "large_model_cache_usage_missing_calls": int(getattr(self, "cache_usage_missing_calls", 0) or 0),
             # Per-task_type breakdown (evolve_playbook only - cleanly
             # attributable) plus an honest "mixed" bucket for calls that
             # cannot be split by task_type (contrastive_distill,
@@ -1396,10 +1395,8 @@ Return ONLY the JSON array, no other text."""
             "large_model_total_tokens_mixed": self.total_prompt_tokens_mixed + self.total_completion_tokens_mixed,
             "large_model_usage_reported_calls": int(getattr(self, "usage_reported_calls", 0) or 0),
             "large_model_usage_missing_calls": int(getattr(self, "usage_missing_calls", 0) or 0),
-            "large_model_usage_missing_calls_by_task_type": dict(
-                getattr(self, "usage_missing_calls_by_task_type", {}) or {}),
-            "large_model_usage_missing_calls_mixed": int(
-                getattr(self, "usage_missing_calls_mixed", 0) or 0),
+            "large_model_usage_missing_calls_by_task_type": dict(getattr(self, "usage_missing_calls_by_task_type", {}) or {}),
+            "large_model_usage_missing_calls_mixed": int(getattr(self, "usage_missing_calls_mixed", 0) or 0),
             # skill-tree 进化 / 失败诊断可观测
             "diagnose_calls": self.n_diagnose_calls,
             "evolve_calls": self.n_evolve_calls,

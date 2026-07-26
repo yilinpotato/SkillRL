@@ -66,7 +66,8 @@ def test_default_compression_remains_delta_compatible():
     pool = TracesPool()
     pool.add_trace(_trace())
     batch = pool.export_batch()
-    assert "prefix_tree" in batch
+    assert "tree_evidence" in batch
+    assert "prefix_tree" not in batch
     assert "consensus_prefix" in batch
     assert "obs_delta" in batch["failure_samples"][0]["steps"][0]
 
@@ -87,13 +88,12 @@ def test_prefix_tree_merges_on_normalized_action_not_instance_number():
     pool.add_trace(_trace_with_actions("a", ["go to cabinet 1", "open cabinet 1"]))
     pool.add_trace(_trace_with_actions("b", ["go to cabinet 7", "open cabinet 7"], outcome="success"))
     batch = pool.export_batch()
-    root = batch["prefix_tree"]
-    assert list(root["children"].keys()) == ["go to cabinet #"]
-    merged = root["children"]["go to cabinet #"]
-    assert merged["count"] == 2
-    assert merged["n_success"] == 1 and merged["n_failure"] == 1
-    assert merged["n_variants"] == 2
-    assert set(merged["example_actions"]) == {"go to cabinet 1", "go to cabinet 7"}
+    codec = batch["tree_evidence"]
+    assert codec["nodes"] == [
+        [0, "go to cabinet #", 1, 1],
+        [1, "open cabinet #", 1, 1],
+    ]
+    assert {tuple(record["q"]) for record in codec["records"]} == {(1, 2)}
 
 
 def test_prefix_tree_still_forks_on_genuinely_different_actions():
@@ -101,21 +101,27 @@ def test_prefix_tree_still_forks_on_genuinely_different_actions():
     pool.add_trace(_trace_with_actions("a", ["go to cabinet 1"]))
     pool.add_trace(_trace_with_actions("b", ["go to drawer 2"]))
     batch = pool.export_batch()
-    root = batch["prefix_tree"]
-    assert set(root["children"].keys()) == {"go to cabinet #", "go to drawer #"}
+    nodes = batch["tree_evidence"]["nodes"]
+    assert {(node[0], node[1]) for node in nodes} == {
+        (0, "go to cabinet #"),
+        (0, "go to drawer #"),
+    }
 
 
-def test_format_forks_shows_normalized_branch_with_variant_hint():
+def test_format_forks_shows_normalized_compact_codec_branches():
     pool = TracesPool()
     pool.add_trace(_trace_with_actions("a", ["go to cabinet 1"]))
     pool.add_trace(_trace_with_actions("b", ["go to cabinet 9"]))
     pool.add_trace(_trace_with_actions("c", ["go to drawer 2"]))
     batch = pool.export_batch()
     analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
-    fork_txt = analyzer._format_forks(batch["prefix_tree"])
-    assert "'go to cabinet #' [2 instance variants" in fork_txt
-    assert "go to cabinet 1" in fork_txt and "go to cabinet 9" in fork_txt
-    assert "'go to drawer #'" in fork_txt
+    analyzer.evidence_render_limits = {"decision_forks": 6, "branches_per_fork": 5}
+    fork_txt = analyzer._format_forks(tree_evidence=batch["tree_evidence"])
+    assert "go to cabinet #" in fork_txt
+    assert "go to drawer #" in fork_txt
+    assert "fail=2" in fork_txt
+    assert "go to cabinet 1" not in fork_txt
+    assert "go to cabinet 9" not in fork_txt
 
 
 def _trace_with_observations(traj_uid, obs_action_pairs, outcome="failure"):

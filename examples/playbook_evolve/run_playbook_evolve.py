@@ -12,26 +12,29 @@
 prod_prompt.ProdObsBuilder（与 env_manager.build_text_obs 逐字节对齐，注入共享 skill_lib）、
 run_generic 的解析/兜底工具；闭环三件套 + HierarchicalSkillLib + CoSkillCloudLoop。
 """
-import os
+
+import argparse
 import atexit
 import hashlib
 import json
-import uuid
-import argparse
 import multiprocessing as mp
+import os
 import subprocess
 import time
 import traceback
+import uuid
 
 from agent_system.environments.env_package.alfworld.projection import alfworld_projection
-from agent_system.memory import TracesPool, HierarchicalSkillLib, CoSkillCloudLoop
-
+from agent_system.memory import CoSkillCloudLoop, HierarchicalSkillLib, TracesPool
 from mini_test_pen_shelf.env_utils import (
-    load_tw_config_types, find_games_by_type, make_single_env, make_batch_env, _TASK_TYPE_TO_ID,
+    _TASK_TYPE_TO_ID,
+    find_games_by_type,
+    load_tw_config_types,
+    make_batch_env,
+    make_single_env,
 )
 from mini_test_pen_shelf.prod_prompt import ProdObsBuilder
-from mini_test_pen_shelf.run_generic import extract_task, parse_model_output
-
+from mini_test_pen_shelf.run_generic import extract_task
 
 SMALL_MODEL_TOKEN_ACCOUNTING = "vllm_request_tokens_single_pass"
 
@@ -84,14 +87,10 @@ def _trace_compression_metric_fields(args):
         "enable_prefix_tree": bool(args.trace_enable_prefix_tree),
         "enable_consensus_prefix": bool(args.trace_enable_consensus_prefix),
     }
-    condition = "all_on" if all(flags.values()) else (
-        "all_off" if not any(flags.values()) else "partial")
+    condition = "all_on" if all(flags.values()) else ("all_off" if not any(flags.values()) else "partial")
     return {
         "experiment/trace_compression/condition": condition,
-        **{
-            f"experiment/trace_compression/{name}": int(enabled)
-            for name, enabled in flags.items()
-        },
+        **{f"experiment/trace_compression/{name}": int(enabled) for name, enabled in flags.items()},
     }
 
 
@@ -138,9 +137,7 @@ def _load_fixed_games_manifest(manifest_path, alfworld_data=None):
         task_type = traj.get("task_type")
         expected = entry.get("task_type")
         if expected and task_type != expected:
-            raise ValueError(
-                f"manifest game #{i} expected {expected}, got {task_type}: {game_file}"
-            )
+            raise ValueError(f"manifest game #{i} expected {expected}, got {task_type}: {game_file}")
         tid = _TASK_TYPE_TO_ID.get(task_type)
         if tid is None:
             raise ValueError(f"unsupported task_type {task_type}: {game_file}")
@@ -177,15 +174,15 @@ def _load_resume_state(args):
         "wins": 0,
         "per_game": [],
         "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
+        "context_guard": {"prompt_trims": 0, "trimmed_tokens": 0},
         "small_model_token_accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
         "large_model_tokens": {"prompt": 0, "completion": 0, "total": 0},
-        "small_model_tokens_by_tt": {
-            tt: {"prompt": 0, "response": 0, "total": 0} for tt in NORL_TASK_TYPES},
-        "large_model_tokens_by_tt": {
-            tt: {"prompt": 0, "completion": 0, "total": 0} for tt in NORL_TASK_TYPES},
+        "small_model_tokens_by_tt": {tt: {"prompt": 0, "response": 0, "total": 0} for tt in NORL_TASK_TYPES},
+        "large_model_tokens_by_tt": {tt: {"prompt": 0, "completion": 0, "total": 0} for tt in NORL_TASK_TYPES},
         "large_model_tokens_mixed": {"prompt": 0, "completion": 0, "total": 0},
         "large_model_usage": {
-            "reported_calls": 0, "missing_calls": 0,
+            "reported_calls": 0,
+            "missing_calls": 0,
             "missing_calls_by_task_type": {tt: 0 for tt in NORL_TASK_TYPES},
             "missing_calls_mixed": 0,
         },
@@ -197,8 +194,7 @@ def _load_resume_state(args):
 
     summary_path = os.path.join(args.outdir, "summary_partial.json")
     if not os.path.isfile(summary_path):
-        print(f"[driver][resume] --resume 1 但 {summary_path} 不存在，"
-              "视为全新运行（从 --skills_json 种子文件、episode 0 开始）")
+        print(f"[driver][resume] --resume 1 但 {summary_path} 不存在，视为全新运行（从 --skills_json 种子文件、episode 0 开始）")
         return state
 
     with open(summary_path) as f:
@@ -211,8 +207,7 @@ def _load_resume_state(args):
             state["skills_json_path"] = candidate_path
             break
     else:
-        print(f"[driver][resume] 未在 {skill_dir} 找到任何技能库 checkpoint，"
-              f"技能库仍从种子文件 {args.skills_json} 加载（其余进度照常恢复）")
+        print(f"[driver][resume] 未在 {skill_dir} 找到任何技能库 checkpoint，技能库仍从种子文件 {args.skills_json} 加载（其余进度照常恢复）")
 
     state["resume"] = True
     state["epoch0"] = max(0, int(prev_summary.get("current_epoch", 1)) - 1)
@@ -221,21 +216,16 @@ def _load_resume_state(args):
     state["wins"] = int(prev_summary.get("wins", 0) or 0)
     state["per_game"] = list(prev_summary.get("per_game", []) or [])
     saved_small_tokens = (prev_summary.get("token_usage", {}) or {}).get("small_model", {}) or {}
-    state["small_model_tokens"] = {
-        key: int(saved_small_tokens.get(key, 0) or 0)
-        for key in ("prompt", "response", "total")
-    }
+    state["small_model_tokens"] = {key: int(saved_small_tokens.get(key, 0) or 0) for key in ("prompt", "response", "total")}
+    saved_context_guard = prev_summary.get("context_guard", {}) or {}
+    state["context_guard"] = {key: int(saved_context_guard.get(key, 0) or 0) for key in ("prompt_trims", "trimmed_tokens")}
     previous_accounting = saved_small_tokens.get("accounting")
     if not previous_accounting and state["small_model_tokens"]["total"]:
         previous_accounting = "vllm_request_tokens_two_stage"
     if previous_accounting and previous_accounting != SMALL_MODEL_TOKEN_ACCOUNTING:
-        state["small_model_token_accounting"] = (
-            f"mixed:{previous_accounting}+{SMALL_MODEL_TOKEN_ACCOUNTING}")
+        state["small_model_token_accounting"] = f"mixed:{previous_accounting}+{SMALL_MODEL_TOKEN_ACCOUNTING}"
     saved_large_tokens = (prev_summary.get("token_usage", {}) or {}).get("large_model", {}) or {}
-    state["large_model_tokens"] = {
-        key: int(saved_large_tokens.get(key, 0) or 0)
-        for key in ("prompt", "completion", "total")
-    }
+    state["large_model_tokens"] = {key: int(saved_large_tokens.get(key, 0) or 0) for key in ("prompt", "completion", "total")}
     # A checkpoint written before the runtime-name fix may contain both old
     # dataset keys (zero) and dynamically-added runtime keys (non-zero).
     # Canonicalizing and summing here preserves its actual accumulated usage.
@@ -247,42 +237,30 @@ def _load_resume_state(args):
         saved_large_tokens.get("by_task_type", {}) or {},
         ("prompt", "completion", "total"),
     )
-    saved_large_mixed = (saved_large_tokens.get("mixed", {}) or {})
-    state["large_model_tokens_mixed"] = {
-        key: int(saved_large_mixed.get(key, 0) or 0)
-        for key in ("prompt", "completion", "total")
-    }
+    saved_large_mixed = saved_large_tokens.get("mixed", {}) or {}
+    state["large_model_tokens_mixed"] = {key: int(saved_large_mixed.get(key, 0) or 0) for key in ("prompt", "completion", "total")}
     saved_usage = saved_large_tokens.get("usage", {}) or {}
     state["large_model_usage"] = {
         "reported_calls": int(saved_usage.get("reported_calls", 0) or 0),
         "missing_calls": int(saved_usage.get("missing_calls", 0) or 0),
-        "missing_calls_by_task_type": _canonicalize_count_breakdown(
-            saved_usage.get("missing_calls_by_task_type", {}) or {}),
+        "missing_calls_by_task_type": _canonicalize_count_breakdown(saved_usage.get("missing_calls_by_task_type", {}) or {}),
         "missing_calls_mixed": int(saved_usage.get("missing_calls_mixed", 0) or 0),
     }
     # ``per_game`` has always stored the actual runtime label and episode
     # tokens.  Rebuild this ledger when resuming a pre-fix run, where the
     # serialized per-task summary may already have dropped four buckets.
     if state["per_game"]:
-        rebuilt_small = {tt: {"prompt": 0, "response": 0, "total": 0}
-                         for tt in NORL_TASK_TYPES}
+        rebuilt_small = {tt: {"prompt": 0, "response": 0, "total": 0} for tt in NORL_TASK_TYPES}
         for episode in state["per_game"]:
             bucket = rebuilt_small[_canonical_task_type(episode.get("detected_type"))]
-            for key, field in (("prompt", "tokens_prompt"),
-                               ("response", "tokens_response"),
-                               ("total", "tokens_total")):
+            for key, field in (("prompt", "tokens_prompt"), ("response", "tokens_response"), ("total", "tokens_total")):
                 bucket[key] += int(episode.get(field, 0) or 0)
         state["small_model_tokens_by_tt"] = rebuilt_small
     state["cloud_update_steps"] = list(prev_summary.get("cloud_update_steps", []) or [])
     state["cloud_updates"] = len(state["cloud_update_steps"])
 
-    print(f"[driver][resume] 从 {summary_path} 恢复：epoch={state['epoch0']+1} "
-          f"ep_i={state['ep_i0']} completed_groups={state['completed_groups']} "
-          f"wins={state['wins']}/{len(state['per_game'])} "
-          f"skill_lib<-{state['skills_json_path']}")
-    print("[driver][resume] 注意：游戏顺序由 TextWorld 内部 shuffled_cycle 决定，"
-          "跳过已完成局数是靠重建 env 后空转对应次数 reset() 对齐——同一 seed + 同一批 "
-          "game_files 下可复现，但不是数学上绝对保证的精确重放。")
+    print(f"[driver][resume] 从 {summary_path} 恢复：epoch={state['epoch0'] + 1} ep_i={state['ep_i0']} completed_groups={state['completed_groups']} wins={state['wins']}/{len(state['per_game'])} skill_lib<-{state['skills_json_path']}")
+    print("[driver][resume] 注意：游戏顺序由 TextWorld 内部 shuffled_cycle 决定，跳过已完成局数是靠重建 env 后空转对应次数 reset() 对齐——同一 seed + 同一批 game_files 下可复现，但不是数学上绝对保证的精确重放。")
     return state
 
 
@@ -297,6 +275,7 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
     不打点会让终端长时间零输出、看起来像卡死——所以每步打一行，而不是等整局完再打。
     """
     import time as _time
+
     obs_list, infos = env.reset()
     obs_text = obs_list[0]
     adm = infos["admissible_commands"][0]
@@ -324,8 +303,7 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         _, _think = None, None
         # alfworld_projection 已经内置 admissible_commands 精确匹配 + salvage + 安全默认
         # 动作兜底，返回的 action 一定合法，不需要在这里再手工补救一次。
-        actions, valids, action_details = alfworld_projection(
-            [raw], [adm], return_details=True)
+        actions, valids, action_details = alfworld_projection([raw], [adm], return_details=True)
         action = actions[0]
         valid = bool(valids[0])
         action_detail = action_details[0]
@@ -340,26 +318,40 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         reward = float(scores[0]) if scores is not None else 0.0
         done = bool(dones[0])
         won = bool(ninfos.get("won", [False])[0])
-        print(f"  [rollout]{tag} step={step}/{max_steps} action={action!r} "
-              f"valid={valid} forced={forced} won={won} ({_time.time()-_t0:.1f}s)")
+        print(f"  [rollout]{tag} step={step}/{max_steps} action={action!r} valid={valid} forced={forced} won={won} ({_time.time() - _t0:.1f}s)")
 
         # RawTrace step: 模型这一步所基于的 raw obs + 采取的动作 + reward。
-        steps.append({
-            "step": step, "observation": obs_text, "action": action, "reward": reward,
-            "valid_action": valid,
-            "non_strict_valid_action": valid,
-            "strict_valid_action": action_detail["strict_valid_action"],
-            "execution_source": action_detail["execution_source"],
-            "direct_admissible_action": action_detail["direct_admissible_action"],
-        })
+        steps.append(
+            {
+                "step": step,
+                "observation": obs_text,
+                "action": action,
+                "reward": reward,
+                "valid_action": valid,
+                "non_strict_valid_action": valid,
+                "strict_valid_action": action_detail["strict_valid_action"],
+                "execution_source": action_detail["execution_source"],
+                "direct_admissible_action": action_detail["direct_admissible_action"],
+            }
+        )
         if keep_logrows:
-            logrows.append({"step": step, "prompt": prompt, "action": action, "valid": valid,
-                            "valid_action": valid,
-                            "non_strict_valid_action": valid,
-                            "strict_valid_action": action_detail["strict_valid_action"],
-                            "execution_source": action_detail["execution_source"],
-                            "direct_admissible_action": action_detail["direct_admissible_action"],
-                            "forced": bool(forced), "obs": nobs, "reward": reward, "won": won})
+            logrows.append(
+                {
+                    "step": step,
+                    "prompt": prompt,
+                    "action": action,
+                    "valid": valid,
+                    "valid_action": valid,
+                    "non_strict_valid_action": valid,
+                    "strict_valid_action": action_detail["strict_valid_action"],
+                    "execution_source": action_detail["execution_source"],
+                    "direct_admissible_action": action_detail["direct_admissible_action"],
+                    "forced": bool(forced),
+                    "obs": nobs,
+                    "reward": reward,
+                    "won": won,
+                }
+            )
 
         builder.record(obs_text, action)
         obs_text, adm = nobs, nadm
@@ -380,7 +372,8 @@ def rollout_episode(env, agent, builder, max_steps, tag="", keep_logrows=True):
         "episode_reward": 1.0 if won else 0.0,
         "steps": steps,
         "meta": {
-            "skill_ids_used": injected_ids, "model_version": "frozen",
+            "skill_ids_used": injected_ids,
+            "model_version": "frozen",
             "n_valid_actions": n_valid,
             "valid_action_ratio": n_valid / max(step, 1),
             "n_non_strict_valid_actions": n_valid,
@@ -405,8 +398,7 @@ def _fixed_request_seed(base_seed, game_id, replica_index, step):
     return int.from_bytes(hashlib.sha256(payload).digest()[:4], "big") & 0x7FFFFFFF
 
 
-def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
-                        fixed_replica_offsets=None):
+def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="", fixed_replica_offsets=None):
     """Run one synchronous batch of ALFWorld episodes.
 
     A group is the unit that mimics one GRPO rollout batch: all active slots are
@@ -432,11 +424,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
             replica_index = int(offsets.get(game_id, 0)) + seen.get(game_id, 0)
             seen[game_id] = seen.get(game_id, 0) + 1
             fixed_seed_rows.append((game_id, replica_index))
-    builders = [
-        ProdObsBuilder(mem_lib=skill_lib, with_skills=bool(args.enable_coskill),
-                       top_k=args.top_k, history_length=args.history_length)
-        for _ in range(batch_size)
-    ]
+    builders = [ProdObsBuilder(mem_lib=skill_lib, with_skills=bool(args.enable_coskill), top_k=args.top_k, history_length=args.history_length) for _ in range(batch_size)]
     task_types = []
     injected_ids = []
     playbook_records = []
@@ -445,12 +433,10 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
         tt = (b.retrieved or {}).get("task_type", "unknown")
         task_types.append(tt)
         injected_ids.append((b.retrieved or {}).get("injected_skill_ids", []) or [])
-        pb_rec = skill_lib.get_playbook_record(tt) if args.enable_skill_tree and hasattr(
-            skill_lib, "get_playbook_record") else None
+        pb_rec = skill_lib.get_playbook_record(tt) if args.enable_skill_tree and hasattr(skill_lib, "get_playbook_record") else None
         playbook_records.append(pb_rec)
 
-    print(f"[rollout-batch]{tag} size={batch_size} tasks="
-          f"{ {t: task_types.count(t) for t in sorted(set(task_types))} }")
+    print(f"[rollout-batch]{tag} size={batch_size} tasks={ {t: task_types.count(t) for t in sorted(set(task_types))} }")
 
     steps = [[] for _ in range(batch_size)]
     logrows = [[] for _ in range(batch_size)]
@@ -477,17 +463,9 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
             break
 
         _t0 = _time.time()
-        prompts = [
-            builders[i].build(obs_list[i], adms[i], init=(step == 1))
-            for i in active
-        ]
-        request_seeds = ([
-            _fixed_request_seed(
-                args.seed, fixed_seed_rows[i][0], fixed_seed_rows[i][1], step)
-            for i in active
-        ] if fixed_seed_rows is not None else None)
-        seed_by_idx = ({i: request_seeds[j] for j, i in enumerate(active)}
-                       if request_seeds is not None else {})
+        prompts = [builders[i].build(obs_list[i], adms[i], init=(step == 1)) for i in active]
+        request_seeds = [_fixed_request_seed(args.seed, fixed_seed_rows[i][0], fixed_seed_rows[i][1], step) for i in active] if fixed_seed_rows is not None else None
+        seed_by_idx = {i: request_seeds[j] for j, i in enumerate(active)} if request_seeds is not None else {}
         raw_forced = agent.act_batch_with_meta(prompts, sampling_seeds=request_seeds)
         raws = [x[0] for x in raw_forced]
         forceds = [x[1] for x in raw_forced]
@@ -502,8 +480,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
         active_adms = [adms[i] for i in active]
         # alfworld_projection 已经内置 admissible_commands 精确匹配 + salvage + 安全默认
         # 动作兜底，返回的 action 一定合法，不需要在这里再手工补救一次。
-        actions, valids, action_details = alfworld_projection(
-            raws, active_adms, return_details=True)
+        actions, valids, action_details = alfworld_projection(raws, active_adms, return_details=True)
 
         full_actions = []
         action_by_idx = {}
@@ -543,29 +520,39 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
             action = action_by_idx[i]
             action_detail = action_detail_by_idx[i]
 
-            steps[i].append({
-                "step": step, "observation": obs_list[i],
-                "action": action, "reward": reward,
-                "valid_action": valid_by_idx[i],
-                "non_strict_valid_action": valid_by_idx[i],
-                "strict_valid_action": action_detail["strict_valid_action"],
-                "execution_source": action_detail["execution_source"],
-                "direct_admissible_action": action_detail["direct_admissible_action"],
-                "sampling_seed": seed_by_idx.get(i),
-            })
-            if keep_logrows:
-                logrows[i].append({
-                    "step": step, "prompt": prompts[active.index(i)],
-                    "action": action, "valid": valid_by_idx[i],
+            steps[i].append(
+                {
+                    "step": step,
+                    "observation": obs_list[i],
+                    "action": action,
+                    "reward": reward,
                     "valid_action": valid_by_idx[i],
                     "non_strict_valid_action": valid_by_idx[i],
                     "strict_valid_action": action_detail["strict_valid_action"],
                     "execution_source": action_detail["execution_source"],
                     "direct_admissible_action": action_detail["direct_admissible_action"],
                     "sampling_seed": seed_by_idx.get(i),
-                    "forced": forced_by_idx[i], "obs": nobs_list[i],
-                    "reward": reward, "won": slot_won,
-                })
+                }
+            )
+            if keep_logrows:
+                logrows[i].append(
+                    {
+                        "step": step,
+                        "prompt": prompts[active.index(i)],
+                        "action": action,
+                        "valid": valid_by_idx[i],
+                        "valid_action": valid_by_idx[i],
+                        "non_strict_valid_action": valid_by_idx[i],
+                        "strict_valid_action": action_detail["strict_valid_action"],
+                        "execution_source": action_detail["execution_source"],
+                        "direct_admissible_action": action_detail["direct_admissible_action"],
+                        "sampling_seed": seed_by_idx.get(i),
+                        "forced": forced_by_idx[i],
+                        "obs": nobs_list[i],
+                        "reward": reward,
+                        "won": slot_won,
+                    }
+                )
 
             builders[i].record(obs_list[i], action)
             used[i] = step
@@ -579,9 +566,7 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
         adms = nadms
         n_done = sum(done)
         n_won = sum(won)
-        print(f"  [rollout-batch]{tag} step={step}/{args.max_steps} "
-              f"active={len(active)} done={n_done}/{batch_size} won={n_won}/{batch_size} "
-              f"({ _time.time()-_t0:.1f}s)")
+        print(f"  [rollout-batch]{tag} step={step}/{args.max_steps} active={len(active)} done={n_done}/{batch_size} won={n_won}/{batch_size} ({_time.time() - _t0:.1f}s)")
 
     episodes = []
     for i in range(batch_size):
@@ -593,7 +578,8 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
             "episode_reward": 1.0 if won[i] else 0.0,
             "steps": steps[i],
             "meta": {
-                "skill_ids_used": injected_ids[i], "model_version": "frozen",
+                "skill_ids_used": injected_ids[i],
+                "model_version": "frozen",
                 "fixed_game_id": (fixed_seed_rows[i][0] if fixed_seed_rows else None),
                 "fixed_replica_index": (fixed_seed_rows[i][1] if fixed_seed_rows else None),
                 "n_valid_actions": n_valid[i],
@@ -602,19 +588,23 @@ def rollout_batch_group(env, agent, skill_lib, args, batch_size, tag="",
                 "non_strict_valid_action_ratio": n_valid[i] / max(used[i], 1),
                 "n_strict_valid_actions": n_strict_valid[i],
                 "strict_valid_action_ratio": n_strict_valid[i] / max(used[i], 1),
-                "n_salvaged_actions": sum(
-                    s.get("execution_source") == "salvaged" for s in steps[i]),
-                "n_fallback_actions": sum(
-                    s.get("execution_source") == "fallback" for s in steps[i]),
+                "n_salvaged_actions": sum(s.get("execution_source") == "salvaged" for s in steps[i]),
+                "n_fallback_actions": sum(s.get("execution_source") == "fallback" for s in steps[i]),
             },
         }
-        episodes.append({
-            "won": won[i], "used": used[i] or args.max_steps,
-            "raw_trace": raw_trace, "task_type": task_types[i],
-            "injected": injected_ids[i], "n_valid": n_valid[i],
-            "logrows": logrows[i], "playbook_record": playbook_records[i],
-            "small_model_tokens": episode_tokens[i],
-        })
+        episodes.append(
+            {
+                "won": won[i],
+                "used": used[i] or args.max_steps,
+                "raw_trace": raw_trace,
+                "task_type": task_types[i],
+                "injected": injected_ids[i],
+                "n_valid": n_valid[i],
+                "logrows": logrows[i],
+                "playbook_record": playbook_records[i],
+                "small_model_tokens": episode_tokens[i],
+            }
+        )
     return episodes
 
 
@@ -640,8 +630,7 @@ def _fixed_manifest_dp_plan(game_files, replicas_per_game: int, workers: int):
     plan = []
     if workers <= len(games):
         assignments = [games[i::workers] for i in range(workers)]
-        plan = [(assigned, len(assigned) * replicas_per_game)
-                for assigned in assignments]
+        plan = [(assigned, len(assigned) * replicas_per_game) for assigned in assignments]
     else:
         worker_counts = _split_int(workers, len(games))
         for game, game_workers in zip(games, worker_counts):
@@ -659,9 +648,12 @@ def _token_delta(after, before):
     return {"prompt": prompt, "response": response, "total": prompt + response}
 
 
-def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
-                       fixed_batch_size, fixed_replica_offsets, in_q, out_q,
-                       resume_skip_groups=0):
+def _context_guard_delta(after, before):
+    """Subtract cumulative prompt-truncation counters."""
+    return {key: max(0, int(after.get(key, 0)) - int(before.get(key, 0))) for key in ("prompt_trims", "trimmed_tokens")}
+
+
+def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids, fixed_batch_size, fixed_replica_offsets, in_q, out_q, resume_skip_groups=0):
     """Persistent rollout worker for single-GPU data parallel inference.
 
     The worker owns one ALFWorld batch env and one vLLM engine pinned to one GPU.
@@ -683,30 +675,25 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
         # and remap worker 1 back onto GPU 0.
         visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
         if visible_devices != str(gpu_id):
-            raise RuntimeError(
-                f"worker {worker_id} expected CUDA_VISIBLE_DEVICES={gpu_id!r}, "
-                f"got {visible_devices!r}; refusing unsafe vLLM launch")
+            raise RuntimeError(f"worker {worker_id} expected CUDA_VISIBLE_DEVICES={gpu_id!r}, got {visible_devices!r}; refusing unsafe vLLM launch")
         os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
         args = argparse.Namespace(**args_dict)
         args.tensor_parallel_size = 1
 
         config = load_tw_config_types(task_type_ids, num_games=len(game_files))
-        env = make_batch_env(game_files, config, batch_size=fixed_batch_size,
-                             seed=int(args.seed) + 1009 * (worker_id + 1))
+        env = make_batch_env(game_files, config, batch_size=fixed_batch_size, seed=int(args.seed) + 1009 * (worker_id + 1))
         if resume_skip_groups > 0:
             _t0 = time.time()
             for _ in range(resume_skip_groups):
                 env.reset()
-            print(f"[dp-worker{worker_id}][resume] skipped {resume_skip_groups} reset() "
-                  f"calls to align with prior run ({time.time()-_t0:.1f}s)")
+            print(f"[dp-worker{worker_id}][resume] skipped {resume_skip_groups} reset() calls to align with prior run ({time.time() - _t0:.1f}s)")
 
         from mini_test_pen_shelf.agent_vllm import VLLMAgent
+
         required_max_num_seqs = fixed_batch_size
         vllm_max_num_seqs = int(args.vllm_max_num_seqs or required_max_num_seqs)
         if vllm_max_num_seqs < required_max_num_seqs:
-            raise ValueError(
-                f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than "
-                f"worker {worker_id}'s rollout batch={required_max_num_seqs}")
+            raise ValueError(f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than worker {worker_id}'s rollout batch={required_max_num_seqs}")
         agent = VLLMAgent(
             model_path=args.model_path,
             gpu_memory_utilization=args.gpu_mem_util,
@@ -721,12 +708,7 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             max_num_seqs=vllm_max_num_seqs,
             enforce_eager=bool(args.vllm_enforce_eager),
         )
-        print(f"[dp-worker{worker_id}] ready gpu={gpu_id} "
-              f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} "
-              f"batch={fixed_batch_size} "
-              f"max_num_seqs={vllm_max_num_seqs} "
-              f"enforce_eager={bool(args.vllm_enforce_eager)} "
-              f"games={len(game_files)}")
+        print(f"[dp-worker{worker_id}] ready gpu={gpu_id} CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES')} batch={fixed_batch_size} max_num_seqs={vllm_max_num_seqs} enforce_eager={bool(args.vllm_enforce_eager)} games={len(game_files)}")
 
         while True:
             cmd = in_q.get()
@@ -738,6 +720,7 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
             skill_path = cmd["skill_path"]
             try:
                 tokens_before = agent.get_token_usage()
+                context_guard_before = agent.get_context_guard_usage()
                 skill_lib = HierarchicalSkillLib(
                     skills_json_path=skill_path,
                     retrieval_mode=args.retrieval_mode,
@@ -752,94 +735,80 @@ def _dp_rollout_worker(worker_id, gpu_id, args_dict, game_files, task_type_ids,
                 )
                 tag = f" group{group_id} worker{worker_id} gpu={gpu_id}"
                 results = rollout_batch_group(
-                    env, agent, skill_lib, args, fixed_batch_size, tag=tag,
+                    env,
+                    agent,
+                    skill_lib,
+                    args,
+                    fixed_batch_size,
+                    tag=tag,
                     fixed_replica_offsets=fixed_replica_offsets,
                 )
                 token_usage = _token_delta(agent.get_token_usage(), tokens_before)
-                out_q.put({
-                    "worker_id": worker_id,
-                    "group_id": group_id,
-                    "results": results,
-                    "small_model_tokens": token_usage,
-                    "error": None,
-                })
+                context_guard_usage = _context_guard_delta(agent.get_context_guard_usage(), context_guard_before)
+                out_q.put(
+                    {
+                        "worker_id": worker_id,
+                        "group_id": group_id,
+                        "results": results,
+                        "small_model_tokens": token_usage,
+                        "context_guard": context_guard_usage,
+                        "error": None,
+                    }
+                )
             except Exception:
-                out_q.put({
-                    "worker_id": worker_id,
-                    "group_id": group_id,
-                    "results": [],
-                    "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
-                    "error": traceback.format_exc(),
-                })
+                out_q.put(
+                    {
+                        "worker_id": worker_id,
+                        "group_id": group_id,
+                        "results": [],
+                        "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
+                        "context_guard": {"prompt_trims": 0, "trimmed_tokens": 0},
+                        "error": traceback.format_exc(),
+                    }
+                )
     except Exception:
-        out_q.put({
-            "worker_id": worker_id,
-            "group_id": None,
-            "results": [],
-            "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
-            "error": traceback.format_exc(),
-        })
+        out_q.put(
+            {
+                "worker_id": worker_id,
+                "group_id": None,
+                "results": [],
+                "small_model_tokens": {"prompt": 0, "response": 0, "total": 0},
+                "context_guard": {"prompt_trims": 0, "trimmed_tokens": 0},
+                "error": traceback.format_exc(),
+            }
+        )
 
 
 def main():
     ap = argparse.ArgumentParser()
     # --- 环境 / 采样（对齐训练脚本）---
-    ap.add_argument("--task_types",
-                    default=("pick_and_place_simple,look_at_obj_in_light,"
-                             "pick_clean_then_place_in_recep,pick_heat_then_place_in_recep,"
-                             "pick_cool_then_place_in_recep,pick_two_obj_and_place"),
-                    help="逗号分隔的数据集 task_type；默认全 6 类（成功判定走 env won，对所有类型有效）")
-    ap.add_argument("--fixed_games_manifest", default=None,
-                    help="固定任务 JSON manifest；给定后忽略 task_types/num_games/sample，"
-                         "OFF/ON 对照可据此复用完全相同的 game.tw-pddl")
-    ap.add_argument("--num_games", type=int, default=-1,
-                    help="每个 task_type 跑多少 game；<=0 表示【全部】（正式测试用全量数据，与训练脚本一致不抽样）")
+    ap.add_argument("--task_types", default=("pick_and_place_simple,look_at_obj_in_light,pick_clean_then_place_in_recep,pick_heat_then_place_in_recep,pick_cool_then_place_in_recep,pick_two_obj_and_place"), help="逗号分隔的数据集 task_type；默认全 6 类（成功判定走 env won，对所有类型有效）")
+    ap.add_argument("--fixed_games_manifest", default=None, help="固定任务 JSON manifest；给定后忽略 task_types/num_games/sample，OFF/ON 对照可据此复用完全相同的 game.tw-pddl")
+    ap.add_argument("--num_games", type=int, default=-1, help="每个 task_type 跑多少 game；<=0 表示【全部】（正式测试用全量数据，与训练脚本一致不抽样）")
     ap.add_argument("--group_size", type=int, default=6, help="每个 game rollout 次数（≈env.rollout.n）")
-    ap.add_argument("--batch_rollout_size", type=int, default=1,
-                    help=">1 时启用同步 batch rollout：一次 reset/step 多个 ALFWorld env，"
-                         "vLLM 批量生成；云端更新只在整组完成后触发。"
-                         "设 72 可近似对齐 GRPO: train_data_size=12 × group_size=6。")
-    ap.add_argument("--data_parallel_workers", type=int, default=1,
-                    help=">1 时启用多进程数据并行 rollout：每个 worker 绑定一张 GPU、"
-                         "各跑一份 vLLM 和一部分 batch env；主进程统一汇总轨迹并触发云端更新。")
-    ap.add_argument("--rollout_worker_gpus", default=None,
-                    help="数据并行 worker 使用的 GPU 列表，如 '0,1'。默认从 CUDA_VISIBLE_DEVICES "
-                         "或 nvidia-smi 自动取前 data_parallel_workers 张。")
-    ap.add_argument("--sample", action="store_true", default=False,
-                    help="仅当 num_games>0 时生效：跨物体均匀抽样 num_games 个；正式全量测试不需要")
+    ap.add_argument("--batch_rollout_size", type=int, default=1, help=">1 时启用同步 batch rollout：一次 reset/step 多个 ALFWorld env，vLLM 批量生成；云端更新只在整组完成后触发。设 72 可近似对齐 GRPO: train_data_size=12 × group_size=6。")
+    ap.add_argument("--data_parallel_workers", type=int, default=1, help=">1 时启用多进程数据并行 rollout：每个 worker 绑定一张 GPU、各跑一份 vLLM 和一部分 batch env；主进程统一汇总轨迹并触发云端更新。")
+    ap.add_argument("--rollout_worker_gpus", default=None, help="数据并行 worker 使用的 GPU 列表，如 '0,1'。默认从 CUDA_VISIBLE_DEVICES 或 nvidia-smi 自动取前 data_parallel_workers 张。")
+    ap.add_argument("--sample", action="store_true", default=False, help="仅当 num_games>0 时生效：跨物体均匀抽样 num_games 个；正式全量测试不需要")
     ap.add_argument("--sample_seed", type=int, default=0)
     ap.add_argument("--split", default="train")
     ap.add_argument("--max_steps", type=int, default=40)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--epochs", type=int, default=1, help="整个 game 集合重复跑几轮（让 skill tree 多次进化）")
-    ap.add_argument("--max_episodes", type=int, default=0,
-                    help="总局数硬上限，跑够就提前结束（不管 epochs/游戏池还剩多少）。<=0 表示不限，"
-                         "跑完 epochs×游戏池。用于小规模快速验证（如 --max_episodes 20）。")
-    ap.add_argument("--cloud_update_every", type=int, default=0,
-                    help="每 N 个 episode 在固定边界强制一次云端更新；<=0 只走双水位线。"
-                         "用于 A/B 时消除轨迹长度导致的触发时点差异，生产运行保持 0。")
-    ap.add_argument("--checkpoint_every_groups", type=int, default=0,
-                    help="每 N 个 rollout group 保存一次轻量实验 checkpoint。只落盘 summary/skill_lib "
-                         "快照，不强制云端更新；<=0 表示只在最终结束时保存。")
-    ap.add_argument("--history_length", type=int, default=8,
-                    help="WITH_MEMORY 模板携带的最近历史步数（obs+action）。训练脚本/mini_test 默认 2；"
-                         "这里默认调大到 8，让 NO_HIS 记忆缺口更小，减少小模型因看不到早前状态而绕圈子。")
+    ap.add_argument("--max_episodes", type=int, default=0, help="总局数硬上限，跑够就提前结束（不管 epochs/游戏池还剩多少）。<=0 表示不限，跑完 epochs×游戏池。用于小规模快速验证（如 --max_episodes 20）。")
+    ap.add_argument("--cloud_update_every", type=int, default=0, help="每 N 个 episode 在固定边界强制一次云端更新；<=0 只走双水位线。用于 A/B 时消除轨迹长度导致的触发时点差异，生产运行保持 0。")
+    ap.add_argument("--checkpoint_every_groups", type=int, default=0, help="每 N 个 rollout group 保存一次轻量实验 checkpoint。只落盘 summary/skill_lib 快照，不强制云端更新；<=0 表示只在最终结束时保存。")
+    ap.add_argument("--history_length", type=int, default=8, help="WITH_MEMORY 模板携带的最近历史步数（obs+action）。训练脚本/mini_test 默认 2；这里默认调大到 8，让 NO_HIS 记忆缺口更小，减少小模型因看不到早前状态而绕圈子。")
     # --- 模型 / vLLM（对齐训练脚本的 max_prompt/response）---
     ap.add_argument("--model_path", default=None)
     ap.add_argument("--gpu_mem_util", type=float, default=0.8)
-    ap.add_argument("--tensor_parallel_size", type=int, default=1,
-                    help="vLLM tensor parallel GPU 数。双 A800 单机可设 2；"
-                         "需不超过 CUDA_VISIBLE_DEVICES 中可见 GPU 数。")
-    ap.add_argument("--vllm_max_num_seqs", type=int, default=0,
-                    help="0 自动使用每个 vLLM replica 的实际 rollout batch；"
-                         "正数覆盖值不得小于该 replica 的 batch。")
-    ap.add_argument("--vllm_enforce_eager", type=int, choices=[0, 1], default=1,
-                    help="1 保持 ALFWorld 既有 eager 执行；0 允许 vLLM CUDA Graph。")
+    ap.add_argument("--tensor_parallel_size", type=int, default=1, help="vLLM tensor parallel GPU 数。双 A800 单机可设 2；需不超过 CUDA_VISIBLE_DEVICES 中可见 GPU 数。")
+    ap.add_argument("--vllm_max_num_seqs", type=int, default=0, help="0 自动使用每个 vLLM replica 的实际 rollout batch；正数覆盖值不得小于该 replica 的 batch。")
+    ap.add_argument("--vllm_enforce_eager", type=int, choices=[0, 1], default=1, help="1 保持 ALFWorld 既有 eager 执行；0 允许 vLLM CUDA Graph。")
     ap.add_argument("--max_model_len", type=int, default=10240)
     ap.add_argument("--max_tokens", type=int, default=4096)
     ap.add_argument("--think_budget", type=int, default=3500)
-    ap.add_argument("--temperature", type=float, default=1.0,
-                    help="训练 rollout 采样温度默认 1.0（保证 success/failure 轨迹多样性）")
+    ap.add_argument("--temperature", type=float, default=1.0, help="训练 rollout 采样温度默认 1.0（保证 success/failure 轨迹多样性）")
     ap.add_argument("--no_thinking", action="store_true")
     ap.add_argument("--nowait", action="store_true")
     # --- 记忆 / 技能（对齐训练脚本）---
@@ -854,36 +823,20 @@ def main():
     ap.add_argument("--demote_threshold", type=float, default=0.3)
     ap.add_argument("--min_calls", type=int, default=10)
     # --- 闭环开关（对齐训练脚本）---
-    ap.add_argument("--enable_coskill", type=int, default=1,
-                    help="是否启用扁平 skill bullets：云端 contrastive_distill 产 dyn_ 补丁，"
-                         "端侧同时注入 General/Task-specific/Mistakes 三段。默认重新开启；"
-                         "消融组显式传 0。")
-    ap.add_argument("--enable_skill_tree", type=int, default=1,
-                    help="是否把 agent skill tree 注入小模型 prompt。消融 baseline 设为 0。")
-    ap.add_argument("--enable_skill_tree_evolve",
-                    dest="enable_playbook_evolve", type=int, default=1,
-                    metavar="ENABLE_SKILL_TREE_EVOLVE")
-    ap.add_argument("--enable_playbook_evolve",
-                    dest="enable_playbook_evolve", type=int, help=argparse.SUPPRESS)
+    ap.add_argument("--enable_coskill", type=int, default=1, help="是否启用扁平 skill bullets：云端 contrastive_distill 产 dyn_ 补丁，端侧同时注入 General/Task-specific/Mistakes 三段。默认重新开启；消融组显式传 0。")
+    ap.add_argument("--enable_skill_tree", type=int, default=1, help="是否把 agent skill tree 注入小模型 prompt。消融 baseline 设为 0。")
+    ap.add_argument("--enable_skill_tree_evolve", dest="enable_playbook_evolve", type=int, default=1, metavar="ENABLE_SKILL_TREE_EVOLVE")
+    ap.add_argument("--enable_playbook_evolve", dest="enable_playbook_evolve", type=int, help=argparse.SUPPRESS)
     ap.add_argument("--enable_failure_analysis", type=int, default=1)
-    ap.add_argument("--enable_cloud_updates", type=int, default=1,
-                    help="0 keeps collecting raw traces/metrics but freezes the skill library. "
-                         "Used by fixed-artifact evaluation; default preserves the closed loop.")
+    ap.add_argument("--enable_cloud_updates", type=int, default=1, help="0 keeps collecting raw traces/metrics but freezes the skill library. Used by fixed-artifact evaluation; default preserves the closed loop.")
     ap.add_argument("--max_new_skills", type=int, default=3)
-    ap.add_argument("--skill_tree_evolve_min_samples",
-                    dest="playbook_evolve_min_samples", type=int, default=6,
-                    metavar="SKILL_TREE_EVOLVE_MIN_SAMPLES")
-    ap.add_argument("--playbook_evolve_min_samples",
-                    dest="playbook_evolve_min_samples", type=int, help=argparse.SUPPRESS)
+    ap.add_argument("--skill_tree_evolve_min_samples", dest="playbook_evolve_min_samples", type=int, default=6, metavar="SKILL_TREE_EVOLVE_MIN_SAMPLES")
+    ap.add_argument("--playbook_evolve_min_samples", dest="playbook_evolve_min_samples", type=int, help=argparse.SUPPRESS)
     ap.add_argument("--coskill_debug", type=int, default=0)
-    ap.add_argument("--required_tree_depth", type=int, default=0,
-                    help="Require a cloud-authored tree with exactly this many heading levels; 0 disables.")
-    ap.add_argument("--tree_depth_repair_attempts", type=int, default=0,
-                    help="Same-evidence cloud repair attempts after a fixed-depth tree fails validation.")
-    ap.add_argument("--tree_max_nodes", type=int, default=0,
-                    help="Hard maximum semantic heading nodes for cloud-authored trees; 0 disables.")
-    ap.add_argument("--tree_max_chars", type=int, default=0,
-                    help="Hard maximum rendered characters for cloud-authored trees; 0 disables.")
+    ap.add_argument("--required_tree_depth", type=int, default=0, help="Require a cloud-authored tree with exactly this many heading levels; 0 disables.")
+    ap.add_argument("--tree_depth_repair_attempts", type=int, default=0, help="Same-evidence cloud repair attempts after a fixed-depth tree fails validation.")
+    ap.add_argument("--tree_max_nodes", type=int, default=0, help="Hard maximum semantic heading nodes for cloud-authored trees; 0 disables.")
+    ap.add_argument("--tree_max_chars", type=int, default=0, help="Hard maximum rendered characters for cloud-authored trees; 0 disables.")
     # --- 轨迹池水位线（对齐训练脚本）---
     ap.add_argument("--capacity_watermark", type=int, default=50000)
     ap.add_argument("--perf_watermark", type=float, default=0.6)
@@ -895,11 +848,7 @@ def main():
     ap.add_argument("--trace_enable_consensus_prefix", type=int, default=1)
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--log_trajectories", type=int, default=1)
-    ap.add_argument("--resume", type=int, default=0,
-                    help="1 则从同一个 --outdir 里上一次留下的 skill_lib checkpoint + "
-                         "summary_partial.json 恢复技能库和 epoch/episode 进度，而不是从 "
-                         "--skills_json 种子文件、episode 0 重新开始。显式 opt-in，避免误用"
-                         "旧 outdir 的陈旧状态覆盖一次本想全新开始的运行。")
+    ap.add_argument("--resume", type=int, default=0, help="1 则从同一个 --outdir 里上一次留下的 skill_lib checkpoint + summary_partial.json 恢复技能库和 epoch/episode 进度，而不是从 --skills_json 种子文件、episode 0 重新开始。显式 opt-in，避免误用旧 outdir 的陈旧状态覆盖一次本想全新开始的运行。")
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -973,9 +922,7 @@ def main():
     #    一类才换下一类；且旧版每局都重新 env.seed(seed+global_step)，等于每局都把
     #    cycle 迭代器重新打乱再只取第一个，反而破坏了 textworld 自带的"整轮循环"语义。）
     if args.fixed_games_manifest:
-        fixed_games, task_types, all_tids = _load_fixed_games_manifest(
-            args.fixed_games_manifest
-        )
+        fixed_games, task_types, all_tids = _load_fixed_games_manifest(args.fixed_games_manifest)
         all_game_files = [g[0] for g in fixed_games]
         print(f"[driver] using fixed manifest: {args.fixed_games_manifest}")
     else:
@@ -993,10 +940,7 @@ def main():
             if args.num_games <= 0:
                 games = find_games_by_type(task_type, split=args.split)
             else:
-                games = find_games_by_type(task_type, split=args.split,
-                                           sample_n=args.num_games if args.sample else None,
-                                           sample_seed=args.sample_seed,
-                                           limit=None if args.sample else args.num_games)
+                games = find_games_by_type(task_type, split=args.split, sample_n=args.num_games if args.sample else None, sample_seed=args.sample_seed, limit=None if args.sample else args.num_games)
             if not games:
                 print(f"[driver] no games for {task_type}, skip")
                 continue
@@ -1010,9 +954,7 @@ def main():
         return
     total_games = len(all_game_files)
     episodes_per_epoch = total_games * args.group_size
-    print(f"[driver] combined pool: {total_games} games across {len(all_tids)} task_types "
-          f"x group_size={args.group_size} x epochs={args.epochs} "
-          f"= {episodes_per_epoch * args.epochs} episodes total")
+    print(f"[driver] combined pool: {total_games} games across {len(all_tids)} task_types x group_size={args.group_size} x epochs={args.epochs} = {episodes_per_epoch * args.epochs} episodes total")
     config = load_tw_config_types(all_tids, num_games=total_games)
     batch_rollout_size = max(1, int(args.batch_rollout_size or 1))
     data_parallel_workers = max(1, int(args.data_parallel_workers or 1))
@@ -1044,35 +986,21 @@ def main():
                 worker_gpus = [g.strip() for g in raw.splitlines() if g.strip()]
             except Exception:
                 worker_gpus = [str(i) for i in range(data_parallel_workers)]
-        fixed_balanced = bool(
-            args.fixed_games_manifest
-            and batch_rollout_size == len(all_game_files) * int(args.group_size)
-        )
+        fixed_balanced = bool(args.fixed_games_manifest and batch_rollout_size == len(all_game_files) * int(args.group_size))
         if fixed_balanced:
-            worker_plan = _fixed_manifest_dp_plan(
-                all_game_files, int(args.group_size), data_parallel_workers)
+            worker_plan = _fixed_manifest_dp_plan(all_game_files, int(args.group_size), data_parallel_workers)
             data_parallel_workers = len(worker_plan)
         else:
             dp_worker_batch_sizes = _split_int(batch_rollout_size, data_parallel_workers)
-            worker_plan = [
-                (all_game_files[wid::data_parallel_workers] or list(all_game_files), worker_bs)
-                for wid, worker_bs in enumerate(dp_worker_batch_sizes)
-            ]
+            worker_plan = [(all_game_files[wid::data_parallel_workers] or list(all_game_files), worker_bs) for wid, worker_bs in enumerate(dp_worker_batch_sizes)]
         if len(worker_gpus) < data_parallel_workers:
-            raise ValueError(f"data_parallel_workers={data_parallel_workers} but only "
-                             f"{len(worker_gpus)} GPU ids available: {worker_gpus}")
+            raise ValueError(f"data_parallel_workers={data_parallel_workers} but only {len(worker_gpus)} GPU ids available: {worker_gpus}")
         worker_gpus = worker_gpus[:data_parallel_workers]
         dp_worker_batch_sizes = [batch for _, batch in worker_plan]
-        vllm_max_num_seqs_by_worker = [
-            int(args.vllm_max_num_seqs or worker_batch)
-            for worker_batch in dp_worker_batch_sizes
-        ]
-        for worker_id, (limit, worker_batch) in enumerate(zip(
-                vllm_max_num_seqs_by_worker, dp_worker_batch_sizes)):
+        vllm_max_num_seqs_by_worker = [int(args.vllm_max_num_seqs or worker_batch) for worker_batch in dp_worker_batch_sizes]
+        for worker_id, (limit, worker_batch) in enumerate(zip(vllm_max_num_seqs_by_worker, dp_worker_batch_sizes)):
             if limit < worker_batch:
-                raise ValueError(
-                    f"vllm_max_num_seqs={limit} is smaller than worker "
-                    f"{worker_id}'s rollout batch={worker_batch}")
+                raise ValueError(f"vllm_max_num_seqs={limit} is smaller than worker {worker_id}'s rollout batch={worker_batch}")
         replica_counts = {}
         worker_replica_offsets = []
         for worker_games, worker_bs in worker_plan:
@@ -1087,21 +1015,17 @@ def main():
             else:
                 worker_replica_offsets.append({})
         if fixed_balanced and set(replica_counts.values()) != {int(args.group_size)}:
-            raise RuntimeError(
-                f"fixed manifest replica allocation is not balanced: {replica_counts}")
+            raise RuntimeError(f"fixed manifest replica allocation is not balanced: {replica_counts}")
 
         ctx = mp.get_context("spawn")
         dp_out_q = ctx.Queue()
         args_dict = vars(args).copy()
         args_dict["tensor_parallel_size"] = 1
-        for wid, (gpu_id, (worker_games, worker_bs), replica_offsets) in enumerate(
-                zip(worker_gpus, worker_plan, worker_replica_offsets)):
+        for wid, (gpu_id, (worker_games, worker_bs), replica_offsets) in enumerate(zip(worker_gpus, worker_plan, worker_replica_offsets)):
             in_q = ctx.Queue(maxsize=2)
             proc = ctx.Process(
                 target=_dp_rollout_worker,
-                args=(wid, gpu_id, args_dict, worker_games, all_tids,
-                      worker_bs, replica_offsets, in_q, dp_out_q,
-                      resume_state["completed_groups"]),
+                args=(wid, gpu_id, args_dict, worker_games, all_tids, worker_bs, replica_offsets, in_q, dp_out_q, resume_state["completed_groups"]),
                 daemon=False,
             )
             # ``spawn`` captures environment variables before the target body
@@ -1120,10 +1044,7 @@ def main():
                     os.environ["CUDA_VISIBLE_DEVICES"] = parent_cuda_visible
             dp_in_queues.append(in_q)
             dp_processes.append(proc)
-        print(f"[driver] data_parallel_workers={data_parallel_workers} "
-              f"gpus={worker_gpus} worker_batch_sizes={dp_worker_batch_sizes} "
-              f"fixed_manifest_balanced={fixed_balanced}; "
-              "main process will aggregate trajectories and run cloud updates")
+        print(f"[driver] data_parallel_workers={data_parallel_workers} gpus={worker_gpus} worker_batch_sizes={dp_worker_batch_sizes} fixed_manifest_balanced={fixed_balanced}; main process will aggregate trajectories and run cloud updates")
     else:
         # Keep topology metadata meaningful for the direct one-replica path;
         # older summaries exposed an empty worker-batch list even though this
@@ -1131,16 +1052,13 @@ def main():
         dp_worker_batch_sizes = [batch_rollout_size]
         vllm_max_num_seqs = int(args.vllm_max_num_seqs or batch_rollout_size)
         if vllm_max_num_seqs < batch_rollout_size:
-            raise ValueError(
-                f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than "
-                f"the single replica rollout batch={batch_rollout_size}")
+            raise ValueError(f"vllm_max_num_seqs={vllm_max_num_seqs} is smaller than the single replica rollout batch={batch_rollout_size}")
         vllm_max_num_seqs_by_worker = [vllm_max_num_seqs]
         if batch_rollout_size == 1:
             env = make_single_env(all_game_files, config, seed=args.seed)
         else:
             env = make_batch_env(all_game_files, config, batch_size=batch_rollout_size, seed=args.seed)
-            print(f"[driver] batch_rollout_size={batch_rollout_size}: cloud updates are checked "
-                  "only after a full rollout group finishes")
+            print(f"[driver] batch_rollout_size={batch_rollout_size}: cloud updates are checked only after a full rollout group finishes")
 
         if resume_state["completed_groups"] > 0:
             # --resume 1：同一 seed + 同一份 all_game_files 下，env.reset() 推进的是
@@ -1149,11 +1067,11 @@ def main():
             _t0 = time.time()
             for _ in range(resume_state["completed_groups"]):
                 env.reset()
-            print(f"[driver][resume] skipped {resume_state['completed_groups']} reset() "
-                  f"calls to align with prior run ({time.time()-_t0:.1f}s)")
+            print(f"[driver][resume] skipped {resume_state['completed_groups']} reset() calls to align with prior run ({time.time() - _t0:.1f}s)")
 
         # 5) vLLM 冻结模型（只此一份）。放在所有 env 建好之后，避免上面的 fork-after-CUDA 问题。
         from mini_test_pen_shelf.agent_vllm import VLLMAgent
+
         agent = VLLMAgent(
             model_path=args.model_path,
             gpu_memory_utilization=args.gpu_mem_util,
@@ -1168,18 +1086,12 @@ def main():
             max_num_seqs=vllm_max_num_seqs,
             enforce_eager=bool(args.vllm_enforce_eager),
         )
-        print(f"[driver] single vLLM replica batch={batch_rollout_size} "
-              f"TP={args.tensor_parallel_size} max_num_seqs={vllm_max_num_seqs} "
-              f"enforce_eager={bool(args.vllm_enforce_eager)}")
+        print(f"[driver] single vLLM replica batch={batch_rollout_size} TP={args.tensor_parallel_size} max_num_seqs={vllm_max_num_seqs} enforce_eager={bool(args.vllm_enforce_eager)}")
 
         # 6) 与主管线逐字节对齐的 prompt 构造器，注入共享 skill_lib。
         #    with_skills 跟随 enable_coskill（训练脚本注入 general/task/mistakes bullets）。
-        builder = ProdObsBuilder(mem_lib=skill_lib, with_skills=enable_coskill, top_k=args.top_k,
-                                 history_length=args.history_length)
-    print(f"[driver] retrieval_mode={args.retrieval_mode} with_skills={enable_coskill} "
-          f"enable_skill_tree={enable_skill_tree} "
-          f"enable_skill_tree_evolve={enable_skill_tree_evolve} "
-          f"enable_failure_analysis={bool(args.enable_failure_analysis)}")
+        builder = ProdObsBuilder(mem_lib=skill_lib, with_skills=enable_coskill, top_k=args.top_k, history_length=args.history_length)
+    print(f"[driver] retrieval_mode={args.retrieval_mode} with_skills={enable_coskill} enable_skill_tree={enable_skill_tree} enable_skill_tree_evolve={enable_skill_tree_evolve} enable_failure_analysis={bool(args.enable_failure_analysis)}")
 
     metrics_path = os.path.join(args.outdir, "metrics.jsonl")
     group_metrics_path = os.path.join(args.outdir, "group_metrics.jsonl")
@@ -1195,24 +1107,19 @@ def main():
     cloud_updates = int(resume_state.get("cloud_updates", 0) or 0)
     cloud_update_steps = list(resume_state.get("cloud_update_steps", []) or [])
     small_model_token_totals = dict(resume_state.get("small_model_tokens", {}))
-    small_model_token_accounting = resume_state.get(
-        "small_model_token_accounting", SMALL_MODEL_TOKEN_ACCOUNTING)
+    context_guard_totals = dict(
+        resume_state.get(
+            "context_guard",
+            {"prompt_trims": 0, "trimmed_tokens": 0},
+        )
+    )
+    small_model_token_accounting = resume_state.get("small_model_token_accounting", SMALL_MODEL_TOKEN_ACCOUNTING)
     large_model_token_offset = dict(resume_state.get("large_model_tokens", {}))
-    small_model_token_totals_by_tt = {
-        tt: dict(resume_state.get("small_model_tokens_by_tt", {}).get(
-            tt, {"prompt": 0, "response": 0, "total": 0}))
-        for tt in NORL_TASK_TYPES
-    }
-    large_model_token_offset_by_tt = {
-        tt: dict(resume_state.get("large_model_tokens_by_tt", {}).get(
-            tt, {"prompt": 0, "completion": 0, "total": 0}))
-        for tt in NORL_TASK_TYPES
-    }
-    large_model_token_offset_mixed = dict(
-        resume_state.get("large_model_tokens_mixed", {"prompt": 0, "completion": 0, "total": 0}))
+    small_model_token_totals_by_tt = {tt: dict(resume_state.get("small_model_tokens_by_tt", {}).get(tt, {"prompt": 0, "response": 0, "total": 0})) for tt in NORL_TASK_TYPES}
+    large_model_token_offset_by_tt = {tt: dict(resume_state.get("large_model_tokens_by_tt", {}).get(tt, {"prompt": 0, "completion": 0, "total": 0})) for tt in NORL_TASK_TYPES}
+    large_model_token_offset_mixed = dict(resume_state.get("large_model_tokens_mixed", {"prompt": 0, "completion": 0, "total": 0}))
     large_model_usage_offset = dict(resume_state.get("large_model_usage", {}) or {})
-    large_model_usage_offset_by_tt = _canonicalize_count_breakdown(
-        large_model_usage_offset.get("missing_calls_by_task_type", {}) or {})
+    large_model_usage_offset_by_tt = _canonicalize_count_breakdown(large_model_usage_offset.get("missing_calls_by_task_type", {}) or {})
 
     # env.seed() 只在 make_single_env() 建环境时调用过一次（见上方注释）：接下来的
     # reset() 全部靠 textworld 自带的 shuffled_cycle 自然推进 + 整轮重洗，不再逐局
@@ -1248,123 +1155,123 @@ def main():
         ts["episodes"] += 1
         ts["wins"] += int(won)
 
-        ep_record = {"epoch": epoch + 1, "detected_type": tt_detected,
-                     "won": bool(won), "used_steps": used,
-                     "valid_actions": nval, "step": global_step,
-                     "valid_action_ratio": round(nval / max(used, 1), 6),
-                     "non_strict_valid_actions": n_non_strict_valid,
-                     "non_strict_valid_action_ratio": round(n_non_strict_valid / max(used, 1), 6),
-                     "strict_valid_actions": n_strict_valid,
-                     "strict_valid_action_ratio": round(n_strict_valid / max(used, 1), 6),
-                     "salvaged_actions": n_salvaged,
-                     "fallback_actions": n_fallback,
-                     "cloud_round_used": cloud_updates,
-                     "skill_tree_enabled": enable_skill_tree,
-                     "skill_tree_evolve_enabled": enable_skill_tree_evolve,
-                     "skill_bullets_enabled": enable_coskill,
-                     "skill_ids_used": list(injected),
-                     "running_total_episodes": len(per_game) + 1,
-                     "running_total_wins": wins,
-                     "task_type_episodes": ts["episodes"],
-                     "task_type_wins": ts["wins"],
-                     "tokens_prompt": int(ep_tokens.get("prompt", 0) or 0),
-                     "tokens_response": int(ep_tokens.get("response", 0) or 0),
-                     "tokens_total": int(ep_tokens.get("total", 0) or 0)}
+        ep_record = {
+            "epoch": epoch + 1,
+            "detected_type": tt_detected,
+            "won": bool(won),
+            "used_steps": used,
+            "valid_actions": nval,
+            "step": global_step,
+            "valid_action_ratio": round(nval / max(used, 1), 6),
+            "non_strict_valid_actions": n_non_strict_valid,
+            "non_strict_valid_action_ratio": round(n_non_strict_valid / max(used, 1), 6),
+            "strict_valid_actions": n_strict_valid,
+            "strict_valid_action_ratio": round(n_strict_valid / max(used, 1), 6),
+            "salvaged_actions": n_salvaged,
+            "fallback_actions": n_fallback,
+            "cloud_round_used": cloud_updates,
+            "skill_tree_enabled": enable_skill_tree,
+            "skill_tree_evolve_enabled": enable_skill_tree_evolve,
+            "skill_bullets_enabled": enable_coskill,
+            "skill_ids_used": list(injected),
+            "running_total_episodes": len(per_game) + 1,
+            "running_total_wins": wins,
+            "task_type_episodes": ts["episodes"],
+            "task_type_wins": ts["wins"],
+            "tokens_prompt": int(ep_tokens.get("prompt", 0) or 0),
+            "tokens_response": int(ep_tokens.get("response", 0) or 0),
+            "tokens_total": int(ep_tokens.get("total", 0) or 0),
+        }
         per_game.append(ep_record)
         print(f"[driver] step={global_step} {tt_detected} won={won} steps={used}")
 
         if args.log_trajectories:
-            _dump_episode(args.outdir, global_step, raw_trace["task"], tt_detected,
-                          won, used, logrows, pb_rec, injected)
+            _dump_episode(args.outdir, global_step, raw_trace["task"], tt_detected, won, used, logrows, pb_rec, injected)
         return ep_record, pb_rec
 
     def _write_episode_metric(epoch, ep_record, pb_rec, fired):
         tt_detected = ep_record["detected_type"]
         tt_eps = ep_record["task_type_episodes"]
         tt_wins = ep_record["task_type_wins"]
-        _append_jsonl(metrics_path, {
-            "step": ep_record["step"],
-            "metrics": {
-                "training/epoch": epoch + 1,
-                "episode/detected_type": tt_detected,
-                "episode/won": bool(ep_record["won"]),
-                "episode/length": ep_record["used_steps"],
-                "episode/valid_actions": ep_record["valid_actions"],
-                "episode/valid_action_ratio": ep_record["valid_action_ratio"],
-                "episode/non_strict_valid_actions": ep_record["non_strict_valid_actions"],
-                "episode/non_strict_valid_action_ratio": ep_record["non_strict_valid_action_ratio"],
-                "episode/strict_valid_actions": ep_record["strict_valid_actions"],
-                "episode/strict_valid_action_ratio": ep_record["strict_valid_action_ratio"],
-                "episode/salvaged_actions": ep_record["salvaged_actions"],
-                "episode/fallback_actions": ep_record["fallback_actions"],
-                "experiment/skill_tree_enabled": int(enable_skill_tree),
-                "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
-                "experiment/skill_bullets_enabled": int(enable_coskill),
-                **trace_compression_metrics,
-                "experiment/cloud_round_used": ep_record["cloud_round_used"],
-                "coskill/cloud_update_fired": bool(fired),
-                "episode/running_total_episodes": ep_record["running_total_episodes"],
-                "episode/running_total_wins": ep_record["running_total_wins"],
-                "episode/success_rate": round(
-                    ep_record["running_total_wins"] / max(ep_record["running_total_episodes"], 1), 4),
-                f"episode/{tt_detected}/episodes": tt_eps,
-                f"episode/{tt_detected}/wins": tt_wins,
-                f"episode/{tt_detected}/success_rate": round(tt_wins / max(tt_eps, 1), 4),
-                "tokens/small_model/prompt": ep_record["tokens_prompt"],
-                "tokens/small_model/response": ep_record["tokens_response"],
-                "tokens/small_model/total": ep_record["tokens_total"],
-                "tokens/small_model/accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
-                f"tokens/small_model/by_task_type/{tt_detected}/prompt": ep_record["tokens_prompt"],
-                f"tokens/small_model/by_task_type/{tt_detected}/response": ep_record["tokens_response"],
-                f"tokens/small_model/by_task_type/{tt_detected}/total": ep_record["tokens_total"],
-                "skill_tree/version": pb_rec.get("version") if pb_rec else 0,
-                "skill_tree/level": pb_rec.get("level") if pb_rec else None,
-                "skill_tree/n_nodes": len(pb_rec.get("nodes") or {}) if pb_rec else 0,
-                **cloud_loop.metrics(traces_pool, skill_lib),
+        _append_jsonl(
+            metrics_path,
+            {
+                "step": ep_record["step"],
+                "metrics": {
+                    "training/epoch": epoch + 1,
+                    "episode/detected_type": tt_detected,
+                    "episode/won": bool(ep_record["won"]),
+                    "episode/length": ep_record["used_steps"],
+                    "episode/valid_actions": ep_record["valid_actions"],
+                    "episode/valid_action_ratio": ep_record["valid_action_ratio"],
+                    "episode/non_strict_valid_actions": ep_record["non_strict_valid_actions"],
+                    "episode/non_strict_valid_action_ratio": ep_record["non_strict_valid_action_ratio"],
+                    "episode/strict_valid_actions": ep_record["strict_valid_actions"],
+                    "episode/strict_valid_action_ratio": ep_record["strict_valid_action_ratio"],
+                    "episode/salvaged_actions": ep_record["salvaged_actions"],
+                    "episode/fallback_actions": ep_record["fallback_actions"],
+                    "experiment/skill_tree_enabled": int(enable_skill_tree),
+                    "experiment/skill_tree_evolve_enabled": int(enable_skill_tree_evolve),
+                    "experiment/skill_bullets_enabled": int(enable_coskill),
+                    **trace_compression_metrics,
+                    "experiment/cloud_round_used": ep_record["cloud_round_used"],
+                    "coskill/cloud_update_fired": bool(fired),
+                    "episode/running_total_episodes": ep_record["running_total_episodes"],
+                    "episode/running_total_wins": ep_record["running_total_wins"],
+                    "episode/success_rate": round(ep_record["running_total_wins"] / max(ep_record["running_total_episodes"], 1), 4),
+                    f"episode/{tt_detected}/episodes": tt_eps,
+                    f"episode/{tt_detected}/wins": tt_wins,
+                    f"episode/{tt_detected}/success_rate": round(tt_wins / max(tt_eps, 1), 4),
+                    "tokens/small_model/prompt": ep_record["tokens_prompt"],
+                    "tokens/small_model/response": ep_record["tokens_response"],
+                    "tokens/small_model/total": ep_record["tokens_total"],
+                    "tokens/small_model/accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
+                    f"tokens/small_model/by_task_type/{tt_detected}/prompt": ep_record["tokens_prompt"],
+                    f"tokens/small_model/by_task_type/{tt_detected}/response": ep_record["tokens_response"],
+                    f"tokens/small_model/by_task_type/{tt_detected}/total": ep_record["tokens_total"],
+                    "skill_tree/version": pb_rec.get("version") if pb_rec else 0,
+                    "skill_tree/level": pb_rec.get("level") if pb_rec else None,
+                    "skill_tree/n_nodes": len(pb_rec.get("nodes") or {}) if pb_rec else 0,
+                    **cloud_loop.metrics(traces_pool, skill_lib),
+                },
             },
-        })
+        )
 
     def _large_model_token_usage():
         analyzer = getattr(cloud_loop, "cloud_analyzer", None)
         zero_by_tt = {tt: {"prompt": 0, "completion": 0, "total": 0} for tt in NORL_TASK_TYPES}
         if analyzer is None:
             return {
-                "prompt": 0, "completion": 0, "total": 0,
+                "prompt": 0,
+                "completion": 0,
+                "total": 0,
                 "by_task_type": zero_by_tt,
                 "mixed": {"prompt": 0, "completion": 0, "total": 0},
                 "usage": {
                     "reported_calls": int(large_model_usage_offset.get("reported_calls", 0) or 0),
                     "missing_calls": int(large_model_usage_offset.get("missing_calls", 0) or 0),
                     "missing_calls_by_task_type": large_model_usage_offset_by_tt,
-                    "missing_calls_mixed": int(
-                        large_model_usage_offset.get("missing_calls_mixed", 0) or 0),
+                    "missing_calls_mixed": int(large_model_usage_offset.get("missing_calls_mixed", 0) or 0),
                 },
             }
         prompt = int(getattr(analyzer, "total_prompt_tokens", 0) or 0)
         completion = int(getattr(analyzer, "total_completion_tokens", 0) or 0)
         by_tt_prompt = _canonicalize_token_breakdown(
-            {tt: {"prompt": value} for tt, value in
-             (getattr(analyzer, "total_prompt_tokens_by_task_type", {}) or {}).items()},
+            {tt: {"prompt": value} for tt, value in (getattr(analyzer, "total_prompt_tokens_by_task_type", {}) or {}).items()},
             ("prompt",),
         )
         by_tt_completion = _canonicalize_token_breakdown(
-            {tt: {"completion": value} for tt, value in
-             (getattr(analyzer, "total_completion_tokens_by_task_type", {}) or {}).items()},
+            {tt: {"completion": value} for tt, value in (getattr(analyzer, "total_completion_tokens_by_task_type", {}) or {}).items()},
             ("completion",),
         )
         by_task_type = {}
         for tt in NORL_TASK_TYPES:
-            p = int(large_model_token_offset_by_tt.get(tt, {}).get("prompt", 0) or 0) \
-                + int(by_tt_prompt[tt]["prompt"] or 0)
-            c = int(large_model_token_offset_by_tt.get(tt, {}).get("completion", 0) or 0) \
-                + int(by_tt_completion[tt]["completion"] or 0)
+            p = int(large_model_token_offset_by_tt.get(tt, {}).get("prompt", 0) or 0) + int(by_tt_prompt[tt]["prompt"] or 0)
+            c = int(large_model_token_offset_by_tt.get(tt, {}).get("completion", 0) or 0) + int(by_tt_completion[tt]["completion"] or 0)
             by_task_type[tt] = {"prompt": p, "completion": c, "total": p + c}
-        mixed_prompt = int(large_model_token_offset_mixed.get("prompt", 0) or 0) \
-            + int(getattr(analyzer, "total_prompt_tokens_mixed", 0) or 0)
-        mixed_completion = int(large_model_token_offset_mixed.get("completion", 0) or 0) \
-            + int(getattr(analyzer, "total_completion_tokens_mixed", 0) or 0)
-        missing_by_tt = _canonicalize_count_breakdown(
-            getattr(analyzer, "usage_missing_calls_by_task_type", {}) or {})
+        mixed_prompt = int(large_model_token_offset_mixed.get("prompt", 0) or 0) + int(getattr(analyzer, "total_prompt_tokens_mixed", 0) or 0)
+        mixed_completion = int(large_model_token_offset_mixed.get("completion", 0) or 0) + int(getattr(analyzer, "total_completion_tokens_mixed", 0) or 0)
+        missing_by_tt = _canonicalize_count_breakdown(getattr(analyzer, "usage_missing_calls_by_task_type", {}) or {})
         for tt in NORL_TASK_TYPES:
             missing_by_tt[tt] += large_model_usage_offset_by_tt[tt]
         return {
@@ -1373,24 +1280,25 @@ def main():
             "total": int(large_model_token_offset.get("total", 0) or 0) + prompt + completion,
             "by_task_type": by_task_type,
             "mixed": {
-                "prompt": mixed_prompt, "completion": mixed_completion,
+                "prompt": mixed_prompt,
+                "completion": mixed_completion,
                 "total": mixed_prompt + mixed_completion,
             },
             "usage": {
-                "reported_calls": int(large_model_usage_offset.get("reported_calls", 0) or 0)
-                + int(getattr(analyzer, "usage_reported_calls", 0) or 0),
-                "missing_calls": int(large_model_usage_offset.get("missing_calls", 0) or 0)
-                + int(getattr(analyzer, "usage_missing_calls", 0) or 0),
+                "reported_calls": int(large_model_usage_offset.get("reported_calls", 0) or 0) + int(getattr(analyzer, "usage_reported_calls", 0) or 0),
+                "missing_calls": int(large_model_usage_offset.get("missing_calls", 0) or 0) + int(getattr(analyzer, "usage_missing_calls", 0) or 0),
                 "missing_calls_by_task_type": missing_by_tt,
-                "missing_calls_mixed": int(
-                    large_model_usage_offset.get("missing_calls_mixed", 0) or 0)
-                + int(getattr(analyzer, "usage_missing_calls_mixed", 0) or 0),
+                "missing_calls_mixed": int(large_model_usage_offset.get("missing_calls_mixed", 0) or 0) + int(getattr(analyzer, "usage_missing_calls_mixed", 0) or 0),
             },
         }
 
-    def _write_group_metric(group_id, epoch, ingested, generated_count, fired,
-                            small_tokens, large_before, large_after,
-                            rollout_seconds, cloud_seconds, total_seconds):
+    def _context_guard_usage():
+        if agent is not None:
+            current = agent.get_context_guard_usage()
+            return {key: int(context_guard_totals.get(key, 0) or 0) + int(current.get(key, 0) or 0) for key in context_guard_totals}
+        return dict(context_guard_totals)
+
+    def _write_group_metric(group_id, epoch, ingested, generated_count, fired, small_tokens, large_before, large_after, rollout_seconds, cloud_seconds, total_seconds):
         """Write one GRPO-comparable aggregate row per rollout group."""
         records = [record for record, _ in ingested]
         n = len(records)
@@ -1414,16 +1322,13 @@ def main():
             bucket["response"] += int(record.get("tokens_response", 0) or 0)
             bucket["total"] += int(record.get("tokens_total", 0) or 0)
         for tt in small_by_tt:
-            totals = small_model_token_totals_by_tt.setdefault(
-                tt, {"prompt": 0, "response": 0, "total": 0})
+            totals = small_model_token_totals_by_tt.setdefault(tt, {"prompt": 0, "response": 0, "total": 0})
             for key in ("prompt", "response", "total"):
                 totals[key] += small_by_tt[tt][key]
 
         small_by_tt_total = sum(bucket["total"] for bucket in small_by_tt.values())
         if small_by_tt_total != int(small_tokens.get("total", 0) or 0):
-            raise RuntimeError(
-                "small-model token accounting mismatch: group total "
-                f"{small_tokens.get('total', 0)} != canonical task sum {small_by_tt_total}")
+            raise RuntimeError(f"small-model token accounting mismatch: group total {small_tokens.get('total', 0)} != canonical task sum {small_by_tt_total}")
 
         large_delta = {
             "prompt": max(0, large_after["prompt"] - large_before["prompt"]),
@@ -1433,10 +1338,8 @@ def main():
 
         large_delta_by_tt = {}
         for tt in NORL_TASK_TYPES:
-            p = max(0, large_after["by_task_type"][tt]["prompt"]
-                    - large_before["by_task_type"][tt]["prompt"])
-            c = max(0, large_after["by_task_type"][tt]["completion"]
-                    - large_before["by_task_type"][tt]["completion"])
+            p = max(0, large_after["by_task_type"][tt]["prompt"] - large_before["by_task_type"][tt]["prompt"])
+            c = max(0, large_after["by_task_type"][tt]["completion"] - large_before["by_task_type"][tt]["completion"])
             large_delta_by_tt[tt] = {"prompt": p, "completion": c, "total": p + c}
         large_delta_mixed = {
             "prompt": max(0, large_after["mixed"]["prompt"] - large_before["mixed"]["prompt"]),
@@ -1445,9 +1348,9 @@ def main():
         large_delta_mixed["total"] = large_delta_mixed["prompt"] + large_delta_mixed["completion"]
         large_usage_before = large_before.get("usage", {}) or {}
         large_usage_after = large_after.get("usage", {}) or {}
-        large_missing_delta = max(0, int(large_usage_after.get("missing_calls", 0) or 0)
-                                  - int(large_usage_before.get("missing_calls", 0) or 0))
+        large_missing_delta = max(0, int(large_usage_after.get("missing_calls", 0) or 0) - int(large_usage_before.get("missing_calls", 0) or 0))
 
+        context_guard = _context_guard_usage()
         metrics = {
             # group_id is the no-RL equivalent of one GRPO training step.
             "training/group": group_id,
@@ -1466,14 +1369,11 @@ def main():
             "episode/length/max": max(lengths) if lengths else 0,
             "episode/length/min": min(lengths) if lengths else 0,
             "episode/valid_action_ratio": round(valid_actions / max(action_count, 1), 6),
-            "episode/strict_valid_action_ratio": round(
-                strict_valid_actions / max(action_count, 1), 6),
+            "episode/strict_valid_action_ratio": round(strict_valid_actions / max(action_count, 1), 6),
             # ALFWorld has no separate relaxed projection: its relaxed notion
             # is the parser-valid action count already reported above.
-            "episode/relaxed_valid_action_ratio": round(
-                valid_actions / max(action_count, 1), 6),
-            "episode/non_strict_valid_action_ratio": round(
-                valid_actions / max(action_count, 1), 6),
+            "episode/relaxed_valid_action_ratio": round(valid_actions / max(action_count, 1), 6),
+            "episode/non_strict_valid_action_ratio": round(valid_actions / max(action_count, 1), 6),
             "episode/salvaged_action_ratio": round(salvaged_actions / max(action_count, 1), 6),
             "episode/fallback_action_ratio": round(fallback_actions / max(action_count, 1), 6),
             "experiment/skill_tree_enabled": int(enable_skill_tree),
@@ -1483,17 +1383,22 @@ def main():
             "experiment/rl_enabled": 0,
             "experiment/tree_rl_internalize_enabled": 0,
             "experiment/cloud_round": cloud_updates,
+            "experiment/max_model_len": int(args.max_model_len),
+            "experiment/max_response_tokens": int(args.max_tokens),
+            "experiment/max_prompt_tokens": int(args.max_model_len - args.max_tokens),
             "coskill/cloud_update_fired": bool(fired),
             "tokens/small_model/prompt": int(small_tokens.get("prompt", 0) or 0),
             "tokens/small_model/response": int(small_tokens.get("response", 0) or 0),
             "tokens/small_model/total": int(small_tokens.get("total", 0) or 0),
             "tokens/small_model/accounting": SMALL_MODEL_TOKEN_ACCOUNTING,
+            "tokens/small_model/context_guard/prompt_trims_cumulative": (context_guard["prompt_trims"]),
+            "tokens/small_model/context_guard/trimmed_tokens_cumulative": (context_guard["trimmed_tokens"]),
+            "tokens/small_model/context_guard/any_prompt_trim": int(context_guard["prompt_trims"] > 0),
             "tokens/small_model/prompt_cumulative": small_model_token_totals["prompt"],
             "tokens/small_model/response_cumulative": small_model_token_totals["response"],
             "tokens/small_model/total_cumulative": small_model_token_totals["total"],
             "tokens/small_model/by_task_type/total_reconciled": small_by_tt_total,
-            "tokens/small_model/by_task_type/reconciliation_error": (
-                int(small_tokens.get("total", 0) or 0) - small_by_tt_total),
+            "tokens/small_model/by_task_type/reconciliation_error": (int(small_tokens.get("total", 0) or 0) - small_by_tt_total),
             "tokens/large_model/prompt": large_delta["prompt"],
             "tokens/large_model/completion": large_delta["completion"],
             "tokens/large_model/total": large_delta["total"],
@@ -1502,17 +1407,14 @@ def main():
             "tokens/large_model/completion_cumulative": large_after["completion"],
             "tokens/large_model/total_cumulative": large_after["total"],
             "tokens/large_model/usage_missing_calls": large_missing_delta,
-            "tokens/large_model/usage_missing_calls_cumulative": int(
-                large_usage_after.get("missing_calls", 0) or 0),
-            "tokens/large_model/usage_reported_calls_cumulative": int(
-                large_usage_after.get("reported_calls", 0) or 0),
+            "tokens/large_model/usage_missing_calls_cumulative": int(large_usage_after.get("missing_calls", 0) or 0),
+            "tokens/large_model/usage_reported_calls_cumulative": int(large_usage_after.get("reported_calls", 0) or 0),
             "timing_s/rollout": round(float(rollout_seconds), 6),
             "timing_s/cloud_update": round(float(cloud_seconds), 6),
             "timing_s/group_total": round(float(total_seconds), 6),
             "perf/total_num_tokens": int(small_tokens.get("total", 0) or 0),
             "perf/throughput_episodes_per_second": round(n / max(rollout_seconds, 1e-9), 6),
-            "perf/throughput_small_tokens_per_second": round(
-                int(small_tokens.get("total", 0) or 0) / max(rollout_seconds, 1e-9), 6),
+            "perf/throughput_small_tokens_per_second": round(int(small_tokens.get("total", 0) or 0) / max(rollout_seconds, 1e-9), 6),
             "comparison/schema_version": 1,
             "comparison/method": "coskill",
             "comparison/benchmark": "alfworld",
@@ -1529,22 +1431,18 @@ def main():
         for tt, stat in sorted(by_type.items()):
             metrics[f"episode/{tt}/episodes"] = stat["episodes"]
             metrics[f"episode/{tt}/wins"] = stat["wins"]
-            metrics[f"episode/{tt}/success_rate"] = round(
-                stat["wins"] / max(stat["episodes"], 1), 6)
+            metrics[f"episode/{tt}/success_rate"] = round(stat["wins"] / max(stat["episodes"], 1), 6)
 
         for tt in NORL_TASK_TYPES:
             metrics[f"tokens/small_model/by_task_type/{tt}/prompt"] = small_by_tt[tt]["prompt"]
             metrics[f"tokens/small_model/by_task_type/{tt}/response"] = small_by_tt[tt]["response"]
             metrics[f"tokens/small_model/by_task_type/{tt}/total"] = small_by_tt[tt]["total"]
-            metrics[f"tokens/small_model/by_task_type/{tt}/total_cumulative"] = \
-                small_model_token_totals_by_tt[tt]["total"]
+            metrics[f"tokens/small_model/by_task_type/{tt}/total_cumulative"] = small_model_token_totals_by_tt[tt]["total"]
             metrics[f"tokens/large_model/by_task_type/{tt}/prompt"] = large_delta_by_tt[tt]["prompt"]
             metrics[f"tokens/large_model/by_task_type/{tt}/completion"] = large_delta_by_tt[tt]["completion"]
             metrics[f"tokens/large_model/by_task_type/{tt}/total"] = large_delta_by_tt[tt]["total"]
-            metrics[f"tokens/large_model/by_task_type/{tt}/total_cumulative"] = \
-                large_after["by_task_type"][tt]["total"]
-            metrics[f"tokens/large_model/by_task_type/{tt}/usage_missing_calls_cumulative"] = \
-                int((large_usage_after.get("missing_calls_by_task_type", {}) or {}).get(tt, 0) or 0)
+            metrics[f"tokens/large_model/by_task_type/{tt}/total_cumulative"] = large_after["by_task_type"][tt]["total"]
+            metrics[f"tokens/large_model/by_task_type/{tt}/usage_missing_calls_cumulative"] = int((large_usage_after.get("missing_calls_by_task_type", {}) or {}).get(tt, 0) or 0)
         # contrastive_distill/diagnose_failures each mix every task_type into
         # one cloud call, so those tokens aren't attributable to a single
         # subtask - tracked honestly here instead of a fabricated split.
@@ -1553,8 +1451,7 @@ def main():
         metrics["tokens/large_model/mixed/total"] = large_delta_mixed["total"]
         metrics["tokens/large_model/mixed/total_cumulative"] = large_after["mixed"]["total"]
         metrics["tokens/large_model/mixed/accounting"] = "provider_api_usage_mixed_task_types"
-        metrics["tokens/large_model/mixed/usage_missing_calls_cumulative"] = int(
-            large_usage_after.get("missing_calls_mixed", 0) or 0)
+        metrics["tokens/large_model/mixed/usage_missing_calls_cumulative"] = int(large_usage_after.get("missing_calls_mixed", 0) or 0)
 
         canonical_record = {
             "step": group_id,
@@ -1562,12 +1459,14 @@ def main():
             "metrics": metrics,
         }
         _append_jsonl(group_metrics_path, canonical_record)
-        print(f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
-              f"success={100.0 * group_wins / max(n, 1):.1f}% "
-              f"valid_action={100.0 * valid_actions / max(action_count, 1):.1f}% "
-              f"strict_valid_action={100.0 * strict_valid_actions / max(action_count, 1):.1f}% "
-              f"small_tokens={small_tokens.get('total', 0)} "
-              f"large_tokens={large_delta['total']} rollout={rollout_seconds:.1f}s")
+        print(
+            f"[driver] group{group_id} metric: episodes={n} wins={group_wins} "
+            f"success={100.0 * group_wins / max(n, 1):.1f}% "
+            f"valid_action={100.0 * valid_actions / max(action_count, 1):.1f}% "
+            f"strict_valid_action={100.0 * strict_valid_actions / max(action_count, 1):.1f}% "
+            f"small_tokens={small_tokens.get('total', 0)} "
+            f"large_tokens={large_delta['total']} rollout={rollout_seconds:.1f}s"
+        )
 
     def _atomic_json_dump(obj, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -1591,23 +1490,24 @@ def main():
     def _build_summary(status="running", checkpoint_reason=None, completed_groups=0):
         n = len(per_game)
         trees = _skill_tree_snapshot()
-        small_by_tt_total = sum(
-            int(usage.get("total", 0) or 0)
-            for usage in small_model_token_totals_by_tt.values()
-        )
+        small_by_tt_total = sum(int(usage.get("total", 0) or 0) for usage in small_model_token_totals_by_tt.values())
         small_reconciliation_error = int(small_model_token_totals.get("total", 0) or 0) - small_by_tt_total
         return {
             "status": status,
             "checkpoint_reason": checkpoint_reason,
-            "task_types": task_types, "epochs": args.epochs,
-            "num_games_per_type": args.num_games, "group_size": args.group_size,
+            "task_types": task_types,
+            "epochs": args.epochs,
+            "num_games_per_type": args.num_games,
+            "group_size": args.group_size,
             "batch_rollout_size": batch_rollout_size,
             "data_parallel_workers": data_parallel_workers,
             "data_parallel_worker_batch_sizes": dp_worker_batch_sizes,
-            "vllm_max_num_seqs": int(args.vllm_max_num_seqs or max(
-                vllm_max_num_seqs_by_worker)),
+            "vllm_max_num_seqs": int(args.vllm_max_num_seqs or max(vllm_max_num_seqs_by_worker)),
             "vllm_max_num_seqs_by_worker": vllm_max_num_seqs_by_worker,
             "vllm_enforce_eager": bool(args.vllm_enforce_eager),
+            "max_model_len": int(args.max_model_len),
+            "max_response_tokens": int(args.max_tokens),
+            "max_prompt_tokens": int(args.max_model_len - args.max_tokens),
             "checkpoint_every_groups": args.checkpoint_every_groups,
             "completed_rollout_groups": completed_groups,
             "fixed_games_manifest": args.fixed_games_manifest,
@@ -1628,7 +1528,8 @@ def main():
             "cloud_update_every": args.cloud_update_every,
             "cloud_update_steps": cloud_update_steps,
             "total_games_combined_pool": total_games,
-            "total_episodes": n, "wins": wins,
+            "total_episodes": n,
+            "wins": wins,
             "success_rate": round(wins / max(n, 1), 4),
             "skill_tree_versions": {tt: rec["version"] for tt, rec in trees.items()},
             "skill_tree_nodes": {tt: rec["n_nodes"] for tt, rec in trees.items()},
@@ -1638,13 +1539,15 @@ def main():
                 "small_model": {
                     **dict(small_model_token_totals),
                     "accounting": small_model_token_accounting,
-                    "by_task_type": {
-                        tt: dict(small_model_token_totals_by_tt[tt]) for tt in NORL_TASK_TYPES
-                    },
+                    "by_task_type": {tt: dict(small_model_token_totals_by_tt[tt]) for tt in NORL_TASK_TYPES},
                     "by_task_type_total": small_by_tt_total,
                     "by_task_type_reconciliation_error": small_reconciliation_error,
                 },
                 "large_model": _large_model_token_usage(),
+            },
+            "context_guard": {
+                **_context_guard_usage(),
+                "protocol_valid": _context_guard_usage()["prompt_trims"] == 0,
             },
             "final_coskill_metrics": cloud_loop.metrics(traces_pool, skill_lib),
             "phase_stats": _phase_stats(per_game),
@@ -1674,8 +1577,7 @@ def main():
         _atomic_json_dump(summary, os.path.join(args.outdir, "summary_partial.json"))
         ckpt_path = os.path.join(args.outdir, "checkpoints", f"step{global_step:06d}.json")
         _atomic_json_dump(summary, ckpt_path)
-        print(f"[driver] checkpoint saved at step={global_step} groups={completed_groups} "
-              f"reason={reason} summary={ckpt_path} skill_lib={skill_snapshot or '<none>'}")
+        print(f"[driver] checkpoint saved at step={global_step} groups={completed_groups} reason={reason} summary={ckpt_path} skill_lib={skill_snapshot or '<none>'}")
 
     def _save_rollout_skill_snapshot():
         save_dir = os.path.join(args.outdir, "skill_lib")
@@ -1694,10 +1596,7 @@ def main():
         for _ in dp_in_queues:
             msg = dp_out_q.get()
             if msg.get("error"):
-                raise RuntimeError(
-                    f"data-parallel rollout worker {msg.get('worker_id')} failed:\n"
-                    f"{msg.get('error')}"
-                )
+                raise RuntimeError(f"data-parallel rollout worker {msg.get('worker_id')} failed:\n{msg.get('error')}")
             replies.append(msg)
         replies.sort(key=lambda x: x["worker_id"])
         group_results = []
@@ -1707,6 +1606,9 @@ def main():
             usage = msg.get("small_model_tokens") or {}
             for key in small_tokens:
                 small_tokens[key] += int(usage.get(key, 0) or 0)
+            guard_usage = msg.get("context_guard") or {}
+            for key in context_guard_totals:
+                context_guard_totals[key] += int(guard_usage.get(key, 0) or 0)
         return group_results, small_tokens
 
     def _shutdown_data_parallel_workers():
@@ -1748,9 +1650,7 @@ def main():
                     break
 
                 group_id = completed_groups + 1
-                print(f"[driver] dispatch dp group{group_id} epoch{epoch+1} "
-                      f"group_ep{ep_i+1}-{ep_i+n_to_count}/{episodes_per_epoch} "
-                      f"(global_step={global_step+1})")
+                print(f"[driver] dispatch dp group{group_id} epoch{epoch + 1} group_ep{ep_i + 1}-{ep_i + n_to_count}/{episodes_per_epoch} (global_step={global_step + 1})")
                 group_started = time.time()
                 group_results, small_tokens = _run_data_parallel_group(group_id)
                 rollout_seconds = time.time() - group_started
@@ -1766,9 +1666,7 @@ def main():
                     force_reason = f"episode_interval_{args.cloud_update_every}"
                 large_before = _large_model_token_usage()
                 cloud_started = time.time()
-                fired = (cloud_loop.maybe_update(
-                    traces_pool, skill_lib, global_step, force_reason=force_reason
-                ) if args.enable_cloud_updates else False)
+                fired = cloud_loop.maybe_update(traces_pool, skill_lib, global_step, force_reason=force_reason) if args.enable_cloud_updates else False
                 cloud_seconds = time.time() - cloud_started
                 large_after = _large_model_token_usage()
                 if fired:
@@ -1776,14 +1674,22 @@ def main():
                     cloud_update_steps.append(global_step)
 
                 for j, (ep_record, pb_used) in enumerate(ingested):
-                    is_last = (j == len(ingested) - 1)
+                    is_last = j == len(ingested) - 1
                     ep_record["cloud_update_fired_after_episode"] = bool(fired and is_last)
                     _write_episode_metric(epoch, ep_record, pb_used, fired and is_last)
 
                 _write_group_metric(
-                    group_id, epoch, ingested, len(group_results), fired,
-                    small_tokens, large_before, large_after,
-                    rollout_seconds, cloud_seconds, time.time() - group_started,
+                    group_id,
+                    epoch,
+                    ingested,
+                    len(group_results),
+                    fired,
+                    small_tokens,
+                    large_before,
+                    large_after,
+                    rollout_seconds,
+                    cloud_seconds,
+                    time.time() - group_started,
                 )
 
                 completed_groups += 1
@@ -1800,19 +1706,12 @@ def main():
                 group_id = completed_groups + 1
                 group_started = time.time()
                 small_before = agent.get_token_usage()
-                tag = f" epoch{epoch+1} ep{ep_i+1}/{episodes_per_epoch} (global_step={global_step+1})"
-                won, used, raw_trace, tt_detected, injected, nval, logrows = \
-                    rollout_episode(env, agent, builder, args.max_steps, tag=tag,
-                                    keep_logrows=bool(args.log_trajectories))
+                tag = f" epoch{epoch + 1} ep{ep_i + 1}/{episodes_per_epoch} (global_step={global_step + 1})"
+                won, used, raw_trace, tt_detected, injected, nval, logrows = rollout_episode(env, agent, builder, args.max_steps, tag=tag, keep_logrows=bool(args.log_trajectories))
                 rollout_seconds = time.time() - group_started
                 small_tokens = _token_delta(agent.get_token_usage(), small_before)
-                pb_rec = skill_lib.get_playbook_record(tt_detected) if enable_skill_tree and hasattr(
-                    skill_lib, "get_playbook_record") else None
-                ep_result = {"won": won, "used": used, "raw_trace": raw_trace,
-                             "task_type": tt_detected, "injected": injected,
-                             "n_valid": nval, "logrows": logrows,
-                             "playbook_record": pb_rec,
-                             "small_model_tokens": small_tokens}
+                pb_rec = skill_lib.get_playbook_record(tt_detected) if enable_skill_tree and hasattr(skill_lib, "get_playbook_record") else None
+                ep_result = {"won": won, "used": used, "raw_trace": raw_trace, "task_type": tt_detected, "injected": injected, "n_valid": nval, "logrows": logrows, "playbook_record": pb_rec, "small_model_tokens": small_tokens}
                 ep_record, pb_used = _ingest_episode_result(epoch, ep_result)
                 ep_i += 1
 
@@ -1821,9 +1720,7 @@ def main():
                     force_reason = f"episode_interval_{args.cloud_update_every}"
                 large_before = _large_model_token_usage()
                 cloud_started = time.time()
-                fired = (cloud_loop.maybe_update(
-                    traces_pool, skill_lib, global_step, force_reason=force_reason
-                ) if args.enable_cloud_updates else False)
+                fired = cloud_loop.maybe_update(traces_pool, skill_lib, global_step, force_reason=force_reason) if args.enable_cloud_updates else False
                 cloud_seconds = time.time() - cloud_started
                 large_after = _large_model_token_usage()
                 ep_record["cloud_update_fired_after_episode"] = bool(fired)
@@ -1832,9 +1729,17 @@ def main():
                     cloud_update_steps.append(global_step)
                 _write_episode_metric(epoch, ep_record, pb_used, fired)
                 _write_group_metric(
-                    group_id, epoch, [(ep_record, pb_used)], 1, fired,
-                    small_tokens, large_before, large_after,
-                    rollout_seconds, cloud_seconds, time.time() - group_started,
+                    group_id,
+                    epoch,
+                    [(ep_record, pb_used)],
+                    1,
+                    fired,
+                    small_tokens,
+                    large_before,
+                    large_after,
+                    rollout_seconds,
+                    cloud_seconds,
+                    time.time() - group_started,
                 )
                 completed_groups += 1
                 if args.checkpoint_every_groups > 0 and completed_groups % args.checkpoint_every_groups == 0:
@@ -1853,8 +1758,7 @@ def main():
                 stop_early = True
                 break
 
-            tag = f" epoch{epoch+1} group_ep{ep_i+1}-{ep_i+n_to_count}/{episodes_per_epoch} "\
-                  f"(global_step={global_step+1})"
+            tag = f" epoch{epoch + 1} group_ep{ep_i + 1}-{ep_i + n_to_count}/{episodes_per_epoch} (global_step={global_step + 1})"
             group_id = completed_groups + 1
             group_started = time.time()
             small_before = agent.get_token_usage()
@@ -1873,9 +1777,7 @@ def main():
                 force_reason = f"episode_interval_{args.cloud_update_every}"
             large_before = _large_model_token_usage()
             cloud_started = time.time()
-            fired = (cloud_loop.maybe_update(
-                traces_pool, skill_lib, global_step, force_reason=force_reason
-            ) if args.enable_cloud_updates else False)
+            fired = cloud_loop.maybe_update(traces_pool, skill_lib, global_step, force_reason=force_reason) if args.enable_cloud_updates else False
             cloud_seconds = time.time() - cloud_started
             large_after = _large_model_token_usage()
             if fired:
@@ -1883,14 +1785,22 @@ def main():
                 cloud_update_steps.append(global_step)
 
             for j, (ep_record, pb_used) in enumerate(ingested):
-                is_last = (j == len(ingested) - 1)
+                is_last = j == len(ingested) - 1
                 ep_record["cloud_update_fired_after_episode"] = bool(fired and is_last)
                 _write_episode_metric(epoch, ep_record, pb_used, fired and is_last)
 
             _write_group_metric(
-                group_id, epoch, ingested, len(group_results), fired,
-                small_tokens, large_before, large_after,
-                rollout_seconds, cloud_seconds, time.time() - group_started,
+                group_id,
+                epoch,
+                ingested,
+                len(group_results),
+                fired,
+                small_tokens,
+                large_before,
+                large_after,
+                rollout_seconds,
+                cloud_seconds,
+                time.time() - group_started,
             )
 
             completed_groups += 1
@@ -1915,8 +1825,7 @@ def main():
     if use_data_parallel:
         _shutdown_data_parallel_workers()
     n = summary["total_episodes"]
-    print(f"\n[driver] done. episodes={n} success_rate={summary['success_rate']*100:.1f}% "
-          f"skill_tree_versions={summary['skill_tree_versions']}")
+    print(f"\n[driver] done. episodes={n} success_rate={summary['success_rate'] * 100:.1f}% skill_tree_versions={summary['skill_tree_versions']}")
     print(f"[driver] outputs under {args.outdir}/ (traces_pool, cloud_io, skill_lib, trajectories)")
 
 
@@ -1925,8 +1834,7 @@ def _append_jsonl(path, obj):
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps,
-                  logrows, playbook_record, skill_ids_used=None):
+def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps, logrows, playbook_record, skill_ids_used=None):
     """一局 = 一个文件（三种格式），含该局全部 step，而非按 step 拆成多个文件。
 
     文件名用 ``ep{idx}`` 而非 "step"，避免把"第几局"和"局内第几步"这两个概念混淆
@@ -1947,14 +1855,15 @@ def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps
 
     pb_meta = None
     if playbook_record:
-        pb_meta = {"version": playbook_record.get("version"),
-                   "level": playbook_record.get("level"),
-                   "n_nodes": len(playbook_record.get("nodes") or {})}
+        pb_meta = {"version": playbook_record.get("version"), "level": playbook_record.get("level"), "n_nodes": len(playbook_record.get("nodes") or {})}
 
     # ---- JSON ----
     payload = {
-        "episode": episode_idx, "task": task, "task_type": detected_task_type,
-        "outcome": status, "used_steps": used_steps,
+        "episode": episode_idx,
+        "task": task,
+        "task_type": detected_task_type,
+        "outcome": status,
+        "used_steps": used_steps,
         "skill_tree_used": pb_meta,
         "skill_ids_used": list(skill_ids_used or []),
         "steps": logrows,
@@ -1967,21 +1876,12 @@ def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps
 
     # ---- 人类可读轨迹 ----
     try:
-        lines = ["=" * 78,
-                 f" Episode #{episode_idx}  task_type={detected_task_type}  "
-                 f"[{status} / {used_steps} steps]",
-                 "=" * 78,
-                 f" task: {task}",
-                 f" skill tree: v{pb_meta['version']} level={pb_meta['level']} "
-                 f"({pb_meta['n_nodes']} nodes)" if pb_meta else " skill tree: (none)",
-                 "=" * 78]
+        lines = ["=" * 78, f" Episode #{episode_idx}  task_type={detected_task_type}  [{status} / {used_steps} steps]", "=" * 78, f" task: {task}", f" skill tree: v{pb_meta['version']} level={pb_meta['level']} ({pb_meta['n_nodes']} nodes)" if pb_meta else " skill tree: (none)", "=" * 78]
         for s in logrows:
             flag = "OK" if s["valid"] else "INVALID"
             forced = " [BUDGET-FORCED]" if s.get("forced") else ""
             lines.append("")
-            lines.append(f"-- step {s['step']:>2} [{flag}]{forced} action={s['action']!r} "
-                         f"source={s.get('execution_source', 'unknown')} "
-                         f"reward={s.get('reward', 0)} won={s.get('won', False)}")
+            lines.append(f"-- step {s['step']:>2} [{flag}]{forced} action={s['action']!r} source={s.get('execution_source', 'unknown')} reward={s.get('reward', 0)} won={s.get('won', False)}")
             lines.append(f"   obs: {_oneline(s.get('obs', ''))}")
         with open(os.path.join(d, base + "_trajectory.txt"), "w") as f:
             f.write("\n".join(lines) + "\n")
@@ -1990,15 +1890,11 @@ def _dump_episode(outdir, episode_idx, task, detected_task_type, won, used_steps
 
     # ---- 每步完整 prompt 原文 ----
     try:
-        lines = ["#" * 78, f"# Episode #{episode_idx} 每步发给小模型的完整 PROMPT 原文",
-                 f"# task: {task}  |  {status} / {used_steps} steps", "#" * 78]
+        lines = ["#" * 78, f"# Episode #{episode_idx} 每步发给小模型的完整 PROMPT 原文", f"# task: {task}  |  {status} / {used_steps} steps", "#" * 78]
         for s in logrows:
             lines.append("")
             lines.append("/" * 78)
-            lines.append(f"// step {s['step']}  action={s['action']!r}  "
-                         f"valid_action={s['valid']}  "
-                         f"strict_valid_action={s.get('strict_valid_action', s['valid'])}  "
-                         f"source={s.get('execution_source', 'unknown')}")
+            lines.append(f"// step {s['step']}  action={s['action']!r}  valid_action={s['valid']}  strict_valid_action={s.get('strict_valid_action', s['valid'])}  source={s.get('execution_source', 'unknown')}")
             lines.append("/" * 78)
             lines.append(s.get("prompt", ""))
         with open(os.path.join(d, base + "_prompts.txt"), "w") as f:
