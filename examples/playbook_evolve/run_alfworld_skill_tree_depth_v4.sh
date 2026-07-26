@@ -44,6 +44,14 @@ DP_WORKERS="${DATA_PARALLEL_WORKERS:-$GPU_COUNT}"
   echo "DATA_PARALLEL_WORKERS must equal the visible GPU count." >&2
   exit 2
 }
+TORCH_GPU_COUNT="$(
+  python -c 'import torch; print(torch.cuda.device_count())'
+)"
+[[ "$TORCH_GPU_COUNT" == "$GPU_COUNT" ]] || {
+  echo "CUDA mask resolves to $TORCH_GPU_COUNT runtime device(s), expected $GPU_COUNT from CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES." >&2
+  echo "Use the logical indices shown inside this container (a one-GPU container normally uses CUDA_VISIBLE_DEVICES=0)." >&2
+  exit 2
+}
 
 VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-0}"
 AB_ROOT="${AB_ROOT:-$PROJECT_ROOT/skillrl_outputs/alfworld_skill_tree_depth_v4/$(date +%Y%m%d_%H%M%S)}"

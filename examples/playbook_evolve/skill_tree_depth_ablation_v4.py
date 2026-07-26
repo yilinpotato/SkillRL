@@ -16,9 +16,12 @@ held-out fixed manifest and never update skills during evaluation.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
+import shutil
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -146,6 +149,35 @@ def _heading_paths(markdown: str, target_depth: int) -> list[str]:
     return paths
 
 
+def _trace_step_index(traces: Iterable[dict[str, Any]]) -> dict[str, set[int]]:
+    """Return exactly the numeric trajectory/step references rendered to the cloud."""
+    result: dict[str, set[int]] = {}
+    for trace in traces:
+        uid = str(trace.get("traj_uid", ""))
+        steps: set[int] = set()
+        for index, step in enumerate(trace.get("steps") or [], start=1):
+            raw = step.get("step")
+            if raw is None or raw == "":
+                raw = index
+            try:
+                steps.add(int(raw))
+            except (TypeError, ValueError):
+                # The causal renderer displays this transition, but the JSON
+                # grounding schema deliberately permits only numeric steps.
+                steps.add(index)
+        result[uid] = steps
+    return result
+
+
+def _evidence_reference_catalog(traces: Iterable[dict[str, Any]]) -> str:
+    """Give the model a compact allow-list instead of making it recopy long traces."""
+    index = _trace_step_index(traces)
+    return "\n".join(
+        f"- traj_ref={uid}; valid_steps={','.join(str(step) for step in sorted(steps))}"
+        for uid, steps in index.items()
+    )
+
+
 def _parent_is_verbatim_subsequence(parent: str, child: str) -> bool:
     """Allow inserted child branches but reject any parent edit or reordering."""
     parent_lines = [line.rstrip() for line in (parent or "").splitlines() if line.strip()]
@@ -191,7 +223,7 @@ def _grounding_errors(
         return ["duplicate_deepest_heading_path"]
     if not isinstance(grounding, list):
         return ["new_node_grounding_not_array"]
-    trace_steps = {str(trace.get("traj_uid", "")): {int(step.get("step", index) or index) for index, step in enumerate(trace.get("steps") or [], start=1)} for trace in traces}
+    trace_steps = _trace_step_index(traces)
     supplied: dict[str, dict[str, Any]] = {}
     errors: list[str] = []
     for index, item in enumerate(grounding):
@@ -213,10 +245,13 @@ def _grounding_errors(
                 step = int(reference.get("step"))
             except (TypeError, ValueError):
                 continue
-            if uid in trace_steps and step in trace_steps[uid]:
-                valid_reference = True
+            if uid not in trace_steps:
+                errors.append(f"grounding_unknown_traj_uid:{uid}")
+            elif step not in trace_steps[uid]:
+                valid = ",".join(str(value) for value in sorted(trace_steps[uid]))
+                errors.append(f"grounding_unknown_step:{uid}:step{step}:valid_steps={valid}")
             else:
-                errors.append(f"grounding_unknown_reference:{uid}:step{step}")
+                valid_reference = True
         if not valid_reference:
             errors.append(f"grounding_has_no_valid_reference:{path or index}")
         if not str(item.get("supported_claim", "")).strip():
@@ -225,6 +260,276 @@ def _grounding_errors(
         if path not in supplied:
             errors.append(f"deepest_heading_not_grounded:{path}")
     return errors
+
+
+def _progressive_patch_prompt(
+    analyzer: CloudAnalyzer,
+    task_type: str,
+    parent: str,
+    success: list[dict[str, Any]],
+    failure: list[dict[str, Any]],
+    target_depth: int,
+    repair_patch: Any,
+    repair_errors: Iterable[str],
+) -> str:
+    """Build a delta-only prompt; the cloud never rewrites an accepted parent."""
+    base = analyzer._build_evolve_prompt(
+        task_type,
+        parent,
+        success,
+        failure,
+        [],
+        target_depth=target_depth,
+        max_success_examples=len(success),
+        max_failure_examples=len(failure),
+        max_tree_nodes=None,
+        max_tree_chars=None,
+        preserve_parent_tree=True,
+        render_full_trajectories=True,
+    )
+    # Remove the generic full-tree response schema before appending the V4
+    # delta schema. A "final override" alone still left two contradictory JSON
+    # contracts in one prompt and caused the model to regenerate the parent.
+    schema_marker = "\nReturn ONLY one JSON object, EXACTLY these fields:"
+    if schema_marker in base:
+        base = base.split(schema_marker, 1)[0].rstrip()
+    parent_paths = _heading_paths(parent, target_depth - 1)
+    repair = ""
+    if repair_patch is not None:
+        repair = f"""
+
+THE PREVIOUS DELTA PATCH WAS REJECTED. Replace it rather than copying its mistakes.
+REJECTED PATCH:
+{json.dumps(repair_patch, ensure_ascii=False, indent=2)}
+PRECISE LOCAL VALIDATION ERRORS:
+{json.dumps(list(repair_errors), ensure_ascii=False, indent=2)}
+"""
+    return f"""{base}
+
+V4 DELTA-ONLY OUTPUT PROTOCOL:
+The accepted parent tree is immutable. Do NOT return or reproduce `skill_tree`, and do not edit,
+summarize, reorder, or quote parent lines. Return only new level-{target_depth} child nodes. The local
+program will validate and insert them into the accepted parent deterministically.
+
+Each `parent_heading_path` MUST exactly equal one path in this allow-list:
+{json.dumps(parent_paths, ensure_ascii=False, indent=2)}
+
+Each evidence reference MUST exactly use one traj_ref and numeric step from this allow-list:
+{_evidence_reference_catalog(success + failure)}
+
+Return ONLY one JSON object with exactly these fields:
+{{
+  "action": "refine",
+  "level": {target_depth},
+  "new_nodes": [
+    {{
+      "parent_heading_path": "exact allowed parent path",
+      "heading": "plain heading text without # or newline",
+      "body_lines": ["one evidence-supported instruction per string"],
+      "evidence": [{{"traj_ref": "exact allowed id", "step": 1}}],
+      "supported_claim": "the precise rule established by the cited transition(s)"
+    }}
+  ],
+  "critique": "brief evidence-based reason for these refinements",
+  "changelog": "brief list of parent paths deepened",
+  "unsupported_claims": []
+}}
+
+Rules:
+- `new_nodes` must be non-empty, and every item becomes exactly one new level-{target_depth} heading.
+- `body_lines` must be non-empty and must not contain Markdown headings.
+- Do not include generic shallow bullets outside a new node.
+- Cite only allow-listed references. Never guess a nearby step or trajectory id.
+- If a possible refinement lacks evidence, omit it and list it under `unsupported_claims`.
+- The new child may clarify a parent condition but must never contradict the immutable parent.
+{repair}
+Return ONLY the delta JSON object."""
+
+
+def _request_progressive_patch(
+    analyzer: CloudAnalyzer,
+    task_type: str,
+    parent: str,
+    success: list[dict[str, Any]],
+    failure: list[dict[str, Any]],
+    target_depth: int,
+    repair_patch: Any = None,
+    repair_errors: Iterable[str] = (),
+) -> dict[str, Any] | None:
+    """Call the cloud with the V4 delta schema while retaining provider usage audit."""
+    prompt = _progressive_patch_prompt(
+        analyzer,
+        task_type,
+        parent,
+        success,
+        failure,
+        target_depth,
+        repair_patch,
+        repair_errors,
+    )
+    call_number = analyzer.n_evolve_calls
+    if analyzer.playbook_io_dir is not None:
+        analyzer._dump_text(
+            analyzer.playbook_io_dir,
+            f"evolve_skill_tree_patch_{task_type}_call{call_number:03d}.txt",
+            prompt,
+        )
+    try:
+        response = analyzer.client.chat.completions.create(
+            model=analyzer.model,
+            messages=[{"role": "user", "content": prompt}],
+            max_completion_tokens=analyzer.max_completion_tokens,
+        )
+        content = response.choices[0].message.content
+        usage = getattr(response, "usage", None)
+        analyzer._record_call(
+            "evolve_playbook_patch",
+            prompt,
+            content,
+            usage,
+            task_type=task_type,
+        )
+        if analyzer.playbook_io_dir is not None:
+            analyzer._dump_text(
+                analyzer.playbook_io_dir,
+                f"evolve_skill_tree_patch_response_{task_type}_call{call_number:03d}.txt",
+                content,
+            )
+        if usage:
+            analyzer.total_prompt_tokens += int(usage.prompt_tokens or 0)
+            analyzer.total_completion_tokens += int(usage.completion_tokens or 0)
+            analyzer.total_prompt_tokens_by_task_type[task_type] = (
+                analyzer.total_prompt_tokens_by_task_type.get(task_type, 0)
+                + int(usage.prompt_tokens or 0)
+            )
+            analyzer.total_completion_tokens_by_task_type[task_type] = (
+                analyzer.total_completion_tokens_by_task_type.get(task_type, 0)
+                + int(usage.completion_tokens or 0)
+            )
+        analyzer.n_evolve_calls += 1
+        obj = analyzer._parse_json_object(content)
+        return obj if isinstance(obj, dict) else None
+    except Exception as exc:
+        print(f"[skill-tree-v4] progressive patch error ({analyzer.model}, {task_type}): {exc}")
+        return None
+
+
+def _parent_heading_locations(parent: str, depth: int) -> dict[str, tuple[int, int]]:
+    """Map each exact deepest parent path to its subtree insertion boundary."""
+    lines = parent.splitlines()
+    stack: list[tuple[int, str]] = []
+    headings: list[tuple[int, int, str]] = []
+    for index, line in enumerate(lines):
+        if not (line.startswith("#") and line.lstrip("#").startswith(" ")):
+            continue
+        heading_depth = len(line) - len(line.lstrip("#"))
+        label = line[heading_depth:].strip()
+        while stack and stack[-1][0] >= heading_depth:
+            stack.pop()
+        stack.append((heading_depth, label))
+        headings.append((index, heading_depth, " > ".join(value for _, value in stack)))
+
+    locations: dict[str, tuple[int, int]] = {}
+    for position, (line_index, heading_depth, path) in enumerate(headings):
+        if heading_depth != depth:
+            continue
+        boundary = len(lines)
+        for next_index, next_depth, _ in headings[position + 1 :]:
+            if next_depth <= heading_depth:
+                boundary = next_index
+                break
+        locations[path] = (line_index, boundary)
+    return locations
+
+
+def _merge_progressive_nodes(
+    parent: str,
+    target_depth: int,
+    new_nodes: Any,
+) -> tuple[str, list[dict[str, Any]], list[str]]:
+    """Validate a cloud delta and deterministically insert it into the parent."""
+    if not isinstance(new_nodes, list):
+        return parent, [], ["progressive_patch_new_nodes_not_array"]
+    if not new_nodes:
+        return parent, [], ["progressive_patch_added_no_nodes"]
+
+    locations = _parent_heading_locations(parent, target_depth - 1)
+    existing_paths = set(_heading_paths(parent, target_depth))
+    added_paths: set[str] = set()
+    insertions: dict[int, list[str]] = defaultdict(list)
+    grounding: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    for index, node in enumerate(new_nodes):
+        label = f"node{index}"
+        if not isinstance(node, dict):
+            errors.append(f"progressive_patch_item_not_object:{label}")
+            continue
+        parent_path = " > ".join(
+            part.strip()
+            for part in str(node.get("parent_heading_path", "")).split(">")
+        )
+        if parent_path not in locations:
+            errors.append(f"progressive_patch_unknown_parent_path:{parent_path or label}")
+            continue
+        heading = str(node.get("heading", "")).strip()
+        if (
+            not heading
+            or "\n" in heading
+            or heading.startswith("#")
+            or " > " in heading
+        ):
+            errors.append(f"progressive_patch_invalid_heading:{parent_path}:{heading or label}")
+            continue
+        body_lines = node.get("body_lines")
+        if not isinstance(body_lines, list) or not body_lines:
+            errors.append(f"progressive_patch_body_lines_missing:{parent_path} > {heading}")
+            continue
+        cleaned_body: list[str] = []
+        invalid_body = False
+        for body in body_lines:
+            text = str(body).strip()
+            if not text or "\n" in text or re.match(r"^#+\s", text):
+                invalid_body = True
+                break
+            cleaned_body.append(text)
+        if invalid_body:
+            errors.append(f"progressive_patch_invalid_body_line:{parent_path} > {heading}")
+            continue
+
+        child_path = f"{parent_path} > {heading}"
+        if child_path in existing_paths or child_path in added_paths:
+            errors.append(f"progressive_patch_duplicate_heading_path:{child_path}")
+            continue
+        added_paths.add(child_path)
+        boundary = locations[parent_path][1]
+        fragment = ["#" * target_depth + f" {heading}", *cleaned_body]
+        if insertions[boundary]:
+            insertions[boundary].append("")
+        insertions[boundary].extend(fragment)
+        grounding.append(
+            {
+                "heading_path": child_path,
+                "evidence": node.get("evidence"),
+                "supported_claim": node.get("supported_claim"),
+            }
+        )
+
+    if not insertions:
+        return parent, grounding, errors or ["progressive_patch_added_no_valid_nodes"]
+
+    parent_lines = parent.splitlines()
+    child_lines: list[str] = []
+    for index in range(len(parent_lines) + 1):
+        if index in insertions:
+            if child_lines and child_lines[-1].strip():
+                child_lines.append("")
+            child_lines.extend(insertions[index])
+            if index < len(parent_lines) and child_lines[-1].strip():
+                child_lines.append("")
+        if index < len(parent_lines):
+            child_lines.append(parent_lines[index])
+    return "\n".join(child_lines).strip(), grounding, errors
 
 
 def _affirmative_contract_text(markdown: str) -> str:
@@ -410,33 +715,65 @@ def build_progressive_tree_artifacts(
 
             candidate: dict[str, Any] | None = None
             validation: dict[str, Any] = {}
-            repair_candidate: str | None = None
+            repair_candidate: Any = None
             attempts = 0
             while attempts < max_attempts:
-                candidate = analyzer.evolve_playbook(
-                    task_type=task_type,
-                    current_playbook=parent or None,
-                    success_traces=success,
-                    failure_traces=failure,
-                    diagnoses=[],
-                    target_depth=depth,
-                    repair_candidate=repair_candidate,
-                    repair_feedback=(
+                if parent:
+                    patch = _request_progressive_patch(
+                        analyzer,
+                        task_type,
+                        parent,
+                        success,
+                        failure,
+                        depth,
+                        repair_patch=repair_candidate,
+                        repair_errors=validation.get("protocol_validation_errors", []),
+                    )
+                    tree, grounding, patch_errors = _merge_progressive_nodes(
+                        parent,
+                        depth,
+                        (patch or {}).get("new_nodes"),
+                    )
+                    candidate = (
                         {
-                            "actual_depth": validation.get("actual_depth"),
-                            "depth_validation_errors": validation.get("depth_validation_errors", []),
-                            "protocol_validation_errors": validation.get("protocol_validation_errors", []),
+                            "action": "refine",
+                            "level": depth,
+                            "skill_tree": tree,
+                            "new_nodes": (patch or {}).get("new_nodes"),
+                            "new_node_grounding": grounding,
+                            "unsupported_claims": (patch or {}).get("unsupported_claims", []),
+                            "critique": (patch or {}).get("critique", ""),
+                            "changelog": (patch or {}).get("changelog", ""),
                         }
-                        if validation
+                        if patch
                         else None
-                    ),
-                    max_success_examples=len(success),
-                    max_failure_examples=len(failure),
-                    max_tree_nodes=None,
-                    max_tree_chars=None,
-                    preserve_parent_tree=bool(parent),
-                    render_full_trajectories=True,
-                )
+                    )
+                else:
+                    patch_errors = []
+                    candidate = analyzer.evolve_playbook(
+                        task_type=task_type,
+                        current_playbook=None,
+                        success_traces=success,
+                        failure_traces=failure,
+                        diagnoses=[],
+                        target_depth=depth,
+                        repair_candidate=repair_candidate,
+                        repair_feedback=(
+                            {
+                                "actual_depth": validation.get("actual_depth"),
+                                "depth_validation_errors": validation.get("depth_validation_errors", []),
+                                "protocol_validation_errors": validation.get("protocol_validation_errors", []),
+                            }
+                            if validation
+                            else None
+                        ),
+                        max_success_examples=len(success),
+                        max_failure_examples=len(failure),
+                        max_tree_nodes=None,
+                        max_tree_chars=None,
+                        preserve_parent_tree=False,
+                        render_full_trajectories=True,
+                    )
                 attempts += 1
                 tree = str((candidate or {}).get("skill_tree", "") or "")
                 validation = _protocol_validation(
@@ -447,9 +784,19 @@ def build_progressive_tree_artifacts(
                     (candidate or {}).get("new_node_grounding"),
                     evidence,
                 )
+                if patch_errors:
+                    validation["protocol_validation_errors"] = sorted(
+                        set(validation.get("protocol_validation_errors", []))
+                        | set(patch_errors)
+                    )
+                    validation["protocol_valid"] = False
                 if candidate and validation["protocol_valid"]:
                     break
-                repair_candidate = tree or repair_candidate
+                repair_candidate = (
+                    (candidate or {}).get("new_nodes")
+                    if parent
+                    else tree or repair_candidate
+                )
 
             if not candidate or not validation.get("protocol_valid"):
                 status[task_type] = {
@@ -473,6 +820,7 @@ def build_progressive_tree_artifacts(
                     "parent_content_sha256": fixed._sha256_text(parent) if parent else None,
                     "depth_generation_attempts": attempts,
                     "new_node_grounding": candidate.get("new_node_grounding", []),
+                    "progressive_patch_nodes": candidate.get("new_nodes", []),
                     "unsupported_claims": candidate.get("unsupported_claims", []),
                     "critique": candidate.get("critique", ""),
                     "changelog": candidate.get("changelog", ""),
@@ -512,6 +860,11 @@ def build_progressive_tree_artifacts(
             {
                 "experiment_version": "v4",
                 "generation_protocol": "same_tree_monotonic_progressive_extension",
+                "progressive_output_protocol": (
+                    "full_tree_from_evidence"
+                    if depth == 1
+                    else "cloud_delta_nodes_plus_deterministic_local_merge"
+                ),
                 "skill_level": f"L{depth}",
                 "target_depth": depth,
                 "parent_arm": f"skill_level_l{depth - 1}" if depth > 1 else None,
@@ -670,6 +1023,97 @@ def write_generation_metrics(root: Path) -> None:
     fixed._write_jsonl(root / "generation_metrics_by_task.jsonl", task_rows)
 
 
+def archive_invalid_suffix_for_rebuild(root: Path, start_level: int) -> Path | None:
+    """Archive, never delete, the first incompatible/failed level and descendants."""
+    if start_level < 1 or start_level > 5:
+        raise ValueError("rebuild start level must be between 1 and 5")
+    first_rebuild: int | None = None
+    for depth in range(start_level, 6):
+        manifest_path = (
+            root
+            / "artifacts"
+            / f"skill_level_l{depth}"
+            / "artifact_manifest.json"
+        )
+        expected = (
+            "full_tree_from_evidence"
+            if depth == 1
+            else "cloud_delta_nodes_plus_deterministic_local_merge"
+        )
+        if not manifest_path.exists():
+            first_rebuild = depth
+            break
+        manifest = fixed._read_json(manifest_path)
+        if (
+            manifest.get("status") != "ready"
+            or not manifest.get("evaluation_eligible", False)
+            or manifest.get("progressive_output_protocol") != expected
+        ):
+            first_rebuild = depth
+            break
+    if first_rebuild is None:
+        print(
+            f"[skill-tree-v4] L{start_level}-L5 already use the validated delta protocol; "
+            "nothing to rebuild"
+        )
+        return None
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    archive = root / "superseded" / f"{stamp}_rebuild_from_l{first_rebuild}"
+    moved: list[dict[str, str]] = []
+    for area in ("artifacts", "arms"):
+        for depth in range(first_rebuild, 6):
+            source = root / area / f"skill_level_l{depth}"
+            if not source.exists():
+                continue
+            destination = archive / area / source.name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(destination))
+            moved.append(
+                {
+                    "source": str(source.relative_to(root)),
+                    "destination": str(destination.relative_to(root)),
+                }
+            )
+
+    summary_names = (
+        "generation_metrics.jsonl",
+        "generation_metrics_by_task.jsonl",
+        "metrics.jsonl",
+        "metrics_by_task.jsonl",
+        "ablation_summary.json",
+        "ablation_summary.csv",
+        "skill_level_by_task.csv",
+    )
+    for name in summary_names:
+        source = root / name
+        if not source.exists():
+            continue
+        destination = archive / "root_summaries" / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(destination))
+        moved.append(
+            {
+                "source": name,
+                "destination": str(destination.relative_to(root)),
+            }
+        )
+    fixed._write_json(
+        archive / "rebuild_receipt.json",
+        {
+            "requested_start_level": start_level,
+            "effective_start_level": first_rebuild,
+            "reason": "replace_failed_or_pre_delta_v4_generation_without_touching_valid_prefix",
+            "moved": moved,
+        },
+    )
+    print(
+        f"[skill-tree-v4] archived stale L{first_rebuild}-L5 outputs under {archive}; "
+        f"preserving L0-L{first_rebuild - 1}"
+    )
+    return archive
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True)
@@ -706,6 +1150,16 @@ def main() -> None:
         "--tree_max_completion_tokens",
         type=int,
         default=int(os.environ.get("V4_TREE_MAX_COMPLETION_TOKENS", "8192")),
+    )
+    parser.add_argument(
+        "--rebuild_from_level",
+        type=int,
+        choices=range(1, 6),
+        default=None,
+        help=(
+            "Archive a failed/pre-fix suffix and regenerate it while preserving the valid "
+            "L0..L(N-1) prefix. Use only with --phase prepare/all."
+        ),
     )
     parser.add_argument("--model_path", default=os.environ.get("MODEL_PATH"))
     parser.add_argument("--retrieval_mode", choices=("template", "embedding"), default="template")
@@ -744,6 +1198,8 @@ def main() -> None:
         parser.error("V4 sizes and generation budgets must be positive")
     if args.local_max_model_len <= 4096:
         parser.error("--local_max_model_len must exceed the fixed 4096-token response budget")
+    if args.rebuild_from_level is not None and args.phase not in ("prepare", "all"):
+        parser.error("--rebuild_from_level requires --phase prepare or --phase all")
 
     args.project_root = Path(__file__).resolve().parents[2]
     args.rollouts_per_type = args.eval_rollouts_per_game
@@ -774,6 +1230,9 @@ def main() -> None:
             "online_growth": False,
             "same_tree_progressive_levels": True,
             "parent_lines_preserved_verbatim": True,
+            "progressive_generation_output": (
+                "L1_full_tree_then_cloud_delta_nodes_plus_deterministic_local_merge"
+            ),
             "initial_external_traces_per_type": 12,
             "initial_success_per_type": 6,
             "initial_failure_per_type": 6,
@@ -797,11 +1256,21 @@ def main() -> None:
     if existing_config.exists():
         existing = fixed._read_json(existing_config)
         if existing != config:
-            raise RuntimeError("existing V4 root has different protocol settings; use a new --root")
+            legacy_compatible = False
+            if args.rebuild_from_level is not None:
+                expected_legacy = json.loads(json.dumps(config))
+                expected_legacy["protocol"].pop("progressive_generation_output", None)
+                legacy_compatible = existing == expected_legacy
+            if not legacy_compatible:
+                raise RuntimeError("existing V4 root has different protocol settings; use a new --root")
+            fixed._write_json(existing_config, config)
+            print("[skill-tree-v4] upgraded compatible pre-delta run_config for suffix rebuild")
     else:
         fixed._write_json(existing_config, config)
 
     if args.phase in ("prepare", "all"):
+        if args.rebuild_from_level is not None:
+            archive_invalid_suffix_for_rebuild(root, args.rebuild_from_level)
         build_progressive_tree_artifacts(
             evidence,
             root,

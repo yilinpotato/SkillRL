@@ -12,9 +12,13 @@ from examples.playbook_evolve import fixed_trajectory_ablation as fixed
 from examples.playbook_evolve.skill_tree_depth_ablation_v4 import (
     _audit_evaluation_context,
     _configure_full_evidence,
+    _evidence_reference_catalog,
     _grounding_errors,
+    _merge_progressive_nodes,
     _parent_is_verbatim_subsequence,
+    _progressive_patch_prompt,
     _protocol_validation,
+    archive_invalid_suffix_for_rebuild,
     select_initial_evidence,
     validate_alfworld_tree_semantics,
 )
@@ -146,7 +150,141 @@ def test_grounding_requires_real_trace_and_step_for_each_deepest_heading():
         }
     ]
     errors = _grounding_errors(tree, 2, bad, traces)
-    assert any("grounding_unknown_reference" in error for error in errors)
+    assert "grounding_unknown_traj_uid:invented" in errors
+
+
+def test_grounding_distinguishes_unknown_step_and_keeps_zero_step():
+    tree = "# Goal\nRule\n## Recovery\nRecover"
+    trace = _trace("trace-a", "pick_and_place", "success", 2)
+    trace["steps"][0]["step"] = 0
+    bad = [
+        {
+            "heading_path": "Goal > Recovery",
+            "evidence": [{"traj_ref": "trace-a", "step": 99}],
+            "supported_claim": "unsupported",
+        }
+    ]
+    errors = _grounding_errors(tree, 2, bad, [trace])
+    assert "grounding_unknown_step:trace-a:step99:valid_steps=0,2" in errors
+    assert "- traj_ref=trace-a; valid_steps=0,2" == _evidence_reference_catalog([trace])
+
+
+def test_progressive_patch_merges_locally_without_rewriting_parent():
+    parent = (
+        "# Locate target\n"
+        "Inspect visible objects first.\n"
+        "## Search closed receptacles\n"
+        "Open only receptacles not yet checked.\n"
+        "# Deliver target\n"
+        "Take the target, move to the destination, and place it."
+    )
+    nodes = [
+        {
+            "parent_heading_path": "Locate target > Search closed receptacles",
+            "heading": "Recover after an empty receptacle",
+            "body_lines": ["Mark it checked and continue with a different receptacle."],
+            "evidence": [{"traj_ref": "trace-a", "step": 2}],
+            "supported_claim": "The cited transition moves on after an empty search.",
+        }
+    ]
+    child, grounding, errors = _merge_progressive_nodes(parent, 3, nodes)
+    assert errors == []
+    assert _parent_is_verbatim_subsequence(parent, child)
+    assert (
+        "## Search closed receptacles\n"
+        "Open only receptacles not yet checked.\n\n"
+        "### Recover after an empty receptacle\n"
+        "Mark it checked and continue with a different receptacle."
+    ) in child
+    trace = _trace("trace-a", "pick_and_place", "success", 3)
+    validation = _protocol_validation(
+        "pick_and_place",
+        parent,
+        child,
+        3,
+        grounding,
+        [trace],
+    )
+    assert validation["protocol_valid"] is True
+
+
+def test_progressive_patch_rejects_unknown_parent_and_heading_body_escape():
+    parent = "# Locate\nRule\n## Search\nRule"
+    child, _, errors = _merge_progressive_nodes(
+        parent,
+        3,
+        [
+            {
+                "parent_heading_path": "Locate > Invented",
+                "heading": "Recovery",
+                "body_lines": ["Rule"],
+            },
+            {
+                "parent_heading_path": "Locate > Search",
+                "heading": "Recovery",
+                "body_lines": ["### escaped heading"],
+            },
+        ],
+    )
+    assert child == parent
+    assert "progressive_patch_unknown_parent_path:Locate > Invented" in errors
+    assert "progressive_patch_invalid_body_line:Locate > Search > Recovery" in errors
+
+
+def test_progressive_patch_prompt_uses_delta_schema_and_explicit_allow_lists():
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.environment_name = "ALFWorld"
+    analyzer.evidence_render_limits = {}
+    parent = "# Deliver\nTake the target and place it.\n## Verify target\nRead the exact name."
+    success = [_trace("trace-a", "pick_and_place", "success", 2)]
+    failure = [_trace("trace-b", "pick_and_place", "failure", 2)]
+    _configure_full_evidence(analyzer, success + failure)
+    prompt = _progressive_patch_prompt(
+        analyzer,
+        "pick_and_place",
+        parent,
+        success,
+        failure,
+        3,
+        None,
+        [],
+    )
+    assert "Return ONLY one JSON object, EXACTLY these fields:" not in prompt
+    override = prompt.split("V4 DELTA-ONLY OUTPUT PROTOCOL", 1)[1]
+    assert '"Deliver > Verify target"' in override
+    assert "traj_ref=trace-a; valid_steps=1,2" in override
+    assert '"new_nodes"' in override
+    assert "Do NOT return or reproduce `skill_tree`" in override
+
+
+def test_rebuild_archives_only_failed_suffix_and_preserves_valid_prefix(tmp_path):
+    for depth in range(6):
+        directory = tmp_path / "artifacts" / f"skill_level_l{depth}"
+        protocol = (
+            "full_tree_from_evidence"
+            if depth == 1
+            else "cloud_delta_nodes_plus_deterministic_local_merge"
+        )
+        fixed._write_json(
+            directory / "artifact_manifest.json",
+            {
+                "status": "N.A." if depth == 3 else "ready",
+                "evaluation_eligible": depth != 3,
+                "progressive_output_protocol": protocol if depth < 3 else None,
+            },
+        )
+        (directory / "sentinel.txt").write_text(str(depth))
+    fixed._write_jsonl(tmp_path / "generation_metrics.jsonl", [{"old": True}])
+
+    archive = archive_invalid_suffix_for_rebuild(tmp_path, 3)
+    assert archive is not None
+    assert (tmp_path / "artifacts" / "skill_level_l2" / "sentinel.txt").exists()
+    assert not (tmp_path / "artifacts" / "skill_level_l3").exists()
+    assert (archive / "artifacts" / "skill_level_l3" / "sentinel.txt").exists()
+    assert (archive / "artifacts" / "skill_level_l5" / "sentinel.txt").exists()
+    assert (archive / "root_summaries" / "generation_metrics.jsonl").exists()
+    receipt = json.loads((archive / "rebuild_receipt.json").read_text())
+    assert receipt["effective_start_level"] == 3
 
 
 def test_alfworld_semantic_validator_covers_deep_tree_failure_modes():
