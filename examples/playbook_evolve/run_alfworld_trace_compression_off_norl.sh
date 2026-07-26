@@ -13,4 +13,5 @@ exec bash "$SCRIPT_DIR/run_alfworld_playbook_evolve_norl.sh" \
   --trace_enable_loop_filter 0 \
   --trace_enable_obs_delta 0 \
   --trace_enable_prefix_tree 0 \
-  --trace_enable_consensus_prefix 0
+  --trace_enable_consensus_prefix 0 \
+  --trace_cloud_evidence_mode flat

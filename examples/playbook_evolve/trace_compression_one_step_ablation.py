@@ -106,6 +106,9 @@ def _pool(raw: Iterable[dict[str, Any]], outdir: Path, flags: dict[str, bool]) -
         enable_obs_delta=flags["enable_obs_delta"],
         enable_prefix_tree=flags["enable_prefix_tree"],
         enable_consensus_prefix=flags["enable_consensus_prefix"],
+        cloud_evidence_mode=(
+            "tree_only" if flags["enable_prefix_tree"] else "flat"
+        ),
     )
     for trace in raw:
         pool.add_trace(trace)
@@ -126,6 +129,7 @@ def _uploaded_trace_payload(batch: dict[str, Any]) -> dict[str, Any]:
         "consensus_prefix": batch.get("consensus_prefix"),
     }
     evidence = batch.get("tree_evidence") or flat_evidence
+    cloud_batch = TracesPool.project_cloud_batch(batch)
     codec_version = int((batch.get("tree_evidence") or {}).get("version", 0) or 0)
     return {
         "trace_evidence": _json_stats(evidence),
@@ -133,6 +137,7 @@ def _uploaded_trace_payload(batch: dict[str, Any]) -> dict[str, Any]:
             f"prefix_tree_codec_v{codec_version}"
             if codec_version else "flat_trajectories"),
         "local_flat_samples": _json_stats(flat_evidence),
+        "cloud_batch": _json_stats(cloud_batch),
         "compressed_batch": _json_stats(batch),
         "trace_stage_totals": (batch.get("compression", {}) or {}).get("trace_stage_totals", {}),
         "prefix_tree": (batch.get("compression", {}) or {}).get("prefix_tree"),
@@ -589,8 +594,8 @@ def write_reports(root: Path) -> dict[str, Any]:
                     "experiment/task_success_metric": "capture_group_diagnostic_only",
                     "trace_upload/evidence_chars": payload["trace_evidence"]["chars"],
                     "trace_upload/evidence_tokens_chars_div_4": payload["trace_evidence"]["tokens_chars_div_4"],
-                    "trace_upload/batch_chars": payload["compressed_batch"]["chars"],
-                    "trace_upload/batch_tokens_chars_div_4": payload["compressed_batch"]["tokens_chars_div_4"],
+                    "trace_upload/batch_chars": payload["cloud_batch"]["chars"],
+                    "trace_upload/batch_tokens_chars_div_4": payload["cloud_batch"]["tokens_chars_div_4"],
                     **{
                         f"trace_waterfall/{row['stage']}/tokens_chars_div_4": row["tokens_chars_div_4"]
                         for row in result["token_waterfall"]["stages"]

@@ -304,7 +304,11 @@ class CloudAnalyzer:
                 tr["_ref"] = f"{tt}#{i}"
                 fail_labeled.append(tr)
             # 共识前缀（该类型成功轨迹一致的起始段）：端侧已掌握，折叠不重发。
-            consensus = longest_common_action_prefix(succ_by_type.get(tt, []))
+            consensus = self._tree_consensus_prefix(
+                succ_by_type.get(tt, []),
+                tree_evidence,
+                fallback=longest_common_action_prefix,
+            )
             succ_txt = self._format_difftraces(succ_by_type.get(tt, []), limit=max_success_examples, consensus=consensus, tree_evidence=tree_evidence)
             fail_txt = self._format_difftraces_reflabeled(fail_labeled, consensus=consensus, tree_evidence=tree_evidence)
             con_line = f"CONSENSUS PREFIX (the edge already masters these opening steps — the failure is NOT here, look at the DIVERGENCE after it): {' → '.join(consensus)}\n" if consensus else ""
@@ -461,7 +465,11 @@ Return ONLY the JSON array, no other text."""
                 action = "refine" if tree_text else "keep"
             from .traces_pool import longest_common_action_prefix
 
-            consensus = longest_common_action_prefix(success_traces)
+            consensus = self._tree_consensus_prefix(
+                success_traces,
+                tree_evidence,
+                fallback=longest_common_action_prefix,
+            )
             result = {
                 "action": action,
                 "level": obj.get("level") or "outline",
@@ -526,7 +534,15 @@ Return ONLY the JSON array, no other text."""
         # agent already mastered it.  A representation ablation must instead
         # expose every selected transition: otherwise a terminal action can
         # disappear while the prefix is still labelled as a success.
-        consensus = [] if render_full_trajectories else longest_common_action_prefix(success_traces)
+        consensus = (
+            []
+            if render_full_trajectories
+            else self._tree_consensus_prefix(
+                success_traces,
+                tree_evidence,
+                fallback=longest_common_action_prefix,
+            )
+        )
         succ_txt = self._format_difftraces(success_traces, limit=max_success_examples, consensus=consensus, tree_evidence=tree_evidence)
         fail_txt = self._format_difftraces(failure_traces, limit=max_failure_examples, consensus=consensus, tree_evidence=tree_evidence)
         diag_txt = self._format_diagnoses(diagnoses)
@@ -1045,12 +1061,21 @@ Return ONLY the JSON array, no other text."""
         compact action-id paths, while branch counts remain in
         :meth:`_format_forks`.
         """
-        records = {str(record.get("u", "")): record for record in (tree_evidence.get("records") or [])}
+        strict_tree_only = str(tree_evidence.get("mode") or "") == "tree_only"
+        records = {
+            str(record.get("u", "")): record
+            for record in (tree_evidence.get("records") or [])
+        }
         selected = []
         for index, trace in enumerate(traces, start=1):
             record = records.get(str(trace.get("traj_uid", "")))
             if record is None:
-                # Compatibility with batches produced before the codec.
+                if strict_tree_only:
+                    raise ValueError(
+                        "tree_only evidence is missing codec record for "
+                        f"traj_uid={trace.get('traj_uid', '')!r}"
+                    )
+                # Compatibility with batches produced before the strict codec.
                 return self._format_difftraces_flat(traces, consensus, reflabeled)
             selected.append((index, trace, record))
 
@@ -1059,21 +1084,31 @@ Return ONLY the JSON array, no other text."""
         needed_action_ids = set()
         rendered = []
         for index, trace, record in selected:
-            fold = self._fold_count(trace.get("steps", []) or [], consensus)
+            record_actions = self._tree_record_actions(tree_evidence, record)
+            fold = self._fold_action_count(record_actions, consensus)
             path = list(record.get("q") or [])[fold:]
             observations = list(record.get("x") or [])[fold:]
+            if strict_tree_only and len(path) != len(observations):
+                raise ValueError(
+                    "tree_only evidence has mismatched action and observation "
+                    f"lengths for traj_uid={trace.get('traj_uid', '')!r}"
+                )
             path_action_ids = []
             for node_id in path:
                 node = node_table.get(node_id)
                 action = self._tree_node_action(tree_evidence, node)
                 action_id = action_id_by_text.get(action)
                 if action_id is None:
-                    # Do not silently misalign observations with actions when
-                    # an external or partially written codec is malformed.
+                    if strict_tree_only:
+                        raise ValueError(
+                            "tree_only evidence contains an invalid action node "
+                            f"{node_id!r} for traj_uid={trace.get('traj_uid', '')!r}"
+                        )
+                    # Old external codecs retain the legacy fallback.
                     return self._format_difftraces_flat(traces, consensus, reflabeled)
                 path_action_ids.append(action_id)
                 needed_action_ids.add(action_id)
-            score = trace.get("task_score")
+            score = record.get("r", trace.get("task_score"))
             score_text = f" task_score={score}" if score is not None else ""
             label = (
                 f"[ref={trace.get('_ref', '?')}]"
@@ -1083,28 +1118,35 @@ Return ONLY the JSON array, no other text."""
                     f"[ref={trace.get('traj_uid', '?')}]"
                 )
             )
-            lines = [f"\n{label}{score_text} task: {trace.get('task', '')}"]
+            task = self._tree_record_task(tree_evidence, record)
+            lines = [f"\n{label}{score_text} task: {task or trace.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join((consensus or [])[:fold])}] (folded)")
             lines.append("  actions: " + (">".join(f"A{action_id}" for action_id in path_action_ids) or "(fully folded)"))
-            trace_steps = list(trace.get("steps", []) or [])[fold:]
+            step_numbers = list(record.get("k") or range(1, len(record.get("q") or []) + 1))[fold:]
             for offset, (action_id, payload) in enumerate(zip(path_action_ids, observations)):
                 obs_text = str(payload[0] if isinstance(payload, list) and payload else "")
                 is_full = bool(payload[1]) if isinstance(payload, list) and len(payload) > 1 else False
                 text_label = "obs" if is_full else "delta"
-                step = trace_steps[offset] if offset < len(trace_steps) else {}
-                step_number = step.get("step", fold + offset + 1)
+                step_number = (
+                    step_numbers[offset]
+                    if offset < len(step_numbers)
+                    else fold + offset + 1
+                )
                 lines.append(f"  s{step_number} A{action_id} {text_label}: {obs_text[: self._evidence_limit('observation_chars_per_step', 400)]}")
-            nonzero_rewards = []
-            for offset, step in enumerate(trace_steps[:len(path_action_ids)]):
-                reward = step.get("reward", 0) or 0
-                if reward:
-                    step_number = step.get("step", fold + offset + 1)
-                    nonzero_rewards.append(f"s{step_number}={reward}")
+            visible_steps = set(step_numbers[:len(path_action_ids)])
+            nonzero_rewards = [
+                f"s{item[0]}={item[1]}"
+                for item in (record.get("w") or [])
+                if isinstance(item, list)
+                and len(item) >= 2
+                and item[0] in visible_steps
+            ]
             if nonzero_rewards:
                 lines.append("  nonzero_rewards: " + ",".join(nonzero_rewards))
-            if trace.get("dropped_loops"):
-                lines.append(f"  (dropped {trace['dropped_loops']} looping actions)")
+            dropped_loops = int(record.get("d", trace.get("dropped_loops", 0)) or 0)
+            if dropped_loops:
+                lines.append(f"  (dropped {dropped_loops} looping actions)")
             rendered.append("\n".join(lines))
 
         action_lines = ["ACTION KEY (A-id replaces repeated normalized action text):"]
@@ -1119,9 +1161,71 @@ Return ONLY the JSON array, no other text."""
         )
         return "\n".join(action_lines + rendered)
 
+    @classmethod
+    def _tree_record_actions(cls, tree_evidence: Dict, record: Dict) -> List[str]:
+        node_table = {
+            index: node
+            for index, node in enumerate(tree_evidence.get("nodes") or [], start=1)
+        }
+        return [
+            cls._tree_node_action(tree_evidence, node_table.get(node_id))
+            for node_id in (record.get("q") or [])
+        ]
+
+    @staticmethod
+    def _fold_action_count(
+        actions: List[str],
+        consensus: Optional[List[str]],
+    ) -> int:
+        if not consensus:
+            return 0
+        fold = 0
+        for action, mastered in zip(actions, consensus):
+            if action != mastered:
+                break
+            fold += 1
+        return fold
+
+    @staticmethod
+    def _tree_record_task(tree_evidence: Dict, record: Dict) -> str:
+        task_ref = record.get("g")
+        tasks = tree_evidence.get("tasks") or []
+        if isinstance(task_ref, int) and not isinstance(task_ref, bool):
+            index = task_ref - 1
+            if 0 <= index < len(tasks):
+                return str(tasks[index])
+            return ""
+        return str(task_ref or "")
+
+    @classmethod
+    def _tree_consensus_prefix(
+        cls,
+        traces: List[Dict],
+        tree_evidence: Optional[Dict],
+        *,
+        fallback,
+    ) -> List[str]:
+        if not tree_evidence:
+            return fallback(traces)
+        if "consensus_by_type" not in tree_evidence:
+            # Historical codecs shipped alongside flat traces and did not
+            # carry their own consensus summary.
+            return fallback(traces)
+        task_types = {
+            str(trace.get("task_type") or "unknown")
+            for trace in traces
+        }
+        consensus_by_type = tree_evidence.get("consensus_by_type") or {}
+        if len(task_types) == 1:
+            return list(consensus_by_type.get(next(iter(task_types))) or [])
+        # Mixed-task calls intentionally have no cross-task consensus.
+        if len(task_types) > 1:
+            return []
+        return fallback(traces)
+
     @staticmethod
     def _tree_node_action(tree_evidence: Dict, node: Any) -> str:
-        """Decode a v1 string action or a v2 action-vocabulary reference."""
+        """Decode a legacy string action or an action-vocabulary reference."""
         if not isinstance(node, list) or len(node) < 2:
             return ""
         action_ref = node[1]
@@ -1134,7 +1238,7 @@ Return ONLY the JSON array, no other text."""
 
     @classmethod
     def _tree_action_vocabulary(cls, tree_evidence: Dict) -> tuple[Dict[int, str], Dict[str, int]]:
-        """Return a stable action vocabulary for both codec v1 and v2."""
+        """Return a stable action vocabulary for legacy and current codecs."""
         supplied = [str(action) for action in (tree_evidence.get("actions") or [])]
         if supplied:
             action_table = {index: action for index, action in enumerate(supplied, start=1)}

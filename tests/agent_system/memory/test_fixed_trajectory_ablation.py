@@ -41,7 +41,8 @@ def _trace(outcome="failure"):
 
 def test_all_compression_off_has_raw_observations_and_no_prefix_fields():
     pool = TracesPool(enable_loop_filter=False, enable_obs_delta=False,
-                      enable_prefix_tree=False, enable_consensus_prefix=False)
+                      enable_prefix_tree=False, enable_consensus_prefix=False,
+                      cloud_evidence_mode="flat")
     pool.add_trace(_trace())
     batch = pool.export_batch()
     assert "prefix_tree" not in batch
@@ -502,6 +503,7 @@ def test_trace_compression_off_launcher_only_appends_four_disable_flags():
         "trace_enable_prefix_tree", "trace_enable_consensus_prefix",
     ):
         assert f"--{flag} 0" in script
+    assert "--trace_cloud_evidence_mode flat" in script
 
 
 def test_one_two_four_gpu_ablation_launchers_keep_global_protocol():
@@ -536,8 +538,32 @@ def test_trace_compression_condition_is_written_from_all_four_flags():
     )
     metrics = _trace_compression_metric_fields(args)
     assert metrics["experiment/trace_compression/condition"] == "all_off"
-    assert all(value == 0 for key, value in metrics.items() if key !=
-               "experiment/trace_compression/condition")
+    assert metrics["experiment/trace_compression/cloud_evidence_mode"] == "tree_only"
+    assert all(
+        value == 0
+        for key, value in metrics.items()
+        if key not in {
+            "experiment/trace_compression/condition",
+            "experiment/trace_compression/cloud_evidence_mode",
+        }
+    )
+
+
+def test_main_coskill_launchers_explicitly_use_tree_only_cloud_evidence():
+    scripts = PROJECT_ROOT / "examples" / "playbook_evolve"
+    for name in (
+        "run_alfworld_playbook_evolve_norl.sh",
+        "run_webshop_playbook_evolve_norl.sh",
+    ):
+        text = (scripts / name).read_text()
+        assert "--trace_enable_prefix_tree 1" in text
+        assert "--trace_cloud_evidence_mode tree_only" in text
+
+    tree_rl = (
+        PROJECT_ROOT / "examples" / "grpo_trainer" / "run_coskill_tree_rl.sh"
+    ).read_text()
+    assert "+env.traces_pool.enable_prefix_tree=true" in tree_rl
+    assert "+env.traces_pool.cloud_evidence_mode=tree_only" in tree_rl
 
 
 def test_token_ledger_uses_runtime_task_names_and_merges_legacy_names():

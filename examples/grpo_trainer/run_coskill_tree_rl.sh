@@ -592,6 +592,11 @@ ppo_args=(
     +env.traces_pool.perf_watermark=0.6
     +env.traces_pool.min_samples=16
     +env.traces_pool.loop_threshold=3
+    +env.traces_pool.enable_loop_filter=true
+    +env.traces_pool.enable_obs_delta=true
+    +env.traces_pool.enable_prefix_tree=true
+    +env.traces_pool.enable_consensus_prefix=true
+    +env.traces_pool.cloud_evidence_mode=tree_only
 
     trainer.critic_warmup=0
     trainer.logger=['console','jsonl']

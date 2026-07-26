@@ -1099,6 +1099,13 @@ class RayPPOTrainer:
                 min_samples=tp_cfg.get('min_samples', 8),
                 loop_threshold=tp_cfg.get('loop_threshold', 3),
                 output_dir=self._coskill_output_dir(),
+                enable_loop_filter=tp_cfg.get('enable_loop_filter', True),
+                enable_obs_delta=tp_cfg.get('enable_obs_delta', True),
+                enable_prefix_tree=tp_cfg.get('enable_prefix_tree', True),
+                enable_consensus_prefix=tp_cfg.get('enable_consensus_prefix', True),
+                cloud_evidence_mode=tp_cfg.get(
+                    'cloud_evidence_mode', 'tree_only'
+                ),
             )
 
         inputs = self.tokenizer.batch_decode(batch.batch["prompts"], skip_special_tokens=True)

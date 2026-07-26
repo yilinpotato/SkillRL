@@ -90,6 +90,9 @@ def _trace_compression_metric_fields(args):
     condition = "all_on" if all(flags.values()) else ("all_off" if not any(flags.values()) else "partial")
     return {
         "experiment/trace_compression/condition": condition,
+        "experiment/trace_compression/cloud_evidence_mode": getattr(
+            args, "trace_cloud_evidence_mode", "tree_only"
+        ),
         **{f"experiment/trace_compression/{name}": int(enabled) for name, enabled in flags.items()},
     }
 
@@ -846,6 +849,15 @@ def main():
     ap.add_argument("--trace_enable_obs_delta", type=int, default=1)
     ap.add_argument("--trace_enable_prefix_tree", type=int, default=1)
     ap.add_argument("--trace_enable_consensus_prefix", type=int, default=1)
+    ap.add_argument(
+        "--trace_cloud_evidence_mode",
+        choices=("tree_only", "flat"),
+        default="tree_only",
+        help=(
+            "tree_only sends only the self-contained trajectory-tree codec to "
+            "CloudAnalyzer; flat is reserved for compression-off ablations"
+        ),
+    )
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--log_trajectories", type=int, default=1)
     ap.add_argument("--resume", type=int, default=0, help="1 则从同一个 --outdir 里上一次留下的 skill_lib checkpoint + summary_partial.json 恢复技能库和 epoch/episode 进度，而不是从 --skills_json 种子文件、episode 0 重新开始。显式 opt-in，避免误用旧 outdir 的陈旧状态覆盖一次本想全新开始的运行。")
@@ -886,6 +898,7 @@ def main():
         enable_obs_delta=bool(args.trace_enable_obs_delta),
         enable_prefix_tree=bool(args.trace_enable_prefix_tree),
         enable_consensus_prefix=bool(args.trace_enable_consensus_prefix),
+        cloud_evidence_mode=args.trace_cloud_evidence_mode,
     )
 
     # 3) 共享云端编排（trainer 也用同一个类）。
@@ -1523,6 +1536,7 @@ def main():
                 "enable_obs_delta": bool(args.trace_enable_obs_delta),
                 "enable_prefix_tree": bool(args.trace_enable_prefix_tree),
                 "enable_consensus_prefix": bool(args.trace_enable_consensus_prefix),
+                "cloud_evidence_mode": args.trace_cloud_evidence_mode,
                 "accounting": "chars_div_4",
             },
             "cloud_update_every": args.cloud_update_every,

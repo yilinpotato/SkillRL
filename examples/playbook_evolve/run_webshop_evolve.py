@@ -923,6 +923,19 @@ def _parse_args():
     parser.add_argument("--perf_watermark", type=float, default=0.6)
     parser.add_argument("--min_samples", type=int, default=16)
     parser.add_argument("--loop_threshold", type=int, default=3)
+    parser.add_argument("--trace_enable_loop_filter", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--trace_enable_obs_delta", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--trace_enable_prefix_tree", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--trace_enable_consensus_prefix", type=int, choices=[0, 1], default=1)
+    parser.add_argument(
+        "--trace_cloud_evidence_mode",
+        choices=("tree_only", "flat"),
+        default="tree_only",
+        help=(
+            "tree_only sends only the self-contained trajectory-tree codec to "
+            "CloudAnalyzer; flat is reserved for trace-compression ablations"
+        ),
+    )
     parser.add_argument("--coskill_debug", type=int, default=0)
     parser.add_argument("--log_trajectories", type=int, default=0)
     parser.add_argument("--think_trace_samples_per_group", type=int, default=0,
@@ -1006,6 +1019,11 @@ def main():
         min_samples=args.min_samples,
         loop_threshold=args.loop_threshold,
         output_dir=args.outdir,
+        enable_loop_filter=bool(args.trace_enable_loop_filter),
+        enable_obs_delta=bool(args.trace_enable_obs_delta),
+        enable_prefix_tree=bool(args.trace_enable_prefix_tree),
+        enable_consensus_prefix=bool(args.trace_enable_consensus_prefix),
+        cloud_evidence_mode=args.trace_cloud_evidence_mode,
     )
     _rehydrate_traces_pool(traces_pool, args.outdir, resume_state)
     cloud_loop = CoSkillCloudLoop(
@@ -1231,6 +1249,15 @@ def main():
             "skill_tree_enabled": enable_tree,
             "skill_tree_evolve_enabled": enable_tree_evolve,
             "skill_bullets_enabled": bool(args.enable_coskill),
+            "trace_compression": {
+                "enable_loop_filter": bool(args.trace_enable_loop_filter),
+                "enable_obs_delta": bool(args.trace_enable_obs_delta),
+                "enable_prefix_tree": bool(args.trace_enable_prefix_tree),
+                "enable_consensus_prefix": bool(
+                    args.trace_enable_consensus_prefix
+                ),
+                "cloud_evidence_mode": args.trace_cloud_evidence_mode,
+            },
             "cloud_update_every": args.cloud_update_every,
             "cloud_update_steps": cloud_update_steps,
             "total_episodes": len(per_game),
@@ -1474,6 +1501,21 @@ def main():
                 "experiment/skill_bullets_enabled": int(bool(args.enable_coskill)),
                 "experiment/rl_enabled": 0,
                 "experiment/tree_rl_internalize_enabled": 0,
+                "experiment/trace_compression/cloud_evidence_mode": (
+                    args.trace_cloud_evidence_mode
+                ),
+                "experiment/trace_compression/enable_loop_filter": int(
+                    bool(args.trace_enable_loop_filter)
+                ),
+                "experiment/trace_compression/enable_obs_delta": int(
+                    bool(args.trace_enable_obs_delta)
+                ),
+                "experiment/trace_compression/enable_prefix_tree": int(
+                    bool(args.trace_enable_prefix_tree)
+                ),
+                "experiment/trace_compression/enable_consensus_prefix": int(
+                    bool(args.trace_enable_consensus_prefix)
+                ),
                 "parallel/data_parallel_workers": args.data_parallel_workers,
                 "parallel/tensor_parallel_size": args.tensor_parallel_size,
                 "parallel/pipeline_parallel_size": args.pipeline_parallel_size,

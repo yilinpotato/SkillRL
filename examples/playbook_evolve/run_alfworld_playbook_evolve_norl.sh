@@ -357,5 +357,10 @@ python3 -u -m examples.playbook_evolve.run_playbook_evolve \
     --perf_watermark 0.6 \
     --min_samples 16 \
     --loop_threshold 3 \
+    --trace_enable_loop_filter 1 \
+    --trace_enable_obs_delta 1 \
+    --trace_enable_prefix_tree 1 \
+    --trace_enable_consensus_prefix 1 \
+    --trace_cloud_evidence_mode tree_only \
     --log_trajectories "$LOG_TRAJECTORIES" \
     "$@" 2>&1 | tee "$OUTPUT_DIR/driver.log"

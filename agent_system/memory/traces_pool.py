@@ -118,6 +118,7 @@ class TracesPool:
         enable_obs_delta: bool = True,
         enable_prefix_tree: bool = True,
         enable_consensus_prefix: bool = True,
+        cloud_evidence_mode: str = "tree_only",
     ):
         """
         Args:
@@ -132,6 +133,8 @@ class TracesPool:
             decline_delta:       后半窗口成功率比前半窗口下降超过该值视为下降。
             stagnation_success_ceiling:
                                   成功率已接近满分时不因“停滞”触发，避免无意义云端调用。
+            cloud_evidence_mode:  ``tree_only`` 仅向云端投影自包含轨迹树；
+                                  ``flat`` 仅用于明确关闭压缩的消融。
         """
         self.capacity_watermark = capacity_watermark
         self.perf_watermark = perf_watermark
@@ -149,6 +152,13 @@ class TracesPool:
         self.enable_obs_delta = bool(enable_obs_delta)
         self.enable_prefix_tree = bool(enable_prefix_tree)
         self.enable_consensus_prefix = bool(enable_consensus_prefix)
+        self.cloud_evidence_mode = str(cloud_evidence_mode or "").strip().lower()
+        if self.cloud_evidence_mode not in {"tree_only", "flat"}:
+            raise ValueError("cloud_evidence_mode must be 'tree_only' or 'flat'")
+        if self.cloud_evidence_mode == "tree_only" and not self.enable_prefix_tree:
+            raise ValueError(
+                "cloud_evidence_mode='tree_only' requires enable_prefix_tree=True"
+            )
 
         # 压缩后轨迹按 task_type + outcome 分桶
         self._success: Dict[str, deque] = defaultdict(lambda: deque(maxlen=max_keep_per_type))
@@ -445,16 +455,21 @@ class TracesPool:
         The historical nested ``prefix_tree`` was an *additional* JSON object:
         flat trajectories remained in the batch and the tree repeated actions,
         counts, variants, and child-map keys.  This codec is the replacement
-        sent to cloud prompt builders.  Version 2 interns normalized actions in
+        sent to cloud prompt builders.  Version 3 interns normalized actions in
         a shared vocabulary because a large trie can contain hundreds of nodes
         but only a few dozen distinct action types.  Each node therefore stores
         an action id rather than repeating the action text, and each rollout
-        stores only a path of node ids plus observation deltas.  ``count`` is
-        derivable as ``success + failure`` and instance variants are not useful
-        to a skill author, so neither is serialized.
+        stores only a path of node ids plus observation deltas and sparse
+        non-zero rewards.  Task texts and exact per-task consensus prefixes are
+        interned/summarized inside the codec so the cloud renderer never needs
+        the local flat step arrays.  ``count`` is derivable as
+        ``success + failure`` and instance variants are not useful to a skill
+        author, so neither is serialized.
         """
         actions: List[str] = []
         action_ids: Dict[str, int] = {}
+        tasks: List[str] = []
+        task_ids: Dict[str, int] = {}
         nodes: List[List[object]] = []  # [parent_id, action_id, succ, fail]
         edge_ids: Dict[Tuple[int, str], int] = {}
 
@@ -465,6 +480,14 @@ class TracesPool:
                 action_ids[action] = action_id
                 actions.append(action)
             return action_id
+
+        def intern_task(task: str) -> int:
+            task_id = task_ids.get(task)
+            if task_id is None:
+                task_id = len(tasks) + 1
+                task_ids[task] = task_id
+                tasks.append(task)
+            return task_id
 
         def visit(node: dict, parent_id: int) -> None:
             for action, child in (node.get("children") or {}).items():
@@ -502,15 +525,53 @@ class TracesPool:
                     ])
                 else:
                     encoded_steps.append([step.get("observation", ""), 1])
-            records.append({
+            steps = trace.get("steps", []) or []
+            step_numbers = [
+                int(step.get("step", index))
+                for index, step in enumerate(steps, start=1)
+            ]
+            nonzero_rewards = [
+                [step_numbers[index], step.get("reward", 0)]
+                for index, step in enumerate(steps)
+                if step.get("reward", 0)
+            ]
+            record = {
                 "u": trace.get("traj_uid", ""),
                 "t": trace.get("task_type", "unknown"),
                 "o": "S" if trace.get("outcome") == "success" else "F",
+                "g": intern_task(str(trace.get("task", "") or "")),
                 "q": path,
                 "x": encoded_steps,
-                "r": trace.get("task_score"),
-            })
-        return {"version": 2, "actions": actions, "nodes": nodes, "records": records}
+            }
+            if step_numbers != list(range(1, len(step_numbers) + 1)):
+                record["k"] = step_numbers
+            if nonzero_rewards:
+                record["w"] = nonzero_rewards
+            if trace.get("task_score") is not None:
+                record["r"] = trace.get("task_score")
+            if trace.get("dropped_loops"):
+                record["d"] = int(trace.get("dropped_loops", 0) or 0)
+            records.append(record)
+        success_by_type: Dict[str, List[dict]] = defaultdict(list)
+        for trace in traces:
+            if trace.get("outcome") == "success":
+                success_by_type[str(trace.get("task_type", "unknown"))].append(trace)
+        consensus_by_type = {
+            task_type: [
+                _normalize_action_for_merge(action) for action in prefix
+            ]
+            for task_type, samples in success_by_type.items()
+            if (prefix := longest_common_action_prefix(samples))
+        }
+        return {
+            "version": 3,
+            "mode": "tree_only",
+            "actions": actions,
+            "tasks": tasks,
+            "nodes": nodes,
+            "records": records,
+            "consensus_by_type": consensus_by_type,
+        }
 
     @staticmethod
     def _finalize_variants(node: dict) -> None:
@@ -634,6 +695,7 @@ class TracesPool:
                 "enable_obs_delta": self.enable_obs_delta,
                 "enable_prefix_tree": self.enable_prefix_tree,
                 "enable_consensus_prefix": self.enable_consensus_prefix,
+                "cloud_evidence_mode": self.cloud_evidence_mode,
                 "accounting": "chars_div_4",
                 "trace_stage_totals": self._batch_trace_stage_totals(all_samples),
                 "consensus_prefix": {
@@ -665,6 +727,57 @@ class TracesPool:
         if self.output_dir is not None:
             self._dump_batch(batch)
         return batch
+
+    @staticmethod
+    def project_cloud_batch(batch: dict) -> dict:
+        """Return the exact batch allowed to cross the cloud boundary.
+
+        Production CoSkill uses ``tree_only``: flat step arrays remain in the
+        local ``traces_pool`` artifact for audit/resume, while CloudAnalyzer
+        receives only lightweight rollout indexes plus the self-contained
+        trajectory-tree codec.  This prevents prompt builders from
+        accidentally serializing both representations or silently falling
+        back to the flat trajectories.
+
+        Compression-off ablations explicitly use ``flat`` and retain the
+        historical full batch unchanged.
+        """
+        compression = batch.get("compression") or {}
+        mode = str(compression.get("cloud_evidence_mode") or "flat")
+        if mode == "flat":
+            return batch
+        if mode != "tree_only":
+            raise ValueError(f"unsupported cloud evidence mode: {mode!r}")
+        tree_evidence = batch.get("tree_evidence")
+        if not isinstance(tree_evidence, dict) or not tree_evidence.get("records"):
+            raise ValueError(
+                "tree_only cloud evidence requires a non-empty tree_evidence codec"
+            )
+
+        def metadata_only(trace: dict) -> dict:
+            return {
+                "traj_uid": trace.get("traj_uid", ""),
+                "task_type": trace.get("task_type", "unknown"),
+                "outcome": trace.get("outcome", "failure"),
+            }
+
+        projected = dict(batch)
+        projected["success_samples"] = [
+            metadata_only(trace) for trace in (batch.get("success_samples") or [])
+        ]
+        projected["failure_samples"] = [
+            metadata_only(trace) for trace in (batch.get("failure_samples") or [])
+        ]
+        projected["consensus_prefix"] = [
+            _normalize_action_for_merge(action)
+            for action in (batch.get("consensus_prefix") or [])
+        ]
+        projected["cloud_projection"] = {
+            "mode": "tree_only",
+            "flat_steps_uploaded": False,
+            "codec_version": int(tree_evidence.get("version", 0) or 0),
+        }
+        return projected
 
     @staticmethod
     def _batch_trace_stage_totals(traces: List[dict]) -> dict:
@@ -729,6 +842,7 @@ class TracesPool:
             "pending_added": self._n_added,
             "pending_tokens": self._token_count,
             "total_dropped_loops": self._total_dropped_loops,
+            "cloud_evidence_mode": self.cloud_evidence_mode,
             "task_types": sorted(set(self._success) | set(self._failure)),
             "recent_success_rate": {
                 tt: self.recent_success_rate(tt)

@@ -1,4 +1,7 @@
+import pytest
+
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
+from agent_system.memory.coskill_loop import CoSkillCloudLoop
 from agent_system.memory.traces_pool import TracesPool
 
 
@@ -26,7 +29,9 @@ def test_tree_evidence_codec_replaces_nested_tree_with_node_paths():
     codec = batch["tree_evidence"]
 
     assert "prefix_tree" not in batch
-    assert codec["version"] == 2
+    assert codec["version"] == 3
+    assert codec["mode"] == "tree_only"
+    assert codec["tasks"] == ["clean the object"]
     assert codec["actions"] == [
         "go to cabinet #",
         "open cabinet #",
@@ -41,6 +46,100 @@ def test_tree_evidence_codec_replaces_nested_tree_with_node_paths():
     assert "children" not in serialized
     assert "example_actions" not in serialized
     assert "n_variants" not in serialized
+
+
+def test_tree_only_cloud_projection_removes_flat_steps_but_stays_renderable():
+    pool = TracesPool(min_samples=1)
+    pool.add_trace(_trace("success", "success", "take mug 1"))
+    pool.add_trace(_trace("failure", "failure", "go to drawer 1"))
+    local_batch = pool.export_batch(trigger_reason="test")
+    cloud_batch = pool.project_cloud_batch(local_batch)
+
+    assert "steps" in local_batch["success_samples"][0]
+    assert "steps" not in cloud_batch["success_samples"][0]
+    assert cloud_batch["cloud_projection"] == {
+        "mode": "tree_only",
+        "flat_steps_uploaded": False,
+        "codec_version": 3,
+    }
+
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.evidence_render_limits = {
+        "steps_per_trace": 120,
+        "observation_chars_per_step": 4000,
+    }
+    rendered = analyzer._format_difftraces(
+        cloud_batch["success_samples"] + cloud_batch["failure_samples"],
+        limit=2,
+        consensus=[],
+        tree_evidence=cloud_batch["tree_evidence"],
+    )
+
+    assert "task: clean the object" in rendered
+    assert "state after decision" in rendered
+    assert "nonzero_rewards: s3=1" in rendered
+
+
+def test_tree_only_cloud_renderer_never_falls_back_to_flat_steps():
+    pool = TracesPool(min_samples=1)
+    pool.add_trace(_trace("success", "success", "take mug 1"))
+    cloud_batch = pool.project_cloud_batch(pool.export_batch(trigger_reason="test"))
+    cloud_batch["tree_evidence"]["records"] = []
+
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.evidence_render_limits = {
+        "steps_per_trace": 120,
+        "observation_chars_per_step": 4000,
+    }
+    with pytest.raises(ValueError, match="missing codec record"):
+        analyzer._format_difftraces(
+            cloud_batch["success_samples"],
+            limit=1,
+            consensus=[],
+            tree_evidence=cloud_batch["tree_evidence"],
+        )
+
+
+def test_coskill_loop_passes_only_projected_tree_evidence_to_cloud(tmp_path):
+    class RecordingAnalyzer:
+        def __init__(self):
+            self.received = None
+
+        def contrastive_distill(self, batch, _current_skills):
+            self.received = batch
+            return []
+
+        def get_update_summary(self):
+            return {}
+
+    class SkillLib:
+        skills = {}
+
+        def advance_lifecycle(self, modified_ids):
+            assert modified_ids == []
+
+        def save_skills(self, path):
+            with open(path, "w") as handle:
+                handle.write("{}")
+
+    pool = TracesPool(min_samples=1)
+    pool.add_trace(_trace("success", "success", "take mug 1"))
+    analyzer = RecordingAnalyzer()
+    loop = CoSkillCloudLoop(str(tmp_path), enable_coskill=True)
+    loop.cloud_analyzer = analyzer
+
+    assert loop.maybe_update(
+        pool,
+        SkillLib(),
+        global_step=1,
+        force_reason="test",
+    )
+    assert analyzer.received["cloud_projection"]["mode"] == "tree_only"
+    assert "steps" not in analyzer.received["success_samples"][0]
+    assert analyzer.received["tree_evidence"]["records"]
+
+    audit_files = list((tmp_path / "cloud_io").glob("cloud_batch_*.json"))
+    assert len(audit_files) == 1
 
 
 def test_cloud_renderer_uses_action_vocabulary_and_paths_not_repeated_actions():
@@ -117,14 +216,14 @@ def test_cloud_renderer_remains_compatible_with_v1_codec():
     pool = TracesPool(min_samples=1, enable_prefix_tree=True)
     pool.add_trace(_trace("success", "success", "take mug 1"))
     batch = pool.export_batch(trigger_reason="test")
-    codec_v2 = batch["tree_evidence"]
+    codec_current = batch["tree_evidence"]
     codec_v1 = {
         "version": 1,
         "nodes": [
-            [node[0], codec_v2["actions"][node[1] - 1], node[2], node[3]]
-            for node in codec_v2["nodes"]
+            [node[0], codec_current["actions"][node[1] - 1], node[2], node[3]]
+            for node in codec_current["nodes"]
         ],
-        "records": codec_v2["records"],
+        "records": codec_current["records"],
     }
 
     analyzer = CloudAnalyzer.__new__(CloudAnalyzer)

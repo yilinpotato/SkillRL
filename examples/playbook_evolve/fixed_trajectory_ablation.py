@@ -499,7 +499,11 @@ def bootstrap(args, root: Path, bootstrap_manifest: Path) -> Path:
     return frozen
 
 
-def _compress_raw(raw_traces: List[Dict[str, Any]], outdir: Path, **flags: bool) -> Dict[str, Any]:
+def _compress_raw(raw_traces: List[Dict[str, Any]], outdir: Path, **flags: Any) -> Dict[str, Any]:
+    flags.setdefault(
+        "cloud_evidence_mode",
+        "tree_only" if flags.get("enable_prefix_tree", True) else "flat",
+    )
     pool = TracesPool(output_dir=str(outdir), min_samples=999999, **flags)
     for trace in raw_traces:
         pool.add_trace(trace)

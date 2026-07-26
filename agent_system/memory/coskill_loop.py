@@ -131,9 +131,26 @@ class CoSkillCloudLoop:
         # Export compressed batch.
         _t0 = time.time()
         compressed = traces_pool.export_batch(trigger_reason=reason)
+        cloud_batch = traces_pool.project_cloud_batch(compressed)
         export_seconds = time.time() - _t0
         print(f"[CoSkill] watermark fired ({reason}); "
-              f"succ={compressed['stats']['n_success']} fail={compressed['stats']['n_failure']}")
+              f"succ={compressed['stats']['n_success']} fail={compressed['stats']['n_failure']} "
+              f"cloud_evidence={cloud_batch.get('cloud_projection', {}).get('mode', 'flat')}")
+
+        # Persist the exact object passed to CloudAnalyzer.  The full local
+        # CompressedBatch remains under traces_pool/; this artifact proves that
+        # production tree-only calls did not upload the duplicate flat steps.
+        try:
+            cloud_io_dir = os.path.join(self.output_dir, "cloud_io")
+            os.makedirs(cloud_io_dir, exist_ok=True)
+            cloud_batch_path = os.path.join(
+                cloud_io_dir,
+                f"cloud_batch_{str(compressed.get('batch_id', 'x'))[:8]}.json",
+            )
+            with open(cloud_batch_path, "w") as handle:
+                json.dump(cloud_batch, handle, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            print(f"[CoSkill] cloud batch audit dump failed: {exc}")
 
         analyzer = self._get_analyzer()
         if analyzer is None:
@@ -145,7 +162,7 @@ class CoSkillCloudLoop:
         distill_seconds = 0.0
         if self.enable_coskill:
             _t1 = time.time()
-            patches = analyzer.contrastive_distill(compressed, current_skills)
+            patches = analyzer.contrastive_distill(cloud_batch, current_skills)
             distill_seconds = time.time() - _t1
         self.last_timing = {
             'export_seconds': export_seconds,
@@ -182,7 +199,7 @@ class CoSkillCloudLoop:
         # Skill-tree evolution.
         if self.enable_playbook_evolve and hasattr(skill_lib, 'update_playbook'):
             _tp = time.time()
-            self._evolve_playbooks(analyzer, skill_lib, compressed, global_step)
+            self._evolve_playbooks(analyzer, skill_lib, cloud_batch, global_step)
             self.last_timing['playbook_seconds'] = time.time() - _tp
 
         # Persist evolved skill lib.
@@ -452,6 +469,9 @@ class CoSkillCloudLoop:
             m['coskill/pool/pending_tokens'] = s.get('pending_tokens', 0)
             m['coskill/pool/total_dropped_loops'] = s.get('total_dropped_loops', 0)
             m['coskill/pool/n_task_types'] = len(s.get('task_types', []))
+            m['coskill/cloud/evidence_mode'] = s.get(
+                'cloud_evidence_mode', 'unknown'
+            )
         if skill_lib is not None and hasattr(skill_lib, 'layer_counts'):
             for k, v in skill_lib.layer_counts().items():
                 m[f'coskill/skilllib/{k}'] = v
