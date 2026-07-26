@@ -12,6 +12,7 @@ from examples.playbook_evolve import fixed_trajectory_ablation as fixed
 from examples.playbook_evolve.skill_tree_depth_ablation_v4 import (
     _audit_evaluation_context,
     _configure_full_evidence,
+    _ensure_run_config_compatible,
     _evidence_reference_catalog,
     _grounding_errors,
     _merge_progressive_nodes,
@@ -285,6 +286,52 @@ def test_rebuild_archives_only_failed_suffix_and_preserves_valid_prefix(tmp_path
     assert (archive / "root_summaries" / "generation_metrics.jsonl").exists()
     receipt = json.loads((archive / "rebuild_receipt.json").read_text())
     assert receipt["effective_start_level"] == 3
+
+
+def test_run_config_resume_normalizes_tuple_and_list_round_trip(tmp_path):
+    path = tmp_path / "run_config.json"
+    config = {
+        "experiment_kind": "alfworld_skill_tree_depth_v4",
+        "task_types": ("pick_and_place_simple", "look_at_obj_in_light"),
+        "protocol": {
+            "progressive_generation_output": (
+                "L1_full_tree_then_cloud_delta_nodes_plus_deterministic_local_merge"
+            ),
+            "evaluation": {"held_out_games_per_task": 3},
+        },
+    }
+    fixed._write_json(path, config)
+    assert isinstance(fixed._read_json(path)["task_types"], list)
+    assert _ensure_run_config_compatible(path, config, rebuild_from_level=3) == "matched"
+
+
+def test_run_config_suffix_rebuild_upgrades_only_compatible_legacy_config(tmp_path):
+    path = tmp_path / "run_config.json"
+    config = {
+        "experiment_kind": "alfworld_skill_tree_depth_v4",
+        "task_types": ("pick_and_place_simple",),
+        "protocol": {
+            "progressive_generation_output": (
+                "L1_full_tree_then_cloud_delta_nodes_plus_deterministic_local_merge"
+            ),
+            "evaluation": {"held_out_games_per_task": 3},
+        },
+    }
+    legacy = json.loads(json.dumps(config))
+    legacy["protocol"].pop("progressive_generation_output")
+    fixed._write_json(path, legacy)
+    assert _ensure_run_config_compatible(path, config, rebuild_from_level=3) == "upgraded"
+    assert fixed._read_json(path)["protocol"]["progressive_generation_output"].startswith("L1_full_tree")
+
+    changed = json.loads(json.dumps(config))
+    changed["protocol"]["evaluation"]["held_out_games_per_task"] = 5
+    fixed._write_json(path, changed)
+    try:
+        _ensure_run_config_compatible(path, config, rebuild_from_level=3)
+    except RuntimeError as exc:
+        assert "different protocol settings" in str(exc)
+    else:
+        raise AssertionError("a genuinely different V4 protocol must still be rejected")
 
 
 def test_alfworld_semantic_validator_covers_deep_tree_failure_modes():

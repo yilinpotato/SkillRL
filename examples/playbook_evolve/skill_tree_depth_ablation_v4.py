@@ -36,6 +36,37 @@ DEFAULT_INITIAL_TRACES_PER_TYPE = 12
 DEFAULT_GENERATION_ATTEMPTS = 20
 
 
+def _json_normalized(value: Any) -> Any:
+    """Return the exact JSON round-trip representation used on disk."""
+    return json.loads(json.dumps(value, ensure_ascii=False))
+
+
+def _ensure_run_config_compatible(
+    path: Path,
+    config: dict[str, Any],
+    rebuild_from_level: int | None,
+) -> str:
+    """Create, validate, or narrowly upgrade a resumable V4 run config."""
+    expected = _json_normalized(config)
+    if not path.exists():
+        fixed._write_json(path, expected)
+        return "created"
+
+    existing = _json_normalized(fixed._read_json(path))
+    if existing == expected:
+        return "matched"
+
+    if rebuild_from_level is not None:
+        expected_legacy = _json_normalized(expected)
+        expected_legacy["protocol"].pop("progressive_generation_output", None)
+        if existing == expected_legacy:
+            fixed._write_json(path, expected)
+            print("[skill-tree-v4] upgraded compatible pre-delta run_config for suffix rebuild")
+            return "upgraded"
+
+    raise RuntimeError("existing V4 root has different protocol settings; use a new --root")
+
+
 def _is_success(trace: dict[str, Any]) -> bool:
     return trace.get("outcome") == "success" or float(trace.get("episode_reward", 0) or 0) > 0
 
@@ -1224,8 +1255,8 @@ def main() -> None:
     config = {
         "experiment_kind": "alfworld_skill_tree_depth_v4",
         "arms": list(ARMS),
-        "task_types": fixed.TASK_TYPES,
-        "runtime_task_types": fixed.RUNTIME_TASK_TYPES,
+        "task_types": list(fixed.TASK_TYPES),
+        "runtime_task_types": list(fixed.RUNTIME_TASK_TYPES),
         "protocol": {
             "online_growth": False,
             "same_tree_progressive_levels": True,
@@ -1253,20 +1284,7 @@ def main() -> None:
         "external_source_game_ids": ("not available in generic raw_traces schema; evaluation is shared across arms but cannot prove non-overlap with the external source corpus"),
     }
     existing_config = root / "run_config.json"
-    if existing_config.exists():
-        existing = fixed._read_json(existing_config)
-        if existing != config:
-            legacy_compatible = False
-            if args.rebuild_from_level is not None:
-                expected_legacy = json.loads(json.dumps(config))
-                expected_legacy["protocol"].pop("progressive_generation_output", None)
-                legacy_compatible = existing == expected_legacy
-            if not legacy_compatible:
-                raise RuntimeError("existing V4 root has different protocol settings; use a new --root")
-            fixed._write_json(existing_config, config)
-            print("[skill-tree-v4] upgraded compatible pre-delta run_config for suffix rebuild")
-    else:
-        fixed._write_json(existing_config, config)
+    _ensure_run_config_compatible(existing_config, config, args.rebuild_from_level)
 
     if args.phase in ("prepare", "all"):
         if args.rebuild_from_level is not None:
