@@ -4,11 +4,27 @@ from agent_system.memory.cloud_analyzer import CloudAnalyzer
 from examples.playbook_evolve.trace_compression_one_step_ablation import (
     ROLL_OUTS_PER_TYPE,
     RUNTIME_TASK_TYPES,
+    _uploaded_trace_payload,
     _validate_shared_raw,
     annotate_call_costs,
     build_token_waterfall,
     summarize_cloud_cost,
 )
+
+
+def test_uploaded_trace_payload_reports_actual_codec_version():
+    payload = _uploaded_trace_payload({
+        "tree_evidence": {
+            "version": 2,
+            "actions": ["look"],
+            "nodes": [[0, 1, 1, 0]],
+            "records": [],
+        },
+        "success_samples": [],
+        "failure_samples": [],
+    })
+
+    assert payload["cloud_evidence_representation"] == "prefix_tree_codec_v2"
 
 
 def test_cache_usage_audit_preserves_provider_split():

@@ -126,10 +126,12 @@ def _uploaded_trace_payload(batch: dict[str, Any]) -> dict[str, Any]:
         "consensus_prefix": batch.get("consensus_prefix"),
     }
     evidence = batch.get("tree_evidence") or flat_evidence
+    codec_version = int((batch.get("tree_evidence") or {}).get("version", 0) or 0)
     return {
         "trace_evidence": _json_stats(evidence),
         "cloud_evidence_representation": (
-            "prefix_tree_codec_v1" if batch.get("tree_evidence") else "flat_trajectories"),
+            f"prefix_tree_codec_v{codec_version}"
+            if codec_version else "flat_trajectories"),
         "local_flat_samples": _json_stats(flat_evidence),
         "compressed_batch": _json_stats(batch),
         "trace_stage_totals": (batch.get("compression", {}) or {}).get("trace_stage_totals", {}),

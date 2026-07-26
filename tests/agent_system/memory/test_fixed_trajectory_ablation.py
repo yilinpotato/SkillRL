@@ -89,9 +89,10 @@ def test_prefix_tree_merges_on_normalized_action_not_instance_number():
     pool.add_trace(_trace_with_actions("b", ["go to cabinet 7", "open cabinet 7"], outcome="success"))
     batch = pool.export_batch()
     codec = batch["tree_evidence"]
+    assert codec["actions"] == ["go to cabinet #", "open cabinet #"]
     assert codec["nodes"] == [
-        [0, "go to cabinet #", 1, 1],
-        [1, "open cabinet #", 1, 1],
+        [0, 1, 1, 1],
+        [1, 2, 1, 1],
     ]
     assert {tuple(record["q"]) for record in codec["records"]} == {(1, 2)}
 
@@ -101,8 +102,9 @@ def test_prefix_tree_still_forks_on_genuinely_different_actions():
     pool.add_trace(_trace_with_actions("a", ["go to cabinet 1"]))
     pool.add_trace(_trace_with_actions("b", ["go to drawer 2"]))
     batch = pool.export_batch()
+    actions = batch["tree_evidence"]["actions"]
     nodes = batch["tree_evidence"]["nodes"]
-    assert {(node[0], node[1]) for node in nodes} == {
+    assert {(node[0], actions[node[1] - 1]) for node in nodes} == {
         (0, "go to cabinet #"),
         (0, "go to drawer #"),
     }

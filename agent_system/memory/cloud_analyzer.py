@@ -1034,12 +1034,16 @@ Return ONLY the JSON array, no other text."""
         tree_evidence: Dict,
         reflabeled: bool = False,
     ) -> str:
-        """Render trace evidence through a trie node table, not flat actions.
+        """Render tree evidence as an action vocabulary plus compact paths.
 
-        A node action is printed once.  Each rollout then references it via a
-        compact ``N1>N7>...`` path and carries only outcome-bound observation
-        deltas.  This preserves success/failure attribution while removing
-        repeated action prefixes from every cloud prompt.
+        The v1 renderer expanded every trie node into a verbose
+        ``parent/action/succ/fail`` line.  ALFWorld batches commonly have many
+        nearly unique prefix nodes but very few normalized action types, so
+        that human-readable expansion could exceed the flat prompt even though
+        the serialized codec was smaller.  The cloud only needs each action
+        definition once; common-prefix structure is recoverable from the
+        compact action-id paths, while branch counts remain in
+        :meth:`_format_forks`.
         """
         records = {str(record.get("u", "")): record for record in (tree_evidence.get("records") or [])}
         selected = []
@@ -1051,38 +1055,98 @@ Return ONLY the JSON array, no other text."""
             selected.append((index, trace, record))
 
         node_table = {index: node for index, node in enumerate(tree_evidence.get("nodes") or [], start=1)}
-        needed_ids = set()
+        action_table, action_id_by_text = self._tree_action_vocabulary(tree_evidence)
+        needed_action_ids = set()
         rendered = []
         for index, trace, record in selected:
             fold = self._fold_count(trace.get("steps", []) or [], consensus)
             path = list(record.get("q") or [])[fold:]
             observations = list(record.get("x") or [])[fold:]
-            needed_ids.update(path)
+            path_action_ids = []
+            for node_id in path:
+                node = node_table.get(node_id)
+                action = self._tree_node_action(tree_evidence, node)
+                action_id = action_id_by_text.get(action)
+                if action_id is None:
+                    # Do not silently misalign observations with actions when
+                    # an external or partially written codec is malformed.
+                    return self._format_difftraces_flat(traces, consensus, reflabeled)
+                path_action_ids.append(action_id)
+                needed_action_ids.add(action_id)
             score = trace.get("task_score")
             score_text = f" task_score={score}" if score is not None else ""
-            label = f"[ref={trace.get('_ref', '?')}]" if reflabeled else f"Trajectory {index} [{trace.get('outcome', '?')}]"
+            label = (
+                f"[ref={trace.get('_ref', '?')}]"
+                if reflabeled
+                else (
+                    f"Trajectory {index} [{trace.get('outcome', '?')}] "
+                    f"[ref={trace.get('traj_uid', '?')}]"
+                )
+            )
             lines = [f"\n{label}{score_text} task: {trace.get('task', '')}"]
             if fold:
                 lines.append(f"  [consensus prefix ✓: {' → '.join((consensus or [])[:fold])}] (folded)")
-            lines.append("  path: " + (" > ".join(f"N{node_id}" for node_id in path) or "(fully folded)"))
-            lines.append("  transition semantics: each state attached to N is BEFORE N's action; the following node's state is the observed state AFTER the previous action")
-            for node_id, payload in zip(path, observations):
+            lines.append("  actions: " + (">".join(f"A{action_id}" for action_id in path_action_ids) or "(fully folded)"))
+            trace_steps = list(trace.get("steps", []) or [])[fold:]
+            for offset, (action_id, payload) in enumerate(zip(path_action_ids, observations)):
                 obs_text = str(payload[0] if isinstance(payload, list) and payload else "")
                 is_full = bool(payload[1]) if isinstance(payload, list) and len(payload) > 1 else False
-                text_label = "full_observation" if is_full else "observation_delta"
-                lines.append(f"  N{node_id} | state_before_action [{text_label}]: {obs_text[: self._evidence_limit('observation_chars_per_step', 400)]}")
+                text_label = "obs" if is_full else "delta"
+                step = trace_steps[offset] if offset < len(trace_steps) else {}
+                step_number = step.get("step", fold + offset + 1)
+                lines.append(f"  s{step_number} A{action_id} {text_label}: {obs_text[: self._evidence_limit('observation_chars_per_step', 400)]}")
+            nonzero_rewards = []
+            for offset, step in enumerate(trace_steps[:len(path_action_ids)]):
+                reward = step.get("reward", 0) or 0
+                if reward:
+                    step_number = step.get("step", fold + offset + 1)
+                    nonzero_rewards.append(f"s{step_number}={reward}")
+            if nonzero_rewards:
+                lines.append("  nonzero_rewards: " + ",".join(nonzero_rewards))
             if trace.get("dropped_loops"):
                 lines.append(f"  (dropped {trace['dropped_loops']} looping actions)")
             rendered.append("\n".join(lines))
 
-        node_lines = ["ACTION NODE TABLE (each action is defined once; paths reference N-id):"]
-        for node_id in sorted(needed_ids):
-            node = node_table.get(node_id)
-            if not isinstance(node, list) or len(node) < 4:
-                continue
-            parent, action, success_count, failure_count = node[:4]
-            node_lines.append(f"N{node_id}: parent=N{parent}; action={action}; succ={success_count}; fail={failure_count}")
-        return "\n".join(node_lines + rendered)
+        action_lines = ["ACTION KEY (A-id replaces repeated normalized action text):"]
+        action_lines.extend(
+            f"A{action_id}={action_table[action_id]}"
+            for action_id in sorted(needed_action_ids)
+        )
+        action_lines.append(
+            "STATE KEY: sK is the state before action K; the next displayed "
+            "state is the observed state after the preceding action. Unlisted "
+            "rewards are 0; an unrecorded terminal post-state is not inferred."
+        )
+        return "\n".join(action_lines + rendered)
+
+    @staticmethod
+    def _tree_node_action(tree_evidence: Dict, node: Any) -> str:
+        """Decode a v1 string action or a v2 action-vocabulary reference."""
+        if not isinstance(node, list) or len(node) < 2:
+            return ""
+        action_ref = node[1]
+        actions = tree_evidence.get("actions") or []
+        if actions and isinstance(action_ref, int) and not isinstance(action_ref, bool):
+            index = action_ref - 1
+            if 0 <= index < len(actions):
+                return str(actions[index])
+        return str(action_ref)
+
+    @classmethod
+    def _tree_action_vocabulary(cls, tree_evidence: Dict) -> tuple[Dict[int, str], Dict[str, int]]:
+        """Return a stable action vocabulary for both codec v1 and v2."""
+        supplied = [str(action) for action in (tree_evidence.get("actions") or [])]
+        if supplied:
+            action_table = {index: action for index, action in enumerate(supplied, start=1)}
+        else:
+            action_table = {}
+            seen = set()
+            for node in tree_evidence.get("nodes") or []:
+                action = cls._tree_node_action(tree_evidence, node)
+                if action and action not in seen:
+                    seen.add(action)
+                    action_table[len(action_table) + 1] = action
+        return action_table, {action: action_id for action_id, action in action_table.items()}
 
     def _format_difftraces_flat(
         self,
@@ -1215,14 +1279,34 @@ Return ONLY the JSON array, no other text."""
         if tree_evidence:
             nodes = tree_evidence.get("nodes") or []
             children: Dict[int, List[tuple[int, List]]] = {}
+            parents: Dict[int, int] = {}
+            actions: Dict[int, str] = {}
             for node_id, node in enumerate(nodes, start=1):
                 if isinstance(node, list) and len(node) >= 4:
-                    children.setdefault(int(node[0]), []).append((node_id, node))
+                    parent_id = int(node[0])
+                    children.setdefault(parent_id, []).append((node_id, node))
+                    parents[node_id] = parent_id
+                    actions[node_id] = self._tree_node_action(tree_evidence, node)
+
+            def parent_suffix(parent_id: int, limit: int = 4) -> str:
+                suffix = []
+                cursor = parent_id
+                while cursor and len(suffix) < limit:
+                    suffix.append(actions.get(cursor, "?"))
+                    cursor = parents.get(cursor, 0)
+                suffix.reverse()
+                prefix = "... > " if cursor else ""
+                return prefix + " > ".join(suffix) if suffix else "start"
+
             for parent_id, child_nodes in children.items():
                 if len(child_nodes) <= 1:
                     continue
-                branch_desc = "; ".join(f"N{node_id}='{node[1]}' (succ={node[2]},fail={node[3]})" for node_id, node in child_nodes[:max_branches])
-                forks.append(f"After N{parent_id}: {branch_desc}")
+                branch_desc = "; ".join(
+                    f"'{self._tree_node_action(tree_evidence, node)}' "
+                    f"(succ={node[2]},fail={node[3]})"
+                    for _, node in child_nodes[:max_branches]
+                )
+                forks.append(f"After [{parent_suffix(parent_id)}]: {branch_desc}")
                 if len(forks) >= max_forks:
                     break
             return "\n".join(forks) if forks else "(no clear divergence point)"

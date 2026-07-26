@@ -445,13 +445,26 @@ class TracesPool:
         The historical nested ``prefix_tree`` was an *additional* JSON object:
         flat trajectories remained in the batch and the tree repeated actions,
         counts, variants, and child-map keys.  This codec is the replacement
-        sent to cloud prompt builders.  Actions live once in a numbered node
-        table; each rollout stores only a path of node ids and its observation
-        deltas.  ``count`` is derivable as ``success + failure`` and instance
-        variants are not useful to a skill author, so neither is serialized.
+        sent to cloud prompt builders.  Version 2 interns normalized actions in
+        a shared vocabulary because a large trie can contain hundreds of nodes
+        but only a few dozen distinct action types.  Each node therefore stores
+        an action id rather than repeating the action text, and each rollout
+        stores only a path of node ids plus observation deltas.  ``count`` is
+        derivable as ``success + failure`` and instance variants are not useful
+        to a skill author, so neither is serialized.
         """
-        nodes: List[List[object]] = []  # [parent_id, normalized_action, succ, fail]
+        actions: List[str] = []
+        action_ids: Dict[str, int] = {}
+        nodes: List[List[object]] = []  # [parent_id, action_id, succ, fail]
         edge_ids: Dict[Tuple[int, str], int] = {}
+
+        def intern_action(action: str) -> int:
+            action_id = action_ids.get(action)
+            if action_id is None:
+                action_id = len(actions) + 1
+                action_ids[action] = action_id
+                actions.append(action)
+            return action_id
 
         def visit(node: dict, parent_id: int) -> None:
             for action, child in (node.get("children") or {}).items():
@@ -459,7 +472,7 @@ class TracesPool:
                 edge_ids[(parent_id, action)] = node_id
                 nodes.append([
                     parent_id,
-                    action,
+                    intern_action(action),
                     int(child.get("n_success", 0) or 0),
                     int(child.get("n_failure", 0) or 0),
                 ])
@@ -497,7 +510,7 @@ class TracesPool:
                 "x": encoded_steps,
                 "r": trace.get("task_score"),
             })
-        return {"version": 1, "nodes": nodes, "records": records}
+        return {"version": 2, "actions": actions, "nodes": nodes, "records": records}
 
     @staticmethod
     def _finalize_variants(node: dict) -> None:
