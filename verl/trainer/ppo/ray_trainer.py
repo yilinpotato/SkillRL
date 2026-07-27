@@ -98,6 +98,28 @@ class AdvantageEstimator(str, Enum):
     GiGPO = 'gigpo'
 
 
+def get_effective_train_batch_size(config) -> int:
+    """Return the number of trajectories actually sharded across FSDP ranks.
+
+    Plain verl expands ``actor_rollout_ref.rollout.n`` for GRPO.  The
+    multi-turn environment integration deliberately keeps that field at one
+    and expands the base-goal batch through ``env.rollout.n`` instead (see
+    ``main_ppo.run_ppo``).  The GPU divisibility check must use whichever
+    mechanism is active; checking only the former rejects the valid Tree-RL
+    12 goals x 6 samples = 72 trajectory batch on eight GPUs.
+    """
+    base_batch = int(config.data.train_batch_size)
+    actor_repeat = int(config.actor_rollout_ref.rollout.n)
+    env_repeat = int(OmegaConf.select(config, "env.rollout.n", default=1))
+    if actor_repeat > 1:
+        # main_ppo rejects actor_repeat > 1 for the environment path, but
+        # retain standard verl behavior for callers that use it directly.
+        repeat = actor_repeat
+    else:
+        repeat = env_repeat
+    return base_batch * repeat
+
+
 @dataclass
 class ResourcePoolManager:
     """
@@ -502,8 +524,14 @@ class RayPPOTrainer:
         n_gpus = config.trainer.n_gpus_per_node * config.trainer.nnodes
 
         # 1. Check total batch size for data correctness
-        real_train_batch_size = config.data.train_batch_size * config.actor_rollout_ref.rollout.n
-        assert real_train_batch_size % n_gpus == 0, f"real_train_batch_size ({real_train_batch_size}) must be divisible by total n_gpus ({n_gpus})."
+        real_train_batch_size = get_effective_train_batch_size(config)
+        assert real_train_batch_size % n_gpus == 0, (
+            f"effective train trajectory batch ({real_train_batch_size}; "
+            f"base_goals={config.data.train_batch_size}, "
+            f"actor_rollout_n={config.actor_rollout_ref.rollout.n}, "
+            f"env_rollout_n={OmegaConf.select(config, 'env.rollout.n', default=1)}) "
+            f"must be divisible by total n_gpus ({n_gpus})."
+        )
 
         # A helper function to check "micro_batch_size" vs "micro_batch_size_per_gpu"
         # We throw an error if the user sets both. The new convention is "..._micro_batch_size_per_gpu".
