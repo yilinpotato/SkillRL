@@ -16,6 +16,7 @@ COPY examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh /workspace/CoSkill/exam
 COPY scripts/load_container_cloud_env.py /workspace/CoSkill/scripts/load_container_cloud_env.py
 COPY scripts/configure_vllm_acceleration.sh /workspace/CoSkill/scripts/configure_vllm_acceleration.sh
 COPY scripts/preflight_wandb.py /workspace/CoSkill/scripts/preflight_wandb.py
+COPY scripts/preflight_tree_rl_runtime.py /workspace/CoSkill/scripts/preflight_tree_rl_runtime.py
 # Tree-only cloud evidence is a cross-module protocol: the trainer creates a
 # TracesPool, CoSkillCloudLoop forwards its exported batch, and CloudAnalyzer
 # renders the codec.  Overlay the whole memory package as one coherent unit;
@@ -30,6 +31,7 @@ RUN chmod +x \
     /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh \
     /workspace/CoSkill/scripts/load_container_cloud_env.py \
     /workspace/CoSkill/scripts/configure_vllm_acceleration.sh \
+    /workspace/CoSkill/scripts/preflight_tree_rl_runtime.py \
     && test -f /workspace/CoSkill/scripts/load_private_env.sh \
     && test -f /workspace/CoSkill/scripts/check_cloud_bootstrap.py \
     && test -f /workspace/CoSkill/scripts/preflight_wandb.py \
@@ -39,7 +41,7 @@ RUN chmod +x \
     && bash -n /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl.sh \
     && bash -n /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh \
     && python -m py_compile /workspace/CoSkill/verl/trainer/ppo/ray_trainer.py \
-    && python -c 'import openai; import verl; from agent_system.memory import TracesPool; from verl.trainer.ppo.ray_trainer import get_effective_train_batch_size; TracesPool(enable_prefix_tree=True, cloud_evidence_mode="tree_only")'
+    && python /workspace/CoSkill/scripts/preflight_tree_rl_runtime.py
 
 ENTRYPOINT ["/workspace/CoSkill/docker/coskill/entrypoint.sh"]
 CMD ["preflight"]
