@@ -45,6 +45,15 @@ export RAY_IGNORE_HTTP_PROXY=1
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-FLASH_ATTN}"
 export PYTHONUNBUFFERED=1
+export COSKILL_QUIET_LOGS="${COSKILL_QUIET_LOGS:-1}"
+if [[ "$COSKILL_QUIET_LOGS" == "1" ]]; then
+    # Keep metrics, checkpoint, CoSkill update, and error logs while removing
+    # repeated per-rank config/sampling dumps and terminal progress bars.
+    export RAY_DEDUP_LOGS="${RAY_DEDUP_LOGS:-1}"
+    export VERL_LOGGING_LEVEL="${VERL_LOGGING_LEVEL:-WARN}"
+    export VLLM_LOGGING_LEVEL="${VLLM_LOGGING_LEVEL:-WARNING}"
+    export TQDM_DISABLE="${TQDM_DISABLE:-1}"
+fi
 unset PYTORCH_CUDA_ALLOC_CONF
 
 # Tree-RL already passes rollout.enforce_eager=False below, so CUDA Graph is

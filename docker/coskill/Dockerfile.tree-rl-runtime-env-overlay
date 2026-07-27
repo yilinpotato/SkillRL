@@ -23,7 +23,11 @@ COPY scripts/preflight_tree_rl_runtime.py /workspace/CoSkill/scripts/preflight_t
 # copying only ray_trainer.py against the older packed package makes the first
 # watermark update fail with an unexpected keyword/schema error.
 COPY agent_system/memory/ /workspace/CoSkill/agent_system/memory/
+COPY verl/trainer/main_ppo.py /workspace/CoSkill/verl/trainer/main_ppo.py
 COPY verl/trainer/ppo/ray_trainer.py /workspace/CoSkill/verl/trainer/ppo/ray_trainer.py
+COPY verl/workers/fsdp_workers.py /workspace/CoSkill/verl/workers/fsdp_workers.py
+COPY verl/workers/rollout/vllm_rollout/vllm_rollout.py /workspace/CoSkill/verl/workers/rollout/vllm_rollout/vllm_rollout.py
+COPY verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py /workspace/CoSkill/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py
 
 RUN chmod +x \
     /workspace/CoSkill/docker/coskill/entrypoint.sh \
@@ -40,7 +44,11 @@ RUN chmod +x \
     && bash -n /workspace/CoSkill/docker/coskill/entrypoint.sh \
     && bash -n /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl.sh \
     && bash -n /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh \
+    && python -m py_compile /workspace/CoSkill/verl/trainer/main_ppo.py \
     && python -m py_compile /workspace/CoSkill/verl/trainer/ppo/ray_trainer.py \
+    && python -m py_compile /workspace/CoSkill/verl/workers/fsdp_workers.py \
+    && python -m py_compile /workspace/CoSkill/verl/workers/rollout/vllm_rollout/vllm_rollout.py \
+    && python -m py_compile /workspace/CoSkill/verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py \
     && python /workspace/CoSkill/scripts/preflight_tree_rl_runtime.py
 
 ENTRYPOINT ["/workspace/CoSkill/docker/coskill/entrypoint.sh"]

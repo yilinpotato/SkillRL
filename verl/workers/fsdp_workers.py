@@ -223,7 +223,10 @@ class ActorRolloutRefWorker(Worker):
         override_config_kwargs.update(override_model_config)
         update_model_config(actor_model_config, override_config_kwargs=override_config_kwargs)
         if self.rank == 0:
-            print(f"Model config after override: {actor_model_config}")
+            if os.environ.get("COSKILL_QUIET_LOGS", "0").strip().lower() not in {
+                "1", "true", "yes", "on"
+            }:
+                print(f"Model config after override: {actor_model_config}")
 
         # NOTE(fix me): tie_word_embedding causes meta_tensor init to hang
         init_context = get_init_weight_context_manager(use_meta_tensor=not actor_model_config.tie_word_embeddings, mesh=self.device_mesh)
@@ -305,7 +308,10 @@ class ActorRolloutRefWorker(Worker):
             # TODO(zhangchi.usc1992, shengguangming) fix me. Current, auto_wrap_policy causes HFRollout to hang in Gemma
             auto_wrap_policy = None
 
-        print(f"wrap_policy: {auto_wrap_policy}")
+        if os.environ.get("COSKILL_QUIET_LOGS", "0").strip().lower() not in {
+            "1", "true", "yes", "on"
+        }:
+            print(f"wrap_policy: {auto_wrap_policy}")
 
         fsdp_mesh = self.device_mesh
         sharding_strategy = get_sharding_strategy(fsdp_mesh)

@@ -26,6 +26,15 @@ from verl.trainer.ppo.reward import load_reward_manager
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
 
 
+def _quiet_training_logs() -> bool:
+    return os.environ.get("COSKILL_QUIET_LOGS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 @hydra.main(config_path="config", config_name="ppo_trainer", version_base=None)
 def main(config):
     run_ppo(config)
@@ -43,8 +52,30 @@ def run_ppo(config) -> None:
         runtime_env_kwargs = ray_init_kwargs.get("runtime_env", {})
 
         runtime_env = OmegaConf.merge(default_runtime_env, runtime_env_kwargs)
+        # Explicitly forward quiet-mode controls to every Ray worker.  Depending
+        # on the cluster launcher, relying on ambient driver inheritance alone
+        # can leave rank workers verbose even when the head process is quiet.
+        with_env = OmegaConf.to_container(runtime_env, resolve=True)
+        with_env.setdefault("env_vars", {})
+        for key in (
+            "COSKILL_QUIET_LOGS",
+            "TQDM_DISABLE",
+            "VERL_LOGGING_LEVEL",
+            "VLLM_LOGGING_LEVEL",
+            "RAY_DEDUP_LOGS",
+        ):
+            if os.environ.get(key) is not None:
+                with_env["env_vars"][key] = os.environ[key]
+        runtime_env = OmegaConf.create(with_env)
         ray_init_kwargs = OmegaConf.create({**ray_init_kwargs, "runtime_env": runtime_env})
-        print(f"ray init kwargs: {ray_init_kwargs}")
+        if _quiet_training_logs():
+            print(
+                "[startup] Ray init "
+                f"num_cpus={ray_init_kwargs.get('num_cpus', 'auto')} "
+                "quiet_logs=1"
+            )
+        else:
+            print(f"ray init kwargs: {ray_init_kwargs}")
         ray.init(**OmegaConf.to_container(ray_init_kwargs))
 
     runner = TaskRunner.remote()
@@ -61,7 +92,17 @@ class TaskRunner:
 
         from verl.utils.fs import copy_to_local
 
-        pprint(OmegaConf.to_container(config, resolve=True))  # resolve=True will eval symbol values
+        if _quiet_training_logs():
+            print(
+                "[startup] resolved config "
+                f"env={config.env.get('env_name', 'unknown')} "
+                f"experiment={config.trainer.get('experiment_name', 'unknown')} "
+                f"output={config.trainer.get('default_local_dir', './outputs')} "
+                f"gpus={config.trainer.get('n_gpus_per_node', 1)} "
+                f"steps={config.trainer.get('total_training_steps', 'unknown')}"
+            )
+        else:
+            pprint(OmegaConf.to_container(config, resolve=True))  # resolve=True will eval symbol values
         OmegaConf.resolve(config)
 
         # download the checkpoint from hdfs
@@ -152,7 +193,11 @@ class TaskRunner:
         reward_fn = reward_manager_cls(tokenizer=tokenizer, num_examine=0, normalize_by_length=False)
 
         # Note that we always use function-based RM for validation
-        val_reward_fn = reward_manager_cls(tokenizer=tokenizer, num_examine=1, normalize_by_length=False)
+        val_reward_fn = reward_manager_cls(
+            tokenizer=tokenizer,
+            num_examine=0 if _quiet_training_logs() else 1,
+            normalize_by_length=False,
+        )
 
         resource_pool_manager = ResourcePoolManager(resource_pool_spec=resource_pool_spec, mapping=mapping)
 

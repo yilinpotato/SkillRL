@@ -223,7 +223,10 @@ class vLLMRollout(BaseRollout):
             if hasattr(SamplingParams(), str(k)):
                 kwargs[k] = config.get(k)
 
-        print(f"kwargs: {kwargs}")
+        if os.environ.get("COSKILL_QUIET_LOGS", "0").strip().lower() not in {
+            "1", "true", "yes", "on"
+        }:
+            print(f"kwargs: {kwargs}")
         self.sampling_params = SamplingParams(**kwargs)
 
         self.pad_token_id = tokenizer.pad_token_id

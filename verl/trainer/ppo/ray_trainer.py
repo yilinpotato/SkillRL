@@ -805,7 +805,10 @@ class RayPPOTrainer:
                 "do_sample": self.config.actor_rollout_ref.rollout.val_kwargs.do_sample,
                 "validate": True,
             }
-            print(f"test_gen_batch meta info: {test_gen_batch.meta_info}")
+            if os.environ.get("COSKILL_QUIET_LOGS", "0").strip().lower() not in {
+                "1", "true", "yes", "on"
+            }:
+                print(f"test_gen_batch meta info: {test_gen_batch.meta_info}")
 
             # # pad to be divisible by dp_size
             # test_gen_batch_padded, pad_size = pad_dataproto_to_divisor(test_gen_batch, self.actor_rollout_wg.world_size)
@@ -2390,7 +2393,10 @@ class RayPPOTrainer:
                             reward_tensor, reward_extra_infos_dict = ray.get(future_reward)
                         batch.batch["token_level_scores"] = reward_tensor
 
-                        print(f"{list(reward_extra_infos_dict.keys())=}")
+                        if os.environ.get("COSKILL_QUIET_LOGS", "0").strip().lower() not in {
+                            "1", "true", "yes", "on"
+                        }:
+                            print(f"{list(reward_extra_infos_dict.keys())=}")
                         if reward_extra_infos_dict:
                             batch.non_tensor_batch.update({k: np.array(v) for k, v in reward_extra_infos_dict.items()})
 
@@ -2491,7 +2497,10 @@ class RayPPOTrainer:
                     rollout_data_dir = self.config.trainer.get("rollout_data_dir", None)
                     if rollout_data_dir:
                         with _timer("dump_rollout_generations", timing_raw):
-                            print(batch.batch.keys())
+                            if os.environ.get("COSKILL_QUIET_LOGS", "0").strip().lower() not in {
+                                "1", "true", "yes", "on"
+                            }:
+                                print(batch.batch.keys())
                             inputs = self.tokenizer.batch_decode(batch.batch["prompts"], skip_special_tokens=True)
                             outputs = self.tokenizer.batch_decode(batch.batch["responses"], skip_special_tokens=True)
                             scores = batch.batch["token_level_scores"].sum(-1).cpu().tolist()
