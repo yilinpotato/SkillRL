@@ -125,14 +125,67 @@ echo $!
 tail -f "$AB_ROOT/run.log"
 ```
 
-双卡时只需改为：
+双卡可以继续使用单臂 DP=2：
 
 ```bash
 export CUDA_VISIBLE_DEVICES=0,1
 export DATA_PARALLEL_WORKERS=2
 ```
 
-增量运行可以用同一 `AB_ROOT` 接续。`--phase prepare` 只冻结源产物、创建 manifest 和做泄漏审计；`--phase evaluate` 跳过已有新增臂并继续未完成臂；`--phase summary` 仅重新合并指标。该流程不调用 DeepSeek API，因此不要求重新设置 API key。
+但A800实测中，单臂 `36+36` 的 DP=2 可能与单卡 batch=72 用时接近。更高吞吐的方式是把两张卡当成两个独立单卡，让它们同时评测互不相交的臂：
+
+```bash
+cd /path/to/CoSkill
+git pull origin Co-Skill
+
+export SOURCE_V4_ROOT='/path/to/completed_v4_root'
+export AB_ROOT='/path/to/current_or_new_validation_extension_root'
+export V4_PARALLEL_GPUS=0,1
+export V4_EVAL_GAMES_PER_TYPE=10
+export V4_EVAL_ROLLOUTS_PER_GAME=12
+
+mkdir -p "$AB_ROOT"
+nohup bash \
+  examples/playbook_evolve/run_alfworld_skill_tree_depth_v4_extend_validation_2x1a800.sh \
+  >"$AB_ROOT/parallel_launcher.log" 2>&1 &
+echo $! >"$AB_ROOT/parallel_launcher.pid"
+
+tail -f "$AB_ROOT/parallel_launcher.log"
+tail -f "$AB_ROOT/parallel_arm_logs/gpu_0.log"
+tail -f "$AB_ROOT/parallel_arm_logs/gpu_1.log"
+```
+
+默认分配为：
+
+- GPU0：L0、L2、L4；
+- GPU1：L1、L3、L5。
+
+可以用 `V4_GPU0_ARMS`、`V4_GPU1_ARMS` 覆盖，但两组必须不重复且合计恰好覆盖 L0–L5。脚本先单进程运行 `prepare`，两个单卡进程再以 `--resume 1` 评测各自臂，最后单进程执行 `summary`。每个臂使用独占锁；误启动第二个同臂进程会直接失败，而不会覆盖 `summary_partial.json`。
+
+如果某个未完成臂原先由 DP=2 产生，不能改成 DP=1 直接续跑：环境副本划分和 replica offset 已经改变。控制器会检测 `summary_partial.json` 中的 DP 数并拒绝这种接续。应先用原DP完成该臂，或明确归档该未完成臂后从头运行。已经存在完整 `summary.json` 的臂会直接跳过。
+
+也可以手动按臂运行：
+
+```bash
+# 必须先且只需准备一次
+bash examples/playbook_evolve/run_alfworld_skill_tree_depth_v4_extend_validation.sh \
+  --phase prepare
+
+# 两个终端使用不同GPU和互不相交的--arms
+V4_EXTENSION_CUDA_VISIBLE_DEVICES=0 DATA_PARALLEL_WORKERS=1 \
+bash examples/playbook_evolve/run_alfworld_skill_tree_depth_v4_extend_validation.sh \
+  --phase evaluate --arms skill_level_l0,skill_level_l2,skill_level_l4 --resume 1
+
+V4_EXTENSION_CUDA_VISIBLE_DEVICES=1 DATA_PARALLEL_WORKERS=1 \
+bash examples/playbook_evolve/run_alfworld_skill_tree_depth_v4_extend_validation.sh \
+  --phase evaluate --arms skill_level_l1,skill_level_l3,skill_level_l5 --resume 1
+
+# 六臂完成后统一生成全局汇总
+bash examples/playbook_evolve/run_alfworld_skill_tree_depth_v4_extend_validation.sh \
+  --phase summary
+```
+
+增量运行可以使用同一 `AB_ROOT` 接续。`--phase prepare` 只冻结源产物、创建manifest和做泄漏审计；`--phase evaluate --arms ... --resume 1` 跳过完整臂并从同DP的臂级检查点恢复；`--phase summary` 要求所有臂均已完成后才重新合并全局指标。该流程不调用DeepSeek API，因此不要求重新设置API key。
 
 新增输出：
 

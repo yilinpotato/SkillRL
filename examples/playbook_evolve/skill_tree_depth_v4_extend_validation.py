@@ -10,6 +10,8 @@ self-contained comparison root.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import os
 import shutil
 from collections import defaultdict
@@ -18,6 +20,44 @@ from typing import Any
 
 from examples.playbook_evolve import fixed_trajectory_ablation as fixed
 from examples.playbook_evolve import skill_tree_depth_ablation_v4 as v4
+
+
+def parse_arm_selection(raw: str | None) -> tuple[str, ...]:
+    """Parse a comma-separated, duplicate-free subset of frozen V4 arms."""
+    if raw is None or not raw.strip() or raw.strip().lower() == "all":
+        return tuple(v4.ARMS)
+    selected = tuple(part.strip() for part in raw.split(",") if part.strip())
+    unknown = sorted(set(selected) - set(v4.ARMS))
+    if unknown:
+        raise ValueError(
+            f"unknown V4 arm(s): {', '.join(unknown)}; "
+            f"expected a subset of {', '.join(v4.ARMS)}"
+        )
+    if len(selected) != len(set(selected)):
+        raise ValueError("--arms must not contain duplicates")
+    if not selected:
+        raise ValueError("--arms selected no V4 arms")
+    return selected
+
+
+@contextlib.contextmanager
+def _exclusive_lock(root: Path, name: str):
+    """Serialize shared preparation and reject duplicate evaluation of an arm."""
+    lock_dir = root / ".locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    handle = (lock_dir / f"{name}.lock").open("a+")
+    flags = fcntl.LOCK_EX if name == "prepare" else fcntl.LOCK_EX | fcntl.LOCK_NB
+    try:
+        try:
+            fcntl.flock(handle.fileno(), flags)
+        except BlockingIOError as exc:
+            raise RuntimeError(
+                f"{name} is already being evaluated by another process"
+            ) from exc
+        yield
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
 
 
 def _artifact_fingerprint(directory: Path, arm: str) -> dict[str, Any]:
@@ -197,51 +237,69 @@ def evaluate_delta_arm(
     arm: str,
 ) -> Path:
     output = root / "validation_delta" / "arms" / arm
-    summary = output / "summary.json"
-    if summary.exists():
-        return summary
-    artifact = fixed._read_json(
-        root / "artifacts" / arm / "artifact_manifest.json"
-    )
-    if not artifact.get("evaluation_eligible", True):
-        fixed._write_json(
-            summary,
-            {
-                "status": "N.A.",
-                "arm": arm,
-                "evaluation_skipped": True,
-                "reason": artifact.get("unavailable_reason"),
-                "total_episodes": 0,
-                "wins": 0,
-                "success_rate": None,
-            },
+    with _exclusive_lock(root, arm):
+        summary = output / "summary.json"
+        if summary.exists():
+            v4._audit_evaluation_context(root, arm, summary)
+            return summary
+        artifact = fixed._read_json(
+            root / "artifacts" / arm / "artifact_manifest.json"
         )
-        return summary
+        if not artifact.get("evaluation_eligible", True):
+            fixed._write_json(
+                summary,
+                {
+                    "status": "N.A.",
+                    "arm": arm,
+                    "evaluation_skipped": True,
+                    "reason": artifact.get("unavailable_reason"),
+                    "total_episodes": 0,
+                    "wins": 0,
+                    "success_rate": None,
+                },
+            )
+            return summary
 
-    level = int(arm.rsplit("l", 1)[1])
-    episodes = len(fixed._read_json(delta_manifest)["games"]) * args.eval_rollouts_per_game
-    command = fixed._driver_cmd(
-        args,
-        output,
-        delta_manifest,
-        episodes,
-        min(args.batch_rollout_size, episodes),
-        int(level == 0),
-        int(level > 0),
-        0,
-        0,
-        [
-            "--max_model_len",
-            str(args.local_max_model_len),
-            "--enable_hierarchy",
-            str(int(level > 0)),
-            "--skills_json",
-            str(root / "artifacts" / arm / "skills.json"),
-        ],
-    )
-    fixed._run(command, args.project_root)
-    v4._audit_evaluation_context(root, arm, summary)
-    return summary
+        partial = output / "summary_partial.json"
+        if args.resume and partial.exists():
+            previous = fixed._read_json(partial)
+            previous_dp = int(previous.get("data_parallel_workers", 1) or 1)
+            if previous_dp != args.data_parallel_workers:
+                raise RuntimeError(
+                    f"cannot resume {arm} with DP={args.data_parallel_workers}: "
+                    f"its checkpoint used DP={previous_dp}; finish it with the "
+                    "original DP or archive that incomplete arm before restarting"
+                )
+
+        level = int(arm.rsplit("l", 1)[1])
+        episodes = (
+            len(fixed._read_json(delta_manifest)["games"])
+            * args.eval_rollouts_per_game
+        )
+        command = fixed._driver_cmd(
+            args,
+            output,
+            delta_manifest,
+            episodes,
+            min(args.batch_rollout_size, episodes),
+            int(level == 0),
+            int(level > 0),
+            0,
+            0,
+            [
+                "--resume",
+                str(args.resume),
+                "--max_model_len",
+                str(args.local_max_model_len),
+                "--enable_hierarchy",
+                str(int(level > 0)),
+                "--skills_json",
+                str(root / "artifacts" / arm / "skills.json"),
+            ],
+        )
+        fixed._run(command, args.project_root)
+        v4._audit_evaluation_context(root, arm, summary)
+        return summary
 
 
 def _sum_numeric_tree(left: Any, right: Any) -> Any:
@@ -450,6 +508,21 @@ def main() -> None:
         choices=("prepare", "evaluate", "summary", "all"),
         default="all",
     )
+    parser.add_argument(
+        "--arms",
+        default=os.environ.get("V4_EVAL_ARMS", "all"),
+        help=(
+            "Comma-separated subset of skill_level_l0..skill_level_l5. "
+            "Independent evaluators may use disjoint subsets in one prepared root."
+        ),
+    )
+    parser.add_argument(
+        "--resume",
+        type=int,
+        choices=(0, 1),
+        default=int(os.environ.get("V4_RESUME", "0")),
+        help="Resume each selected arm from its own summary_partial.json.",
+    )
     parser.add_argument("--split", default="train")
     parser.add_argument("--sample_seed", type=int, default=0)
     parser.add_argument("--seed", type=int, default=0)
@@ -487,6 +560,10 @@ def main() -> None:
     parser.add_argument("--log_trajectories", type=int, default=0)
     parser.add_argument("--driver_arg", action="append", default=[])
     args = parser.parse_args()
+    try:
+        selected_arms = parse_arm_selection(args.arms)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     if not args.alfworld_data:
         parser.error("--alfworld_data or ALFWORLD_DATA is required")
@@ -501,6 +578,12 @@ def main() -> None:
     source_root = Path(args.source_root).resolve()
     data_root = Path(args.alfworld_data).resolve()
     root.mkdir(parents=True, exist_ok=True)
+    receipt_path = root / "validation_extension_receipt.json"
+    if args.phase in ("evaluate", "summary") and not receipt_path.is_file():
+        raise RuntimeError(
+            "validation extension is not prepared; run --phase prepare once "
+            "before starting independent arm evaluators"
+        )
 
     source_metadata = stage_frozen_source(source_root, root)
     expanded_manifest = v4.create_eval_manifest(
@@ -568,22 +651,38 @@ def main() -> None:
             "source L0 generation protocol is not rewritten"
         ),
     }
-    v4._ensure_run_config_compatible(root / "run_config.json", config, None)
-    fixed._write_json(
-        root / "validation_extension_receipt.json",
-        {
-            **config,
-            "expanded_eval_manifest_sha256": fixed._sha256_path(expanded_manifest),
-            "delta_eval_manifest_sha256": fixed._sha256_path(delta_manifest),
-        },
-    )
+    with _exclusive_lock(root, "prepare"):
+        v4._ensure_run_config_compatible(root / "run_config.json", config, None)
+        fixed._write_json(
+            receipt_path,
+            {
+                **config,
+                "expanded_eval_manifest_sha256": fixed._sha256_path(
+                    expanded_manifest
+                ),
+                "delta_eval_manifest_sha256": fixed._sha256_path(delta_manifest),
+            },
+        )
 
     if args.phase == "prepare":
         return
     if args.phase in ("evaluate", "all"):
-        for arm in v4.ARMS:
+        print(
+            "[skill-tree-v4-extension] selected arms="
+            + ",".join(selected_arms)
+        )
+        for arm in selected_arms:
             evaluate_delta_arm(args, root, delta_manifest, arm)
-    if args.phase in ("summary", "evaluate", "all"):
+            delta_summary = (
+                root / "validation_delta" / "arms" / arm / "summary.json"
+            )
+            if fixed._read_json(delta_summary).get("status") == "done":
+                merge_arm_summaries(root, expanded_manifest, arm)
+
+    should_write_global_summary = args.phase == "summary" or (
+        args.phase == "all" and set(selected_arms) == set(v4.ARMS)
+    )
+    if should_write_global_summary:
         for arm in v4.ARMS:
             delta_summary = (
                 root / "validation_delta" / "arms" / arm / "summary.json"
@@ -592,7 +691,8 @@ def main() -> None:
                 raise RuntimeError(
                     f"delta evaluation missing for {arm}; run --phase evaluate first"
                 )
-            merge_arm_summaries(root, expanded_manifest, arm)
+            if fixed._read_json(delta_summary).get("status") == "done":
+                merge_arm_summaries(root, expanded_manifest, arm)
         fixed.write_summary(
             root,
             {
@@ -605,6 +705,11 @@ def main() -> None:
             },
         )
         v4.write_generation_metrics(root)
+    elif args.phase == "all":
+        print(
+            "[skill-tree-v4-extension] subset complete; run --phase summary "
+            "after every arm has a delta summary"
+        )
 
 
 if __name__ == "__main__":

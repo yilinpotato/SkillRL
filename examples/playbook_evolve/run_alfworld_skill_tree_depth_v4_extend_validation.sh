@@ -21,9 +21,11 @@ export PYTHONUNBUFFERED=1
 export CACHE_ROOT="${CACHE_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}}"
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$CACHE_ROOT/alfworld}"
 export MODEL_PATH="${MODEL_PATH:-$CACHE_ROOT/modelscope/hub/models/Qwen/Qwen3-4B-Thinking-2507}"
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-1}"
+# This explicit post-.env override lets the parallel wrapper bind one process
+# per physical GPU even when the private .env defines CUDA_VISIBLE_DEVICES.
+export CUDA_VISIBLE_DEVICES="${V4_EXTENSION_CUDA_VISIBLE_DEVICES:-${CUDA_VISIBLE_DEVICES:-1}}"
 
-SOURCE_V4_ROOT="${SOURCE_V4_ROOT:-}"
+SOURCE_V4_ROOT="${V4_EXTENSION_SOURCE_ROOT:-${SOURCE_V4_ROOT:-}}"
 [[ -n "$SOURCE_V4_ROOT" && -f "$SOURCE_V4_ROOT/run_config.json" ]] || {
   echo "Set SOURCE_V4_ROOT to the completed V4 root containing run_config.json." >&2
   exit 2
@@ -51,7 +53,7 @@ TORCH_GPU_COUNT="$(python -c 'import torch; print(torch.cuda.device_count())')"
 }
 
 VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-0}"
-AB_ROOT="${AB_ROOT:-$PROJECT_ROOT/skillrl_outputs/alfworld_skill_tree_depth_v4_validation_extension/$(date +%Y%m%d_%H%M%S)}"
+AB_ROOT="${V4_EXTENSION_ROOT:-${AB_ROOT:-$PROJECT_ROOT/skillrl_outputs/alfworld_skill_tree_depth_v4_validation_extension/$(date +%Y%m%d_%H%M%S)}}"
 if [[ "$(realpath -m "$AB_ROOT")" == "$(realpath "$SOURCE_V4_ROOT")" ]]; then
   echo "AB_ROOT must differ from SOURCE_V4_ROOT; the completed source run is immutable." >&2
   exit 2
@@ -61,8 +63,7 @@ echo "[skill-tree-v4-extension] source=$SOURCE_V4_ROOT"
 echo "[skill-tree-v4-extension] target=$AB_ROOT"
 echo "[skill-tree-v4-extension] GPUs=$CUDA_VISIBLE_DEVICES DP=$DP_WORKERS"
 echo "[skill-tree-v4-extension] reuse frozen L0-L5 artifacts; cloud/tree generation disabled"
-echo "[skill-tree-v4-extension] preserve old 3 games/task x 12 rollouts and add 2 games/task x 12 rollouts"
-echo "[skill-tree-v4-extension] final comparison: 5 games/task x 12 rollouts = 360 episodes/arm"
+echo "[skill-tree-v4-extension] requested final games/task=${V4_EVAL_GAMES_PER_TYPE:-5} rollouts/game=${V4_EVAL_ROLLOUTS_PER_GAME:-12}"
 
 python -u -m examples.playbook_evolve.skill_tree_depth_v4_extend_validation \
   --root "$AB_ROOT" \

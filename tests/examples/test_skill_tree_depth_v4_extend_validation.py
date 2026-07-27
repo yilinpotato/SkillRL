@@ -1,5 +1,6 @@
 # ruff: noqa: E402
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -88,6 +89,39 @@ def test_delta_manifest_is_balanced_strict_superset(tmp_path):
     assert {game["game_file"] for game in payload["games"]} == {
         _game(task_type, 1)["game_file"] for task_type in fixed.TASK_TYPES
     }
+
+
+def test_arm_selection_accepts_only_unique_v4_subset():
+    assert extension.parse_arm_selection("skill_level_l0,skill_level_l3") == (
+        "skill_level_l0",
+        "skill_level_l3",
+    )
+    assert extension.parse_arm_selection("all") == v4.ARMS
+    with pytest.raises(ValueError, match="unknown V4 arm"):
+        extension.parse_arm_selection("skill_level_l6")
+    with pytest.raises(ValueError, match="duplicates"):
+        extension.parse_arm_selection("skill_level_l1,skill_level_l1")
+
+
+def test_arm_resume_rejects_data_parallel_change(tmp_path):
+    arm = "skill_level_l1"
+    output = tmp_path / "validation_delta" / "arms" / arm
+    fixed._write_json(
+        tmp_path / "artifacts" / arm / "artifact_manifest.json",
+        {"status": "ready", "evaluation_eligible": True},
+    )
+    fixed._write_json(
+        output / "summary_partial.json",
+        {"status": "running", "data_parallel_workers": 2},
+    )
+    args = argparse.Namespace(resume=1, data_parallel_workers=1)
+    with pytest.raises(RuntimeError, match="checkpoint used DP=2"):
+        extension.evaluate_delta_arm(
+            args,
+            tmp_path,
+            tmp_path / "manifests" / "eval_games_delta.json",
+            arm,
+        )
 
 
 def test_delta_manifest_rejects_non_superset(tmp_path):
