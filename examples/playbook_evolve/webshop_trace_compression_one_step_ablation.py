@@ -47,7 +47,11 @@ WEBSHOP_TASK_TYPES = (
     "other",
 )
 ARMS = common.ARMS
-_ACTION_RE = re.compile(r"^(search|click)\[[^\r\n]*\]$", re.IGNORECASE)
+# Match the executable syntax accepted by WebShop's runtime projection.  The
+# projection deliberately salvages model outputs such as ``click [search]``;
+# those actions must remain in the immutable raw corpus even when the
+# environment later treats the target as invalid/no-op evidence.
+_ACTION_RE = re.compile(r"^(search|click)\s*\[[^\r\n]*\]$", re.IGNORECASE)
 
 
 def _validate_shared_raw(raw: list[dict[str, Any]]) -> dict[str, Any]:
@@ -305,10 +309,34 @@ def capture_once(
         return raw_path
 
     capture_dir = root / "capture"
+    source = capture_dir / "traces_pool" / "raw_traces.jsonl"
+    if source.exists():
+        print(
+            "[webshop-train-step-trace-ablation] recovering completed capture "
+            f"from {source}"
+        )
+        raw = common._read_jsonl(source)
+        integrity = _validate_shared_raw(raw)
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, raw_path)
+        common._write_json(
+            capture_dir / "capture_integrity.json",
+            {
+                "protocol": (
+                    "shared_12_distinct_webshop_goals_x_6_replicas_"
+                    "one_training_group_full_trajectories"
+                ),
+                "raw_traces": str(raw_path),
+                "raw_traces_sha256": common._sha256_path(raw_path),
+                "recovered_completed_capture": True,
+                **integrity,
+            },
+        )
+        return raw_path
+
     command = _driver_cmd(args, capture_dir, initial_skills)
     print("[webshop-train-step-trace-ablation] capture:", " ".join(command))
     subprocess.run(command, cwd=args.project_root, check=True)
-    source = capture_dir / "traces_pool" / "raw_traces.jsonl"
     if not source.exists():
         raise RuntimeError(f"capture completed without raw trace log: {source}")
     raw = common._read_jsonl(source)

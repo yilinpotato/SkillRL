@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +12,7 @@ from examples.playbook_evolve.webshop_trace_compression_one_step_ablation import
     WEBSHOP_TASK_TYPES,
     _driver_cmd,
     _validate_shared_raw,
+    capture_once,
 )
 
 
@@ -79,6 +81,40 @@ def test_shared_capture_rejects_non_webshop_actions():
     rows[0]["steps"][0]["action"] = "go to cabinet 1"
     with pytest.raises(RuntimeError, match="search/click action contract"):
         _validate_shared_raw(rows)
+
+
+def test_shared_capture_accepts_runtime_salvaged_action_whitespace():
+    rows = _shared_raw()
+    rows[0]["steps"][0]["action"] = "click [search]"
+    stats = _validate_shared_raw(rows)
+    assert stats["actions"]["click"] == TOTAL_ROLLOUTS + 1
+    assert stats["actions"]["search"] == TOTAL_ROLLOUTS - 1
+
+
+def test_capture_reuses_completed_driver_output_after_postcheck_failure(
+    tmp_path,
+    monkeypatch,
+):
+    root = tmp_path / "run"
+    source = root / "capture" / "traces_pool" / "raw_traces.jsonl"
+    from examples.playbook_evolve import trace_compression_one_step_ablation as common
+
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "".join(json.dumps(row) + "\n" for row in _shared_raw()),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "examples.playbook_evolve.webshop_trace_compression_one_step_ablation.subprocess.run",
+        lambda *args, **kwargs: pytest.fail("completed capture must not rerun"),
+    )
+    args = SimpleNamespace(project_root=tmp_path)
+    raw_path = capture_once(args, root, tmp_path / "initial_skills.json")
+    assert raw_path == root / "shared" / "raw_traces.jsonl"
+    assert common._read_jsonl(raw_path) == _shared_raw()
+    integrity = common._read_json(root / "capture" / "capture_integrity.json")
+    assert integrity["recovered_completed_capture"] is True
+    assert integrity["rollouts"] == TOTAL_ROLLOUTS
 
 
 def test_capture_driver_disables_cloud_mutation_but_keeps_normal_skill_prompt():
