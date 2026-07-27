@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
-# Fast formal eight-A800 entrypoint for CoSkill ALFWorld Tree-RL.
+# Fast eight-A800 entrypoint for CoSkill ALFWorld Tree-RL.
 #
-# Contract deliberately retained from the regular launcher:
-#   - 12 ALFWorld task instances x group_size=6 = 72 rollouts per train step
-#   - max_steps=40, train_data_size=12, group_size=6, val_data_size=32
-#   - same model, prompt/response limits, reward, skill-tree and cloud settings
-#
-# Necessary eight-rank geometry change:
-#   36 cannot divide evenly across eight FSDP ranks.  We therefore use one
-#   72-sample PPO mini-batch (9 samples/rank, micro-batch=1) instead of two
-#   36-sample mini-batches.  This is the fastest stable eight-rank geometry,
-#   but its optimizer-update geometry differs from formal 2/4-GPU curves.
+# Default eight-GPU throughput profile:
+#   - 16 ALFWorld goals x group_size=6 = 96 rollouts per train step
+#   - PPO mini=48, per-rank mini=6, per-rank micro=2
+#   - max_steps=40, val_data_size=32 and all model/reward/tree settings unchanged
+# Set TREE_RL_8GPU_THROUGHPUT_MODE=0 for the historical exact-contract profile:
+#   - 12 x 6 = 72 rollouts, PPO mini=72, per-rank micro=1
 #
 # The delegated launcher performs a mandatory *real* DeepSeek API probe on
 # every direct start before Ray/vLLM allocate GPUs.  Do not set a bypass flag.
@@ -42,14 +38,22 @@ else
 fi
 
 export TREE_RL_USE_ALL_8=1
+export TREE_RL_8GPU_THROUGHPUT_MODE="${TREE_RL_8GPU_THROUGHPUT_MODE:-1}"
 export N_GPUS_PER_NODE=8
-# 72 rollouts are fixed.  These values are explicit so a scheduler environment
-# cannot silently alter the experiment contract.
-export TRAIN_DATA_SIZE=12
 export GROUP_SIZE=6
 export VAL_DATA_SIZE=32
-export PPO_MINI_BATCH_SIZE=72
-export PPO_MICRO_BATCH_SIZE_PER_GPU=1
+if [[ "$TREE_RL_8GPU_THROUGHPUT_MODE" == "1" ]]; then
+    export TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-16}"
+    export PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-48}"
+    export PPO_MICRO_BATCH_SIZE_PER_GPU="${PPO_MICRO_BATCH_SIZE_PER_GPU:-2}"
+    export LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
+    export REF_LOG_PROB_MICRO_BATCH_PER_GPU="${REF_LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
+    export VLLM_MAX_NUM_BATCHED_TOKENS="${VLLM_MAX_NUM_BATCHED_TOKENS:-32768}"
+else
+    export TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-12}"
+    export PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-72}"
+    export PPO_MICRO_BATCH_SIZE_PER_GPU="${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}"
+fi
 
 # The main launcher refuses a disabled/non-real cloud check.  Pin these values
 # here as an auditable eight-GPU contract as well.

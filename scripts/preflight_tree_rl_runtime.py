@@ -33,6 +33,7 @@ from agent_system.memory import (
     SkillsOnlyMemory,
     TracesPool,
 )
+from agent_system.multi_turn_rollout.rollout_loop import TrajectoryCollector
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 
 
@@ -57,10 +58,19 @@ def _require_keywords(target, names: Iterable[str]) -> None:
 
 def _check_signatures() -> None:
     traces_pool_source = Path(inspect.getsourcefile(TracesPool) or "").resolve()
+    rollout_source = Path(
+        inspect.getsourcefile(TrajectoryCollector) or ""
+    ).resolve()
     trainer_source = Path(inspect.getsourcefile(RayPPOTrainer) or "").resolve()
     expected_memory_root = (PROJECT_ROOT / "agent_system" / "memory").resolve()
     expected_trainer = (
         PROJECT_ROOT / "verl" / "trainer" / "ppo" / "ray_trainer.py"
+    ).resolve()
+    expected_rollout = (
+        PROJECT_ROOT
+        / "agent_system"
+        / "multi_turn_rollout"
+        / "rollout_loop.py"
     ).resolve()
     if expected_memory_root not in traces_pool_source.parents:
         raise ImportError(
@@ -71,6 +81,15 @@ def _check_signatures() -> None:
         raise ImportError(
             f"RayPPOTrainer was imported from {trainer_source}, "
             f"expected {expected_trainer}"
+        )
+    if rollout_source != expected_rollout:
+        raise ImportError(
+            f"TrajectoryCollector was imported from {rollout_source}, "
+            f"expected {expected_rollout}"
+        )
+    if not hasattr(TrajectoryCollector, "_preprocess_text_batch"):
+        raise TypeError(
+            "TrajectoryCollector is missing the batched text preprocessing path"
         )
 
     _require_keywords(

@@ -3,8 +3,8 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from verl import DataProto
 from agent_system.multi_turn_rollout.rollout_loop import TrajectoryCollector
+from verl import DataProto
 
 
 class _Tokenizer:
@@ -117,14 +117,37 @@ def test_finished_rows_are_not_regenerated_when_compaction_enabled():
     assert rewards.tolist() == [1.0, 2.0, 3.0]
     assert lengths.tolist() == [1.0, 2.0, 3.0]
     assert all(len(actions) == 3 for actions in envs.actions)
-    assert collector.get_last_rollout_compaction_metrics() == {
+    metrics = collector.get_last_rollout_compaction_metrics()
+    assert {
+        key: metrics[key]
+        for key in (
+            "rollout/active_compaction_enabled",
+            "rollout/active_generation_rounds",
+            "rollout/vllm_full_batch_rows_legacy",
+            "rollout/vllm_active_rows",
+            "rollout/vllm_request_rows",
+            "rollout/vllm_dp_padding_rows",
+            "rollout/vllm_rows_avoided",
+            "rollout/active_rows_per_round_mean",
+            "rollout/active_rows_per_round_min",
+            "rollout/active_rows_per_round_max",
+            "rollout/dp_underfilled_rounds",
+        )
+    } == {
         "rollout/active_compaction_enabled": 1,
         "rollout/active_generation_rounds": 3,
         "rollout/vllm_full_batch_rows_legacy": 9,
         "rollout/vllm_active_rows": 6,
         "rollout/vllm_request_rows": 8,
+        "rollout/vllm_dp_padding_rows": 2,
         "rollout/vllm_rows_avoided": 1,
+        "rollout/active_rows_per_round_mean": 2.0,
+        "rollout/active_rows_per_round_min": 1,
+        "rollout/active_rows_per_round_max": 3,
+        "rollout/dp_underfilled_rounds": 1,
     }
+    assert metrics["timing_s/rollout_collector"] >= 0
+    assert metrics["timing_s/rollout_vllm_generate"] >= 0
 
 
 def test_legacy_switch_keeps_full_generation_batches():

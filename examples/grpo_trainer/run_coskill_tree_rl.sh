@@ -9,10 +9,12 @@
 # GPU (for example A800-80G) is also supported only with the explicit
 # TREE_RL_ALLOW_SINGLE_GPU=1 acknowledgement and still uses all 72 rollouts.
 # An 8-GPU allocation defaults to two independent four-GPU slots;
-# TREE_RL_USE_ALL_8=1 instead makes one opt-in eight-rank experiment with a
-# 72-sample PPO mini-batch. That mode preserves rollout count, tasks, rewards,
-# prompts, and maximum environment steps, but changes PPO minibatch geometry,
-# so it must not be mixed with the 2/4-GPU learning curve. TREE_RL_SMOKE_TEST=1 remains the separate tiny diagnostic path. It
+# TREE_RL_USE_ALL_8=1 instead makes one opt-in eight-rank experiment.  Its
+# default throughput profile uses 16 goals x 6 GRPO samples = 96 trajectories
+# so every rank receives a useful local batch. Set
+# TREE_RL_8GPU_THROUGHPUT_MODE=0 to retain the exact 12 x 6 = 72 contract.
+# The 96-row profile is a different sampling/optimizer geometry and must not be
+# mixed with the 2/4-GPU or 72-row learning curves. TREE_RL_SMOKE_TEST=1 remains the separate tiny diagnostic path. It
 # does not run `ray stop` or `ray start`: main_ppo owns its Ray lifecycle, so a
 # job never destroys a different user's Ray session on a shared cluster.
 
@@ -141,9 +143,14 @@ ALLOCATED_CUDA_VISIBLE_DEVICES="$CUDA_VISIBLE_DEVICES"
 ALLOCATED_NUM_GPUS="$(tr ',' '\n' <<<"$ALLOCATED_CUDA_VISIBLE_DEVICES" | awk 'NF {n++} END {print n+0}')"
 TREE_RL_GPU_SLOT="${TREE_RL_GPU_SLOT:-0}"
 TREE_RL_USE_ALL_8="${TREE_RL_USE_ALL_8:-0}"
+TREE_RL_8GPU_THROUGHPUT_MODE="${TREE_RL_8GPU_THROUGHPUT_MODE:-1}"
 TREE_RL_ALLOW_SINGLE_GPU="${TREE_RL_ALLOW_SINGLE_GPU:-0}"
 if [[ "$TREE_RL_USE_ALL_8" != "0" && "$TREE_RL_USE_ALL_8" != "1" ]]; then
     echo "TREE_RL_USE_ALL_8 must be 0 (two four-GPU slots) or 1 (one eight-GPU experiment)." >&2
+    exit 1
+fi
+if [[ "$TREE_RL_8GPU_THROUGHPUT_MODE" != "0" && "$TREE_RL_8GPU_THROUGHPUT_MODE" != "1" ]]; then
+    echo "TREE_RL_8GPU_THROUGHPUT_MODE must be 0 (72 rows) or 1 (16x6=96 rows)." >&2
     exit 1
 fi
 if [[ "$TREE_RL_ALLOW_SINGLE_GPU" != "0" && "$TREE_RL_ALLOW_SINGLE_GPU" != "1" ]]; then
@@ -152,8 +159,13 @@ if [[ "$TREE_RL_ALLOW_SINGLE_GPU" != "0" && "$TREE_RL_ALLOW_SINGLE_GPU" != "1" ]
 fi
 if [[ "$ALLOCATED_NUM_GPUS" == "8" ]]; then
     if [[ "$TREE_RL_USE_ALL_8" == "1" ]]; then
-        echo "8-GPU all-in-one mode enabled: ranks=$CUDA_VISIBLE_DEVICES; PPO global mini-batch will be 72."
-        echo "This is an explicit non-comparable optimizer-geometry variant; do not merge its learning curve with 2/4-GPU results."
+        echo "8-GPU all-in-one mode enabled: ranks=$CUDA_VISIBLE_DEVICES."
+        if [[ "$TREE_RL_8GPU_THROUGHPUT_MODE" == "1" ]]; then
+            echo "8-GPU throughput profile enabled: 16 goals x 6 = 96 rollouts/update."
+            echo "This is a non-comparable sampling/optimizer variant; do not merge its learning curve with 72-rollout results."
+        else
+            echo "8-GPU exact-contract profile enabled: 12 goals x 6 = 72 rollouts/update."
+        fi
     else
         if [[ "$TREE_RL_GPU_SLOT" != "0" && "$TREE_RL_GPU_SLOT" != "1" ]]; then
             echo "With 8 visible GPUs, TREE_RL_GPU_SLOT must be 0 or 1." >&2
@@ -197,28 +209,23 @@ if [[ "$TREE_RL_ORDER" != "root" && "$TREE_RL_ORDER" != "leaf" ]]; then
     exit 1
 fi
 
-# Experiment contract: every CoSkill Tree-RL update contains exactly
-# 12 distinct WebShop/ALFWorld goals × 6 GRPO samples = 72 rollouts,
-# regardless of whether FSDP uses one, two, or four A800s.  Only the dispatch
-# is sharded more finely on more GPUs.  Ray/verl requires the *expanded*
-# rollout batch (not the number of base goals) to divide across ranks.
+# Default 1/2/4-GPU and exact-contract 8-GPU updates contain 12 distinct
+# WebShop/ALFWorld goals x 6 GRPO samples = 72 rollouts.  The explicit 8-GPU
+# throughput profile uses 16 x 6 = 96 so each rank receives 12 trajectories
+# rather than nine. Ray/verl requires the *expanded* rollout batch (not the
+# number of base goals) to divide across ranks.
 if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
     DEFAULT_TRAIN_DATA_SIZE=2
     DEFAULT_GROUP_SIZE=2
     DEFAULT_VAL_DATA_SIZE=2
-    DEFAULT_PPO_MINI_BATCH=4
 else
-    DEFAULT_TRAIN_DATA_SIZE=12
+    if [[ "$TREE_RL_USE_ALL_8" == "1" && "$NUM_GPUS" == "8" && "$TREE_RL_8GPU_THROUGHPUT_MODE" == "1" ]]; then
+        DEFAULT_TRAIN_DATA_SIZE=16
+    else
+        DEFAULT_TRAIN_DATA_SIZE=12
+    fi
     DEFAULT_GROUP_SIZE=6
     DEFAULT_VAL_DATA_SIZE=32
-    # 36 cannot be evenly partitioned over eight FSDP ranks. The explicit
-    # all-8 mode therefore uses one 72-sample PPO mini-batch (9 samples/rank),
-    # while 2/4-GPU formal runs retain their two 36-sample mini-batches.
-    if [[ "$TREE_RL_USE_ALL_8" == "1" && "$NUM_GPUS" == "8" ]]; then
-        DEFAULT_PPO_MINI_BATCH=72
-    else
-        DEFAULT_PPO_MINI_BATCH=36
-    fi
 fi
 TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-$DEFAULT_TRAIN_DATA_SIZE}"
 GROUP_SIZE="${GROUP_SIZE:-$DEFAULT_GROUP_SIZE}"
@@ -231,6 +238,18 @@ fi
 if (( VAL_DATA_SIZE % NUM_GPUS != 0 )); then
     echo "VAL_DATA_SIZE=$VAL_DATA_SIZE must be divisible by $NUM_GPUS Ray/FSDP ranks." >&2
     exit 1
+fi
+if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
+    DEFAULT_PPO_MINI_BATCH=4
+elif (( NUM_GPUS == 8 && ROLLOUTS_PER_STEP % 48 == 0 )); then
+    # 96-row throughput mode: two global mini-batches of 48, six rows/rank.
+    DEFAULT_PPO_MINI_BATCH=48
+elif (( NUM_GPUS == 8 && ROLLOUTS_PER_STEP == 72 )); then
+    # 36 cannot be split across eight ranks; retain the historical one-mini
+    # exact-contract geometry.
+    DEFAULT_PPO_MINI_BATCH=72
+else
+    DEFAULT_PPO_MINI_BATCH=36
 fi
 
 # Keep the *global* GRPO/PPO geometry invariant across two and four ranks:
@@ -273,7 +292,11 @@ else:
     print(re.sub(r"[^a-z0-9]+", "-", name).strip("-") or "gpu")
 PY
 )"
-if (( NUM_GPUS >= 4 || MIN_GPU_MEMORY_GIB < 60 )); then
+if (( NUM_GPUS == 8 && ROLLOUTS_PER_STEP >= 96 && MIN_GPU_MEMORY_GIB >= 72 )); then
+    # Six rows/rank in each 48-row mini-batch. Micro=2 cuts gradient
+    # accumulation from six to three without changing the global mini-batch.
+    DEFAULT_PPO_MICRO_BATCH_PER_GPU=2
+elif (( NUM_GPUS >= 4 || MIN_GPU_MEMORY_GIB < 60 )); then
     DEFAULT_PPO_MICRO_BATCH_PER_GPU=1
 else
     DEFAULT_PPO_MICRO_BATCH_PER_GPU=2
@@ -359,18 +382,16 @@ else
     DEFAULT_VAL_BEFORE_TRAIN=True
     DEFAULT_LORA_RANK=32
     DEFAULT_LORA_ALPHA=64
-    # The collected environment batch is fixed at 72.  Four or eight FSDP
-    # ranks with a per-rank log-prob micro-batch of four would require
-    # ``adjust_batch`` to copy random trajectories (72 is not divisible by
-    # 4*4 or 4*8).  Three is the largest <=4 value that keeps the formal
-    # 72-row batch intact for those topologies: 72/(3*4)=6 and
-    # 72/(3*8)=3.  Two-GPU runs retain four for throughput because 72/(4*2)
-    # is already integral.
-    if (( NUM_GPUS >= 4 )); then
-        DEFAULT_LOG_PROB_MICRO_BATCH=3
-    else
-        DEFAULT_LOG_PROB_MICRO_BATCH=4
-    fi
+    # Pick the largest <=4 per-rank log-prob micro-batch whose global size
+    # exactly divides the expanded rollout batch. This yields 3 for the
+    # historical 72-row 4/8-GPU profile and 4 for the 96-row 8-GPU profile.
+    DEFAULT_LOG_PROB_MICRO_BATCH=1
+    for candidate in 4 3 2 1; do
+        if (( ROLLOUTS_PER_STEP % (candidate * NUM_GPUS) == 0 )); then
+            DEFAULT_LOG_PROB_MICRO_BATCH=$candidate
+            break
+        fi
+    done
     DEFAULT_ACTOR_PARAM_OFFLOAD=False
     DEFAULT_ACTOR_OPTIMIZER_OFFLOAD=False
     if (( MIN_GPU_MEMORY_GIB < 48 )); then
@@ -380,7 +401,12 @@ else
     else
         DEFAULT_VLLM_GPU_MEMORY_UTILIZATION=0.8
     fi
-    DEFAULT_VLLM_MAX_NUM_BATCHED_TOKENS=16384
+    if (( NUM_GPUS == 8 && ROLLOUTS_PER_STEP >= 96 )); then
+        # 12 prompts/rank frequently exceed the historical 16k prefill cap.
+        DEFAULT_VLLM_MAX_NUM_BATCHED_TOKENS=32768
+    else
+        DEFAULT_VLLM_MAX_NUM_BATCHED_TOKENS=16384
+    fi
     DEFAULT_VLLM_MAX_NUM_SEQS=256
 fi
 export TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-$DEFAULT_TOTAL_TRAINING_STEPS}"
@@ -397,6 +423,14 @@ export VLLM_MAX_NUM_BATCHED_TOKENS="${VLLM_MAX_NUM_BATCHED_TOKENS:-$DEFAULT_VLLM
 export VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-$DEFAULT_VLLM_MAX_NUM_SEQS}"
 export ACTOR_PARAM_OFFLOAD="${ACTOR_PARAM_OFFLOAD:-$DEFAULT_ACTOR_PARAM_OFFLOAD}"
 export ACTOR_OPTIMIZER_OFFLOAD="${ACTOR_OPTIMIZER_OFFLOAD:-$DEFAULT_ACTOR_OPTIMIZER_OFFLOAD}"
+export BATCH_TOKENIZE_OBSERVATIONS="${BATCH_TOKENIZE_OBSERVATIONS:-True}"
+case "$BATCH_TOKENIZE_OBSERVATIONS" in
+    True|False) ;;
+    *)
+        echo "BATCH_TOKENIZE_OBSERVATIONS must be True or False, got: $BATCH_TOKENIZE_OBSERVATIONS" >&2
+        exit 1
+        ;;
+esac
 
 # ``adjust_batch`` is a last-resort compatibility path.  It pads a batch by
 # sampling individual rows, which is unsuitable for an exact 6-trajectory
@@ -423,12 +457,12 @@ REF_LOGPROB_GLOBAL_MICRO=$((REF_LOG_PROB_MICRO_BATCH_PER_GPU * NUM_GPUS))
 BATCH_ADJUST_DIVISOR="$(lcm_int "$PPO_GLOBAL_MICRO_BATCH" "$ROLLOUT_LOGPROB_GLOBAL_MICRO")"
 BATCH_ADJUST_DIVISOR="$(lcm_int "$BATCH_ADJUST_DIVISOR" "$REF_LOGPROB_GLOBAL_MICRO")"
 if (( ROLLOUTS_PER_STEP % BATCH_ADJUST_DIVISOR != 0 )); then
-    echo "72-rollout geometry is incompatible with the requested micro-batches: " >&2
+    echo "Expanded rollout geometry is incompatible with the requested micro-batches: " >&2
     echo "rollouts=$ROLLOUTS_PER_STEP actor_global_micro=$PPO_GLOBAL_MICRO_BATCH rollout_logprob_global_micro=$ROLLOUT_LOGPROB_GLOBAL_MICRO ref_logprob_global_micro=$REF_LOGPROB_GLOBAL_MICRO lcm=$BATCH_ADJUST_DIVISOR." >&2
-    echo "It would require adjust_batch to copy individual trajectories and alter GRPO group weights. Set LOG_PROB_MICRO_BATCH_PER_GPU and REF_LOG_PROB_MICRO_BATCH_PER_GPU to values whose global micro-batches divide $ROLLOUTS_PER_STEP (defaults: 3 on 4/8 GPUs; 4 on 2 GPUs)." >&2
+    echo "It would require adjust_batch to copy individual trajectories and alter GRPO group weights. Set LOG_PROB_MICRO_BATCH_PER_GPU and REF_LOG_PROB_MICRO_BATCH_PER_GPU to values whose global micro-batches divide $ROLLOUTS_PER_STEP." >&2
     exit 1
 fi
-# Keep DP=4 and TP=1.  This optimization compacts only already-finished
+# Keep TP=1 and use one data-parallel replica per visible GPU. This optimization compacts only already-finished
 # trajectories before vLLM generation; it does not alter model parallelism,
 # rollouts-per-step, prompts, rewards, or PPO geometry.
 export COMPACT_FINISHED_TRAJECTORIES="${COMPACT_FINISHED_TRAJECTORIES:-True}"
@@ -526,16 +560,20 @@ if [[ "$BENCHMARK" == "webshop" ]]; then
 fi
 
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"
-echo "GPU allocation: allocated=$ALLOCATED_CUDA_VISIBLE_DEVICES selected=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS slot=$TREE_RL_GPU_SLOT all_8=$TREE_RL_USE_ALL_8 formal_single=$TREE_RL_ALLOW_SINGLE_GPU"
+echo "GPU allocation: allocated=$ALLOCATED_CUDA_VISIBLE_DEVICES selected=$CUDA_VISIBLE_DEVICES ranks=$NUM_GPUS slot=$TREE_RL_GPU_SLOT all_8=$TREE_RL_USE_ALL_8 throughput_8=$TREE_RL_8GPU_THROUGHPUT_MODE formal_single=$TREE_RL_ALLOW_SINGLE_GPU"
 echo "GPU profile: $GPU_PROFILE (minimum ${MIN_GPU_MEMORY_GIB}GiB; vLLM utilization=$VLLM_GPU_MEMORY_UTILIZATION)"
 echo "vLLM topology: DP=$NUM_GPUS TP=1 PP=1 (unchanged)"
 echo "Active trajectory compaction: $COMPACT_FINISHED_TRAJECTORIES (only completed rows are excluded from future vLLM calls)"
-echo "GRPO rollout: train_data_size=$TRAIN_DATA_SIZE group_size=$GROUP_SIZE total=$ROLLOUTS_PER_STEP (fixed across GPU counts)"
+echo "GRPO rollout: train_data_size=$TRAIN_DATA_SIZE group_size=$GROUP_SIZE total=$ROLLOUTS_PER_STEP"
+if (( ROLLOUTS_PER_STEP != 72 )); then
+    echo "WARNING: this run uses $ROLLOUTS_PER_STEP rollouts/update and is not a 72-rollout learning-curve replicate."
+fi
 if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
     echo "WARNING: smoke mode uses tiny non-comparable rollout/length/offload settings in an isolated output directory."
 fi
 echo "PPO geometry: global_mini=$PPO_MINI_BATCH_SIZE per_rank_mini=$PPO_MINI_BATCH_PER_GPU micro_per_gpu=$PPO_MICRO_BATCH_SIZE_PER_GPU global_micro=$PPO_GLOBAL_MICRO_BATCH accumulation=$PPO_GRAD_ACCUM_STEPS"
-echo "Log-prob geometry: rollout_micro_per_gpu=$LOG_PROB_MICRO_BATCH_PER_GPU ref_micro_per_gpu=$REF_LOG_PROB_MICRO_BATCH_PER_GPU batch_adjust_divisor=$BATCH_ADJUST_DIVISOR (72 rollouts require no copied rows)"
+echo "Log-prob geometry: rollout_micro_per_gpu=$LOG_PROB_MICRO_BATCH_PER_GPU ref_micro_per_gpu=$REF_LOG_PROB_MICRO_BATCH_PER_GPU batch_adjust_divisor=$BATCH_ADJUST_DIVISOR (expanded batch requires no copied rows)"
+echo "Rollout preprocessing: batch_tokenize_observations=$BATCH_TOKENIZE_OBSERVATIONS vllm_max_batched_tokens=$VLLM_MAX_NUM_BATCHED_TOKENS"
 echo "Validation: val_data_size=$VAL_DATA_SIZE test_freq=$TEST_FREQ val_before_train=$VAL_BEFORE_TRAIN"
 echo "Tree curriculum: order=$TREE_RL_ORDER train>=${TREE_RL_MIN_TRAIN_EPISODES}@${TREE_RL_TRAIN_SUCCESS_THRESHOLD} probe>=${TREE_RL_MIN_PROBE_EPISODES}@${TREE_RL_PROBE_SUCCESS_THRESHOLD}"
 echo "Output: $OUTPUT_DIR"
@@ -641,6 +679,7 @@ ppo_args=(
     "env.resources_per_worker.num_cpus=$ENV_WORKER_CPUS"
     +env.use_skills_only_memory=True
     "+env.compact_finished_trajectories=$COMPACT_FINISHED_TRAJECTORIES"
+    "+env.batch_tokenize_observations=$BATCH_TOKENIZE_OBSERVATIONS"
     "+env.skills_only_memory.skills_json_path=$SKILLS_JSON"
     "+env.skills_only_memory.retrieval_mode=$RETRIEVAL_MODE"
     +env.skills_only_memory.top_k=6
@@ -713,7 +752,7 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST TREE_RL_ALLOW_SINGLE_GPU ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT TREE_RL_USE_ALL_8 GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION VLLM_ATTENTION_BACKEND VLLM_USE_FLASHINFER_SAMPLER COSKILL_ENABLE_FLASHINFER_SAMPLER COSKILL_FLASHINFER_OVERLAY N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS LOG_PROB_MICRO_BATCH_PER_GPU REF_LOG_PROB_MICRO_BATCH_PER_GPU ROLLOUT_LOGPROB_GLOBAL_MICRO REF_LOGPROB_GLOBAL_MICRO BATCH_ADJUST_DIVISOR MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
+    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST TREE_RL_ALLOW_SINGLE_GPU ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT TREE_RL_USE_ALL_8 TREE_RL_8GPU_THROUGHPUT_MODE GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION VLLM_ATTENTION_BACKEND VLLM_USE_FLASHINFER_SAMPLER COSKILL_ENABLE_FLASHINFER_SAMPLER COSKILL_FLASHINFER_OVERLAY N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS LOG_PROB_MICRO_BATCH_PER_GPU REF_LOG_PROB_MICRO_BATCH_PER_GPU ROLLOUT_LOGPROB_GLOBAL_MICRO REF_LOGPROB_GLOBAL_MICRO BATCH_ADJUST_DIVISOR MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES BATCH_TOKENIZE_OBSERVATIONS CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
         # Several settings above are intentionally optional (for example the
         # FlashInfer overlay).  Preserve an empty value in run_config.env
         # rather than letting `set -u` abort the job before main_ppo starts.

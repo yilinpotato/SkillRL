@@ -24,6 +24,7 @@ def test_quiet_logs_environment_switch(monkeypatch):
 def test_overlay_copies_every_runtime_file_with_quiet_log_gates():
     text = OVERLAY.read_text(encoding="utf-8")
     for source in (
+        "agent_system/multi_turn_rollout/rollout_loop.py",
         "verl/trainer/main_ppo.py",
         "verl/trainer/ppo/ray_trainer.py",
         "verl/workers/fsdp_workers.py",
