@@ -388,6 +388,14 @@ def _recover_complete_cloud_calls(
     ):
         if not audit_path.exists():
             continue
+        if (
+            audit_path.name == "call_audit_live.json"
+            and skills_path.stat().st_mtime_ns <= audit_path.stat().st_mtime_ns
+        ):
+            # All responses may be checkpointed just before the final parsed
+            # tree is installed and saved.  Recover only when the skill bank
+            # was persisted after the last live provider-usage snapshot.
+            continue
         calls = common._read_json(audit_path)
         if not isinstance(calls, list):
             continue

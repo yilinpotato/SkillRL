@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -133,6 +134,9 @@ def test_complete_cloud_call_checkpoint_can_finalize_without_rebilling(tmp_path)
     audit = arm_dir / "cloud_io" / "call_audit_live.json"
     audit.parent.mkdir(parents=True)
     audit.write_text(json.dumps(calls))
+    skills_path.write_text('{"saved_after_calls": true}')
+    audit_mtime = audit.stat().st_mtime_ns
+    os.utime(skills_path, ns=(audit_mtime + 1, audit_mtime + 1))
     assert _recover_complete_cloud_calls(
         arm_dir,
         _shared_raw(),
@@ -148,6 +152,26 @@ def test_partial_cloud_call_checkpoint_is_not_treated_as_complete(tmp_path):
     audit = arm_dir / "cloud_io" / "call_audit_live.json"
     audit.parent.mkdir(parents=True)
     audit.write_text(json.dumps([{"purpose": "contrastive_distill"}]))
+    assert (
+        _recover_complete_cloud_calls(arm_dir, _shared_raw(), skills_path)
+        is None
+    )
+
+
+def test_live_calls_without_a_newer_skill_save_are_not_recovered(tmp_path):
+    arm_dir = tmp_path / "arm"
+    skills_path = arm_dir / "skill_lib" / "skills_step72.json"
+    skills_path.parent.mkdir(parents=True)
+    skills_path.write_text('{"stale": true}')
+    expected = _expected_cloud_call_purposes(_shared_raw())
+    calls = [
+        {"purpose": purpose}
+        for purpose, count in expected.items()
+        for _ in range(count)
+    ]
+    audit = arm_dir / "cloud_io" / "call_audit_live.json"
+    audit.parent.mkdir(parents=True)
+    audit.write_text(json.dumps(calls))
     assert (
         _recover_complete_cloud_calls(arm_dir, _shared_raw(), skills_path)
         is None
