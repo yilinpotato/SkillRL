@@ -96,3 +96,48 @@ GPU 0 却设置 `CUDA_VISIBLE_DEVICES=1` 时，会在树生成前明确退出，
 - `ablation_summary.json`、`ablation_summary.csv`、`skill_level_by_task.csv`：最终汇总。
 
 外部 `raw_traces.jsonl` 即使没有源游戏 ID，程序也会用精确初始 observation 指纹排除当前验证 manifest 中的游戏。该方法能阻止同一 ALFWorld 游戏跨随机 rollout 泄漏；若以后接入包含源 game ID 的轨迹格式，仍建议同时按 game ID 做更直接的排除审计。
+
+## 复用已有树，仅扩展验证集
+
+如果已经完成旧版 3 游戏/任务的 L0–L5 生成和评测，不必重新调用云端或重新生成技能。增量验证控制器会：
+
+1. 把旧目录中的 L0–L5 `skills.json`、artifact manifest 和 216 episodes/臂的旧评测快照复制到一个新目录；源目录只读。
+2. 用相同 split 和 seed 建立 5 游戏/任务的确定性 manifest，并要求旧 18 个游戏是新 30 个游戏的严格子集。
+3. 对旧树使用的 72 条证据和完整 30 个验证游戏重新做初始 observation SHA-256 零重叠审计。
+4. 只评测新增的 2 游戏/任务，即 `2 × 6 × 12 = 144` episodes/臂。
+5. 合并旧 216 与新增 144 条 episode ledger，重新计算成功率和本地 token，最终输出 360 episodes/臂的标准 metrics。
+
+该模式不会把旧 L0 重新解释成新版“与树臂等证据”的 L0：它忠实保留源运行的技能产物与生成协议，只扩大同一批冻结产物的验证样本。这是“已有树的增量复验”，不是重新执行一次公平证据生成实验。
+
+单卡服务器接续：
+
+```bash
+cd /path/to/CoSkill
+git pull origin Co-Skill
+export SOURCE_V4_ROOT='/path/to/completed_v4_root'
+export CUDA_VISIBLE_DEVICES=0
+export DATA_PARALLEL_WORKERS=1
+export AB_ROOT="$PWD/skillrl_outputs/alfworld_skill_tree_depth_v4_validation_extension/run_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$AB_ROOT"
+nohup bash examples/playbook_evolve/run_alfworld_skill_tree_depth_v4_extend_validation.sh \
+  --phase all >"$AB_ROOT/run.log" 2>&1 &
+echo $!
+tail -f "$AB_ROOT/run.log"
+```
+
+双卡时只需改为：
+
+```bash
+export CUDA_VISIBLE_DEVICES=0,1
+export DATA_PARALLEL_WORKERS=2
+```
+
+增量运行可以用同一 `AB_ROOT` 接续。`--phase prepare` 只冻结源产物、创建 manifest 和做泄漏审计；`--phase evaluate` 跳过已有新增臂并继续未完成臂；`--phase summary` 仅重新合并指标。该流程不调用 DeepSeek API，因此不要求重新设置 API key。
+
+新增输出：
+
+- `baseline_snapshot/`：旧配置和旧 216 episodes/臂评测的校验快照。
+- `manifests/eval_games_delta.json`：唯一需要新增运行的 12 个游戏。
+- `validation_delta/arms/*/summary.json`：每臂新增 144 episodes。
+- `validation_extension_receipt.json`：源目录、artifact 哈希、manifest 哈希和证据零重叠审计。
+- `arms/*/summary.json`：合并后的 360 episodes/臂标准结果。
