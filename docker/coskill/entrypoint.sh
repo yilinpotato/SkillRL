@@ -6,11 +6,30 @@ export PROJECT_ROOT
 cd "$PROJECT_ROOT"
 
 load_mounted_cloud_dotenv() {
-    # This fixed, documented path is a runtime-only bind mount.  Never COPY a
-    # user .env into an image layer and never rely on Docker --env-file to
-    # interpret shell-style quotes in a credential value.
-    local dotenv_path="${COSKILL_CONTAINER_DOTENV:-/run/secrets/coskill.env}"
-    if [[ ! -f "$dotenv_path" ]]; then
+    # Never COPY a user .env into an image layer and never rely on Docker
+    # --env-file to interpret shell-style quotes in a credential value.  The
+    # ordinary project-root mount is supported because it is the least
+    # surprising deployment interface; /run/secrets remains a useful
+    # alternative for schedulers.  An explicit path always wins.
+    local dotenv_path=""
+    local candidate
+    local -a candidates=()
+    if [[ -n "${COSKILL_CONTAINER_DOTENV:-}" ]]; then
+        candidates+=("$COSKILL_CONTAINER_DOTENV")
+    fi
+    candidates+=("$PROJECT_ROOT/.env" "/run/secrets/coskill.env")
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -f "$candidate" ]]; then
+            dotenv_path="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$dotenv_path" ]]; then
+        if [[ -n "${COSKILL_CONTAINER_DOTENV:-}" ]]; then
+            echo "[container-dotenv] requested dotenv does not exist: $COSKILL_CONTAINER_DOTENV" >&2
+            exit 2
+        fi
         return
     fi
     local exports
@@ -19,6 +38,10 @@ load_mounted_cloud_dotenv() {
     # this shell never enables xtrace, so no credential reaches stdout/stderr.
     eval "$exports"
     echo "[container-dotenv] loaded mounted cloud configuration from $dotenv_path"
+    # The Tree-RL launcher normally sources $PROJECT_ROOT/.env as shell code.
+    # It must not reparse this mounted file after the strict Python allowlist
+    # above (the Docker/env-file quote discrepancy that this overlay fixes).
+    export COSKILL_ENV_FILE=/dev/null
 }
 
 load_mounted_cloud_dotenv

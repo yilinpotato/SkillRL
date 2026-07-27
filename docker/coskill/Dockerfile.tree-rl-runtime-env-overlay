@@ -2,8 +2,9 @@
 #
 # It deliberately does not COPY .env, credentials, model weights, data, logs,
 # checkpoints, or arbitrary worktree files.  At runtime mount a dotfile at
-# /run/secrets/coskill.env:ro; the entrypoint parses it with the bundled Python
-# allowlist before the mandatory real cloud probe.
+# /workspace/CoSkill/.env:ro (or /run/secrets/coskill.env:ro); the entrypoint
+# parses it with the bundled Python allowlist before the mandatory real cloud
+# probe.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
