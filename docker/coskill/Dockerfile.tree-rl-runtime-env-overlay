@@ -22,6 +22,14 @@ RUN chmod +x \
     /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh \
     /workspace/CoSkill/scripts/load_container_cloud_env.py \
     /workspace/CoSkill/scripts/configure_vllm_acceleration.sh \
+    && test -f /workspace/CoSkill/scripts/load_private_env.sh \
+    && test -f /workspace/CoSkill/scripts/check_cloud_bootstrap.py \
+    && test -f /workspace/CoSkill/scripts/preflight_wandb.py \
+    && test -f /workspace/CoSkill/examples/data_preprocess/prepare.py \
+    && test -f /workspace/CoSkill/verl/trainer/main_ppo.py \
+    && bash -n /workspace/CoSkill/docker/coskill/entrypoint.sh \
+    && bash -n /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl.sh \
+    && bash -n /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh \
     && python -c 'import openai; import verl'
 
 ENTRYPOINT ["/workspace/CoSkill/docker/coskill/entrypoint.sh"]
