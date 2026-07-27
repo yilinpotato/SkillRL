@@ -11,6 +11,8 @@ from examples.playbook_evolve.webshop_trace_compression_one_step_ablation import
     TOTAL_ROLLOUTS,
     WEBSHOP_TASK_TYPES,
     _driver_cmd,
+    _expected_cloud_call_purposes,
+    _recover_complete_cloud_calls,
     _validate_shared_raw,
     capture_once,
 )
@@ -115,6 +117,41 @@ def test_capture_reuses_completed_driver_output_after_postcheck_failure(
     integrity = common._read_json(root / "capture" / "capture_integrity.json")
     assert integrity["recovered_completed_capture"] is True
     assert integrity["rollouts"] == TOTAL_ROLLOUTS
+
+
+def test_complete_cloud_call_checkpoint_can_finalize_without_rebilling(tmp_path):
+    arm_dir = tmp_path / "arm"
+    skills_path = arm_dir / "skill_lib" / "skills_step72.json"
+    skills_path.parent.mkdir(parents=True)
+    skills_path.write_text("{}")
+    expected = _expected_cloud_call_purposes(_shared_raw())
+    calls = [
+        {"purpose": purpose, "prompt_tokens": 10, "completion_tokens": 2}
+        for purpose, count in expected.items()
+        for _ in range(count)
+    ]
+    audit = arm_dir / "cloud_io" / "call_audit_live.json"
+    audit.parent.mkdir(parents=True)
+    audit.write_text(json.dumps(calls))
+    assert _recover_complete_cloud_calls(
+        arm_dir,
+        _shared_raw(),
+        skills_path,
+    ) == calls
+
+
+def test_partial_cloud_call_checkpoint_is_not_treated_as_complete(tmp_path):
+    arm_dir = tmp_path / "arm"
+    skills_path = arm_dir / "skill_lib" / "skills_step72.json"
+    skills_path.parent.mkdir(parents=True)
+    skills_path.write_text("{}")
+    audit = arm_dir / "cloud_io" / "call_audit_live.json"
+    audit.parent.mkdir(parents=True)
+    audit.write_text(json.dumps([{"purpose": "contrastive_distill"}]))
+    assert (
+        _recover_complete_cloud_calls(arm_dir, _shared_raw(), skills_path)
+        is None
+    )
 
 
 def test_capture_driver_disables_cloud_mutation_but_keeps_normal_skill_prompt():

@@ -7,6 +7,7 @@ contrastive_distill/diagnose_failures mix every task_type into a single call
 each and must land in an honest "mixed" bucket instead of a fabricated split.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -110,3 +111,39 @@ def test_cloud_call_without_provider_usage_is_not_recorded_as_zero_tokens():
     assert call["total_tokens"] is None
     assert analyzer.usage_missing_calls == 1
     assert analyzer.usage_missing_calls_by_task_type == {"heat": 1}
+
+
+def test_call_audit_is_checkpointed_after_each_provider_call(tmp_path):
+    analyzer = CloudAnalyzer.__new__(CloudAnalyzer)
+    analyzer.call_audit = []
+    analyzer.output_dir = str(tmp_path)
+    analyzer.model = "deepseek-v4-flash"
+    analyzer.evidence_render_limits = {"multiplier": 1}
+    analyzer.usage_reported_calls = 0
+    analyzer.usage_missing_calls = 0
+    analyzer.usage_missing_calls_by_task_type = {}
+    analyzer.usage_missing_calls_mixed = 0
+    analyzer.cache_usage_reported_calls = 0
+    analyzer.cache_usage_missing_calls = 0
+    analyzer.total_prompt_cache_hit_tokens = 0
+    analyzer.total_prompt_cache_miss_tokens = 0
+
+    analyzer._record_call(
+        "evolve_playbook",
+        "prompt",
+        "response",
+        {
+            "prompt_tokens": 11,
+            "completion_tokens": 3,
+            "prompt_cache_hit_tokens": 2,
+            "prompt_cache_miss_tokens": 9,
+        },
+        task_type="apparel",
+    )
+
+    checkpoint = tmp_path / "call_audit_live.json"
+    assert checkpoint.exists()
+    rows = json.loads(checkpoint.read_text())
+    assert rows == analyzer.call_audit
+    assert rows[0]["prompt_tokens"] == 11
+    assert not list(tmp_path.glob("call_audit_live.json.tmp.*"))

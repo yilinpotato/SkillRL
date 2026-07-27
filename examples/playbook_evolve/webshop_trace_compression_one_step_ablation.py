@@ -358,6 +358,49 @@ def capture_once(
     return raw_path
 
 
+def _expected_cloud_call_purposes(raw: list[dict[str, Any]]) -> Counter[str]:
+    """Return the normal CoSkill cloud-call set for this frozen batch."""
+    by_type: Counter[str] = Counter(
+        str(trace.get("task_type") or "unknown") for trace in raw
+    )
+    expected: Counter[str] = Counter()
+    if raw:
+        expected["contrastive_distill"] = 1
+    if any(trace.get("outcome") != "success" for trace in raw):
+        expected["diagnose_failures"] = 1
+    expected["evolve_playbook"] = sum(
+        int(count >= 6) for count in by_type.values()
+    )
+    return expected
+
+
+def _recover_complete_cloud_calls(
+    arm_dir: Path,
+    raw: list[dict[str, Any]],
+    skills_path: Path,
+) -> list[dict[str, Any]] | None:
+    """Recover a billed cloud update interrupted during local reporting."""
+    if not skills_path.exists():
+        return None
+    for audit_path in (
+        arm_dir / "cloud_io" / "call_audit.json",
+        arm_dir / "cloud_io" / "call_audit_live.json",
+    ):
+        if not audit_path.exists():
+            continue
+        calls = common._read_json(audit_path)
+        if not isinstance(calls, list):
+            continue
+        actual = Counter(str(call.get("purpose", "")) for call in calls)
+        if actual == _expected_cloud_call_purposes(raw):
+            print(
+                "[webshop-train-step-trace-ablation] recovering completed "
+                f"cloud update from {audit_path}"
+            )
+            return calls
+    return None
+
+
 def build_arm(
     root: Path,
     arm: str,
@@ -373,39 +416,43 @@ def build_arm(
 
     flags = ARMS[arm]
     raw = common._read_jsonl(raw_path)
+    skills_path = arm_dir / "skill_lib" / f"skills_step{TOTAL_ROLLOUTS}.json"
     reporting_pool = common._pool(raw, arm_dir / "trace_payload", flags)
     batch = reporting_pool.export_batch(
         trigger_reason="one_webshop_training_group_shared_capture"
     )
     common._write_json(arm_dir / "compressed_batch.json", batch)
 
-    cloud_pool = common._pool(raw, arm_dir, flags)
-    library = HierarchicalSkillLib(
-        str(initial_skills),
-        retrieval_mode=retrieval_mode,
-        enable_playbook=True,
-    )
-    loop = CoSkillCloudLoop(
-        output_dir=str(arm_dir),
-        enable_coskill=True,
-        enable_playbook_evolve=True,
-        enable_failure_analysis=True,
-        environment_name="WebShop",
-    )
-    fired = loop.maybe_update(
-        cloud_pool,
-        library,
-        TOTAL_ROLLOUTS,
-        force_reason="one_webshop_training_group_shared_capture",
-    )
-    if not fired:
-        raise RuntimeError(f"{arm} did not execute its required one cloud update")
-
-    skills_path = arm_dir / "skill_lib" / f"skills_step{TOTAL_ROLLOUTS}.json"
-    if not skills_path.exists():
-        raise RuntimeError(f"{arm} cloud update did not persist its skill library")
-    analyzer = loop.cloud_analyzer
-    calls = common.annotate_call_costs(getattr(analyzer, "call_audit", []) or [])
+    recovered_calls = _recover_complete_cloud_calls(arm_dir, raw, skills_path)
+    if recovered_calls is None:
+        cloud_pool = common._pool(raw, arm_dir, flags)
+        library = HierarchicalSkillLib(
+            str(initial_skills),
+            retrieval_mode=retrieval_mode,
+            enable_playbook=True,
+        )
+        loop = CoSkillCloudLoop(
+            output_dir=str(arm_dir),
+            enable_coskill=True,
+            enable_playbook_evolve=True,
+            enable_failure_analysis=True,
+            environment_name="WebShop",
+        )
+        fired = loop.maybe_update(
+            cloud_pool,
+            library,
+            TOTAL_ROLLOUTS,
+            force_reason="one_webshop_training_group_shared_capture",
+        )
+        if not fired:
+            raise RuntimeError(f"{arm} did not execute its required one cloud update")
+        if not skills_path.exists():
+            raise RuntimeError(f"{arm} cloud update did not persist its skill library")
+        analyzer = loop.cloud_analyzer
+        raw_calls = getattr(analyzer, "call_audit", []) or []
+    else:
+        raw_calls = recovered_calls
+    calls = common.annotate_call_costs(raw_calls)
     common._write_json(arm_dir / "cloud_io" / "call_audit.json", calls)
     call_cost_path = arm_dir / "cloud_io" / "call_costs.csv"
     if calls:

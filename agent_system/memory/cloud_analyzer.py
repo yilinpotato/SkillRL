@@ -857,6 +857,33 @@ Return ONLY the JSON object, no other text."""
                 "response_sha256": hashlib.sha256((response or "").encode("utf-8")).hexdigest(),
             }
         )
+        self._persist_call_audit_snapshot()
+
+    def _persist_call_audit_snapshot(self) -> None:
+        """Atomically checkpoint provider usage after every completed call."""
+        output_dir = getattr(self, "output_dir", None)
+        if not output_dir:
+            return
+        path = os.path.join(output_dir, "call_audit_live.json")
+        temporary = f"{path}.tmp.{os.getpid()}"
+        try:
+            with open(temporary, "w", encoding="utf-8") as handle:
+                json.dump(
+                    list(getattr(self, "call_audit", []) or []),
+                    handle,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        except Exception as exc:
+            print(f"[CloudAnalyzer] live call-audit checkpoint failed: {exc}")
+            try:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+            except OSError:
+                pass
 
     def _dump_text(self, dir_path: str, fname: str, text: str) -> None:
         """落盘发给云端大模型的原始 prompt 原文（人类可读，纯文本）。
