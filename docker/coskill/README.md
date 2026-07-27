@@ -83,6 +83,9 @@ docker push crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpot
 
 ## 预检与运行
 
+正式八卡 root/leaf 双服务器运行、export/.env 两种凭据方式、50-step 覆盖、输出和
+指标字段见 [CoSkill Tree-RL 八卡运行手册](../../docs/CoSkill_TreeRL_8GPU_运行手册.md)。
+
 ### Cloud dotenv：只读挂载并由容器内 Python 解析
 
 Tree-RL 的云端凭据不要再依赖 Docker `--env-file` 解析。研究节点上的
