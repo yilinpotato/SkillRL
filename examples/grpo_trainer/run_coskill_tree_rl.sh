@@ -350,7 +350,18 @@ else
     DEFAULT_VAL_BEFORE_TRAIN=True
     DEFAULT_LORA_RANK=32
     DEFAULT_LORA_ALPHA=64
-    DEFAULT_LOG_PROB_MICRO_BATCH=4
+    # The collected environment batch is fixed at 72.  Four or eight FSDP
+    # ranks with a per-rank log-prob micro-batch of four would require
+    # ``adjust_batch`` to copy random trajectories (72 is not divisible by
+    # 4*4 or 4*8).  Three is the largest <=4 value that keeps the formal
+    # 72-row batch intact for those topologies: 72/(3*4)=6 and
+    # 72/(3*8)=3.  Two-GPU runs retain four for throughput because 72/(4*2)
+    # is already integral.
+    if (( NUM_GPUS >= 4 )); then
+        DEFAULT_LOG_PROB_MICRO_BATCH=3
+    else
+        DEFAULT_LOG_PROB_MICRO_BATCH=4
+    fi
     DEFAULT_ACTOR_PARAM_OFFLOAD=False
     DEFAULT_ACTOR_OPTIMIZER_OFFLOAD=False
     if (( MIN_GPU_MEMORY_GIB < 48 )); then
@@ -377,6 +388,37 @@ export VLLM_MAX_NUM_BATCHED_TOKENS="${VLLM_MAX_NUM_BATCHED_TOKENS:-$DEFAULT_VLLM
 export VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-$DEFAULT_VLLM_MAX_NUM_SEQS}"
 export ACTOR_PARAM_OFFLOAD="${ACTOR_PARAM_OFFLOAD:-$DEFAULT_ACTOR_PARAM_OFFLOAD}"
 export ACTOR_OPTIMIZER_OFFLOAD="${ACTOR_OPTIMIZER_OFFLOAD:-$DEFAULT_ACTOR_OPTIMIZER_OFFLOAD}"
+
+# ``adjust_batch`` is a last-resort compatibility path.  It pads a batch by
+# sampling individual rows, which is unsuitable for an exact 6-trajectory
+# GRPO group: it changes the relative weight of selected trajectories.  Make
+# the normal Tree-RL launch fail before Ray starts if the requested per-rank
+# log-prob geometry would need such padding.  The actor update needs a global
+# micro-batch divisor too; the least common multiple covers all three users.
+gcd_int() {
+    local left="$1" right="$2" remainder
+    while (( right != 0 )); do
+        remainder=$((left % right))
+        left=$right
+        right=$remainder
+    done
+    printf '%s\n' "$left"
+}
+lcm_int() {
+    local left="$1" right="$2" divisor
+    divisor="$(gcd_int "$left" "$right")"
+    printf '%s\n' "$((left / divisor * right))"
+}
+ROLLOUT_LOGPROB_GLOBAL_MICRO=$((LOG_PROB_MICRO_BATCH_PER_GPU * NUM_GPUS))
+REF_LOGPROB_GLOBAL_MICRO=$((REF_LOG_PROB_MICRO_BATCH_PER_GPU * NUM_GPUS))
+BATCH_ADJUST_DIVISOR="$(lcm_int "$PPO_GLOBAL_MICRO_BATCH" "$ROLLOUT_LOGPROB_GLOBAL_MICRO")"
+BATCH_ADJUST_DIVISOR="$(lcm_int "$BATCH_ADJUST_DIVISOR" "$REF_LOGPROB_GLOBAL_MICRO")"
+if (( ROLLOUTS_PER_STEP % BATCH_ADJUST_DIVISOR != 0 )); then
+    echo "72-rollout geometry is incompatible with the requested micro-batches: " >&2
+    echo "rollouts=$ROLLOUTS_PER_STEP actor_global_micro=$PPO_GLOBAL_MICRO_BATCH rollout_logprob_global_micro=$ROLLOUT_LOGPROB_GLOBAL_MICRO ref_logprob_global_micro=$REF_LOGPROB_GLOBAL_MICRO lcm=$BATCH_ADJUST_DIVISOR." >&2
+    echo "It would require adjust_batch to copy individual trajectories and alter GRPO group weights. Set LOG_PROB_MICRO_BATCH_PER_GPU and REF_LOG_PROB_MICRO_BATCH_PER_GPU to values whose global micro-batches divide $ROLLOUTS_PER_STEP (defaults: 3 on 4/8 GPUs; 4 on 2 GPUs)." >&2
+    exit 1
+fi
 # Keep DP=4 and TP=1.  This optimization compacts only already-finished
 # trajectories before vLLM generation; it does not alter model parallelism,
 # rollouts-per-step, prompts, rewards, or PPO geometry.
@@ -484,6 +526,7 @@ if [[ "$TREE_RL_SMOKE_TEST" == "1" ]]; then
     echo "WARNING: smoke mode uses tiny non-comparable rollout/length/offload settings in an isolated output directory."
 fi
 echo "PPO geometry: global_mini=$PPO_MINI_BATCH_SIZE per_rank_mini=$PPO_MINI_BATCH_PER_GPU micro_per_gpu=$PPO_MICRO_BATCH_SIZE_PER_GPU global_micro=$PPO_GLOBAL_MICRO_BATCH accumulation=$PPO_GRAD_ACCUM_STEPS"
+echo "Log-prob geometry: rollout_micro_per_gpu=$LOG_PROB_MICRO_BATCH_PER_GPU ref_micro_per_gpu=$REF_LOG_PROB_MICRO_BATCH_PER_GPU batch_adjust_divisor=$BATCH_ADJUST_DIVISOR (72 rollouts require no copied rows)"
 echo "Validation: val_data_size=$VAL_DATA_SIZE test_freq=$TEST_FREQ val_before_train=$VAL_BEFORE_TRAIN"
 echo "Tree curriculum: order=$TREE_RL_ORDER train>=${TREE_RL_MIN_TRAIN_EPISODES}@${TREE_RL_TRAIN_SUCCESS_THRESHOLD} probe>=${TREE_RL_MIN_PROBE_EPISODES}@${TREE_RL_PROBE_SUCCESS_THRESHOLD}"
 echo "Output: $OUTPUT_DIR"
@@ -661,7 +704,7 @@ fi
 
 {
     echo "timestamp=$(date -Is)"
-    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST TREE_RL_ALLOW_SINGLE_GPU ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT TREE_RL_USE_ALL_8 GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION VLLM_ATTENTION_BACKEND VLLM_USE_FLASHINFER_SAMPLER COSKILL_ENABLE_FLASHINFER_SAMPLER COSKILL_FLASHINFER_OVERLAY N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
+    for key in BENCHMARK RUN_ENV TREE_RL_SMOKE_TEST TREE_RL_ALLOW_SINGLE_GPU ALLOCATED_CUDA_VISIBLE_DEVICES ALLOCATED_NUM_GPUS CUDA_VISIBLE_DEVICES NUM_GPUS TREE_RL_GPU_SLOT TREE_RL_USE_ALL_8 GPU_PROFILE GPU_FAMILY MIN_GPU_MEMORY_GIB VLLM_GPU_MEMORY_UTILIZATION VLLM_ATTENTION_BACKEND VLLM_USE_FLASHINFER_SAMPLER COSKILL_ENABLE_FLASHINFER_SAMPLER COSKILL_FLASHINFER_OVERLAY N_GPUS_PER_NODE MODEL_PATH DATA_ROOT OUTPUT_ROOT OUTPUT_DIR TRAIN_DATA_SIZE GROUP_SIZE VAL_DATA_SIZE PREPARED_TRAIN_DATA_SIZE PREPARED_VAL_DATA_SIZE PPO_MINI_BATCH_SIZE PPO_MICRO_BATCH_SIZE_PER_GPU PPO_MINI_BATCH_PER_GPU PPO_GLOBAL_MICRO_BATCH PPO_GRAD_ACCUM_STEPS LOG_PROB_MICRO_BATCH_PER_GPU REF_LOG_PROB_MICRO_BATCH_PER_GPU ROLLOUT_LOGPROB_GLOBAL_MICRO REF_LOGPROB_GLOBAL_MICRO BATCH_ADJUST_DIVISOR MAX_PROMPT_LENGTH MAX_RESPONSE_LENGTH MAX_STEPS WEBSHOP_PROMPT_CHAR_LIMIT TEST_FREQ VAL_BEFORE_TRAIN ACTOR_PARAM_OFFLOAD ACTOR_OPTIMIZER_OFFLOAD TREE_RL_ORDER TREE_RL_MIN_UPDATES TREE_RL_MIN_TRAIN_EPISODES TREE_RL_TRAIN_SUCCESS_THRESHOLD TREE_RL_MIN_PROBE_EPISODES TREE_RL_PROBE_SUCCESS_THRESHOLD TREE_RL_STATE_SAVE_FREQ COMPACT_FINISHED_TRAJECTORIES CLOUD_BOOTSTRAP_CHECK CLOUD_BOOTSTRAP_PROBE RESUME_SKILL_TREE_STATE PREPARE_DATA REUSE_PREPARED_DATA; do
         # Several settings above are intentionally optional (for example the
         # FlashInfer overlay).  Preserve an empty value in run_config.env
         # rather than letting `set -u` abort the job before main_ppo starts.

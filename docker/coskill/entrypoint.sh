@@ -115,7 +115,7 @@ data_preflight() {
 
 cloud_preflight() {
     local benchmark="$1"
-    local skills_json="memory_data/${benchmark}/claude_style_skills.json"
+    local skills_json="${SKILLS_JSON:-memory_data/${benchmark}/claude_style_skills.json}"
 
     # Tree-RL is not a valid CoSkill experiment without the cloud loop.  This
     # is deliberately non-optional in the container: a 401 must not consume
@@ -141,15 +141,22 @@ case "$TASK" in
         exec bash "$@"
         ;;
     preflight)
+        PREFLIGHT_BENCHMARK="${PREFLIGHT_BENCHMARK:-alfworld}"
+        case "$PREFLIGHT_BENCHMARK" in
+            alfworld|webshop) ;;
+            *)
+                echo "PREFLIGHT_BENCHMARK must be alfworld or webshop, got: $PREFLIGHT_BENCHMARK" >&2
+                exit 2
+                ;;
+        esac
+        # A preflight is expected to validate the same cloud prerequisite as
+        # the eventual root/leaf command.  Do this before any model or GPU
+        # work, and do not provide an opt-out that could make a false-green
+        # deployment check.
+        cloud_preflight "$PREFLIGHT_BENCHMARK"
         ensure_model
         gpu_preflight
         data_preflight
-        if [[ "${CLOUD_BOOTSTRAP_PROBE:-0}" == "1" ]]; then
-            python scripts/check_cloud_bootstrap.py \
-                --environment "${PREFLIGHT_BENCHMARK:-alfworld}" \
-                --skills-json "memory_data/${PREFLIGHT_BENCHMARK:-alfworld}/claude_style_skills.json" \
-                --probe
-        fi
         echo "Preflight passed. Choose install-flashinfer, alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, alfworld-smoke, webshop-smoke, alfworld-norl, webshop-norl, or alfworld-ablation."
         ;;
     alfworld-root|alfworld-leaf|webshop-root|webshop-leaf)
