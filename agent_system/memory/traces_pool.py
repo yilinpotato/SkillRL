@@ -42,10 +42,26 @@ from typing import Dict, List, Optional, Tuple
 # they happened to sample different instance numbers. Collapsing instance
 # indices to "#" lets the tree merge on the decision itself.
 _INSTANCE_INDEX_RE = re.compile(r"\b\d+\b")
+_WEBSHOP_ACTION_RE = re.compile(
+    r"^\s*(search|click)\s*\[(.*)\]\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def _normalize_action_for_merge(action: str) -> str:
-    return _INSTANCE_INDEX_RE.sub("#", action or "").strip()
+    """Normalize a merge key without erasing WebShop option semantics.
+
+    ALFWorld numbers identify interchangeable object instances. WebShop
+    numbers can instead be a model, size, quantity, price, or option value, so
+    replacing them with ``#`` would falsely merge different purchase choices.
+    """
+    raw = (action or "").strip()
+    webshop = _WEBSHOP_ACTION_RE.fullmatch(raw)
+    if webshop:
+        verb = webshop.group(1).lower()
+        payload = re.sub(r"\s+", " ", webshop.group(2)).strip()
+        return f"{verb}[{payload}]"
+    return _INSTANCE_INDEX_RE.sub("#", raw)
 
 
 # ALFWorld/TextWorld's very first observation of every episode wraps the one
@@ -231,7 +247,9 @@ class TracesPool:
             # WebShop exposes a graded terminal score even though CoSkill uses
             # strict score==1.0 for success.  Preserve it so the cloud can tell
             # a near match from a completely wrong purchase.
-            "task_score": (raw_trace.get("meta") or {}).get("task_score"),
+            "task_score": raw_trace.get(
+                "task_score", (raw_trace.get("meta") or {}).get("task_score")
+            ),
             "steps": encoded_steps,
             "dropped_loops": dropped,
             "skill_ids_used": (raw_trace.get("meta") or {}).get("skill_ids_used", []),

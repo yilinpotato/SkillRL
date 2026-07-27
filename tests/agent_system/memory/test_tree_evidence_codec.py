@@ -2,7 +2,7 @@ import pytest
 
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
 from agent_system.memory.coskill_loop import CoSkillCloudLoop
-from agent_system.memory.traces_pool import TracesPool
+from agent_system.memory.traces_pool import TracesPool, _normalize_action_for_merge
 
 
 def _trace(uid, outcome, suffix):
@@ -17,6 +17,63 @@ def _trace(uid, outcome, suffix):
             {"action": suffix, "observation": "state after decision", "reward": 1 if outcome == "success" else 0},
         ],
     }
+
+
+def test_webshop_action_normalization_preserves_numeric_purchase_options():
+    assert _normalize_action_for_merge("click[size 10]") == "click[size 10]"
+    assert _normalize_action_for_merge("click[size 11]") == "click[size 11]"
+    assert (
+        _normalize_action_for_merge("search[iphone 15 case]")
+        == "search[iphone 15 case]"
+    )
+    assert _normalize_action_for_merge("go to cabinet 17") == "go to cabinet #"
+
+
+def test_webshop_tree_keeps_options_separate_and_preserves_task_score():
+    pool = TracesPool(min_samples=1, enable_prefix_tree=True)
+    for size, score in ((10, 1.0), (11, 0.5)):
+        pool.add_trace(
+            {
+                "traj_uid": f"size-{size}",
+                "task_type": "footwear",
+                "task": "buy shoes in the requested size",
+                "outcome": "success" if score == 1.0 else "failure",
+                "steps": [
+                    {
+                        "action": "search[running shoes]",
+                        "observation": "results",
+                    },
+                    {
+                        "action": f"click[size {size}]",
+                        "observation": f"size {size} selected",
+                    },
+                ],
+                "meta": {
+                    "environment": "WebShop",
+                    "task_score": score,
+                },
+            }
+        )
+
+    codec = pool.export_batch(trigger_reason="test")["tree_evidence"]
+    assert "click[size 10]" in codec["actions"]
+    assert "click[size 11]" in codec["actions"]
+    assert {record["r"] for record in codec["records"]} == {0.5, 1.0}
+
+
+def test_webshop_pagination_is_not_filtered_when_the_page_changes():
+    pool = TracesPool(loop_threshold=3)
+    steps = [
+        {
+            "action": "click[next >]",
+            "observation": f"result page {page}",
+            "reward": 0,
+        }
+        for page in range(1, 6)
+    ]
+    cleaned, dropped = pool._filter_loops(steps)
+    assert cleaned == steps
+    assert dropped == 0
 
 
 def test_tree_evidence_codec_replaces_nested_tree_with_node_paths():

@@ -890,6 +890,16 @@ def _parse_args():
                         help="0 enables vLLM CUDA Graphs after warm-up; 1 is eager-only")
     parser.add_argument("--checkpoint_every_groups", type=int, default=2)
     parser.add_argument("--cloud_update_every", type=int, default=0)
+    parser.add_argument(
+        "--enable_cloud_updates",
+        type=int,
+        choices=[0, 1],
+        default=1,
+        help=(
+            "0 keeps normal skill injection and trace collection but disables "
+            "all cloud mutations; intended for immutable shared captures"
+        ),
+    )
     parser.add_argument("--history_length", type=int, default=8)
     parser.add_argument("--prompt_char_limit", type=int, default=24000)
 
@@ -1258,6 +1268,7 @@ def main():
                 ),
                 "cloud_evidence_mode": args.trace_cloud_evidence_mode,
             },
+            "cloud_updates_enabled": bool(args.enable_cloud_updates),
             "cloud_update_every": args.cloud_update_every,
             "cloud_update_steps": cloud_update_steps,
             "total_episodes": len(per_game),
@@ -1389,13 +1400,19 @@ def main():
                     args.think_trace_samples_per_group,
                 )
 
-            force_reason = None
-            if args.cloud_update_every > 0 and group_id % args.cloud_update_every == 0:
-                force_reason = f"group_interval_{args.cloud_update_every}"
             large_before = large_tokens()
             cloud_started = time.time()
-            fired = cloud_loop.maybe_update(
-                traces_pool, skill_lib, global_episode, force_reason=force_reason)
+            fired = False
+            if bool(args.enable_cloud_updates):
+                force_reason = None
+                if args.cloud_update_every > 0 and group_id % args.cloud_update_every == 0:
+                    force_reason = f"group_interval_{args.cloud_update_every}"
+                fired = cloud_loop.maybe_update(
+                    traces_pool,
+                    skill_lib,
+                    global_episode,
+                    force_reason=force_reason,
+                )
             cloud_seconds = time.time() - cloud_started
             large_after = large_tokens()
             if fired:
@@ -1438,6 +1455,9 @@ def main():
                         "experiment/skill_tree_enabled": int(enable_tree),
                         "experiment/skill_tree_evolve_enabled": int(enable_tree_evolve),
                         "experiment/skill_bullets_enabled": int(bool(args.enable_coskill)),
+                        "experiment/cloud_updates_enabled": int(
+                            bool(args.enable_cloud_updates)
+                        ),
                         "parallel/data_parallel_workers": args.data_parallel_workers,
                         "parallel/tensor_parallel_size": args.tensor_parallel_size,
                         "parallel/pipeline_parallel_size": args.pipeline_parallel_size,
@@ -1501,6 +1521,9 @@ def main():
                 "experiment/skill_bullets_enabled": int(bool(args.enable_coskill)),
                 "experiment/rl_enabled": 0,
                 "experiment/tree_rl_internalize_enabled": 0,
+                "experiment/cloud_updates_enabled": int(
+                    bool(args.enable_cloud_updates)
+                ),
                 "experiment/trace_compression/cloud_evidence_mode": (
                     args.trace_cloud_evidence_mode
                 ),
