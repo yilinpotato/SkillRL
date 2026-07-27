@@ -14,12 +14,14 @@ COPY docker/coskill/entrypoint.sh /workspace/CoSkill/docker/coskill/entrypoint.s
 COPY examples/grpo_trainer/run_coskill_tree_rl.sh /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl.sh
 COPY examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh
 COPY scripts/load_container_cloud_env.py /workspace/CoSkill/scripts/load_container_cloud_env.py
+COPY scripts/configure_vllm_acceleration.sh /workspace/CoSkill/scripts/configure_vllm_acceleration.sh
 
 RUN chmod +x \
     /workspace/CoSkill/docker/coskill/entrypoint.sh \
     /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl.sh \
     /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl_8xa800.sh \
     /workspace/CoSkill/scripts/load_container_cloud_env.py \
+    /workspace/CoSkill/scripts/configure_vllm_acceleration.sh \
     && python -c 'import openai; import verl'
 
 ENTRYPOINT ["/workspace/CoSkill/docker/coskill/entrypoint.sh"]
