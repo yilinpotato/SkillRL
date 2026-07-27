@@ -8,9 +8,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
+from agent_system.memory.skill_updater import SkillUpdater
 from examples.playbook_evolve import fixed_trajectory_ablation as fixed
+from examples.playbook_evolve import skill_tree_depth_ablation_v4 as v4
 from examples.playbook_evolve.skill_tree_depth_ablation_v4 import (
     _audit_evaluation_context,
+    _cloud_usage_value,
     _configure_full_evidence,
     _ensure_run_config_compatible,
     _evidence_reference_catalog,
@@ -20,8 +23,10 @@ from examples.playbook_evolve.skill_tree_depth_ablation_v4 import (
     _progressive_patch_prompt,
     _protocol_validation,
     archive_invalid_suffix_for_rebuild,
+    create_eval_observation_fingerprints,
     select_initial_evidence,
     validate_alfworld_tree_semantics,
+    write_generation_metrics,
 )
 
 
@@ -64,6 +69,220 @@ def test_v4_selects_all_twelve_balanced_traces_per_task(tmp_path):
     audit = json.loads(selected.with_suffix(".selection.json").read_text())
     assert audit["all_selected_traces_enter_every_tree_level"] is True
     assert audit["step_truncation"] is False
+
+
+def test_v4_excludes_held_out_observation_hashes_before_sampling(tmp_path):
+    source = tmp_path / "raw.jsonl"
+    rows = []
+    excluded = set()
+    excluded_uids = set()
+    for task_type in fixed.RUNTIME_TASK_TYPES:
+        for outcome in ("success", "failure"):
+            for index in range(8):
+                uid = f"{task_type}-{outcome}-{index}"
+                trace = _trace(uid, task_type, outcome, 3)
+                trace["steps"][0]["observation"] = f"initial observation for {uid}"
+                rows.append(trace)
+                if index == 0:
+                    excluded.add(
+                        v4._trace_initial_observation_fingerprint(trace)
+                    )
+                    excluded_uids.add(uid)
+    fixed._write_jsonl(source, rows)
+    selected = select_initial_evidence(
+        source,
+        tmp_path / "selected.jsonl",
+        12,
+        excluded_initial_observation_fingerprints=excluded,
+    )
+    output = fixed._read_jsonl(selected)
+    assert excluded_uids.isdisjoint(
+        {str(trace["traj_uid"]) for trace in output}
+    )
+    audit = fixed._read_json(selected.with_suffix(".selection.json"))
+    exclusion = audit["evaluation_exclusion"]
+    assert exclusion["policy"] == "exact_initial_observation_sha256_before_sampling"
+    assert exclusion["held_out_fingerprint_count"] == 12
+    assert exclusion["excluded_candidate_trajectories"] == 12
+    assert exclusion["selected_overlap_count"] == 0
+
+
+def test_eval_fingerprint_audit_stores_hashes_not_observation_text(
+    tmp_path,
+    monkeypatch,
+):
+    data_root = tmp_path / "alfworld"
+    game_a = data_root / "json_2.1.1/train/a/game.tw-pddl"
+    game_b = data_root / "json_2.1.1/train/b/game.tw-pddl"
+    for game in (game_a, game_b):
+        game.parent.mkdir(parents=True, exist_ok=True)
+        game.write_text("{}")
+    manifest = tmp_path / "manifests" / "eval_games.json"
+    fixed._write_json(
+        manifest,
+        {
+            "games": [
+                {
+                    "label": "eval_a",
+                    "task_type": "pick_and_place_simple",
+                    "game_file": str(game_a.relative_to(data_root)),
+                },
+                {
+                    "label": "eval_b",
+                    "task_type": "look_at_obj_in_light",
+                    "game_file": str(game_b.relative_to(data_root)),
+                },
+            ]
+        },
+    )
+
+    class FakeEnv:
+        def reset(self):
+            return (
+                ["SECRET EVAL OBS A", "SECRET EVAL OBS B"],
+                {"extra.gamefile": [str(game_a), str(game_b)]},
+            )
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(v4, "load_tw_config_types", lambda *args, **kwargs: {})
+    monkeypatch.setattr(v4, "make_batch_env", lambda *args, **kwargs: FakeEnv())
+    output = create_eval_observation_fingerprints(
+        tmp_path,
+        data_root,
+        manifest,
+        seed=0,
+    )
+    payload = fixed._read_json(output)
+    assert payload["game_count"] == 2
+    assert payload["unique_fingerprint_count"] == 2
+    assert "SECRET EVAL OBS" not in output.read_text()
+    assert {
+        row["initial_observation_sha256"] for row in payload["games"]
+    } == {
+        v4._initial_observation_fingerprint("SECRET EVAL OBS A"),
+        v4._initial_observation_fingerprint("SECRET EVAL OBS B"),
+    }
+
+
+def test_v4_l0_flat_prompt_uses_all_balanced_full_trajectories():
+    updater = SkillUpdater.__new__(SkillUpdater)
+    updater.max_new_skills_per_update = 3
+    successes = [
+        fixed._raw_to_skillrl_failure(_trace(f"s-{i}", "heat", "success", 8))
+        for i in range(6)
+    ]
+    failures = [
+        fixed._raw_to_skillrl_failure(_trace(f"f-{i}", "heat", "failure", 8))
+        for i in range(6)
+    ]
+    prompt = updater._build_balanced_analysis_prompt(
+        successes,
+        failures,
+        fixed._empty_skill_bank(),
+        1,
+    )
+    assert "Success Example 6 [traj_uid=s-5]" in prompt
+    assert "Failure Example 6 [traj_uid=f-5]" in prompt
+    assert "Step 8 action: action 8" in prompt
+    assert "state before 8" in prompt
+    assert "flat skill list" in prompt
+
+
+def test_v4_l0_builder_audits_six_success_and_six_failure_inputs(
+    tmp_path,
+    monkeypatch,
+):
+    raw = tmp_path / "evidence.jsonl"
+    rows = []
+    for task_type in fixed.RUNTIME_TASK_TYPES:
+        for index in range(6):
+            rows.append(_trace(f"{task_type}-s-{index}", task_type, "success"))
+            rows.append(_trace(f"{task_type}-f-{index}", task_type, "failure"))
+    fixed._write_jsonl(raw, rows)
+
+    class FakeUpdater:
+        def __init__(self, max_new_skills_per_update):
+            self.last_prompt = ""
+            self.last_response = ""
+            self.last_usage = {
+                "prompt": 100,
+                "completion": 10,
+                "total": 110,
+                "usage_reported": True,
+            }
+
+        def analyze_balanced_trajectories(self, successes, failures, skills):
+            assert len(successes) == 6
+            assert len(failures) == 6
+            self.last_prompt = "balanced prompt"
+            self.last_response = "[]"
+            return []
+
+    monkeypatch.setattr(fixed, "SkillUpdater", FakeUpdater)
+    manifest_path = fixed.build_l0_artifact(
+        raw,
+        tmp_path / "l0",
+        balanced_evidence_per_outcome=6,
+    )
+    manifest = fixed._read_json(manifest_path)
+    assert len(manifest["cloud_calls"]) == 6
+    for call in manifest["cloud_calls"]:
+        assert call["purpose"] == "skillrl_flat_balanced_full_evidence"
+        assert call["success_count_prompt_selected"] == 6
+        assert call["failure_count_prompt_selected"] == 6
+        assert call["trajectory_count_prompt_selected"] == 12
+        assert len(call["source_traj_uids"]) == 12
+        assert call["prompt_tokens"] == 100
+        assert call["completion_tokens"] == 10
+        assert call["total_tokens"] == 110
+
+
+def test_generation_metrics_accepts_l0_and_tree_usage_field_names(tmp_path):
+    fixed._write_json(
+        tmp_path / "artifacts" / "skill_level_l0" / "artifact_manifest.json",
+        {
+            "target_depth": 0,
+            "status": "ready",
+            "cloud_calls": [
+                {
+                    "task_type": "heat",
+                    "prompt": 100,
+                    "completion": 20,
+                    "total": 120,
+                    "usage_reported": True,
+                }
+            ],
+            "skill_trees": {},
+        },
+    )
+    fixed._write_json(
+        tmp_path / "artifacts" / "skill_level_l1" / "artifact_manifest.json",
+        {
+            "target_depth": 1,
+            "status": "ready",
+            "cloud_calls": [
+                {
+                    "task_type": "heat",
+                    "prompt_tokens": 200,
+                    "completion_tokens": 30,
+                    "total_tokens": 230,
+                    "usage_reported": True,
+                }
+            ],
+            "skill_trees": {},
+        },
+    )
+    assert _cloud_usage_value({"prompt": 7}, "prompt") == 7
+    assert _cloud_usage_value({"prompt_tokens": 9, "prompt": 7}, "prompt") == 9
+    write_generation_metrics(tmp_path)
+    rows = {
+        row["arm"]: row
+        for row in fixed._read_jsonl(tmp_path / "generation_metrics.jsonl")
+    }
+    assert rows["skill_level_l0"]["cloud_total_tokens"] == 120
+    assert rows["skill_level_l1"]["cloud_total_tokens"] == 230
 
 
 def test_v4_context_audit_invalidates_an_arm_after_any_prompt_trim(tmp_path):

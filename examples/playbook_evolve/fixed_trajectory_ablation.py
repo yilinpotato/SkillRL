@@ -724,23 +724,81 @@ def _save_artifact_manifest(directory: Path, arm: str, raw_path: Path, skills: D
     return path
 
 
-def build_l0_artifact(raw_path: Path, directory: Path) -> Path:
-    """Build L0 with the original flat SkillRL failure-analysis protocol."""
+def build_l0_artifact(
+    raw_path: Path,
+    directory: Path,
+    *,
+    balanced_evidence_per_outcome: int | None = None,
+) -> Path:
+    """Build L0 as a flat SkillRL JSON skill bank.
+
+    The default preserves the original five-failure protocol.  Representation
+    experiments may request the same balanced full evidence used by tree arms;
+    only the output representation remains flat in that mode.
+    """
     raw = _read_jsonl(raw_path)
     skills, audit = _empty_skill_bank(), []
     source_trace_ids: Dict[str, List[str]] = {}
+    successes = defaultdict(list)
     failures = defaultdict(list)
     for trace in raw:
-        if trace.get("outcome") != "success" and trace.get("episode_reward", 0) <= 0:
-            failures[trace.get("task_type", "unknown")].append(_raw_to_skillrl_failure(trace))
+        converted = _raw_to_skillrl_failure(trace)
+        if trace.get("outcome") == "success" or trace.get("episode_reward", 0) > 0:
+            successes[trace.get("task_type", "unknown")].append(converted)
+        else:
+            failures[trace.get("task_type", "unknown")].append(converted)
     updater = SkillUpdater(max_new_skills_per_update=3)
-    evidence_selection = {"sampling": TREE_EVIDENCE_SAMPLING, "task_types": {}}
+    evidence_selection = {
+        "sampling": TREE_EVIDENCE_SAMPLING,
+        "mode": (
+            "balanced_full_success_failure"
+            if balanced_evidence_per_outcome is not None
+            else "original_skillrl_failure_only"
+        ),
+        "task_types": {},
+    }
     for tt in RUNTIME_TASK_TYPES:
-        selected, selection_audit = _stratified_trace_sample(
-            failures.get(tt, []), TREE_EVIDENCE_SAMPLING["flat_skillrl"]["failure"],
-            salt=f"flat_skillrl:{tt}:failure")
-        evidence_selection["task_types"][tt] = {"failure": selection_audit}
-        generated = updater.analyze_failures(selected, skills) if selected else []
+        if balanced_evidence_per_outcome is None:
+            selected_successes = []
+            selected_failures, failure_audit = _stratified_trace_sample(
+                failures.get(tt, []), TREE_EVIDENCE_SAMPLING["flat_skillrl"]["failure"],
+                salt=f"flat_skillrl:{tt}:failure")
+            success_audit = {
+                "available": len(successes.get(tt, [])),
+                "requested": 0,
+                "selected": 0,
+                "selected_traj_uids": [],
+            }
+            generated = updater.analyze_failures(selected_failures, skills) if selected_failures else []
+        else:
+            selected_successes, success_audit = _stratified_trace_sample(
+                successes.get(tt, []),
+                balanced_evidence_per_outcome,
+                salt=f"flat_skillrl_balanced:{tt}:success",
+            )
+            selected_failures, failure_audit = _stratified_trace_sample(
+                failures.get(tt, []),
+                balanced_evidence_per_outcome,
+                salt=f"flat_skillrl_balanced:{tt}:failure",
+            )
+            if (
+                len(selected_successes) != balanced_evidence_per_outcome
+                or len(selected_failures) != balanced_evidence_per_outcome
+            ):
+                raise ValueError(
+                    f"balanced L0 needs {balanced_evidence_per_outcome} success and "
+                    f"{balanced_evidence_per_outcome} failure traces for {tt}"
+                )
+            generated = updater.analyze_balanced_trajectories(
+                selected_successes,
+                selected_failures,
+                skills,
+            )
+        selected = selected_successes + selected_failures
+        evidence_selection["task_types"][tt] = {
+            "success": success_audit,
+            "failure": failure_audit,
+        }
         for skill in generated:
             source_trace_ids[skill["skill_id"]] = [x.get("traj_uid") for x in selected]
         skills["task_specific_skills"][tt].extend(generated)
@@ -750,21 +808,40 @@ def build_l0_artifact(raw_path: Path, directory: Path) -> Path:
             (call_dir / f"l0_{tt}_prompt.txt").write_text(updater.last_prompt)
         if updater.last_response:
             (call_dir / f"l0_{tt}_response.txt").write_text(updater.last_response)
+        usage = dict(updater.last_usage)
         audit.append({
-            "purpose": "skillrl_flat_failure_analysis", "task_type": tt,
+            "purpose": (
+                "skillrl_flat_balanced_full_evidence"
+                if balanced_evidence_per_outcome is not None
+                else "skillrl_flat_failure_analysis"
+            ),
+            "task_type": tt,
+            "success_count_available": len(successes.get(tt, [])),
+            "success_count_prompt_selected": len(selected_successes),
             "failure_count_available": len(failures.get(tt, [])),
-            "failure_count_prompt_selected": len(selected),
+            "failure_count_prompt_selected": len(selected_failures),
+            "trajectory_count_prompt_selected": len(selected),
             "source_traj_uids": [x.get("traj_uid") for x in selected],
             "generated_ids": [x["skill_id"] for x in generated],
             "prompt_sha256": _sha256_text(updater.last_prompt or ""),
             "response_sha256": _sha256_text(updater.last_response or ""),
-            **updater.last_usage,
+            # Canonical fields match CloudAnalyzer call audits.  Keep the
+            # legacy aliases so older summaries and external readers remain
+            # compatible.
+            "prompt_tokens": int(usage.get("prompt", 0) or 0),
+            "completion_tokens": int(usage.get("completion", 0) or 0),
+            "total_tokens": int(usage.get("total", 0) or 0),
+            **usage,
         })
     _write_json(directory / "flat_evidence_selection.json", evidence_selection)
     return _save_artifact_manifest(
         directory, "skill_level_l0", raw_path, skills, audit,
         {"skill_level": "L0", "target_depth": 0,
-         "generation_protocol": "original SkillRL flat failure-analysis JSON",
+         "generation_protocol": (
+             "flat SkillRL JSON from balanced complete success/failure evidence"
+             if balanced_evidence_per_outcome is not None
+             else "original SkillRL flat failure-analysis JSON"
+         ),
          "flat_skill_source_trace_ids": source_trace_ids,
          "evidence_sampling": TREE_EVIDENCE_SAMPLING},
     )

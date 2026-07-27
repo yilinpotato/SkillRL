@@ -56,8 +56,9 @@ TORCH_GPU_COUNT="$(
 VLLM_ENFORCE_EAGER="${VLLM_ENFORCE_EAGER:-0}"
 AB_ROOT="${AB_ROOT:-$PROJECT_ROOT/skillrl_outputs/alfworld_skill_tree_depth_v4/$(date +%Y%m%d_%H%M%S)}"
 echo "[skill-tree-v4] GPUs=$CUDA_VISIBLE_DEVICES DP=$DP_WORKERS root=$AB_ROOT"
-echo "[skill-tree-v4] 12 full traces/task (6 success+6 failure); no online growth"
-echo "[skill-tree-v4] L1->L5 monotonic extension; no node/char ceiling; eval=3 games/task x 12 rollouts"
+echo "[skill-tree-v4] L0-L5 each use the same 12 full traces/task (6 success+6 failure); no online growth"
+echo "[skill-tree-v4] held-out initial-observation hashes are excluded before evidence sampling"
+echo "[skill-tree-v4] L1->L5 monotonic extension; no node/char ceiling; default eval=5 games/task x 12 rollouts"
 echo "[skill-tree-v4] local_max_model_len=${V4_LOCAL_MAX_MODEL_LEN:-16384}; any prompt trim invalidates the arm"
 
 python -u -m examples.playbook_evolve.skill_tree_depth_ablation_v4 \

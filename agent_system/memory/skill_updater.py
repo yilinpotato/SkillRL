@@ -138,6 +138,73 @@ class SkillUpdater:
             print(f"[SkillUpdater] Error calling {self.model}: {e}")
             return []
 
+    def analyze_balanced_trajectories(
+        self,
+        successful_trajectories: List[Dict],
+        failed_trajectories: List[Dict],
+        current_skills: Dict,
+    ) -> List[Dict]:
+        """Generate flat skills from complete balanced success/failure evidence.
+
+        This is used by representation ablations where L0 must receive the
+        same trajectories as hierarchical arms.  It intentionally preserves
+        the flat SkillRL JSON output schema while removing the legacy
+        five-failure/last-five-step evidence cap.
+        """
+        self.last_prompt = None
+        self.last_response = None
+        self.last_usage = {
+            "prompt": 0, "completion": 0, "total": 0,
+            "usage_reported": False,
+        }
+        if not successful_trajectories and not failed_trajectories:
+            return []
+
+        next_dyn_idx = self._next_dyn_index(current_skills)
+        prompt = self._build_balanced_analysis_prompt(
+            successful_trajectories,
+            failed_trajectories,
+            current_skills,
+            next_dyn_idx,
+        )
+        self.last_prompt = prompt
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_completion_tokens=self.max_completion_tokens,
+            )
+            self.last_response = response.choices[0].message.content
+            raw_skills = self._parse_skills_response(self.last_response)
+
+            if hasattr(response, "usage") and response.usage:
+                prompt_tokens = int(getattr(response.usage, "prompt_tokens", 0) or 0)
+                completion_tokens = int(getattr(response.usage, "completion_tokens", 0) or 0)
+                self.total_prompt_tokens += prompt_tokens
+                self.total_completion_tokens += completion_tokens
+                self.last_usage = {
+                    "prompt": prompt_tokens,
+                    "completion": completion_tokens,
+                    "total": prompt_tokens + completion_tokens,
+                    "usage_reported": True,
+                }
+
+            reassigned = self._reassign_dyn_ids(raw_skills, next_dyn_idx)
+            self.update_history.append({
+                "num_successes_analyzed": len(successful_trajectories),
+                "num_failures_analyzed": len(failed_trajectories),
+                "num_trajectories_analyzed": (
+                    len(successful_trajectories) + len(failed_trajectories)
+                ),
+                "num_skills_generated": len(reassigned),
+                "skill_ids": [s.get("skill_id") for s in reassigned],
+            })
+            return reassigned[:self.max_new_skills_per_update]
+        except Exception as e:
+            print(f"[SkillUpdater] Error calling {self.model}: {e}")
+            return []
+
     # ------------------------------------------------------------------ #
     # Internal helpers                                                     #
     # ------------------------------------------------------------------ #
@@ -223,6 +290,61 @@ Example format:
 [{{"skill_id": "dyn_{next_dyn_idx:03d}", "title": "Verify Object Location First", "principle": "Before attempting to pick up an object, always verify its current location by examining the environment.", "when_to_apply": "When the task requires moving an object but its location is uncertain"}}]
 """
 
+    def _build_balanced_analysis_prompt(
+        self,
+        successful_trajectories: List[Dict],
+        failed_trajectories: List[Dict],
+        current_skills: Dict,
+        next_dyn_idx: int,
+    ) -> str:
+        def render(label: str, trajectories: List[Dict]) -> str:
+            examples = []
+            for i, traj in enumerate(trajectories):
+                examples.append(
+                    f"\n{label} Example {i + 1} [traj_uid={traj.get('traj_uid', '')}]:\n"
+                    f"Task: {traj.get('task', '')}\n"
+                    f"Task Type: {traj.get('task_type', '')}\n"
+                    "Complete trajectory (observation is the state before its action):\n"
+                    f"{self._format_trajectory_full(traj.get('trajectory', []))}\n"
+                )
+            return "".join(examples) or "\n(none)\n"
+
+        existing_titles = [s["title"] for s in current_skills.get("general_skills", [])]
+        for task_type, skills in current_skills.get("task_specific_skills", {}).items():
+            for skill in skills:
+                existing_titles.append(f"[{task_type}] {skill.get('title', '')}")
+        example_ids = ", ".join(
+            f'"dyn_{next_dyn_idx + j:03d}"'
+            for j in range(self.max_new_skills_per_update)
+        )
+
+        return f"""Derive NEW flat actionable skills from the balanced successful and failed agent trajectories below.
+
+Use only behavior supported by the supplied trajectories. Compare successes
+against failures to identify reusable decisions and recovery rules. Do not
+invent hidden object locations, unrecorded post-terminal states, or environment
+facts absent from the evidence. The output must remain a flat skill list: do
+not create headings, parent/child nodes, or a hierarchy.
+
+SUCCESSFUL TRAJECTORIES:
+{render("Success", successful_trajectories)}
+
+FAILED TRAJECTORIES:
+{render("Failure", failed_trajectories)}
+
+EXISTING SKILL TITLES (avoid duplicating these):
+{existing_titles}
+
+Generate 1-{self.max_new_skills_per_update} NEW actionable skills.
+Each skill must have: skill_id, title (3-5 words), principle (1-2 sentences), when_to_apply.
+
+Use skill_ids: {example_ids}
+
+Return ONLY a JSON array of skills, no other text.
+Example format:
+[{{"skill_id": "dyn_{next_dyn_idx:03d}", "title": "Verify Object Location First", "principle": "Before attempting to pick up an object, verify its location from the current observation.", "when_to_apply": "When the target location is uncertain"}}]
+"""
+
     def _format_trajectory(self, steps: List[Dict]) -> str:
         lines = []
         for step in steps:
@@ -230,6 +352,18 @@ Example format:
             obs = step.get('observation', '')[:200]
             lines.append(f"  Action: {action}\n  Observation: {obs}")
         return '\n'.join(lines)
+
+    def _format_trajectory_full(self, steps: List[Dict]) -> str:
+        lines = []
+        for index, step in enumerate(steps, start=1):
+            action = step.get("action", "unknown")
+            observation = step.get("observation", "")
+            lines.append(
+                f"  Step {step.get('step', index)} observation_before_action:\n"
+                f"{observation}\n"
+                f"  Step {step.get('step', index)} action: {action}"
+            )
+        return "\n".join(lines)
 
     def _parse_skills_response(self, response: str) -> List[Dict]:
         try:

@@ -28,7 +28,11 @@ from typing import Any, Iterable
 from agent_system.memory.cloud_analyzer import CloudAnalyzer
 from agent_system.memory.hierarchical_skill_lib import HierarchicalSkillLib
 from examples.playbook_evolve import fixed_trajectory_ablation as fixed
-from mini_test_pen_shelf.env_utils import find_games_by_type
+from mini_test_pen_shelf.env_utils import (
+    find_games_by_type,
+    load_tw_config_types,
+    make_batch_env,
+)
 
 ARMS = tuple(f"skill_level_l{level}" for level in range(6))
 TREE_DEPTHS = tuple(range(1, 6))
@@ -71,13 +75,45 @@ def _is_success(trace: dict[str, Any]) -> bool:
     return trace.get("outcome") == "success" or float(trace.get("episode_reward", 0) or 0) > 0
 
 
-def select_initial_evidence(raw_path: Path, destination: Path, per_task: int) -> Path:
+def _initial_observation_fingerprint(value: Any) -> str:
+    """Fingerprint the exact initial ALFWorld text without retaining eval text."""
+    return fixed._sha256_text(str(value or "").strip())
+
+
+def _trace_initial_observation_fingerprint(trace: dict[str, Any]) -> str | None:
+    steps = trace.get("steps") or []
+    if not steps:
+        return None
+    observation = str((steps[0] or {}).get("observation", "") or "").strip()
+    return _initial_observation_fingerprint(observation) if observation else None
+
+
+def select_initial_evidence(
+    raw_path: Path,
+    destination: Path,
+    per_task: int,
+    *,
+    excluded_initial_observation_fingerprints: set[str] | None = None,
+) -> Path:
     """Select one deterministic, balanced, auditable evidence set."""
     if per_task < 2 or per_task % 2:
         raise ValueError("--initial_traces_per_type must be an even integer >= 2")
+    excluded = set(excluded_initial_observation_fingerprints or set())
+    excluded_rows: list[dict[str, Any]] = []
     by_type: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(lambda: {"success": [], "failure": []})
     for trace in fixed._read_jsonl(raw_path):
         bucket = "success" if _is_success(trace) else "failure"
+        fingerprint = _trace_initial_observation_fingerprint(trace)
+        if fingerprint and fingerprint in excluded:
+            excluded_rows.append(
+                {
+                    "traj_uid": str(trace.get("traj_uid", "")),
+                    "task_type": str(trace.get("task_type", "unknown")),
+                    "outcome": bucket,
+                    "initial_observation_sha256": fingerprint,
+                }
+            )
+            continue
         by_type[str(trace.get("task_type", "unknown"))][bucket].append(trace)
 
     half = per_task // 2
@@ -92,6 +128,12 @@ def select_initial_evidence(raw_path: Path, destination: Path, per_task: int) ->
         "step_truncation": False,
         "observation_truncation": False,
         "trajectory_compression_for_tree_authoring": False,
+        "evaluation_exclusion": {
+            "policy": "exact_initial_observation_sha256_before_sampling",
+            "held_out_fingerprint_count": len(excluded),
+            "excluded_candidate_trajectories": len(excluded_rows),
+            "excluded_rows": excluded_rows,
+        },
         "task_types": {},
     }
     for task_type in fixed.RUNTIME_TASK_TYPES:
@@ -108,6 +150,17 @@ def select_initial_evidence(raw_path: Path, destination: Path, per_task: int) ->
             selected.extend(chosen)
             task_audit[outcome] = selection
         audit["task_types"][task_type] = task_audit
+
+    selected_fingerprints = {
+        fingerprint
+        for trace in selected
+        if (fingerprint := _trace_initial_observation_fingerprint(trace))
+    }
+    overlap = sorted(selected_fingerprints & excluded)
+    audit["evaluation_exclusion"]["selected_overlap_count"] = len(overlap)
+    audit["evaluation_exclusion"]["selected_overlap_sha256"] = overlap
+    if overlap:
+        raise RuntimeError("V4 evidence selection retained a held-out evaluation observation")
 
     fixed._write_jsonl(destination, selected)
     fixed._write_json(destination.with_suffix(".selection.json"), audit)
@@ -162,6 +215,117 @@ def create_eval_manifest(
         },
     )
     return path
+
+
+def create_eval_observation_fingerprints(
+    root: Path,
+    data_root: Path,
+    eval_manifest_path: Path,
+    seed: int,
+) -> Path:
+    """Reset every held-out game once and persist only initial-text hashes.
+
+    Generic external raw traces do not contain source game IDs.  The initial
+    ALFWorld observation is deterministic for a fixed game, so an exact hash
+    lets evidence sampling exclude held-out games without exposing evaluation
+    observations to any skill-authoring prompt.
+    """
+    path = root / "manifests" / "eval_initial_observation_fingerprints.json"
+    manifest_sha256 = fixed._sha256_path(eval_manifest_path)
+    if path.exists():
+        existing = fixed._read_json(path)
+        if (
+            existing.get("eval_manifest_sha256") != manifest_sha256
+            or existing.get("policy") != "exact_initial_observation_sha256_v1"
+        ):
+            raise RuntimeError(
+                "existing V4 evaluation observation fingerprints do not match "
+                "the evaluation manifest; use a new --root"
+            )
+        return path
+
+    manifest = fixed._read_json(eval_manifest_path)
+    games = manifest.get("games") or []
+    game_files = [str((data_root / game["game_file"]).resolve()) for game in games]
+    if not game_files:
+        raise RuntimeError("cannot fingerprint an empty V4 evaluation manifest")
+    by_resolved_game = {
+        os.path.realpath(game_file): game
+        for game_file, game in zip(game_files, games)
+    }
+
+    config = load_tw_config_types(range(1, 7), num_games=len(game_files))
+    env = make_batch_env(
+        game_files,
+        config,
+        batch_size=len(game_files),
+        seed=seed,
+    )
+    try:
+        observations, infos = env.reset()
+        resolved_slots = infos.get("extra.gamefile")
+        if not resolved_slots or len(resolved_slots) != len(observations):
+            raise RuntimeError(
+                "V4 held-out fingerprinting requires extra.gamefile for every "
+                "evaluation slot"
+            )
+        rows: list[dict[str, Any]] = []
+        seen_games: set[str] = set()
+        for observation, game_file in zip(observations, resolved_slots):
+            resolved = os.path.realpath(str(game_file))
+            game = by_resolved_game.get(resolved)
+            if game is None:
+                raise RuntimeError(
+                    f"evaluation fingerprint reset returned unexpected game: {game_file}"
+                )
+            if resolved in seen_games:
+                raise RuntimeError(
+                    f"evaluation fingerprint reset duplicated game: {game_file}"
+                )
+            seen_games.add(resolved)
+            rows.append(
+                {
+                    "label": game["label"],
+                    "task_type": game["task_type"],
+                    "game_file": game["game_file"],
+                    "initial_observation_sha256": (
+                        _initial_observation_fingerprint(observation)
+                    ),
+                }
+            )
+        if seen_games != set(by_resolved_game):
+            missing = sorted(set(by_resolved_game) - seen_games)
+            raise RuntimeError(
+                f"evaluation fingerprint reset omitted {len(missing)} game(s)"
+            )
+    finally:
+        env.close()
+
+    rows.sort(key=lambda row: row["label"])
+    fingerprints = [row["initial_observation_sha256"] for row in rows]
+    fixed._write_json(
+        path,
+        {
+            "policy": "exact_initial_observation_sha256_v1",
+            "eval_manifest_sha256": manifest_sha256,
+            "game_count": len(rows),
+            "unique_fingerprint_count": len(set(fingerprints)),
+            "games": rows,
+        },
+    )
+    return path
+
+
+def _load_eval_observation_fingerprints(path: Path) -> set[str]:
+    payload = fixed._read_json(path)
+    fingerprints = {
+        str(row.get("initial_observation_sha256", ""))
+        for row in (payload.get("games") or [])
+        if row.get("initial_observation_sha256")
+    }
+    if len(fingerprints) != int(payload.get("unique_fingerprint_count", -1)):
+        raise RuntimeError("V4 evaluation fingerprint audit is internally inconsistent")
+    return fingerprints
 
 
 def _heading_paths(markdown: str, target_depth: int) -> list[str]:
@@ -705,7 +869,15 @@ def build_progressive_tree_artifacts(
     artifacts = root / "artifacts"
     result: dict[str, Path] = {}
     l0_manifest = artifacts / "skill_level_l0" / "artifact_manifest.json"
-    result["skill_level_l0"] = l0_manifest if l0_manifest.exists() else fixed.build_l0_artifact(raw_path, l0_manifest.parent)
+    result["skill_level_l0"] = (
+        l0_manifest
+        if l0_manifest.exists()
+        else fixed.build_l0_artifact(
+            raw_path,
+            l0_manifest.parent,
+            balanced_evidence_per_outcome=DEFAULT_INITIAL_TRACES_PER_TYPE // 2,
+        )
+    )
 
     for depth in TREE_DEPTHS:
         arm = f"skill_level_l{depth}"
@@ -1004,6 +1176,19 @@ def _audit_evaluation_context(root: Path, arm: str, summary_path: Path) -> None:
     fixed._write_json(artifact_path, artifact)
 
 
+def _cloud_usage_value(call: dict[str, Any], field: str) -> int:
+    """Read CloudAnalyzer and legacy SkillUpdater usage with one standard."""
+    aliases = {
+        "prompt": ("prompt_tokens", "prompt"),
+        "completion": ("completion_tokens", "completion"),
+        "total": ("total_tokens", "total"),
+    }
+    for key in aliases[field]:
+        if key in call and call.get(key) is not None:
+            return int(call.get(key) or 0)
+    return 0
+
+
 def write_generation_metrics(root: Path) -> None:
     rows: list[dict[str, Any]] = []
     task_rows: list[dict[str, Any]] = []
@@ -1019,9 +1204,9 @@ def write_generation_metrics(root: Path) -> None:
             "status": artifact.get("status"),
             "online_growth": False,
             "cloud_calls": len(calls),
-            "cloud_prompt_tokens": sum(int(call.get("prompt_tokens", 0) or 0) for call in calls),
-            "cloud_completion_tokens": sum(int(call.get("completion_tokens", 0) or 0) for call in calls),
-            "cloud_total_tokens": sum(int(call.get("total_tokens", 0) or 0) for call in calls),
+            "cloud_prompt_tokens": sum(_cloud_usage_value(call, "prompt") for call in calls),
+            "cloud_completion_tokens": sum(_cloud_usage_value(call, "completion") for call in calls),
+            "cloud_total_tokens": sum(_cloud_usage_value(call, "total") for call in calls),
             "cloud_usage_missing_calls": sum(int(call.get("usage_reported") is False) for call in calls),
             "tree_nodes": sum(int(info.get("node_count", 0) or 0) for info in (artifact.get("skill_trees", {}) or {}).values()),
             "tree_chars": sum(int(info.get("text_chars", 0) or 0) for info in (artifact.get("skill_trees", {}) or {}).values()),
@@ -1043,9 +1228,12 @@ def write_generation_metrics(root: Path) -> None:
                     "added_nodes": increment.get("added_nodes"),
                     "added_chars": increment.get("added_chars"),
                     "cloud_calls": len(scoped),
-                    "cloud_prompt_tokens": sum(int(call.get("prompt_tokens", 0) or 0) for call in scoped),
-                    "cloud_completion_tokens": sum(int(call.get("completion_tokens", 0) or 0) for call in scoped),
-                    "cloud_total_tokens": sum(int(call.get("total_tokens", 0) or 0) for call in scoped),
+                    "cloud_prompt_tokens": sum(_cloud_usage_value(call, "prompt") for call in scoped),
+                    "cloud_completion_tokens": sum(_cloud_usage_value(call, "completion") for call in scoped),
+                    "cloud_total_tokens": sum(_cloud_usage_value(call, "total") for call in scoped),
+                    "cloud_usage_missing_calls": sum(
+                        int(call.get("usage_reported") is False) for call in scoped
+                    ),
                     "protocol_validation_errors": status.get("protocol_validation_errors", []),
                     "unsupported_claims": status.get("unsupported_claims", []),
                 }
@@ -1163,7 +1351,7 @@ def main() -> None:
         type=int,
         default=DEFAULT_INITIAL_TRACES_PER_TYPE,
     )
-    parser.add_argument("--eval_games_per_type", type=int, default=3)
+    parser.add_argument("--eval_games_per_type", type=int, default=5)
     parser.add_argument("--eval_rollouts_per_game", type=int, default=12)
     parser.add_argument("--batch_rollout_size", type=int, default=72)
     parser.add_argument("--max_steps", type=int, default=40)
@@ -1239,18 +1427,21 @@ def main() -> None:
     data_root = Path(args.alfworld_data).resolve()
     root.mkdir(parents=True, exist_ok=True)
 
-    imported = fixed.import_external_raw_traces(Path(args.external_raw_traces), root)
-    evidence = select_initial_evidence(
-        imported,
-        root / "frozen" / "initial_evidence.jsonl",
-        args.initial_traces_per_type,
-    )
     eval_manifest = create_eval_manifest(
         root,
         data_root,
         args.split,
         args.sample_seed,
         args.eval_games_per_type,
+    )
+    eval_fingerprint_path = create_eval_observation_fingerprints(
+        root,
+        data_root,
+        eval_manifest,
+        args.sample_seed,
+    )
+    held_out_fingerprints = _load_eval_observation_fingerprints(
+        eval_fingerprint_path
     )
     config = {
         "experiment_kind": "alfworld_skill_tree_depth_v4",
@@ -1268,8 +1459,15 @@ def main() -> None:
             "initial_success_per_type": 6,
             "initial_failure_per_type": 6,
             "all_selected_traces_enter_every_level": True,
+            "l0_flat_balanced_full_evidence": True,
             "complete_causal_transitions": True,
             "consensus_prefix_folding": False,
+            "evaluation_evidence_exclusion": (
+                "exact_initial_observation_sha256_before_sampling"
+            ),
+            "held_out_initial_observation_fingerprint_count": len(
+                held_out_fingerprints
+            ),
             "tree_size_limits": None,
             "tree_completion_token_ceiling": args.tree_max_completion_tokens,
             "local_max_model_len": args.local_max_model_len,
@@ -1281,10 +1479,20 @@ def main() -> None:
                 "rollouts_per_game": args.eval_rollouts_per_game,
             },
         },
-        "external_source_game_ids": ("not available in generic raw_traces schema; evaluation is shared across arms but cannot prove non-overlap with the external source corpus"),
+        "external_source_game_ids": (
+            "generic raw traces lack game IDs; V4 excludes exact held-out games "
+            "before evidence sampling via deterministic initial-observation SHA-256"
+        ),
     }
     existing_config = root / "run_config.json"
     _ensure_run_config_compatible(existing_config, config, args.rebuild_from_level)
+    imported = fixed.import_external_raw_traces(Path(args.external_raw_traces), root)
+    evidence = select_initial_evidence(
+        imported,
+        root / "frozen" / "initial_evidence.jsonl",
+        args.initial_traces_per_type,
+        excluded_initial_observation_fingerprints=held_out_fingerprints,
+    )
 
     if args.phase in ("prepare", "all"):
         if args.rebuild_from_level is not None:
