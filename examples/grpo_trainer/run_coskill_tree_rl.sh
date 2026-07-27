@@ -5,14 +5,14 @@
 #   bash examples/grpo_trainer/run_coskill_tree_rl.sh alfworld
 #   TREE_RL_ORDER=leaf bash examples/grpo_trainer/run_coskill_tree_rl.sh webshop
 #
-# This script accepts 2/4 GPUs per formal experiment. A clean >=80 GiB single
+# This script accepts 2/4/8 GPUs per formal experiment. A clean >=80 GiB single
 # GPU (for example A800-80G) is also supported only with the explicit
 # TREE_RL_ALLOW_SINGLE_GPU=1 acknowledgement and still uses all 72 rollouts.
 # An 8-GPU allocation defaults to two independent four-GPU slots;
 # TREE_RL_USE_ALL_8=1 instead makes one opt-in eight-rank experiment with a
-# 72-sample PPO mini-batch. That mode preserves rollouts/rewards but changes
-# PPO minibatch geometry, so it must not be mixed with the 2/4-GPU learning
-# curve. TREE_RL_SMOKE_TEST=1 remains the separate tiny diagnostic path. It
+# 72-sample PPO mini-batch. That mode preserves rollout count, tasks, rewards,
+# prompts, and maximum environment steps, but changes PPO minibatch geometry,
+# so it must not be mixed with the 2/4-GPU learning curve. TREE_RL_SMOKE_TEST=1 remains the separate tiny diagnostic path. It
 # does not run `ray stop` or `ray start`: main_ppo owns its Ray lifecycle, so a
 # job never destroys a different user's Ray session on a shared cluster.
 
@@ -52,6 +52,27 @@ unset PYTORCH_CUDA_ALLOC_CONF
 # overlay was not mounted correctly.
 # shellcheck disable=SC1091
 source "$PROJECT_ROOT/scripts/configure_vllm_acceleration.sh"
+
+# Tree-RL is not a valid CoSkill experiment without a live cloud loop.  Probe
+# before environment selection, CUDA enumeration, Ray start, model loading, or
+# dataset work so an invalid/expired credential never consumes an A800
+# allocation.  A container entrypoint performs this same real probe before
+# invoking us and sets the internal marker only for that one startup, avoiding
+# a duplicate request.
+export CLOUD_BOOTSTRAP_CHECK="${CLOUD_BOOTSTRAP_CHECK:-1}"
+export CLOUD_BOOTSTRAP_PROBE="${CLOUD_BOOTSTRAP_PROBE:-1}"
+[[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]] || { echo "CLOUD_BOOTSTRAP_CHECK=1 is required for Tree-RL." >&2; exit 1; }
+[[ "$CLOUD_BOOTSTRAP_PROBE" == "1" ]] || { echo "CLOUD_BOOTSTRAP_PROBE=1 (a real API request) is required for Tree-RL." >&2; exit 1; }
+CLOUD_SKILLS_JSON="${SKILLS_JSON:-memory_data/${BENCHMARK}/claude_style_skills.json}"
+if [[ "${COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE:-0}" == "1" ]]; then
+    echo "Cloud probe already passed in the container entrypoint for this startup."
+else
+    echo "Checking cloud bootstrap (real probe=1) before environment/CUDA/Ray/vLLM setup..."
+    python3 scripts/check_cloud_bootstrap.py \
+        --environment "$BENCHMARK" \
+        --skills-json "$CLOUD_SKILLS_JSON" \
+        --probe
+fi
 
 IS_CONTAINER=0
 if [[ "${COSKILL_CONTAINER:-0}" == "1" || -f /.dockerenv || -f /run/.containerenv ]]; then
@@ -367,18 +388,9 @@ case "$COMPACT_FINISHED_TRAJECTORIES" in
         exit 1
         ;;
 esac
-# A complete Tree-RL run needs a usable cloud client.  A real probe is mandatory
-# by default: allowing a 401 to proceed turns the run into static-skill RL and
-# invalidates the claimed CoSkill/tree-RL comparison.
-export CLOUD_BOOTSTRAP_CHECK="${CLOUD_BOOTSTRAP_CHECK:-1}"
-export CLOUD_BOOTSTRAP_PROBE="${CLOUD_BOOTSTRAP_PROBE:-1}"
-[[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]] || { echo "CLOUD_BOOTSTRAP_CHECK=1 is required for Tree-RL." >&2; exit 1; }
-[[ "$CLOUD_BOOTSTRAP_PROBE" == "1" ]] || { echo "CLOUD_BOOTSTRAP_PROBE=1 (a real API request) is required for Tree-RL." >&2; exit 1; }
-
-# W&B is the default realtime dashboard for formal Tree-RL.  Users who need a
-# fully offline diagnostic may set COSKILL_WANDB=0 explicitly; that run must
-# not be presented as having realtime monitoring.
-export COSKILL_WANDB="${COSKILL_WANDB:-1}"
+# W&B is optional and disabled by default for time-critical formal runs.  JSONL
+# metrics remain enabled regardless; opt in explicitly with COSKILL_WANDB=1.
+export COSKILL_WANDB="${COSKILL_WANDB:-0}"
 case "$COSKILL_WANDB" in 0|1) ;; *) echo "COSKILL_WANDB must be 0 or 1" >&2; exit 1;; esac
 export WANDB_PROJECT="${WANDB_PROJECT:-coskill-tree-rl}"
 if [[ "$COSKILL_WANDB" == "1" ]]; then
@@ -460,20 +472,6 @@ if [[ "$BENCHMARK" == "webshop" ]]; then
         echo "WebShop assets missing. Set WEBSHOP_DATA_DIR to the populated data directory." >&2
         exit 1
     fi
-fi
-
-if [[ "${COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE:-0}" == "1" ]]; then
-    echo "Cloud probe already passed in the container entrypoint."
-elif [[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]]; then
-    cloud_check_args=(
-        --environment "$BENCHMARK"
-        --skills-json "$SKILLS_JSON"
-    )
-    if [[ "$CLOUD_BOOTSTRAP_PROBE" == "1" ]]; then
-        cloud_check_args+=(--probe)
-    fi
-    echo "Checking cloud bootstrap (probe=$CLOUD_BOOTSTRAP_PROBE) before allocating Ray/vLLM..."
-    python3 scripts/check_cloud_bootstrap.py "${cloud_check_args[@]}"
 fi
 
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"

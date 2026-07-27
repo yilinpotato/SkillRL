@@ -5,6 +5,24 @@ PROJECT_ROOT="${PROJECT_ROOT:-/workspace/CoSkill}"
 export PROJECT_ROOT
 cd "$PROJECT_ROOT"
 
+load_mounted_cloud_dotenv() {
+    # This fixed, documented path is a runtime-only bind mount.  Never COPY a
+    # user .env into an image layer and never rely on Docker --env-file to
+    # interpret shell-style quotes in a credential value.
+    local dotenv_path="${COSKILL_CONTAINER_DOTENV:-/run/secrets/coskill.env}"
+    if [[ ! -f "$dotenv_path" ]]; then
+        return
+    fi
+    local exports
+    exports="$(python scripts/load_container_cloud_env.py --file "$dotenv_path" --emit-shell)"
+    # The helper emits only an allowlisted set of shell-quoted assignments and
+    # this shell never enables xtrace, so no credential reaches stdout/stderr.
+    eval "$exports"
+    echo "[container-dotenv] loaded mounted cloud configuration from $dotenv_path"
+}
+
+load_mounted_cloud_dotenv
+
 TASK="${1:-preflight}"
 if [[ "$#" -gt 0 ]]; then
     shift
@@ -95,40 +113,6 @@ cloud_preflight() {
     export COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE=1
 }
 
-wandb_preflight() {
-    if [[ "${COSKILL_WANDB:-1}" == "0" ]]; then
-        echo "W&B realtime tracking disabled by COSKILL_WANDB=0."
-        return
-    fi
-    if [[ "${COSKILL_WANDB:-1}" != "1" ]]; then
-        echo "COSKILL_WANDB must be 0 or 1." >&2
-        exit 2
-    fi
-    export WANDB_MODE="${WANDB_MODE:-online}"
-    export WANDB_PROJECT="${WANDB_PROJECT:-coskill-tree-rl}"
-    if [[ "$WANDB_MODE" == "offline" ]]; then
-        echo "W&B configured offline; metrics will be saved locally for later sync."
-        export COSKILL_INTERNAL_WANDB_PREFLIGHT_DONE=1
-        return
-    fi
-    if [[ "$WANDB_MODE" != "online" ]]; then
-        echo "WANDB_MODE must be online or offline." >&2
-        exit 2
-    fi
-    echo "Checking W&B before model/data/GPU setup..."
-    set +e
-    python scripts/preflight_wandb.py
-    local wandb_status=$?
-    set -e
-    if [[ "$wandb_status" == "10" ]]; then
-        export WANDB_MODE=offline
-        echo "W&B network unavailable; continuing with WANDB_MODE=offline."
-    elif [[ "$wandb_status" != "0" ]]; then
-        exit "$wandb_status"
-    fi
-    export COSKILL_INTERNAL_WANDB_PREFLIGHT_DONE=1
-}
-
 case "$TASK" in
     shell)
         exec bash "$@"
@@ -148,7 +132,6 @@ case "$TASK" in
     alfworld-root|alfworld-leaf|webshop-root|webshop-leaf)
         BENCHMARK="${TASK%%-*}"
         cloud_preflight "$BENCHMARK"
-        wandb_preflight
         ensure_model
         gpu_preflight
         data_preflight

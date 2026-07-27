@@ -83,6 +83,27 @@ docker push crpi-6gyywp4rhk17pb91.cn-guangzhou.personal.cr.aliyuncs.com/yilinpot
 
 ## 预检与运行
 
+### Cloud dotenv：只读挂载并由容器内 Python 解析
+
+Tree-RL 的云端凭据不要再依赖 Docker `--env-file` 解析。研究节点上的
+`.env` 常使用 shell 风格引号（例如 `DEEPSEEK_API_KEY='...'`），而 Docker
+的 env-file 语义与 shell dotenv 不一致，可能把引号带入 API key。新 runtime
+overlay 固定从 `/run/secrets/coskill.env` 读取**只读挂载**，用 Python 解析
+DeepSeek/Azure 的 allowlist 字段，再在任何 GPU、Ray、模型或数据操作前执行
+真实 API probe。`.env` 不会被 COPY 到镜像。
+
+```bash
+docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
+  -v /absolute/path/to/.env:/run/secrets/coskill.env:ro \
+  -v /path/to/models:/models:ro -v /path/to/outputs:/outputs \
+  -e MODEL_AUTO_DOWNLOAD=0 \
+  coskill:skillrl-cu128-data-20260721-fix8-dotenv-api-preflight-20260727 \
+  alfworld-root
+```
+
+W&B is disabled by default in this image/launcher. JSONL metrics remain on;
+set `COSKILL_WANDB=1` only when realtime W&B tracking is required.
+
 ```bash
 docker run --rm --gpus '"device=0,1,2,3"' --ipc=host \
   --env-file .env \
