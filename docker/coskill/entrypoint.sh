@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-/workspace/CoSkill}"
+export PROJECT_ROOT
 cd "$PROJECT_ROOT"
 
 TASK="${1:-preflight}"
@@ -71,6 +72,63 @@ data_preflight() {
     python docker/coskill/preflight.py
 }
 
+cloud_preflight() {
+    local benchmark="$1"
+    local skills_json="memory_data/${benchmark}/claude_style_skills.json"
+
+    # Tree-RL is not a valid CoSkill experiment without the cloud loop.  This
+    # is deliberately non-optional in the container: a 401 must not consume
+    # hours of GPU training while silently leaving the tree library static.
+    if [[ "${CLOUD_BOOTSTRAP_PROBE:-1}" != "1" ]]; then
+        echo "CLOUD_BOOTSTRAP_PROBE=1 is required for cloud-enabled container training." >&2
+        exit 2
+    fi
+    if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+        echo "DEEPSEEK_API_KEY is required before model/GPU setup." >&2
+        exit 2
+    fi
+    echo "Checking cloud API before model/data/GPU setup (real probe=1)..."
+    python scripts/check_cloud_bootstrap.py \
+        --environment "$benchmark" \
+        --skills-json "$skills_json" \
+        --probe
+    export COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE=1
+}
+
+wandb_preflight() {
+    if [[ "${COSKILL_WANDB:-1}" == "0" ]]; then
+        echo "W&B realtime tracking disabled by COSKILL_WANDB=0."
+        return
+    fi
+    if [[ "${COSKILL_WANDB:-1}" != "1" ]]; then
+        echo "COSKILL_WANDB must be 0 or 1." >&2
+        exit 2
+    fi
+    export WANDB_MODE="${WANDB_MODE:-online}"
+    export WANDB_PROJECT="${WANDB_PROJECT:-coskill-tree-rl}"
+    if [[ "$WANDB_MODE" == "offline" ]]; then
+        echo "W&B configured offline; metrics will be saved locally for later sync."
+        export COSKILL_INTERNAL_WANDB_PREFLIGHT_DONE=1
+        return
+    fi
+    if [[ "$WANDB_MODE" != "online" ]]; then
+        echo "WANDB_MODE must be online or offline." >&2
+        exit 2
+    fi
+    echo "Checking W&B before model/data/GPU setup..."
+    set +e
+    python scripts/preflight_wandb.py
+    local wandb_status=$?
+    set -e
+    if [[ "$wandb_status" == "10" ]]; then
+        export WANDB_MODE=offline
+        echo "W&B network unavailable; continuing with WANDB_MODE=offline."
+    elif [[ "$wandb_status" != "0" ]]; then
+        exit "$wandb_status"
+    fi
+    export COSKILL_INTERNAL_WANDB_PREFLIGHT_DONE=1
+}
+
 case "$TASK" in
     shell)
         exec bash "$@"
@@ -88,10 +146,12 @@ case "$TASK" in
         echo "Preflight passed. Choose install-flashinfer, alfworld-root, alfworld-leaf, webshop-root, webshop-leaf, alfworld-smoke, webshop-smoke, alfworld-norl, webshop-norl, or alfworld-ablation."
         ;;
     alfworld-root|alfworld-leaf|webshop-root|webshop-leaf)
+        BENCHMARK="${TASK%%-*}"
+        cloud_preflight "$BENCHMARK"
+        wandb_preflight
         ensure_model
         gpu_preflight
         data_preflight
-        BENCHMARK="${TASK%%-*}"
         TREE_RL_ORDER="${TASK##*-}"
         export COSKILL_CONTAINER=1 TREE_RL_ORDER
         exec bash examples/grpo_trainer/run_coskill_tree_rl.sh "$BENCHMARK" "$@"

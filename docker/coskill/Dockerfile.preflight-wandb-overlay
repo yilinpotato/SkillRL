@@ -1,0 +1,20 @@
+# Lightweight, reproducible overlay for an already-packed CoSkill training
+# image.  It intentionally copies no credentials, model weights, data, logs,
+# checkpoints, or arbitrary worktree files.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+WORKDIR /workspace/CoSkill
+
+COPY docker/coskill/entrypoint.sh /workspace/CoSkill/docker/coskill/entrypoint.sh
+COPY examples/grpo_trainer/run_coskill_tree_rl.sh /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl.sh
+COPY scripts/preflight_wandb.py /workspace/CoSkill/scripts/preflight_wandb.py
+
+RUN chmod +x \
+    /workspace/CoSkill/docker/coskill/entrypoint.sh \
+    /workspace/CoSkill/examples/grpo_trainer/run_coskill_tree_rl.sh \
+    /workspace/CoSkill/scripts/preflight_wandb.py \
+    && python -c 'import wandb; import verl'
+
+ENTRYPOINT ["/workspace/CoSkill/docker/coskill/entrypoint.sh"]
+CMD ["preflight"]

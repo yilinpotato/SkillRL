@@ -367,12 +367,43 @@ case "$COMPACT_FINISHED_TRAJECTORIES" in
         exit 1
         ;;
 esac
-# A complete Tree-RL run needs a usable cloud client.  Check it before Ray and
-# vLLM reserve the A800s; --probe is opt-in because it makes one tiny API call.
+# A complete Tree-RL run needs a usable cloud client.  A real probe is mandatory
+# by default: allowing a 401 to proceed turns the run into static-skill RL and
+# invalidates the claimed CoSkill/tree-RL comparison.
 export CLOUD_BOOTSTRAP_CHECK="${CLOUD_BOOTSTRAP_CHECK:-1}"
-export CLOUD_BOOTSTRAP_PROBE="${CLOUD_BOOTSTRAP_PROBE:-0}"
-case "$CLOUD_BOOTSTRAP_CHECK" in 0|1) ;; *) echo "CLOUD_BOOTSTRAP_CHECK must be 0 or 1" >&2; exit 1;; esac
-case "$CLOUD_BOOTSTRAP_PROBE" in 0|1) ;; *) echo "CLOUD_BOOTSTRAP_PROBE must be 0 or 1" >&2; exit 1;; esac
+export CLOUD_BOOTSTRAP_PROBE="${CLOUD_BOOTSTRAP_PROBE:-1}"
+[[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]] || { echo "CLOUD_BOOTSTRAP_CHECK=1 is required for Tree-RL." >&2; exit 1; }
+[[ "$CLOUD_BOOTSTRAP_PROBE" == "1" ]] || { echo "CLOUD_BOOTSTRAP_PROBE=1 (a real API request) is required for Tree-RL." >&2; exit 1; }
+
+# W&B is the default realtime dashboard for formal Tree-RL.  Users who need a
+# fully offline diagnostic may set COSKILL_WANDB=0 explicitly; that run must
+# not be presented as having realtime monitoring.
+export COSKILL_WANDB="${COSKILL_WANDB:-1}"
+case "$COSKILL_WANDB" in 0|1) ;; *) echo "COSKILL_WANDB must be 0 or 1" >&2; exit 1;; esac
+export WANDB_PROJECT="${WANDB_PROJECT:-coskill-tree-rl}"
+if [[ "$COSKILL_WANDB" == "1" ]]; then
+    export WANDB_MODE="${WANDB_MODE:-online}"
+    case "$WANDB_MODE" in
+        online|offline) ;;
+        *) echo "WANDB_MODE must be online or offline when COSKILL_WANDB=1." >&2; exit 1;;
+    esac
+    if [[ "$WANDB_MODE" == "offline" ]]; then
+        echo "W&B offline mode: metrics will be kept locally for later wandb sync."
+    elif [[ "${COSKILL_INTERNAL_WANDB_PREFLIGHT_DONE:-0}" != "1" ]]; then
+        set +e
+        python3 scripts/preflight_wandb.py
+        wandb_status=$?
+        set -e
+        if [[ "$wandb_status" == "10" ]]; then
+            export WANDB_MODE=offline
+            echo "W&B network unavailable; continuing with WANDB_MODE=offline."
+        elif [[ "$wandb_status" != "0" ]]; then
+            exit "$wandb_status"
+        fi
+    else
+        echo "W&B probe already passed in the container entrypoint."
+    fi
+fi
 # Match the frozen CoSkill WebShop path.  This is a soft character guard used
 # only to compact oldest complete history records; the hard prompt limit stays
 # data.max_prompt_length=8192 tokens.
@@ -431,7 +462,9 @@ if [[ "$BENCHMARK" == "webshop" ]]; then
     fi
 fi
 
-if [[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]]; then
+if [[ "${COSKILL_INTERNAL_CLOUD_PREFLIGHT_DONE:-0}" == "1" ]]; then
+    echo "Cloud probe already passed in the container entrypoint."
+elif [[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]]; then
     cloud_check_args=(
         --environment "$BENCHMARK"
         --skills-json "$SKILLS_JSON"
@@ -441,8 +474,6 @@ if [[ "$CLOUD_BOOTSTRAP_CHECK" == "1" ]]; then
     fi
     echo "Checking cloud bootstrap (probe=$CLOUD_BOOTSTRAP_PROBE) before allocating Ray/vLLM..."
     python3 scripts/check_cloud_bootstrap.py "${cloud_check_args[@]}"
-else
-    echo "WARNING: CLOUD_BOOTSTRAP_CHECK=0; this run can silently skip cloud evolution if its credential is unavailable." >&2
 fi
 
 echo "CoSkill tree RL: benchmark=$BENCHMARK environment=$RUN_ENV"
@@ -599,7 +630,6 @@ ppo_args=(
     +env.traces_pool.cloud_evidence_mode=tree_only
 
     trainer.critic_warmup=0
-    trainer.logger=['console','jsonl']
     "trainer.project_name=$PROJECT_NAME"
     "trainer.experiment_name=$EXPERIMENT_NAME"
     "trainer.default_local_dir=$OUTPUT_DIR"
@@ -612,6 +642,12 @@ ppo_args=(
     "trainer.total_epochs=$TOTAL_TRAINING_STEPS"
     "trainer.val_before_train=$VAL_BEFORE_TRAIN"
 )
+
+if [[ "$COSKILL_WANDB" == "1" ]]; then
+    ppo_args+=("trainer.logger=['console','jsonl','wandb']")
+else
+    ppo_args+=("trainer.logger=['console','jsonl']")
+fi
 
 if [[ "$BENCHMARK" == "webshop" ]]; then
     ppo_args+=(
