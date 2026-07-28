@@ -45,6 +45,22 @@ pip install -e .
 export MODEL_PATH=/path/to/model
 ~~~
 
+### 2.2.1 Qwen3-1.7B 模型规模臂
+
+模型规模实验使用与标准 CoSkill 相同的 no-RL 闭环：冻结端侧模型 rollout、轨迹压缩、云端失败诊断与外部 skill tree 演化。它**不会**进入 `rl=1` 的 Ray/GRPO 渐进内化路径，因此模型规模是唯一有意改变的变量；rollout group=72、总 group/episode、history、采样、最大步数、4096 response token、云端模型及技能树开关均继承标准入口。
+
+先把 `Qwen/Qwen3-1.7B` 下载/挂载到模型缓存；超算默认位置为 `/GLOBALFS/hit_wxia_1/.cache/modelscope/hub/models/Qwen/Qwen3-1.7B`，本地默认位置为 `$HOME/.cache/modelscope/hub/models/Qwen/Qwen3-1.7B`。也可以显式覆盖 `MODEL_PATH`。独立输出目录避免与 4B 结果混写：
+
+~~~bash
+# ALFWorld
+bash examples/playbook_evolve/run_alfworld_playbook_evolve_norl_qwen3_1.7b.sh
+
+# WebShop
+bash examples/playbook_evolve/run_webshop_playbook_evolve_norl_qwen3_1.7b.sh
+~~~
+
+运行前应确认 `test -f "$MODEL_PATH/config.json"`。模型权重、架构或 tokenizer 不同于 4B 时，不能接续 4B 的 vLLM/RL checkpoint；本 no-RL 臂只可复用同一模型规模已产生的 `OUTPUT_DIR` 外部技能库和 driver checkpoint。
+
 完整端云闭环还需要：
 
 ~~~bash

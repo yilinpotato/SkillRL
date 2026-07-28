@@ -188,8 +188,10 @@ if [ -z "${WEBSHOP_DATA_DIR:-}" ]; then
 fi
 export WEBSHOP_DATA_DIR
 
-PROJECT_NAME="verl_agent_webshop"
-EXPERIMENT_NAME="qwen3-4b_skill_tree_evolve_norl_coskill_standard"
+PROJECT_NAME="${PROJECT_NAME:-verl_agent_webshop}"
+# Keep the historical 4B output directory by default, while allowing model
+# scale wrappers to select an isolated directory without editing this launcher.
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-qwen3-4b_skill_tree_evolve_norl_coskill_standard}"
 OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/$PROJECT_NAME/$EXPERIMENT_NAME}"
 mkdir -p "$OUTPUT_DIR"
 
