@@ -12,13 +12,13 @@ export RL=0
 
 if [[ -z "${MODEL_PATH:-}" ]]; then
     if [[ -d /GLOBALFS/hit_wxia_1 ]]; then
-        export MODEL_PATH="/GLOBALFS/hit_wxia_1/.cache/modelscope/hub/models/Qwen/Qwen3-1.7B"
+        export MODEL_PATH="/GLOBALFS/hit_wxia_1/.cache/modelscope/hub/models/Qwen/Qwen3-0.6B"
     else
-        export MODEL_PATH="${HOME}/.cache/modelscope/hub/models/Qwen/Qwen3-1.7B"
+        export MODEL_PATH="${HOME}/.cache/modelscope/hub/models/Qwen/Qwen3-0.6B"
     fi
 fi
 
 export PROJECT_NAME="${PROJECT_NAME:-verl_agent_webshop}"
-export EXPERIMENT_NAME="${EXPERIMENT_NAME:-qwen3-1.7b_skill_tree_evolve_norl_coskill_standard}"
+export EXPERIMENT_NAME="${EXPERIMENT_NAME:-qwen3-0.6b_skill_tree_evolve_norl_coskill_standard}"
 
 exec bash "$SCRIPT_DIR/run_webshop_playbook_evolve_norl.sh" "$@"
