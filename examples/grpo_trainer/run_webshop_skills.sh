@@ -62,8 +62,10 @@ export SKILL_UPDATER_BACKEND="${SKILL_UPDATER_BACKEND:-deepseek}"
 export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
 
 # All run outputs (checkpoints, updated skills, and the training log) are collected here.
-PROJECT_NAME="verl_agent_webshop"
-EXPERIMENT_NAME="qwen3_4b_webshop_skillRL_v3"
+PROJECT_NAME="${PROJECT_NAME:-verl_agent_webshop}"
+# Preserve the historical 4B output location unless a model-scale wrapper
+# explicitly selects an isolated experiment directory.
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-qwen3_4b_webshop_skillRL_v3}"
 OUTPUT_DIR="${OUTPUT_DIR:-$OUTPUT_ROOT/${PROJECT_NAME}/${EXPERIMENT_NAME}}"
 mkdir -p "$OUTPUT_DIR"
 # datasets.load_dataset("parquet") writes dataset_info.json while building its
