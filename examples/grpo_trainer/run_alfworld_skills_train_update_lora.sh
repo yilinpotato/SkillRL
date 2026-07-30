@@ -44,9 +44,38 @@ export TRAJECTORY_DUMP_DIR="$OUTPUT_DIR/trajectories"
 
 num_cpus_per_env_worker=0.35 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
-# Restart Ray with full CPU/GPU access to avoid resource starvation from previous crashed runs
+# GPU ownership is governed by the scheduler-provided CUDA_VISIBLE_DEVICES.
+# For a local one-card speed test, set CUDA_VISIBLE_DEVICES to one *idle*
+# physical GPU (for example, 1).  Ray and the trainer must receive the same
+# count; the historical hard-coded 2 made a single-card launch inconsistent.
+if [[ -d /GLOBALFS/hit_wxia_1 ]]; then
+    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
+    DEFAULT_RAY_NUM_CPUS=56
+else
+    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-${LOCAL_GPU:-0}}"
+    DEFAULT_RAY_NUM_CPUS="$(nproc)"
+    if [[ "$CUDA_VISIBLE_DEVICES" == *,* ]]; then
+        echo "Local SkillRL ALFWorld launcher accepts exactly one GPU; got CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES." >&2
+        exit 1
+    fi
+    GPU_ACTIVE_PIDS=$(nvidia-smi --id="$CUDA_VISIBLE_DEVICES" --query-compute-apps=pid --format=csv,noheader 2>/dev/null | awk 'NF' || true)
+    if [[ -n "$GPU_ACTIVE_PIDS" ]]; then
+        echo "Requested local GPU $CUDA_VISIBLE_DEVICES is in use by PID(s): $GPU_ACTIVE_PIDS. Refusing to start." >&2
+        exit 1
+    fi
+fi
+NUM_VISIBLE_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | grep -c .)
+N_GPUS_PER_NODE="${N_GPUS_PER_NODE:-$NUM_VISIBLE_GPUS}"
+RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
+if ! [[ "$N_GPUS_PER_NODE" =~ ^[1-9][0-9]*$ ]] || [[ "$N_GPUS_PER_NODE" -ne "$NUM_VISIBLE_GPUS" ]]; then
+    echo "N_GPUS_PER_NODE=$N_GPUS_PER_NODE must equal visible GPU count=$NUM_VISIBLE_GPUS." >&2
+    exit 1
+fi
+
+# Restart Ray with exactly the GPUs visible to this launcher.  This prevents
+# Ray scheduling a second logical GPU when a one-card speed test is requested.
 ray stop --force 2>/dev/null || true
-ray start --head --num-cpus=56 --num-gpus=2
+ray start --head --num-cpus="$RAY_NUM_CPUS" --num-gpus="$N_GPUS_PER_NODE"
 sleep 3
 
 train_data_size=12  # Minimal test (divisible by 1)
@@ -114,13 +143,13 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.max_new_skills=3 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','jsonl'] \
-    trainer.project_name='verl_agent_alfworld' \
-    trainer.experiment_name='grpo_qwen3_4b_skills_dynamic_lora' \
+    trainer.project_name="$PROJECT_NAME" \
+    trainer.experiment_name="$EXPERIMENT_NAME" \
     trainer.default_local_dir="$OUTPUT_DIR" \
     ++trainer.comparison_metrics_jsonl_path="$COMPARISON_METRICS_PATH" \
     ++trainer.comparison_method=skillrl \
     ++trainer.comparison_benchmark=alfworld \
-    trainer.n_gpus_per_node=2 \
+    trainer.n_gpus_per_node=$N_GPUS_PER_NODE \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \

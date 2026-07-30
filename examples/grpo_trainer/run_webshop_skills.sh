@@ -178,8 +178,8 @@ python3 -m verl.trainer.main_ppo \
     +env.skills_only_memory.max_new_skills=3 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','jsonl'] \
-    trainer.project_name='verl_agent_webshop' \
-    trainer.experiment_name='grpo_qwen3_4b_webshop_skills_dynamic_lora' \
+    trainer.project_name="$PROJECT_NAME" \
+    trainer.experiment_name="$EXPERIMENT_NAME" \
     trainer.default_local_dir="$OUTPUT_DIR" \
     trainer.n_gpus_per_node=$NUM_VISIBLE_GPUS \
     trainer.nnodes=1 \
