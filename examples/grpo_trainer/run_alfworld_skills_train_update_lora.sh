@@ -72,15 +72,25 @@ if ! [[ "$N_GPUS_PER_NODE" =~ ^[1-9][0-9]*$ ]] || [[ "$N_GPUS_PER_NODE" -ne "$NU
     exit 1
 fi
 
-# Restart Ray with exactly the GPUs visible to this launcher.  This prevents
-# Ray scheduling a second logical GPU when a one-card speed test is requested.
-ray stop --force 2>/dev/null || true
-ray start --head --num-cpus="$RAY_NUM_CPUS" --num-gpus="$N_GPUS_PER_NODE"
-sleep 3
+# Do not invoke `ray stop` / `ray start`: a shared host may already have a
+# Ray session, and some supported Ray/Click combinations fail in the CLI.
+# main_ppo calls Python's ray.init(); it inherits CUDA_VISIBLE_DEVICES and the
+# trainer GPU count above, while this option only bounds local CPU workers.
+ray_init_args=("ray_init.num_cpus=$RAY_NUM_CPUS")
+if [[ -n "${RAY_ADDRESS:-}" ]]; then
+    ray_init_args+=("ray_init.address=$RAY_ADDRESS")
+fi
 
 train_data_size=12  # Minimal test (divisible by 1)
 val_data_size=32    # Minimal test
 group_size=6        # GRPO group size (trajectories per prompt)
+# Keep the ALFWorld prompt history aligned with the completed comparison runs
+# and the WebShop launcher.  The Hydra base recipe defaults to 2, so this must
+# be explicit here rather than relying on an external override.
+history_length="${HISTORY_LENGTH:-8}"
+# Completed comparison runs use 100 GRPO updates.  Keep this overridable for
+# ablations, but do not silently revert the default to the older 150-step run.
+total_training_steps="${TOTAL_TRAINING_STEPS:-100}"
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -132,6 +142,7 @@ python3 -m verl.trainer.main_ppo \
     env.env_name=alfworld/AlfredTWEnv \
     env.seed=0 \
     env.max_steps=40 \
+    env.history_length=$history_length \
     env.rollout.n=$group_size \
     env.resources_per_worker.num_cpus=$num_cpus_per_env_worker \
     +env.use_skills_only_memory=True \
@@ -154,5 +165,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
-    trainer.total_epochs=150 \
+    trainer.total_epochs=$total_training_steps \
+    "${ray_init_args[@]}" \
     trainer.val_before_train=False $@ 2>&1 | tee "$OUTPUT_DIR/training.log"
