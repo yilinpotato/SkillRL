@@ -104,16 +104,22 @@ WebShop 脚本会依次尝试当前 CoSkill、相邻 Skill0 和本机预设数�
 | 超算 | 0,1；两个 data-parallel vLLM worker | /GLOBALFS/hit_wxia_1/.cache | HOME/data/verl-agent | 项目 outputs/ |
 | 本地共享 3090 | 仅 GPU 0，且必须空闲 | HOME/.cache | 项目 skillrl_data/verl-agent | 项目 skillrl_outputs/ |
 
-本地脚本会检查 GPU 0 是否有计算进程，非空闲即退出。不要绕过这个保护。超算正式运行默认使用两张卡；单卡 smoke test 可显式覆盖：
+### 3.1 ALFWorld no-RL 单卡模式
+
+本地脚本会检查 GPU 0 是否有计算进程，非空闲即退出。不要绕过这个保护。超算正式运行默认使用两张卡；ALFWorld no-RL 提供显式单卡模式：
 
 ~~~bash
-CUDA_VISIBLE_DEVICES=0 DATA_PARALLEL_WORKERS=1 ROLLOUT_WORKER_GPUS=0 \
+CUDA_VISIBLE_DEVICES=0 COSKILL_ONE_GPU=1 \
   bash examples/playbook_evolve/run_alfworld_playbook_evolve_norl.sh
 ~~~
 
-两个 CoSkill driver 会在 `multiprocessing spawn` **之前**向每个 rollout worker 写入仅含其分配 GPU group 的 `CUDA_VISIBLE_DEVICES`，并在 worker ready 日志中打印该值；随后父进程恢复原始可见列表。worker 只校验并继承这个 GPU group mask，不会在子进程中再次重设它，以免 vLLM EngineCore 在不同 CUDA 可见性命名空间中把第二个副本重新映射到 GPU 0。若继承值不匹配，driver 会在加载模型前失败。所有入口同时设置 `CUDA_DEVICE_ORDER=PCI_BUS_ID`，保证编号稳定。
+`COSKILL_ONE_GPU=1` 会从调度器已有的 `CUDA_VISIBLE_DEVICES` 中选第一项，并强制 `DP=1、TP=1`，避免继承旧 shell 中的双卡变量；不要在未获分配的物理卡上自行改编号。每个 rollout group 仍是 72 局，模型、prompt、采样、token 预算和云端更新边界均不变，只由一个 vLLM replica 串行承担整组生成，因此速度会低于双卡。
 
-### 4.2 CoSkill WebShop 四卡并行（不改变 rollout 规模）
+ALFWorld 同样支持 `VLLM_MAX_NUM_SEQS=0`（默认）：driver 会把 scheduler 上限设为每个 replica 实际负责的 batch，单卡即 72，双卡即每 worker 36。这样避免按 vLLM 过大的默认并发做无用初始化，不会减少真实 rollout。超算和容器默认 `VLLM_ENFORCE_EAGER=0`，使 vLLM 在 warm-up 后捕获 CUDA Graph；共享本地单卡仍默认 `1` 以保留兼容模式。该开关不改变 prompt、采样参数、token/rollout 预算或环境接口；若短 smoke 出现 CUDA Graph 显存问题可显式设回 `1`。
+
+多卡数据并行时，两个 CoSkill driver 会在 `multiprocessing spawn` **之前**向每个 rollout worker 写入仅含其分配 GPU group 的 `CUDA_VISIBLE_DEVICES`，并在 worker ready 日志中打印该值；随后父进程恢复原始可见列表。worker 只校验并继承这个 GPU group mask，不会在子进程中再次重设它，以免 vLLM EngineCore 在不同 CUDA 可见性命名空间中把第二个副本重新映射到 GPU 0。若继承值不匹配，driver 会在加载模型前失败。ALFWorld 单卡模式不额外启动 rollout worker，driver 和 vLLM EngineCore 直接继承同一个单卡 mask。所有入口同时设置 `CUDA_DEVICE_ORDER=PCI_BUS_ID`，保证编号稳定。
+
+### 3.2 CoSkill WebShop 四卡并行（不改变 rollout 规模）
 
 WebShop launcher 按调度器分配的 `CUDA_VISIBLE_DEVICES` 自动检查可见 GPU 数。若可见卡至少为四张，`VLLM_PARALLEL_TOPOLOGY=auto` 默认采用 `DP=2 × TP=2 × PP=1`：两个常驻 rollout worker 分别继承 `0,1`、`2,3`（或调度器给出的前四张卡），每个 worker 仍处理 6 个基础任务、每组仍合计 72 条 rollout。模型、任务、种子、token 预算、云端更新边界均不变；只改变 vLLM 的模型分片方式。
 
@@ -140,6 +146,23 @@ WebShop rollout 已按每个环境 step 批量调用 vLLM：整批先生成 thin
 | DATA_PARALLEL_WORKERS | rollout worker 数 |
 | ROLLOUT_WORKER_GPUS | worker GPU 列表，例如 0,1 |
 | TENSOR_PARALLEL_SIZE | 仅 ALFWorld launcher 使用，默认每 worker 1 |
+| COSKILL_ONE_GPU | ALFWorld no-RL 设为 1 时使用调度器可见列表的第一张卡并强制 DP=1、TP=1 |
+| VLLM_MAX_NUM_SEQS | 0 为按每个 worker 实际 batch 自动设置；正数不得小于实际 batch |
+| VLLM_ENFORCE_EAGER | 1 使用 eager；0 允许 CUDA Graph（超算/容器默认，单卡本地默认 1） |
+
+### 推理加速核验与 FlashInfer sampler（2026-07）
+
+Tree-RL 的 vLLM rollout 已显式使用 `enforce_eager=False`；WebShop noRL 以及 ALFWorld noRL 在超算/容器默认同样启用 CUDA Graph。正常的 `EngineCore` 日志应包含 `use_cudagraph:true`、`Capturing CUDA graphs` 和 `Graph capturing finished`。不要把 `VLLM_ATTENTION_BACKEND=FLASHINFER` 当作 sampler 优化：Qwen 的稠密注意力继续使用 vLLM 默认的 Flash Attention，强行切换注意力后端既没有必要，也可能改变速度和数值路径。
+
+当前 `skillRL` 打包环境没有 FlashInfer，因此原先会回退到 PyTorch sampler。为不改变已跑曲线的随机轨迹，项目默认固定原生 sampler；需要单独做吞吐实验时，先在**可写、可持久化**目录安装隔离 overlay：
+
+```bash
+cd /workspace/CoSkill  # 容器内；宿主机则为 CoSkill 根目录
+COSKILL_FLASHINFER_OVERLAY=/outputs/flashinfer-cu128 \
+  bash scripts/install_flashinfer_sampler_overlay.sh
+```
+
+Docker 也可直接执行 `docker run --rm -v "$RUN_ROOT/outputs:/outputs" "$IMAGE" install-flashinfer`。正式启动时额外传入 `-e COSKILL_ENABLE_FLASHINFER_SAMPLER=1 -e COSKILL_FLASHINFER_OVERLAY=/outputs/flashinfer-cu128`；overlay 位于 `/outputs` 时无需额外挂载。成功的唯一运行时证据是 worker 日志中的 `Using FlashInfer for top-p & top-k sampling.`。FlashInfer 会首次为每种 GPU 架构编译/缓存少量 kernel，首次启动变慢是预期现象；缓存保留后才比较稳态吞吐。不要将启用/未启用 sampler 的随机训练曲线混为一条严格复现实验。
 | ALFWORLD_DATA | ALFWorld 数据根目录 |
 | WEBSHOP_DATA_DIR | WebShop 数据目录 |
 | MAX_EPISODES、TOTAL_GROUPS、GROUP_SIZE | 脚本层面的规模覆盖 |
@@ -148,7 +171,7 @@ WebShop rollout 已按每个环境 step 批量调用 vLLM：整批先生成 thin
 
 每次新实验必须用新的 OUTPUT_DIR。metrics.jsonl 和 group_metrics.jsonl 是追加写入；同一目录重新以 resume=0 启动会混入旧记录。
 
-### 3.1 Tree-RL：四卡 DP=4、TP=1 与云端预检
+### 3.3 Tree-RL：四卡 DP=4、TP=1 与云端预检
 
 `examples/grpo_trainer/run_coskill_tree_rl.sh` 的四卡设置固定为 **DP=4、TP=1、PP=1**；不为 Qwen3-4B 改成 TP/PP 分片。每次更新仍是 12 个任务 × 6 个样本 = 72 rollout，PPO 全局 batch、prompt/response 上限、奖励和采样参数不变。
 

@@ -25,6 +25,10 @@ def test_eight_gpu_throughput_profile_is_explicit_and_reversible():
     text = LAUNCHER.read_text(encoding="utf-8")
     assert 'TREE_RL_8GPU_THROUGHPUT_MODE="${TREE_RL_8GPU_THROUGHPUT_MODE:-1}"' in text
     assert "DEFAULT_TRAIN_DATA_SIZE=16" in text
+    assert "DEFAULT_TRAIN_ROLLOUT_BUDGET=7200" in text
+    assert "DEFAULT_TOTAL_TRAINING_STEPS=$((DEFAULT_TRAIN_ROLLOUT_BUDGET / ROLLOUTS_PER_STEP))" in text
+    assert "DEFAULT_TEST_FREQ=10" in text
+    assert "TRAINING_ROLLOUTS_TOTAL=$((TOTAL_TRAINING_STEPS * ROLLOUTS_PER_STEP))" in text
     assert "DEFAULT_PPO_MINI_BATCH=48" in text
     assert "DEFAULT_VLLM_MAX_NUM_BATCHED_TOKENS=32768" in text
     assert "not a 72-rollout learning-curve replicate" in text
@@ -41,6 +45,8 @@ def test_eight_gpu_entrypoint_selects_consistent_throughput_geometry():
     text = EIGHT_GPU_LAUNCHER.read_text(encoding="utf-8")
     assert 'TREE_RL_8GPU_THROUGHPUT_MODE:-1' in text
     assert 'TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-16}"' in text
+    assert 'TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-75}"' in text
+    assert 'TEST_FREQ="${TEST_FREQ:-10}"' in text
     assert 'PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-48}"' in text
     assert 'PPO_MICRO_BATCH_SIZE_PER_GPU="${PPO_MICRO_BATCH_SIZE_PER_GPU:-2}"' in text
     assert 'LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-4}"' in text

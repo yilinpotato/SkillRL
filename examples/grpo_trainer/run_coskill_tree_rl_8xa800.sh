@@ -3,6 +3,8 @@
 #
 # Default eight-GPU throughput profile:
 #   - 16 ALFWorld goals x group_size=6 = 96 rollouts per train step
+#   - 75 train steps x 96 = 7200 total train rollouts
+#   - validation every 10 train steps, plus the final step
 #   - PPO mini=48, per-rank mini=6, per-rank micro=2
 #   - max_steps=40, val_data_size=32 and all model/reward/tree settings unchanged
 # Set TREE_RL_8GPU_THROUGHPUT_MODE=0 for the historical exact-contract profile:
@@ -44,6 +46,8 @@ export GROUP_SIZE=6
 export VAL_DATA_SIZE=32
 if [[ "$TREE_RL_8GPU_THROUGHPUT_MODE" == "1" ]]; then
     export TRAIN_DATA_SIZE="${TRAIN_DATA_SIZE:-16}"
+    export TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-75}"
+    export TEST_FREQ="${TEST_FREQ:-10}"
     export PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-48}"
     export PPO_MICRO_BATCH_SIZE_PER_GPU="${PPO_MICRO_BATCH_SIZE_PER_GPU:-2}"
     export LOG_PROB_MICRO_BATCH_PER_GPU="${LOG_PROB_MICRO_BATCH_PER_GPU:-4}"
