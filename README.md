@@ -382,3 +382,13 @@ If you find our work helpful, please consider citing:
 ## 🙏 Acknowledgement
 We would like to express our gratitude to the open-source community and the following projects for making this work possible: 
 [verl-agent](https://github.com/langfengQ/verl-agent), [LLaMA-Factory](https://github.com/hiyouga/LlamaFactory), [Qwen](https://github.com/QwenLM/Qwen), etc.
+
+
+## SearchQA live-search
+
+Frozen-model live-search QA is available through `examples/playbook_evolve/run_searchqa_live.sh`. See [SearchQA live-search](SEARCHQA.md) for setup, metrics, and separate evaluation.
+
+
+## ScienceWorld
+
+See [SCIENCEWORLD.md](SCIENCEWORLD.md) for the pinned simulator, frozen-model training and official held-out variation evaluation.
