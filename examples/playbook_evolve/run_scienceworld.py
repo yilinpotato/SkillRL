@@ -43,7 +43,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument('--max-tokens', type=int, default=4096)
     p.add_argument('--simplifications', default='')
     p.add_argument('--seed', type=int, default=0)
-    p.add_argument('--skills')
+    p.add_argument('--skills', help='Previously learned domain skill checkpoint; no preset skills are supplied')
     p.add_argument('--no-cloud', action='store_true')
     p.add_argument('--min-samples', type=int, default=16)
     p.add_argument('--capacity-watermark', type=int, default=50000)
@@ -125,8 +125,8 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
 
     def execute(rows: list[dict], split: str, group: int) -> dict:
         frozen = skill_fingerprint(lib)
-        model.temperature = args.temperature if split == 'train' else args.eval_temperature
-        model.seed = args.seed if split == 'train' else args.eval_seed
+        model.temperature = args.temperature
+        model.seed = args.seed
         start, results = time.monotonic(), []
         for row in rows:
             def log_step(step: dict, row: dict = row) -> None:

@@ -10,13 +10,11 @@ import os
 import re
 from typing import Any
 
-PROTOCOL = 'coskill-norl-v2'
+PROTOCOL = 'coskill-norl-v2.1'
 
 
 def add_method_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--temperature', type=float, default=1.0)
-    parser.add_argument('--eval-temperature', type=float, default=0.4)
-    parser.add_argument('--eval-seed', type=int, default=1000)
     parser.add_argument('--max-prompt-tokens', type=int, default=8192)
     parser.add_argument('--tokenizer-path', default=os.environ.get('EDGE_TOKENIZER_PATH'), help='Tokenizer used for the explicit input budget; defaults to model ID')
     parser.add_argument('--top-k', type=int, default=6)
@@ -36,7 +34,7 @@ def validate_method_args(args: argparse.Namespace) -> None:
                   'stable_cycles_l1', 'stable_cycles_l2', 'max_new_skills', 'tree_min_samples'):
         if getattr(args, field) <= 0:
             raise ValueError(f'{field} must be positive')
-    for field in ('temperature', 'eval_temperature'):
+    for field in ('temperature',):
         if not 0 <= getattr(args, field) <= 2:
             raise ValueError(f'{field} must be in [0, 2]')
     for field in ('success_l1', 'demote_threshold', 'perf_watermark'):
@@ -54,7 +52,7 @@ def skill_options(args: argparse.Namespace) -> dict:
 def method_manifest(args: argparse.Namespace) -> dict:
     return dict(protocol=PROTOCOL, history='observation_executed_action',
                 action_recovery='unique_complete_tag_outside_reasoning',
-                retrieval_mode='template', initial_skills='provided' if args.skills else 'empty',
+                retrieval_mode='template', initial_skills='loaded_checkpoint' if args.skills else 'empty', preset_skills=False,
                 cloud_evidence_mode='tree_only', loop_threshold=3,
                 update_check='after_existing_group', update_progress_unit='completed_train_episodes',
                 tokenizer=args.tokenizer_path or args.model, repeat_stop='disabled',

@@ -24,11 +24,13 @@ class MethodTests(unittest.TestCase):
     def test_shared_defaults_and_lifecycle(self):
         science = parse_args(['--output-dir', 'unused'])
         search = parser().parse_args(['--output-dir', 'unused', '--data', 'unused'])
-        for key in ('temperature', 'eval_temperature', 'eval_seed', 'history_length',
+        for key in ('temperature', 'seed', 'history_length',
                     'max_tokens', 'max_prompt_tokens', 'min_calls', 'top_k', 'task_specific_top_k'):
             self.assertEqual(getattr(science, key), getattr(search, key))
         self.assertEqual(science.min_calls, 10)
-        self.assertEqual((science.temperature, science.eval_temperature), (1.0, 0.4))
+        self.assertEqual(science.temperature, 1.0)
+        self.assertFalse(hasattr(science, 'eval_temperature'))
+        self.assertFalse(hasattr(search, 'eval_seed'))
         self.assertEqual((science.max_steps, search.max_steps), (100, 15))
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'skills.json'
@@ -139,10 +141,15 @@ class MethodTests(unittest.TestCase):
             self.assertEqual(update.call_args.args[2], 4)
             val = [json.loads(line) for line in (Path(tmp) / 'validation_metrics.jsonl').read_text().splitlines()]
             self.assertTrue(all(r['skills/fingerprint_before'] == r['skills/fingerprint_after'] for r in val))
-            self.assertTrue(all(r['sampling/temperature'] == 0.4 for r in val))
+            self.assertTrue(all(r['sampling/temperature'] == 1.0 for r in val))
             train = json.loads((Path(tmp) / 'group_metrics.jsonl').read_text())
             self.assertEqual(train['sampling/temperature'], 1.0)
             self.assertEqual(train['episode/count_cumulative'], 4)
+            self.assertTrue(all(r['sampling/seed'] == train['sampling/seed'] for r in val))
+            initial = json.loads((Path(tmp) / 'initial_skills.json').read_text())
+            self.assertEqual(initial['general_skills'], [])
+            self.assertTrue(all(not skills for skills in initial['task_specific_skills'].values()))
+            self.assertEqual(initial['common_mistakes'], [])
 
 
 if __name__ == '__main__':

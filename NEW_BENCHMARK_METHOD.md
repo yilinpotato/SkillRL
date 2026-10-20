@@ -1,4 +1,4 @@
-# ScienceWorld and live SearchQA: shared no-RL method v2
+# ScienceWorld and live SearchQA: shared no-RL method v2.1
 
 Only these two backends import `agent_system/method_protocol.py`. ALFWorld,
 WebShop, their launchers, shared memory classes and RL behavior are unchanged.
@@ -8,8 +8,7 @@ The existing batch/sampling schedule is unchanged; this is not a 12-by-6 rollout
 
 | Setting | Default |
 | --- | --- |
-| learning temperature / seed | 1.0 / 0 |
-| dev and standalone evaluation temperature / seed | 0.4 / 1000 |
+| shared temperature / seed (all calls) | 1.0 / 0 |
 | history | last 8 observations and actually executed actions |
 | output budget | 4096 tokens per decision |
 | input budget | 8192 tokens using the selected tokenizer and chat template |
@@ -24,8 +23,11 @@ The existing batch/sampling schedule is unchanged; this is not a 12-by-6 rollout
 
 CLI flags expose sampling, budget, retrieval limits, lifecycle thresholds and cloud
 thresholds. `run_config.json` records effective arguments and the method manifest.
-Initial skills remain empty unless `--skills` supplies an audited domain-specific
-file; no new seed answers or successful trajectories are inserted. Initial files
+Both benchmarks start with zero preset skills, mistakes and skill trees.
+Retrieval limits are upper bounds, not a request to create that many skills.
+Only CoSkill learning may generate new skills from training trajectories.
+`--skills` optionally loads a previously learned domain checkpoint; it is not a
+request to add hand-written seed skills or benchmark answers. Initial files
 are copied into the run directory and supplied skill files are hashed.
 
 For an offline Qwen server, pass `--tokenizer-path "$MODEL_PATH"`. The `EDGE_TOKENIZER_PATH` environment variable is also supported. Otherwise the
@@ -76,8 +78,9 @@ The cloud trigger is checked at the existing group boundary; the pool thresholds
 are explicit. The cloud receives cumulative completed TRAIN episode count as its
 progress index. An update becomes available to subsequent episodes. Validation
 never enters the pool or changes usage/lifecycle statistics; before/after skill
-and tree fingerprints enforce this. Each validation uses the same evaluation seed
-and temperature. Train/eval model usage and SearchQA tool usage accumulate separately.
+and tree fingerprints enforce this. All calls use the same `--seed` and `--temperature`; there is no separate
+evaluation sampling configuration. Optional held-out execution keeps its data
+isolation and does not introduce a different sampling policy. Train/eval model usage and SearchQA tool usage accumulate separately.
 
 `metrics.jsonl` records episodes; `group_metrics.jsonl` retains legacy fields and
 adds common action ratios, task score, sampling settings, protocol and progress.
@@ -105,3 +108,6 @@ local Qwen tokenizer test dropped 6 old pairs and fit within its requested cap;
 a scripted two-decision ScienceWorld 1.2.3 run executed recovered `look around`
 actions. The latter tests simulator plumbing, not real-model task performance.
 No GPU inference or paid model/search API experiment was performed for v2.
+
+V2.1 removes the separate evaluation sampling flags and verifies empty initialization
+for both backends. Existing learned-checkpoint loading remains available.

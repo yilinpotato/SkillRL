@@ -79,7 +79,7 @@ def parser():
     p.add_argument('--mode', choices=['train', 'eval'], default='train')
     add_method_args(p)
     p.add_argument('--output-dir', required=True)
-    p.add_argument('--skills', help='Previously saved SearchQA skill library')
+    p.add_argument('--skills', help='Previously learned SearchQA skill checkpoint; no preset skills are supplied')
     p.add_argument('--model', default=os.environ.get('EDGE_MODEL', 'Qwen/Qwen3-4B-Thinking-2507'))
     p.add_argument('--base-url', default=os.environ.get('EDGE_API_BASE', 'http://127.0.0.1:8000/v1'))
     p.add_argument('--groups', type=int, default=100)
@@ -166,8 +166,8 @@ def main(argv=None):
 
     def execute(rows, split, group):
         frozen = skill_fingerprint(lib)
-        model.temperature = args.temperature if split == 'train' else args.eval_temperature
-        model.seed = args.seed if split == 'train' else args.eval_seed
+        model.temperature = args.temperature
+        model.seed = args.seed
         start = time.monotonic()
         results = []
         before_calls, before_credits = search.calls, search.credits

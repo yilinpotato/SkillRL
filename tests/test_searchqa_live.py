@@ -143,6 +143,9 @@ class SearchQATests(unittest.TestCase):
             self.assertEqual(metric['qa/exact_match'], 1)
             self.assertEqual(metric['tokens/small_model/total'], 15)
             self.assertTrue((output / 'completed.json').exists())
+            initial = json.loads((output / 'initial_skills.json').read_text())
+            self.assertEqual(initial, {'general_skills': [], 'task_specific_skills': {'searchqa': []},
+                                       'common_mistakes': []})
 
     def test_training_reuses_cloud_tree_and_separates_validation(self):
         class Model:
