@@ -10,6 +10,16 @@ from pathlib import Path
 from typing import Any
 
 from agent_system.memory import CoSkillCloudLoop, TracesPool
+from agent_system.method_protocol import (
+    PROTOCOL,
+    action_metrics,
+    add_method_args,
+    cloud_usage,
+    method_manifest,
+    skill_fingerprint,
+    skill_options,
+    validate_method_args,
+)
 from agent_system.scienceworld_adapter import ScienceSkillLib, build_manifest, run_episode
 from agent_system.searchqa_live import append_json
 from examples.playbook_evolve.run_searchqa_live import ChatModel
@@ -17,6 +27,7 @@ from examples.playbook_evolve.run_searchqa_live import ChatModel
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
+    add_method_args(p)
     p.add_argument('--output-dir', required=True)
     p.add_argument('--mode', choices=['train', 'eval'], default='train')
     p.add_argument('--split', choices=['dev', 'test'], default='test', help='Evaluation split')
@@ -35,6 +46,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument('--skills')
     p.add_argument('--no-cloud', action='store_true')
     p.add_argument('--min-samples', type=int, default=16)
+    p.add_argument('--capacity-watermark', type=int, default=50000)
     p.add_argument('--model', default=os.environ.get('EDGE_MODEL', 'Qwen/Qwen3-4B-Thinking-2507'))
     p.add_argument('--base-url', default=os.environ.get('EDGE_API_BASE', 'http://127.0.0.1:8000/v1'))
     p.add_argument('--env-smoke', action='store_true', help='Real environment checks only; no model/API calls')
@@ -65,6 +77,7 @@ def summarize(results: list[dict], split: str, group: int, elapsed: float) -> di
 
 
 def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
+    validate_method_args(args)
     output = Path(args.output_dir)
     if output.exists() and any(output.iterdir()):
         raise ValueError('Use an empty output directory')
@@ -72,7 +85,7 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
     manifest = build_manifest(env, tasks, args.per_task, args.seed)
     output.mkdir(parents=True, exist_ok=True)
     config = {**vars(args), 'benchmark': 'scienceworld', 'scienceworld_version': installed_version,
-              'oracle_enabled': False, 'manifest': manifest}
+              'oracle_enabled': False, 'manifest': manifest, 'method': method_manifest(args)}
     if args.skills:
         config['skills_sha256'] = hashlib.sha256(Path(args.skills).read_bytes()).hexdigest()
     (output / 'run_config.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
@@ -93,19 +106,27 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
     seed.write_text(Path(args.skills).read_text(encoding='utf-8') if args.skills else json.dumps({
         'general_skills': [], 'task_specific_skills': {task: [] for task in tasks}, 'common_mistakes': [],
     }), encoding='utf-8')
-    lib = ScienceSkillLib(str(seed))
+    lib = ScienceSkillLib(str(seed), **skill_options(args))
     if set(lib.skills.get('task_specific_skills', {})) - set(env.get_task_names()):
         raise ValueError('Skill library contains non-ScienceWorld task types')
     learn = args.mode == 'train' and not args.no_cloud
     loop = CoSkillCloudLoop(str(output), enable_coskill=learn, enable_playbook_evolve=learn,
-                           environment_name='scienceworld')
+                           environment_name='scienceworld', max_new_skills=args.max_new_skills,
+                           playbook_evolve_min_samples=args.tree_min_samples)
     if learn and loop._get_analyzer() is None:
         raise ValueError('Cloud configuration unavailable; configure credentials or use --no-cloud')
-    pool = TracesPool(output_dir=str(output), min_samples=args.min_samples)
+    pool = TracesPool(output_dir=str(output), min_samples=args.min_samples,
+                      capacity_watermark=args.capacity_watermark, perf_watermark=args.perf_watermark)
     model = ChatModel(args.model, args.base_url, args.max_tokens, args.seed)
+    model.max_prompt_tokens = args.max_prompt_tokens
+    model.tokenizer_path = args.tokenizer_path or args.model
     cumulative: dict[str, dict] = {}
+    episode_counts: dict[str, int] = {}
 
     def execute(rows: list[dict], split: str, group: int) -> dict:
+        frozen = skill_fingerprint(lib)
+        model.temperature = args.temperature if split == 'train' else args.eval_temperature
+        model.seed = args.seed if split == 'train' else args.eval_seed
         start, results = time.monotonic(), []
         for row in rows:
             def log_step(step: dict, row: dict = row) -> None:
@@ -114,7 +135,7 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
                       f"step={step['decision']} score={step['score']} format_valid={step['format_valid']}", flush=True)
 
             result = run_episode(env, row, model, lib, args.max_steps, args.history_length,
-                                 args.simplifications, args.action_examples, on_step=log_step)
+                                 args.simplifications, args.action_examples, on_step=log_step, top_k=args.top_k)
             append_json(output / f'{split}_trajectories.jsonl', {'group': group, **result})
             results.append(result)
             if split == 'train' and learn:
@@ -122,11 +143,29 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
                 lib.record_usage(result['meta']['skill_ids_used'], bool(result['episode_reward']), result['task_type'])
                 lib.record_playbook_usage(result['task_type'], bool(result['episode_reward']))
         metrics = summarize(results, split, group, time.monotonic() - start)
+        metrics.update(action_metrics(results))
         totals = cumulative.setdefault(split, {})
         for key in ('prompt', 'response', 'total', 'usage_missing_calls'):
             field = f'tokens/small_model/{key}'
             totals[key] = totals.get(key, 0) + metrics[field]
             metrics[field + '_cumulative'] = totals[key]
+        episode_counts[split] = episode_counts.get(split, 0) + len(results)
+        metrics['episode/count_cumulative'] = episode_counts[split]
+        metrics['rollout/global_episode_end'] = episode_counts.get('train', 0)
+        metrics['method/protocol'] = PROTOCOL
+        metrics['sampling/temperature'] = model.temperature
+        metrics['sampling/seed'] = model.seed
+        metrics['skills/fingerprint_before'] = frozen
+        metrics['skills/fingerprint_after'] = skill_fingerprint(lib)
+        if split != 'train' and frozen != skill_fingerprint(lib):
+            raise RuntimeError('Evaluation mutated the skill library')
+        for result in results:
+            append_json(output / 'metrics.jsonl', {
+                'split': split, 'group': group, 'instance_id': result['traj_uid'],
+                'episode/won': bool(result['episode_reward']), 'episode/task_score': result['task_score'],
+                'episode/length': len(result['steps']), 'termination_reason': result['termination_reason'],
+                'tokens': result['tokens'], **action_metrics([result]),
+            })
         return metrics
 
     rows = manifest['train' if args.mode == 'train' else args.split]
@@ -141,8 +180,9 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
         if not batch:
             break
         metrics = execute(batch, 'train' if args.mode == 'train' else args.split, group)
+        large_before = cloud_usage(loop.cloud_analyzer)
         start = time.monotonic()
-        metrics['coskill/updated'] = loop.maybe_update(pool, lib, group) if learn else False
+        metrics['coskill/updated'] = loop.maybe_update(pool, lib, episode_counts.get('train', 0)) if learn else False
         metrics['timing_s/cloud_update'] = time.monotonic() - start
         analyzer = loop.cloud_analyzer
         if analyzer:
@@ -153,8 +193,18 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
                 'tokens/large_model/usage_missing_calls': analyzer.usage_missing_calls,
                 'tokens/large_model/accounting': 'provider_api_usage',
             })
+        large_after = cloud_usage(loop.cloud_analyzer)
+        for key, value in large_after.items():
+            metrics[f'tokens/large_model/{key}'] = value - large_before[key]
+            metrics[f'tokens/large_model/{key}_cumulative'] = value
+        metrics['tokens/large_model/accounting'] = 'provider_api_usage'
         append_json(output / 'group_metrics.jsonl', metrics)
         lib.save_skills(str(output / 'skills_latest.json'))
+        (output / 'summary_partial.json').write_text(json.dumps({
+            'protocol': PROTOCOL, 'completed_group': group, 'episode_counts': episode_counts,
+            'skill_fingerprint': skill_fingerprint(lib), 'resume_supported': False,
+            'skills_checkpoint': 'skills_latest.json',
+        }, indent=2), encoding='utf-8')
         print(json.dumps(metrics), flush=True)
         if validation and (group % args.validation_every == 0 or offset + len(batch) >= len(rows) or group == args.groups):
             append_json(output / 'validation_metrics.jsonl', execute(validation, 'dev', group))
@@ -164,7 +214,7 @@ def run(args: argparse.Namespace, env: Any, installed_version: str) -> None:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     for field in ('groups', 'batch_size', 'validation_size', 'validation_every', 'max_steps',
-                  'history_length', 'action_examples', 'max_tokens', 'min_samples'):
+                  'history_length', 'action_examples', 'max_tokens', 'min_samples', 'capacity_watermark'):
         if getattr(args, field) <= 0:
             raise ValueError(f'{field} must be positive')
     if args.per_task < 0:

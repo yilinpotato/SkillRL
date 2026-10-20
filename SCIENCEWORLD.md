@@ -1,5 +1,7 @@
 # ScienceWorld for CoSkill
 
+Current method settings: [shared no-RL method v2](NEW_BENCHMARK_METHOD.md).
+
 Frozen-model, multi-turn ScienceWorld execution uses the existing CoSkill trajectory
 pool, cloud analysis and task-specific skill trees. This backend is no-RL; it does
 not implement ScienceWorld GRPO or Tree-RL. SearchQA's chat transport is reused,
@@ -63,8 +65,9 @@ is capped by available data and `--groups`. This is not GRPO's repeated sampling
   is not converted into an action.
 - Exact `<think>...</think><action>literal environment command</action>` format.
   Action tags quoted inside reasoning are not executed; only the single action
-  after the closing think tag is accepted. Extra prose outside those blocks is invalid.
-  Malformed responses consume a model decision without advancing the simulator.
+  after the closing think tag is accepted. Extra prose outside those blocks is format-invalid; v2 may still execute a unique action.
+  V2 separately diagnoses format and recovers a unique complete action outside reasoning.
+  Unrecoverable responses consume a decision without advancing the simulator.
   Syntactically valid commands are sent to the simulator; action validity records
   exact membership in its pre-action valid list and is a diagnostic, not a reward.
 - Official variation IDs from train/dev/test are checked for overlap and saved in

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from agent_system.memory import HierarchicalSkillLib
+from agent_system.method_protocol import history_messages, project_action
 
 
 class ScienceSkillLib(HierarchicalSkillLib):
@@ -75,13 +76,13 @@ measurement requirements. Task completion is determined by the environment.'''
 
 def run_episode(env: Any, instance: dict, model: Any, lib: ScienceSkillLib,
                 max_steps: int, history_length: int, simplifications: str,
-                action_limit: int = 80, on_step: Callable[[dict], None] | None = None) -> dict:
+                action_limit: int = 80, on_step: Callable[[dict], None] | None = None, top_k: int = 6) -> dict:
     task, variation = instance['task'], instance['variation']
     env.load(task, variation, simplifications, generateGoldPath=False)
     observation, info = env.reset()
     goal = env.get_task_description()
     lib.active_task = task
-    retrieved = lib.retrieve(goal)
+    retrieved = lib.retrieve(goal, top_k=top_k)
     skill_text = lib.format_for_prompt(retrieved)
     current = format_observation(observation, info, action_limit)
     history, traces = [], []
@@ -91,14 +92,14 @@ def run_episode(env: Any, instance: dict, model: Any, lib: ScienceSkillLib,
     for decision in range(max_steps):
         if done:
             break
-        messages = [{'role': 'system', 'content': PROMPT + '\n' + skill_text},
-                    {'role': 'user', 'content': f'Task: {goal}\nDecision budget: {max_steps}'}]
-        messages.extend(history[-2 * history_length:])
-        messages.append({'role': 'user', 'content': current})
+        messages = history_messages(PROMPT + '\n' + skill_text,
+                                    f'Task: {goal}\nDecision budget: {max_steps}',
+                                    history, current, history_length)
         response, usage = model.generate(messages)
         for key in tokens:
             tokens[key] += usage.get(key, 0)
-        command = parse_action(response)
+        projection = project_action(response)
+        command = projection['parsed_action']
         valid = command in info.get('valid', []) if command else False
         if command:
             observation, reward, done, info = env.step(command)
@@ -106,15 +107,17 @@ def run_episode(env: Any, instance: dict, model: Any, lib: ScienceSkillLib,
             next_observation = format_observation(observation, info, action_limit)
         else:
             reward = 0
-            next_observation = 'Invalid format; use one think block and one action block.\n' + current
-        traces.append({'observation': current, 'action': command or response,
+            next_observation = format_observation(observation, info, action_limit)
+            next_observation = 'No action executed: use one complete action outside reasoning.\n' + next_observation
+        traces.append({'observation': current, 'action': command or '',
                        'response': response, 'next_observation': next_observation,
                        'reward': reward, 'score': score, 'valid': valid,
                        'simulator_moves': info.get('moves'),
-                       'format_valid': command is not None})
+                       **projection, 'executed_action': command,
+                       'environment_feedback': observation if command else 'No action executed'})
         if on_step is not None:
             on_step({'decision': decision + 1, **traces[-1], 'tokens': usage})
-        history.extend([{'role': 'user', 'content': current}, {'role': 'assistant', 'content': response}])
+        history.append((current, command))
         current = next_observation
         done = bool(done or score >= 100 or score < 0)
     return {
@@ -123,7 +126,9 @@ def run_episode(env: Any, instance: dict, model: Any, lib: ScienceSkillLib,
         'episode_reward': float(score >= 100), 'task_score': max(0, score) / 100,
         'scienceworld_score': score, 'environment_done': done,
         'simulator_moves': info.get('moves'),
+        'termination_reason': ('success' if score >= 100 else 'environment_failure' if done else 'decision_limit'),
         'decision_limit_reached': not done and len(traces) >= max_steps,
         'steps': traces, 'tokens': tokens,
-        'meta': {'skill_ids_used': retrieved.get('injected_skill_ids', [])},
+        'meta': {'skill_ids_used': retrieved.get('injected_skill_ids', []),
+                 'injected_skill_text': skill_text},
     }

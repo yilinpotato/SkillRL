@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from agent_system.method_protocol import history_messages, project_action
+
 
 def append_json(path, value):
     with Path(path).open('a', encoding='utf-8') as handle:
@@ -142,22 +144,24 @@ class SearchQAEnvironment:
             raise RuntimeError('Episode already finished')
         self.steps += 1
         self.done = self.steps >= self.max_steps
-        match = re.fullmatch(
-            r'\s*<think>.*?</think>\s*<action>(search|open|answer)\[(.*?)\]</action>\s*',
-            response, re.DOTALL,
-        )
-        if not match or response.count('<action>') != 1 or response.count('<think>') != 1:
-            return 'Invalid format. Use one <think> block then one <action>verb[value]</action>.', False
+        self.last_projection = project_action(response)
+        self.executed_action = None
+        command = self.last_projection['parsed_action']
+        match = re.fullmatch(r'(search|open|answer)\[(.*?)\]', command or '', re.DOTALL)
+        if not match:
+            return 'No action executed. Use one action: search[query], open[number] or answer[text].', False
         verb, value = match.groups()
         value = value.strip()
         if not value:
             return 'Action value must not be empty.', False
         if verb == 'answer':
+            self.executed_action = command
             self.answer, self.done = value, True
             return 'Answer submitted.', True
         if verb == 'search':
             if self.searches >= self.max_searches:
                 return 'Search budget exhausted. Submit an answer using collected evidence.', False
+            self.executed_action = command
             self.searches += 1
             results = self.search.search(value)
             lines = []
@@ -171,6 +175,7 @@ class SearchQAEnvironment:
             return ('\n\n'.join(lines) or 'No results.')[:self.observation_chars], True
         if not value.isdigit() or not 1 <= int(value) <= len(self.urls):
             return 'open requires a result number from a previous search.', False
+        self.executed_action = command
         return self.search.open(self.urls[int(value) - 1])[:self.observation_chars], True
 
 
@@ -185,8 +190,8 @@ Use general sources rather than seeking benchmark answer keys or quiz archives.'
 
 
 def run_episode(example, model, search, skill_lib, max_steps=15, max_searches=8,
-                history_length=8, observation_chars=12000):
-    retrieved = skill_lib.retrieve(example['question'])
+                history_length=8, observation_chars=12000, top_k=6, on_step=None):
+    retrieved = skill_lib.retrieve(example['question'], top_k=top_k)
     skills = skill_lib.format_for_prompt(retrieved)
     env = SearchQAEnvironment(example['question'], search, max_steps, max_searches, observation_chars)
     initial = f'Question: {example["question"]}\nMaximum actions: {max_steps}; searches: {max_searches}'
@@ -195,26 +200,28 @@ def run_episode(example, model, search, skill_lib, max_steps=15, max_searches=8,
     observation = initial
     valid = 0
     while not env.done:
-        messages = [{'role': 'system', 'content': SYSTEM_PROMPT + '\n\n' + skills},
-                    {'role': 'user', 'content': initial}]
-        messages.extend(history[-2 * history_length:])
+        messages = history_messages(SYSTEM_PROMPT + '\n\n' + skills, initial,
+                                    history, observation, history_length)
         response, usage = model.generate(messages)
         for key in tokens:
             tokens[key] += usage.get(key, 0)
         next_observation, is_valid = env.step(response)
         valid += int(is_valid)
-        action = re.search(r'<action>(.*?)</action>', response, re.DOTALL)
-        traces.append({'observation': observation, 'action': action.group(1) if action else response,
-                       'response': response, 'next_observation': next_observation, 'valid': is_valid})
-        history.extend([{'role': 'assistant', 'content': response},
-                        {'role': 'user', 'content': next_observation}])
+        traces.append({'observation': observation, 'action': env.executed_action or '',
+                       'response': response, 'next_observation': next_observation, 'valid': is_valid,
+                       **env.last_projection, 'executed_action': env.executed_action,
+                       'environment_feedback': next_observation})
+        if on_step is not None:
+            on_step({'decision': env.steps, **traces[-1], 'tokens': usage})
+        history.append((observation, env.executed_action))
         observation = next_observation
     scores = score_answer(env.answer, example['answers'])
     return {
         'traj_uid': example['id'], 'task': example['question'], 'task_type': 'searchqa',
         'outcome': 'success' if scores['exact_match'] else 'failure',
         'episode_reward': scores['exact_match'], 'task_score': scores['f1'],
+        'termination_reason': 'answer_submitted' if env.answer else 'decision_limit',
         'prediction': env.answer, 'steps': traces, 'metrics': scores, 'tokens': tokens,
         'valid_action_rate': valid / env.steps, 'searches': env.searches,
-        'meta': {'skill_ids_used': retrieved.get('injected_skill_ids', [])},
+        'meta': {'skill_ids_used': retrieved.get('injected_skill_ids', []), 'injected_skill_text': skills},
     }

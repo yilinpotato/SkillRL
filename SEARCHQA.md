@@ -1,5 +1,7 @@
 # SearchQA live-search
 
+Current method settings: [shared no-RL method v2](NEW_BENCHMARK_METHOD.md).
+
 This optional no-RL backend uses SearchQA questions with **live web search**, not
 the dataset's stored snippets. Report it as `searchqa_live`, not the original
 SearchQA reading-comprehension protocol. Tree-RL is not implemented for this backend.

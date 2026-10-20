@@ -9,6 +9,17 @@ import time
 from pathlib import Path
 
 from agent_system.memory import CoSkillCloudLoop, HierarchicalSkillLib, TracesPool
+from agent_system.method_protocol import (
+    PROTOCOL,
+    action_metrics,
+    add_method_args,
+    cloud_usage,
+    fit_history,
+    method_manifest,
+    skill_fingerprint,
+    skill_options,
+    validate_method_args,
+)
 from agent_system.searchqa_live import (
     TavilySearch,
     append_json,
@@ -34,16 +45,27 @@ class ChatModel:
     def __init__(self, model, base_url, max_tokens, seed):
         self.model, self.base_url = model, base_url.rstrip('/')
         self.max_tokens, self.seed = max_tokens, seed
+        self.temperature = 1.0
+        self.max_prompt_tokens = 8192
+        self.tokenizer_path = model
+        self._tokenizer = None
 
     def generate(self, messages):
+        if self._tokenizer is None:
+            from transformers import AutoTokenizer
+            self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_path)
+        def count(rows: list[dict]) -> int:
+            return len(self._tokenizer.apply_chat_template(rows, tokenize=True, add_generation_prompt=True))
+        messages, dropped, budget_tokens = fit_history(messages, count, self.max_prompt_tokens)
         response = post_json(self.base_url + '/chat/completions', {
             'model': self.model, 'messages': messages, 'max_tokens': self.max_tokens,
-            'temperature': 0, 'seed': self.seed,
+            'temperature': self.temperature, 'seed': self.seed,
         }, os.environ.get('EDGE_API_KEY', 'local'), timeout=300)
         message = response['choices'][0]['message']
         content = normalize_chat_message(message)
         usage = response.get('usage') or {}
         return content, {
+            'history_pairs_dropped': dropped, 'budget_prompt_tokens': budget_tokens,
             'prompt': usage.get('prompt_tokens', 0),
             'response': usage.get('completion_tokens', 0),
             'usage_missing_calls': int('prompt_tokens' not in usage or 'completion_tokens' not in usage),
@@ -55,6 +77,7 @@ def parser():
     p.add_argument('--data', required=True, help='Training JSONL, or evaluation JSONL in eval mode')
     p.add_argument('--validation-data', help='Disjoint validation JSONL; never enters the trajectory pool')
     p.add_argument('--mode', choices=['train', 'eval'], default='train')
+    add_method_args(p)
     p.add_argument('--output-dir', required=True)
     p.add_argument('--skills', help='Previously saved SearchQA skill library')
     p.add_argument('--model', default=os.environ.get('EDGE_MODEL', 'Qwen/Qwen3-4B-Thinking-2507'))
@@ -79,6 +102,7 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    validate_method_args(args)
     for name in ('groups', 'batch_size', 'validation_size', 'validation_every', 'max_steps',
                  'max_searches', 'max_tokens', 'history_length', 'observation_chars',
                  'min_samples', 'capacity_watermark'):
@@ -105,7 +129,7 @@ def main(argv=None):
         raise ValueError('Set TAVILY_API_KEY for live search')
     output.mkdir(parents=True, exist_ok=True)
     manifest = vars(args).copy()
-    manifest.update(benchmark='searchqa_live', protocol='live-search-v1',
+    manifest.update(benchmark='searchqa_live', protocol='live-search-v2', method=method_manifest(args),
                     search_provider='tavily', search_depth='basic', search_max_results=5,
                     excluded_domains=['j-archive.com', 'j-archive.org'],
                     train_ids=[x['id'] for x in examples] if args.mode == 'train' else [],
@@ -121,27 +145,40 @@ def main(argv=None):
     seed.write_text(Path(args.skills).read_text(encoding='utf-8') if args.skills else json.dumps({
         'general_skills': [], 'task_specific_skills': {'searchqa': []}, 'common_mistakes': [],
     }), encoding='utf-8')
-    lib = HierarchicalSkillLib(str(seed))
+    lib = HierarchicalSkillLib(str(seed), **skill_options(args))
     if set(lib.skills.get('task_specific_skills', {})) - {'searchqa'}:
         raise ValueError('Use a SearchQA skill library, not ALFWorld/WebShop skills')
     search = TavilySearch(output / 'search_audit.jsonl')
     model = ChatModel(args.model, args.base_url, args.max_tokens, args.seed)
+    model.max_prompt_tokens = args.max_prompt_tokens
+    model.tokenizer_path = args.tokenizer_path or args.model
     learn = args.mode == 'train' and not args.no_cloud
     loop = CoSkillCloudLoop(str(output), enable_coskill=learn, enable_playbook_evolve=learn,
-                           environment_name='searchqa_live')
+                           environment_name='searchqa_live', max_new_skills=args.max_new_skills,
+                           playbook_evolve_min_samples=args.tree_min_samples)
     if learn and loop._get_analyzer() is None:
         raise ValueError('Cloud analyzer unavailable; configure cloud credentials or use --no-cloud')
     pool = TracesPool(output_dir=str(output), min_samples=args.min_samples,
-                      capacity_watermark=args.capacity_watermark)
+                      capacity_watermark=args.capacity_watermark, perf_watermark=args.perf_watermark)
     totals = {}
+    search_totals = {}
+    episode_counts: dict[str, int] = {}
 
     def execute(rows, split, group):
+        frozen = skill_fingerprint(lib)
+        model.temperature = args.temperature if split == 'train' else args.eval_temperature
+        model.seed = args.seed if split == 'train' else args.eval_seed
         start = time.monotonic()
         results = []
         before_calls, before_credits = search.calls, search.credits
+        before_missing = search.missing_usage
         for example in rows:
+            def log_step(step: dict, example: dict = example) -> None:
+                append_json(output / 'step_events.jsonl', {'group': group, 'split': split,
+                                                         'instance_id': example['id'], **step})
+
             result = run_episode(example, model, search, lib, args.max_steps, args.max_searches,
-                                 args.history_length, args.observation_chars)
+                                 args.history_length, args.observation_chars, top_k=args.top_k, on_step=log_step)
             append_json(output / f'{split}_trajectories.jsonl', {'group': group, **result})
             results.append(result)
             if split == 'train' and learn:
@@ -151,7 +188,7 @@ def main(argv=None):
         metrics = {'benchmark': 'searchqa_live', 'split': split, 'group': group,
                    'episode/count': len(results), 'timing_s/rollout': time.monotonic() - start,
                    'search/calls': search.calls - before_calls, 'search/credits': search.credits - before_credits,
-                   'search/usage_missing_calls_cumulative': search.missing_usage}
+                   'search/usage_missing_calls': search.missing_usage - before_missing}
         for metric in ('exact_match', 'f1'):
             metrics[f'qa/{metric}'] = sum(r['metrics'][metric] for r in results) / len(results)
         metrics['episode/success_rate'] = metrics['qa/exact_match']
@@ -159,6 +196,12 @@ def main(argv=None):
         metrics['episode/valid_action_rate'] = sum(
             sum(s['valid'] for s in r['steps']) for r in results
         ) / sum(len(r['steps']) for r in results)
+        metrics.update(action_metrics(results))
+        search_phase = search_totals.setdefault(split, {})
+        for key in ('calls', 'credits', 'usage_missing_calls'):
+            field = f'search/{key}'
+            search_phase[key] = search_phase.get(key, 0) + metrics[field]
+            metrics[field + '_cumulative'] = search_phase[key]
         cumulative = totals.setdefault(split, {'prompt': 0, 'response': 0, 'usage_missing_calls': 0})
         for key in cumulative:
             value = sum(r['tokens'][key] for r in results)
@@ -168,6 +211,23 @@ def main(argv=None):
         metrics['tokens/small_model/total'] = metrics['tokens/small_model/prompt'] + metrics['tokens/small_model/response']
         metrics['tokens/small_model/total_cumulative'] = cumulative['prompt'] + cumulative['response']
         metrics['tokens/small_model/accounting'] = 'provider_api_usage'
+        episode_counts[split] = episode_counts.get(split, 0) + len(results)
+        metrics['episode/count_cumulative'] = episode_counts[split]
+        metrics['rollout/global_episode_end'] = episode_counts.get('train', 0)
+        metrics['method/protocol'] = PROTOCOL
+        metrics['sampling/temperature'] = model.temperature
+        metrics['sampling/seed'] = model.seed
+        metrics['skills/fingerprint_before'] = frozen
+        metrics['skills/fingerprint_after'] = skill_fingerprint(lib)
+        if split != 'train' and frozen != skill_fingerprint(lib):
+            raise RuntimeError('Evaluation mutated the skill library')
+        for result in results:
+            append_json(output / 'metrics.jsonl', {
+                'split': split, 'group': group, 'instance_id': result['traj_uid'],
+                'episode/won': bool(result['episode_reward']), 'episode/task_score': result['task_score'],
+                'episode/length': len(result['steps']), 'termination_reason': result['termination_reason'],
+                'tokens': result['tokens'], **action_metrics([result]),
+            })
         return metrics
 
     if validation and args.mode == 'train':
@@ -178,8 +238,10 @@ def main(argv=None):
         if not rows:
             break
         metrics = execute(rows, args.mode, group)
+        large_before = cloud_usage(loop.cloud_analyzer)
         start = time.monotonic()
-        metrics['cloud/updated'] = loop.maybe_update(pool, lib, group) if learn else False
+        metrics['coskill/updated'] = loop.maybe_update(pool, lib, episode_counts.get('train', 0)) if learn else False
+        metrics['cloud/updated'] = metrics['coskill/updated']  # legacy alias
         metrics['timing_s/cloud_update'] = time.monotonic() - start
         if loop.cloud_analyzer is not None:
             analyzer = loop.cloud_analyzer
@@ -188,9 +250,19 @@ def main(argv=None):
             metrics['tokens/large_model/total_cumulative'] = analyzer.total_prompt_tokens + analyzer.total_completion_tokens
             metrics['tokens/large_model/accounting'] = 'provider_api_usage'
             metrics['tokens/large_model/usage_missing_calls'] = analyzer.usage_missing_calls
+        large_after = cloud_usage(loop.cloud_analyzer)
+        for key, value in large_after.items():
+            metrics[f'tokens/large_model/{key}'] = value - large_before[key]
+            metrics[f'tokens/large_model/{key}_cumulative'] = value
+        metrics['tokens/large_model/accounting'] = 'provider_api_usage'
         append_json(output / 'group_metrics.jsonl', metrics)
         print(json.dumps(metrics))
         lib.save_skills(str(output / 'skills_latest.json'))
+        (output / 'summary_partial.json').write_text(json.dumps({
+            'protocol': PROTOCOL, 'completed_group': group, 'episode_counts': episode_counts,
+            'skill_fingerprint': skill_fingerprint(lib), 'resume_supported': False,
+            'skills_checkpoint': 'skills_latest.json',
+        }, indent=2), encoding='utf-8')
         if validation and args.mode == 'train' and (group % args.validation_every == 0 or offset + len(rows) >= len(examples) or group == args.groups):
             append_json(output / 'validation_metrics.jsonl', execute(validation, 'validation', group))
     (output / 'completed.json').write_text(json.dumps({'status': 'complete', 'mode': args.mode}), encoding='utf-8')
