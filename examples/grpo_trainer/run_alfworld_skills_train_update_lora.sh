@@ -164,6 +164,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.ray_wait_register_center_timeout=1200 \
     trainer.save_freq=10 \
+    trainer.max_actor_ckpt_to_keep=${MAX_ACTOR_CKPT_TO_KEEP:-2} \
     trainer.test_freq=5 \
     trainer.total_epochs=$total_training_steps \
     "${ray_init_args[@]}" \
