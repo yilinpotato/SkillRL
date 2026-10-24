@@ -284,3 +284,7 @@ If you find our work helpful, please consider citing:
 ## 🙏 Acknowledgement
 We would like to express our gratitude to the open-source community and the following projects for making this work possible: 
 [verl-agent](https://github.com/langfengQ/verl-agent), [LLaMA-Factory](https://github.com/hiyouga/LlamaFactory), [Qwen](https://github.com/QwenLM/Qwen), etc.
+
+## 新增 SearchQA / ScienceWorld
+
+原生环境入口、统一协议、数据准备与验证记录见 [接入说明](docs/new-benchmarks.md)。ALFWorld/WebShop原入口保持不变。

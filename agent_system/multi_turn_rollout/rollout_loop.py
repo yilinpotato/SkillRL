@@ -162,6 +162,11 @@ class TrajectoryCollector:
             "role": "user",
         }])
         
+        # New benchmarks supply the complete role-preserving observation history.
+        # Existing environments retain their original single-user prompt behavior.
+        if obs.get('messages') is not None:
+            chat = np.array(obs['messages'][item])
+
         # Apply chat template
         prompt_with_chat_template = self.tokenizer.apply_chat_template(
             chat,
