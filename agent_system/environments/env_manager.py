@@ -223,7 +223,8 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         super().__init__(envs, projection_f, config)
     
     def reset(self, kwargs):
-        text_obs, image_obs, infos = self.envs.reset()
+        text_obs, image_obs, infos = (self.envs.reset(controlled_rows=kwargs)
+            if self.config.env.get('controlled_comparison', False) else self.envs.reset())
         self.gamefile = parse_gamefile(infos)
         # initialize the history buffer
         self.memory.reset(batch_size = len(text_obs))
@@ -744,7 +745,8 @@ class AppWorldEnvironmentManager(EnvironmentManagerBase):
         super().__init__(envs, projection_f, config)
     
     def reset(self, kwargs):
-        text_obs, infos = self.envs.reset()
+        text_obs, infos = (self.envs.reset(controlled_rows=kwargs)
+            if self.config.env.get('controlled_comparison', False) else self.envs.reset())
         
         self.supervisors = [info['supervisor'] for info in infos]
         self.memory.reset(batch_size = len(text_obs))

@@ -13,6 +13,9 @@ class BenchmarkEnvironmentManager(SearchEnvironmentManager):
         super().__init__(None, None, config)
         self.is_train = is_train
         self.kind = config.env.env_name.lower()
+        if self.retrieval_memory is not None:
+            self.retrieval_memory.controlled_benchmark = self.kind
+            self.retrieval_memory.benchmark_task_types = {}
         self.sessions = []
         self.search = None
         if config.env.history_length != 0:
@@ -47,6 +50,8 @@ class BenchmarkEnvironmentManager(SearchEnvironmentManager):
                 self.tasks.append(session.goal)
                 memory = {}
                 if self.retrieval_memory is not None:
+                    self.retrieval_memory.benchmark_task_types = getattr(self.retrieval_memory, 'benchmark_task_types', {})
+                    self.retrieval_memory.benchmark_task_types[session.goal] = row.get('task', 'searchqa')
                     cfg = self.config.env.skills_only_memory if self.config.env.get('use_skills_only_memory', False) else self.config.env.retrieval_memory
                     memory = self.retrieval_memory.retrieve(session.goal, top_k=cfg.get('top_k', 6))
                 self.retrieved_memories.append(memory)

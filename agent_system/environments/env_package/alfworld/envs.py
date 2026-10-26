@@ -70,12 +70,17 @@ class AlfworldWorker:
         infos['observation_text'] = obs
         return obs, scores, dones, infos
     
-    def reset(self):
+    def reset(self, controlled_seed=None):
+        if controlled_seed is not None:
+            self.env.seed(int(controlled_seed))
         """Reset the environment"""
         obs, infos = self.env.reset()
         infos['observation_text'] = obs
         return obs, infos
     
+    def close(self):
+        self.env.close()
+
     def getobs(self):
         """Get current observation image"""
         image = get_obs_image(self.env)
@@ -143,7 +148,7 @@ class AlfworldEnvs(gym.Env):
 
         return text_obs_list, image_obs_list, rewards_list, dones_list, info_list
 
-    def reset(self):
+    def reset(self, controlled_rows=None):
         """
         Send the reset command to all workers at once and collect initial obs/info from each environment.
         """
@@ -153,8 +158,11 @@ class AlfworldEnvs(gym.Env):
 
         # Send reset commands to all workers
         futures = []
-        for worker in self.workers:
-            future = worker.reset.remote()
+        if controlled_rows is not None and len(controlled_rows) != len(self.workers):
+            raise ValueError('Controlled reset batch size mismatch')
+        for slot, worker in enumerate(self.workers):
+            seed = None if controlled_rows is None else int(controlled_rows[slot]['controlled_seed'])
+            future = worker.reset.remote(seed)
             futures.append(future)
 
         # Collect results
@@ -172,6 +180,16 @@ class AlfworldEnvs(gym.Env):
             image_obs_list = None
 
         return text_obs_list, image_obs_list, info_list
+
+    def close(self):
+        if getattr(self, '_closed', False):
+            return
+        try:
+            ray.get([worker.close.remote() for worker in self.workers])
+        finally:
+            for worker in self.workers:
+                ray.kill(worker)
+            self._closed = True
 
     def getobs(self):
         """

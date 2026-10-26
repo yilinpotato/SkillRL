@@ -1201,6 +1201,10 @@ class RayPPOTrainer:
         return failed[:10]
 
     def _extract_task_description(self, inp: str) -> str:
+        if str(self.config.env.env_name).lower() in ('searchqa_live', 'scienceworld'):
+            for task in sorted(getattr(self.envs, 'tasks', []), key=len, reverse=True):
+                if task in inp:
+                    return task
         """Extract the task description from a full conversation prompt."""
         import re
         # Common patterns used in ALFWorld, WebShop, OpenClaw, etc.
@@ -1275,6 +1279,10 @@ class RayPPOTrainer:
         return steps
 
     def _detect_task_type_from_input(self, inp: str) -> str:
+        benchmark = str(self.config.env.env_name).lower()
+        if benchmark in ('searchqa_live', 'scienceworld'):
+            memory = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
+            return memory._detect_task_type(inp) if memory is not None else benchmark
         """从输入中检测任务类型"""
         inp_lower = inp.lower()
         # 先判断 'two'：pick_two 目标（如 "put two X in Y"）也含 put/find，
