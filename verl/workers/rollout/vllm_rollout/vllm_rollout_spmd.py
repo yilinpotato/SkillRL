@@ -320,6 +320,15 @@ class vLLMRollout(BaseRollout):
             # example with Qwen).  They must be visible when deciding whether
             # an action has already been produced.
             text = self.tokenizer.decode(ids, skip_special_tokens=False)
+            # Qwen Thinking can put the opening tag in the prompt. Inspect the
+            # complete assistant transcript, but never inject prompt tokens into
+            # the sampled response or its PPO log probabilities.
+            prompt_text = self.tokenizer.decode(
+                vllm_inputs[prompt_idx_of[k]]["prompt_token_ids"],
+                skip_special_tokens=False,
+            )
+            if prompt_text.rstrip().endswith("<think>"):
+                text = "<think>" + text
             action_start = text.find("<action>")
             think_start = text.find("<think>")
             think_end = text.find("</think>")
