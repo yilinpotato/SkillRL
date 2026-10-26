@@ -1156,9 +1156,18 @@ class RayPPOTrainer:
         # the initial observation + first action — starving the cloud analyzer.)
         from collections import OrderedDict
         episode_rows = OrderedDict()
+        structured = self.config.env.env_name.lower() in ('searchqa_live', 'scienceworld')
+        raw_chats = batch.non_tensor_batch.get('raw_prompt')
+        anchors = batch.non_tensor_batch.get('anchor_obs')
         for idx, (inp, out, score, uid) in enumerate(zip(inputs, outputs, scores, traj_uids)):
             key = uid if uid is not None else f'__row_{idx}'
-            episode_rows.setdefault(key, []).append((inp, out, float(score)))
+            step_index = self._extract_step_index(inp)
+            observation = self._extract_current_observation(inp)
+            if structured and raw_chats is not None:
+                step_index = sum(m['role'] == 'assistant' for m in raw_chats[idx])
+            if structured and anchors is not None:
+                observation = str(anchors[idx])
+            episode_rows.setdefault(key, []).append((inp, out, float(score), step_index, observation))
 
         # True per-episode reward (set in rollout_loop collect_loop_data).
         ep_reward_arr = batch.non_tensor_batch.get('episode_rewards', None)
@@ -1177,10 +1186,10 @@ class RayPPOTrainer:
 
             # Each row -> one step (its current observation + the action taken).
             indexed = []
-            for inp, out, score in rows:
+            for inp, out, score, step_index, observation in rows:
                 indexed.append((
-                    self._extract_step_index(inp),
-                    self._extract_current_observation(inp),
+                    step_index,
+                    observation,
                     _extract_action_from_response(out)[:2000],
                     score,
                 ))
@@ -1248,6 +1257,9 @@ class RayPPOTrainer:
             return
         self._get_coskill_loop().maybe_update(
             self.traces_pool, self.envs.retrieval_memory, self.global_steps)
+        if (self.config.env.get('controlled_comparison', False)
+                and getattr(self._get_coskill_loop(), '_analyzer_init_failed', False)):
+            raise RuntimeError('Controlled CoSkill requires cloud evolution; analyzer initialization failed')
 
     def _get_coskill_loop(self):
         """Lazy-init the shared CoSkillCloudLoop from skills_only_memory config."""
@@ -1862,7 +1874,11 @@ class RayPPOTrainer:
     def _extract_task_description(self, inp: str) -> str:
         """Extract the task description from a full conversation prompt."""
         import re
-        # Common patterns used in ALFWorld, WebShop, OpenClaw, etc.
+        if self.config.env.env_name.lower() in ('searchqa_live', 'scienceworld'):
+            for task in sorted(getattr(self.envs, 'tasks', []), key=len, reverse=True):
+                if task in inp:
+                    return task
+
         patterns = [
             r'(?:Your task is to|Task:|task is to|you need to)[:\s]+(.*?)(?:\n|$)',
             r'(?:goal|objective)[:\s]+(.*?)(?:\n|$)',
@@ -1942,6 +1958,11 @@ class RayPPOTrainer:
         marker and the admissible-actions marker.
         """
         import re
+        if self.config.env.env_name.lower() in ('searchqa_live', 'scienceworld'):
+            # Qwen decoded chats (both retained and stripped role delimiters).
+            turns = re.findall(r'(?:<\|im_start\|>|\n)user\n(.*?)(?=<\|im_end\|>|\nassistant\n|$)', inp, re.DOTALL)
+            if turns:
+                return turns[-1].strip()
         m = re.search(
             r'current observation is:\s*(.*?)\s*Your admissible actions',
             inp, re.DOTALL | re.IGNORECASE,
@@ -1958,10 +1979,18 @@ class RayPPOTrainer:
         Used only to order the reconstructed trajectory chronologically.
         """
         import re
+        if self.config.env.env_name.lower() in ('searchqa_live', 'scienceworld'):
+            return len(re.findall(r'(?:<\|im_start\|>|\n)assistant\n', inp))
         m = re.search(r'at step\s+(\d+)', inp, re.IGNORECASE)
         return int(m.group(1)) if m else 0
 
     def _detect_task_type_from_input(self, inp: str) -> str:
+        benchmark = str(self.config.env.env_name).lower()
+        if benchmark == 'searchqa_live':
+            return 'searchqa'
+        if benchmark == 'scienceworld':
+            memory = getattr(getattr(self, 'envs', None), 'retrieval_memory', None)
+            return memory._detect_task_type(inp) if memory is not None else 'scienceworld'
         """从输入中检测任务类型"""
         import re
         inp_lower = inp.lower()

@@ -172,9 +172,14 @@ class WebshopMultiProcessEnv(gym.Env):
 
         return obs_list, reward_list, done_list, info_list
 
-    def reset(self):
-        idx = self._rng.choice(self.goal_idxs, size=self.env_num, replace=False)
-        idx = np.repeat(idx, self.group_n).tolist()
+    def reset(self, controlled_rows=None):
+        if controlled_rows is None:
+            idx = self._rng.choice(self.goal_idxs, size=self.env_num, replace=False)
+            idx = np.repeat(idx, self.group_n).tolist()
+        else:
+            idx = [int(row['goal_index']) for row in controlled_rows]
+            if len(idx) != len(self._workers) or any(i not in self.goal_idxs for i in idx):
+                raise ValueError('Controlled WebShop goals must match batch and official split')
 
         # Send reset commands to all workers
         futures = []

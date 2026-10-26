@@ -289,7 +289,10 @@ class TrajectoryCollector:
             "role": "user",
         }])
         
-        # Apply chat template
+
+        if obs.get('messages') is not None:
+            chat = np.array(obs['messages'][item])
+
         prompt_with_chat_template = self.tokenizer.apply_chat_template(
             chat,
             add_generation_prompt=True,
@@ -462,10 +465,11 @@ class TrajectoryCollector:
             raise ValueError("text observations do not match the active batch")
 
         chats = []
-        for obs_text in obs_texts:
+        for item, obs_text in enumerate(obs_texts):
             if obs_text is None:
                 raise ValueError("text-only batch contains an empty observation")
-            chats.append([{"content": str(obs_text), "role": "user"}])
+            chats.append(obs['messages'][item] if obs.get('messages') is not None
+                         else [{"content": str(obs_text), "role": "user"}])
 
         apply_kwargs = self.config.data.get("apply_chat_template_kwargs", {})
         rendered_prompts = self.tokenizer.apply_chat_template(

@@ -251,7 +251,7 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         self._dbg_enabled = bool(som_cfg.get('playbook_debug', True)) if som_cfg else False
         self._dbg_n_envs = int(som_cfg.get('playbook_debug_envs', 1)) if som_cfg else 0
         self._dbg_dir = os.path.join(
-            config.trainer.get('default_local_dir', './outputs'), 'playbook_debug'
+            config.get('trainer', {}).get('default_local_dir', './outputs'), 'playbook_debug'
         )
         self._dbg_ep_counter = 0      # monotonic episode id across the whole run
         self._dbg_step = {}           # env_idx -> current step number
@@ -261,7 +261,8 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
         self._dbg_last_prompt = None  # prompts last handed to the model
 
     def reset(self, kwargs):
-        text_obs, image_obs, infos = self.envs.reset()
+        text_obs, image_obs, infos = (self.envs.reset(controlled_rows=kwargs)
+            if self.config.env.get('controlled_comparison', False) else self.envs.reset())
         self.gamefile = parse_gamefile(infos)
         # initialize the history buffer
         self.memory.reset(batch_size = len(text_obs))
@@ -739,7 +740,8 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
         super().__init__(envs, projection_f, config)
 
     def reset(self, kwargs) -> Dict[str, Any]:
-        obs, infos = self.envs.reset()
+        obs, infos = (self.envs.reset(controlled_rows=kwargs)
+            if self.config.env.get('controlled_comparison', False) else self.envs.reset())
         self.tasks = self.extract_task(obs)
         obs = self.format_obs(obs)
 
@@ -1057,7 +1059,10 @@ def make_envs(config):
     group_n = config.env.rollout.n if config.env.rollout.n > 0 else 1
     resources_per_worker = OmegaConf.to_container(config.env.resources_per_worker, resolve=True)
 
-    if "search" in config.env.env_name.lower():
+    if config.env.env_name.lower() in ('searchqa_live', 'scienceworld'):
+        from agent_system.environments.benchmark_manager import BenchmarkEnvironmentManager
+        return BenchmarkEnvironmentManager(config, True), BenchmarkEnvironmentManager(config, False)
+    elif "search" in config.env.env_name.lower():
         from agent_system.environments.env_package.search import build_search_envs, search_projection
         _envs = build_search_envs(seed=config.env.seed, env_num=config.data.train_batch_size, group_n=group_n, is_train=True, env_config=config.env)
         _val_envs = build_search_envs(seed=config.env.seed + 1000, env_num=config.data.val_batch_size, group_n=1, is_train=False, env_config=config.env)
