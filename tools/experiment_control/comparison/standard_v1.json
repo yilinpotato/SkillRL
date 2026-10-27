@@ -1,0 +1,94 @@
+{
+  "version": "controlled-comparison-v1",
+  "groups": {
+    "norl_primary": [
+      "skill0",
+      "skillrl",
+      "coskill_norl"
+    ],
+    "all_rl": [
+      "skill0",
+      "skillrl",
+      "coskill_tree_rl"
+    ]
+  },
+  "common": {
+    "seed": 0,
+    "train_temperature": 1.0,
+    "eval_temperature": 0.4,
+    "top_p": 1.0,
+    "response_tokens": 4096,
+    "tasks_per_update": 12,
+    "rollouts_per_task": 6,
+    "training_updates": 100,
+    "training_episodes": 7200,
+    "dev_size": 32,
+    "validate_every_episodes": 360,
+    "validate_before_training": true,
+    "initial_general_skills": 6,
+    "same_checkpoint_and_data_manifest_required": true,
+    "final_test_frozen": true
+  },
+  "rl": {
+    "algorithm": "grpo",
+    "learning_rate": 1e-06,
+    "warmup_steps": 0,
+    "schedule": "constant",
+    "lora_rank": 32,
+    "lora_alpha": 64,
+    "target_modules": "all-linear",
+    "kl_coef": 0.01,
+    "entropy_coef": 0.001,
+    "invalid_action_penalty": 0.1,
+    "ppo_mini_batch_size": 36,
+    "ppo_epochs": 1,
+    "clip_ratio": 0.2,
+    "weight_decay": 0.01,
+    "terminal_success_reward": true
+  },
+  "benchmarks": {
+    "alfworld": {
+      "max_steps": 40,
+      "history_length": 8,
+      "task_filter": null,
+      "dense_reward": false,
+      "protocol": "existing-alfworld"
+    },
+    "webshop": {
+      "max_steps": 15,
+      "history_length": 8,
+      "use_small": true,
+      "human_goals": false,
+      "protocol": "existing-webshop"
+    },
+    "searchqa_live": {
+      "max_steps": 15,
+      "history_length": 0,
+      "max_searches": 8,
+      "max_results": 5,
+      "open": false,
+      "protocol": "live-search-v4-search-answer"
+    },
+    "scienceworld": {
+      "max_steps": 100,
+      "history_length": 0,
+      "simplifications": "",
+      "protocol": "scienceworld-react-observation-v1"
+    }
+  },
+  "readiness": {
+    "skill0": {
+      "scienceworld": "Requires a separately verified ScienceWorld SFT checkpoint; the published three-domain SFT release does not include one.",
+      "searchqa_live": "Requires real initial domain skills for internalization; empty skills must be explicitly labeled an ablation."
+    },
+    "skillrl": {
+      "scienceworld": "Requires a separately verified ScienceWorld SFT checkpoint; the published three-domain SFT release does not include one."
+    },
+    "coskill_norl": {
+      "scienceworld": "Requires a separately verified ScienceWorld SFT checkpoint; the published three-domain SFT release does not include one."
+    },
+    "coskill_tree_rl": {
+      "scienceworld": "Requires a separately verified ScienceWorld SFT checkpoint; the published three-domain SFT release does not include one."
+    }
+  }
+}
