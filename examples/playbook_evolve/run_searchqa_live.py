@@ -89,6 +89,9 @@ def parser():
     p.add_argument('--validation-every', type=int, default=5)
     p.add_argument('--max-steps', type=int, default=15)
     p.add_argument('--max-searches', type=int, default=8)
+    p.add_argument('--search-backend', choices=['tavily', 'search_r1'], default='tavily')
+    p.add_argument('--retrieval-endpoint', default='')
+    p.add_argument('--retrieval-corpus-id', default='')
     p.add_argument('--max-tokens', type=int, default=4096)
     p.add_argument('--history-length', type=int, default=8)
     p.add_argument('--observation-chars', type=int, default=12000)
@@ -125,12 +128,13 @@ def main(argv=None):
     output = Path(args.output_dir)
     if output.exists() and any(output.iterdir()):
         raise ValueError('Use an empty output directory; existing experiments are never overwritten')
-    if not os.environ.get('TAVILY_API_KEY'):
+    if args.search_backend == 'tavily' and not os.environ.get('TAVILY_API_KEY'):
         raise ValueError('Set TAVILY_API_KEY for live search')
     output.mkdir(parents=True, exist_ok=True)
     manifest = vars(args).copy()
     manifest.update(benchmark='searchqa_live', protocol='live-search-v2', method=method_manifest(args),
-                    search_provider='tavily', search_depth='basic', search_max_results=5,
+                    search_provider=args.search_backend,
+                    search_depth='basic' if args.search_backend == 'tavily' else None, search_max_results=5,
                     excluded_domains=['j-archive.com', 'j-archive.org'],
                     train_ids=[x['id'] for x in examples] if args.mode == 'train' else [],
                     eval_ids=[x['id'] for x in examples] if args.mode == 'eval' else [],
@@ -148,7 +152,11 @@ def main(argv=None):
     lib = HierarchicalSkillLib(str(seed), **skill_options(args))
     if set(lib.skills.get('task_specific_skills', {})) - {'searchqa'}:
         raise ValueError('Use a SearchQA skill library, not ALFWorld/WebShop skills')
-    search = TavilySearch(output / 'search_audit.jsonl')
+    from agent_system.local_search import create_search
+    search = create_search({'backend': args.search_backend,
+                            'retrieval_endpoint': args.retrieval_endpoint,
+                            'retrieval_corpus_id': args.retrieval_corpus_id},
+                           output / 'search_audit.jsonl', TavilySearch)
     model = ChatModel(args.model, args.base_url, args.max_tokens, args.seed)
     model.max_prompt_tokens = args.max_prompt_tokens
     model.tokenizer_path = args.tokenizer_path or args.model

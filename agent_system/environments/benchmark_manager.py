@@ -5,6 +5,7 @@ import numpy as np
 
 from .env_manager import AlfWorldEnvironmentManager
 from .benchmark_protocol import TavilySearch
+from agent_system.local_search import create_search
 from .benchmark_sessions import SearchSession, ScienceSession
 
 
@@ -62,7 +63,7 @@ class BenchmarkEnvironmentManager(AlfWorldEnvironmentManager):
                     if self.search is None:
                         audit = Path(cfg.get('audit_dir', 'outputs/searchqa-provider'))
                         audit.mkdir(parents=True, exist_ok=True)
-                        self.search = TavilySearch(audit / ('train.jsonl' if self.is_train else 'eval.jsonl'), max_results=5)
+                        self.search = create_search(cfg, audit / ('train.jsonl' if self.is_train else 'eval.jsonl'), TavilySearch)
                     session = SearchSession(row, self.search, self.config.env.max_steps, cfg.get('max_searches', 8))
                 else:
                     from scienceworld import ScienceWorldEnv
