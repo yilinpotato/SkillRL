@@ -16,7 +16,7 @@ class SearchSession:
         self.initial = self.current
         self.history = []
         self.done = False
-        self.info = {'won': False, 'exact_match': 0., 'f1': 0., 'task_score': 0.}
+        self.info = {'won': False, 'exact_match': 0., 'f1': 0., 'task_score': 0., 'tool_calling': False}
 
     def messages(self, skills: str = '') -> list[dict]:
         return qa_messages(SYSTEM_PROMPT + ('\n\n' + skills if skills else ''),
@@ -24,14 +24,16 @@ class SearchSession:
 
     def step(self, response: str) -> tuple:
         if self.done:
-            return 0., True, dict(self.info, is_action_valid=False)
+            return 0., True, dict(self.info, is_action_valid=False, tool_calling=False)
         previous = self.current
+        searches_before = self.env.searches
         self.current, valid = self.env.step(response)
         self.history.append((previous, self.env.executed_action))
         self.done = self.env.done
         scores = score_answer(self.env.answer, self.row['answers']) if self.done else {'exact_match': 0., 'f1': 0.}
         self.info = dict(scores, won=bool(scores['exact_match']), task_score=scores['f1'],
                          is_action_valid=valid, searches=self.env.searches,
+                         tool_calling=self.env.searches > searches_before,
                          executed_action=self.env.executed_action, **self.env.last_projection)
         return scores['exact_match'], self.done, self.info
 
