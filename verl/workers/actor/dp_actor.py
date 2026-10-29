@@ -424,6 +424,8 @@ class DataParallelPPOActor(BasePPOActor):
                         policy_loss = policy_loss + kl_loss * self.config.kl_loss_coef
                         metrics["actor/kl_loss"] = kl_loss.detach().item()
                         metrics["actor/kl_coef"] = self.config.kl_loss_coef
+                        # Equal weight per processed microbatch; legacy kl_loss remains last-only.
+                        append_to_dict(metrics, {"actor/kl_loss_microbatch_mean": metrics["actor/kl_loss"]})
 
                     if self.config.use_dynamic_bsz:
                         # relative to the dynamic bsz
