@@ -48,3 +48,20 @@ def test_exact_budget_eval_temperature_and_no_eval_learning(tmp_path):
     assert updates == list(range(72, 7201, 72))
     assert train.resets[0][:6] == [0]*6 and train.resets[-1][-6:] == [1199]*6
     assert json.loads((tmp_path/'progress.json').read_text())['train_episodes'] == 7200
+
+
+def test_resume_uses_original_task_offset_and_remaining_budget(tmp_path):
+    cfg = NS(data=NS(train_batch_size=12), env=NS(rollout=NS(n=6), max_steps=15),
+             trainer=NS(total_training_steps=100, val_before_train=True, test_freq=5),
+             actor_rollout_ref=NS(rollout=NS(temperature=1., val_kwargs=NS(temperature=.4))))
+    train, dev = Env(), Env()
+    traces, updates = [], []
+    completed = runner.execute(cfg, list(range(1200)), ['dev']*32, (train, dev),
+        lambda messages, temperature: ('answer[A]', {'prompt_tokens': 1, 'completion_tokens': 1}),
+        NS(add_trace=traces.append), NS(maybe_update=lambda pool, memory, n: updates.append(n)),
+        tmp_path, start_update=21)
+    assert completed == 7200 and len(traces) == 79*72
+    assert train.resets[0][:6] == [252]*6
+    assert updates[0] == 22*72 and updates[-1] == 7200
+    assert len(dev.resets) == 16
+    assert traces[0]['traj_uid'] == 'train/22/0'

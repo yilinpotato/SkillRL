@@ -33,6 +33,17 @@ def install_cloud_guard(cloud, output):
         raise RuntimeError('Cloud API initialization failed before rollout')
     guard = CloudAPIGuard(analyzer.client.chat.completions.create, output)
     analyzer.client.chat.completions.create = guard
+    # Analyzer methods historically swallow provider exceptions. Check before
+    # returning to lifecycle mutation or checkpoint persistence in the loop.
+    def checked(method):
+        def call(*args, **kwargs):
+            guard.check()
+            result = method(*args, **kwargs)
+            guard.check()
+            return result
+        return call
+    for name in ('contrastive_distill', 'diagnose_failures', 'evolve_playbook'):
+        setattr(analyzer, name, checked(getattr(analyzer, name)))
     # Listing models does not detect exhausted balance: require real generation.
     reply = guard(model=analyzer.model, messages=[{'role': 'user', 'content': 'Reply OK.'}],
                   max_tokens=16, temperature=0)

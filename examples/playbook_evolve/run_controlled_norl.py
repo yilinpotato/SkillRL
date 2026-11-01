@@ -55,7 +55,7 @@ def run_batch(env, rows, generate, max_steps, temperature, namespace):
     return results
 
 
-def execute(cfg, train, dev, envs, generate, pool, cloud, output):
+def execute(cfg, train, dev, envs, generate, pool, cloud, output, start_update=0):
     """Injectable execution core; evaluation never enters the learning pool."""
     train_env, val_env = envs
     tasks = int(cfg.data.train_batch_size)
@@ -63,7 +63,9 @@ def execute(cfg, train, dev, envs, generate, pool, cloud, output):
     updates = int(cfg.trainer.total_training_steps)
     if len(train) != tasks * updates:
         raise ValueError('Scheduled task count must exactly match tasks * updates')
-    completed = 0
+    if not 0 <= start_update < updates:
+        raise ValueError('Resume update outside schedule')
+    completed = start_update * tasks * repeats
     output = Path(output)
     def save(kind, update, results):
         with (output / (kind + '.jsonl')).open('a', encoding='utf-8') as handle:
@@ -87,9 +89,9 @@ def execute(cfg, train, dev, envs, generate, pool, cloud, output):
         results = run_batch(val_env, dev, generate, cfg.env.max_steps,
                             cfg.actor_rollout_ref.rollout.val_kwargs.temperature, f'dev/{update}')
         save('dev', update, results)
-    if cfg.trainer.val_before_train:
+    if cfg.trainer.val_before_train and not start_update:
         evaluate(0)
-    for update in range(1, updates + 1):
+    for update in range(start_update + 1, updates + 1):
         rows = [row for row in train[(update-1)*tasks:update*tasks] for _ in range(repeats)]
         results = run_batch(train_env, rows, generate, cfg.env.max_steps,
                             cfg.actor_rollout_ref.rollout.temperature, f'train/{update}')
@@ -120,6 +122,7 @@ def main():
     p.add_argument('--config', required=True)
     p.add_argument('--base-url', required=True)
     p.add_argument('--model', required=True)
+    p.add_argument('--resume-state')
     args = p.parse_args()
     import pandas as pd
     from omegaconf import OmegaConf
@@ -154,8 +157,13 @@ def main():
     install_cloud_guard(cloud, output)
     envs = make_envs(cfg)
     try:
+        start_update = 0
+        if args.resume_state:
+            from examples.playbook_evolve.resume_norl import restore_boundary
+            start_update = restore_boundary(args.resume_state, envs[0].retrieval_memory, pool)
         execute(cfg, list(pd.read_parquet(cfg.data.train_files).env_kwargs),
-                list(pd.read_parquet(cfg.data.val_files).env_kwargs), envs, generate, pool, cloud, output)
+                list(pd.read_parquet(cfg.data.val_files).env_kwargs), envs, generate, pool, cloud, output,
+                start_update=start_update)
     finally:
         for env in envs:
             close = getattr(env, 'close', None) or getattr(getattr(env, 'envs', None), 'close', None)
