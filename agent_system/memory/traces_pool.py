@@ -32,8 +32,18 @@ import os
 import re
 import time
 import uuid
+import numpy as np
 from collections import defaultdict, deque
 from typing import Dict, List, Optional, Tuple
+
+
+def _raw_json_default(value):
+    """Preserve NumPy values as JSON arrays/scalars, rejecting unknown types."""
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    raise TypeError(f"Unsupported raw trace value: {type(value).__name__}")
 
 # ALFWorld/interactive-env actions embed a specific object-instance index
 # ("go to cabinet 3", "go to cabinet 7", ...). Merging the prefix tree on the
@@ -286,7 +296,7 @@ class TracesPool:
     def _append_raw_log(self, raw_trace: dict) -> None:
         try:
             with open(self._raw_log_path, "a") as f:
-                f.write(json.dumps(raw_trace, ensure_ascii=False) + "\n")
+                f.write(json.dumps(raw_trace, ensure_ascii=False, default=_raw_json_default) + "\n")
         except Exception as e:  # 落盘失败不应影响训练
             print(f"[TracesPool] raw log write failed: {e}")
 
