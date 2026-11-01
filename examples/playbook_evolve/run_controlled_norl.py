@@ -101,6 +101,8 @@ def execute(cfg, train, dev, envs, generate, pool, cloud, output):
         completed += len(results)
         save('train', update, results)
         cloud.maybe_update(pool, train_env.retrieval_memory, completed)
+        if getattr(cloud, 'api_guard', None) is not None:
+            cloud.api_guard.check()
         if getattr(cloud, '_analyzer_init_failed', False):
             raise RuntimeError('Cloud evolution initialization failed; this is not a valid CoSkill run')
         train_env.retrieval_memory.save_skills(str(output / 'skills_latest.json'))
@@ -148,6 +150,8 @@ def main():
     cloud = CoSkillCloudLoop(output_dir=output, enable_coskill=True, enable_playbook_evolve=True,
         enable_failure_analysis=True, max_new_skills=settings.max_new_skills,
         playbook_evolve_min_samples=settings.playbook_evolve_min_samples, environment_name=cfg.env.env_name)
+    from examples.playbook_evolve.cloud_api_guard import install_cloud_guard
+    install_cloud_guard(cloud, output)
     envs = make_envs(cfg)
     try:
         execute(cfg, list(pd.read_parquet(cfg.data.train_files).env_kwargs),
