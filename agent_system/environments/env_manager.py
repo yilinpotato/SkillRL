@@ -1122,19 +1122,9 @@ def make_envs(config):
         # the backward-compatible default.
         webshop_data_dir = os.environ.get("WEBSHOP_DATA_DIR") or os.path.join(
             os.path.dirname(__file__), 'env_package/webshop/webshop/data')
-        if config.env.webshop.use_small:
-            file_path = os.path.join(webshop_data_dir, 'items_shuffle_1000.json')
-            attr_path = os.path.join(webshop_data_dir, 'items_ins_v2_1000.json')
-        else:
-            file_path = os.path.join(webshop_data_dir, 'items_shuffle.json')
-            attr_path = os.path.join(webshop_data_dir, 'items_ins_v2.json')
-        env_kwargs = {
-                    'observation_mode': 'text', 
-                    'num_products': None, 
-                    'human_goals': config.env.webshop.human_goals,
-                    'file_path': file_path,
-                    'attr_path': attr_path
-                    }
+        from agent_system.environments.env_package.webshop.config import build_webshop_kwargs
+        env_kwargs = build_webshop_kwargs(
+            config.env.webshop.use_small, config.env.webshop.human_goals, webshop_data_dir)
         _envs = build_webshop_envs(seed=config.env.seed, env_num=config.data.train_batch_size, group_n=group_n, is_train=True, env_kwargs=env_kwargs, resources_per_worker=resources_per_worker)
         _val_envs = build_webshop_envs(seed=config.env.seed + 1000, env_num=config.data.val_batch_size, group_n=1, is_train=False, env_kwargs=env_kwargs, resources_per_worker=resources_per_worker)
 
