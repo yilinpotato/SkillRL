@@ -13,6 +13,9 @@ def restore_boundary(path, memory, pool):
         raise ValueError('Resume skills checksum mismatch')
     # Constructor treats all loaded entries as seeds. Replace its modified copy.
     memory.skills = json.loads(raw)
+    # Retrieval reads this live cache, not skills['skill_trees'] directly.
+    memory.task_playbooks = dict(memory.skills.get('skill_trees') or
+                                 memory.skills.get('task_playbooks') or {})
     memory.cycle = state['cycle']
     memory._skill_embeddings_cache = None
     for task_type, outcomes in state['recent_outcomes'].items():
